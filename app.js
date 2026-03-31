@@ -266,6 +266,7 @@ const View = {
     let mode = this.getEl('next-display-mode').value;
     Model.state.isAnimating = false; 
     
+    // 强制闯关模式不受选择下拉框的影响，固定为'all'
     if (Model.state.mode === 'dual-track') {
         Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
         let count = Model.state.dtWordAppearanceMap[idx];
@@ -337,11 +338,13 @@ const View = {
     
     let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
-    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
+    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
+    // 🌟 核心修复点：强制清洗 DOM 残留类名！
     if (Model.state.mode !== 'dual-track' && !isMemoryTest) {
+        // 如果是经典模式/复习模式，按正常情况加模糊滤镜
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
@@ -349,13 +352,15 @@ const View = {
         });
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
-    } else if (isMemoryTest) {
+    } else {
+        // 如果是闯关模式或记忆检测模式，强制剥离上一轮可能残留的所有的模糊类名 (防状态污染)
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if (mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
+        // 记忆检测模式还需要把例句强制隐藏防作弊
+        if (isMemoryTest && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
 
     this.getEl('capsule-pendulum').classList.add('hidden');
@@ -899,6 +904,7 @@ const Controller = {
   openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
   navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
   
+  // 🌟 物理级三段式平滑动画重构
   renderDetailCard(anim) {
     let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
     

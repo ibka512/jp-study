@@ -1,8 +1,12 @@
-const CACHE_NAME = 'pendulum-v8';
+const CACHE_NAME = 'pendulum-v9';
 const ASSETS = [
+  './',
   './index.html',
   './manifest.json',
-  './logo.png'
+  './logo.png',
+  './style.css',
+  './data.js',
+  './app.js'
 ];
 
 // 安装并强制缓存

@@ -314,14 +314,15 @@
   @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   .shake-anim { animation: shake 0.3s forwards; }
   
+  /* 🌟 下方这里已经为你补齐了 #mt-spell-keyboard 和 #mt-choice-buttons */
   .dt-spell-input-box { font-size: 2rem; text-align: center; margin-bottom: 24px; min-height: 56px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 10px;}
-  .dt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 24px;}
+  .dt-spell-keyboard, #mt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 24px;}
   .dt-spell-key { background: var(--surface-container); border: 2px solid var(--outline); font-size: 1.4rem; padding: 14px 20px; border-radius: 20px; cursor: pointer; font-family: var(--font-jp-sans); font-weight: 700; color: var(--on-surface); transition: transform 0.1s, box-shadow 0.1s, border-color 0.3s; box-shadow: 0 4px 0 var(--btn-shadow);}
   .dt-spell-key:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
   .dt-spell-key.wrong { border-color: var(--accent-red); background: var(--accent-red-bg); color: var(--accent-red); }
   .dt-spell-key.used { opacity: 0; pointer-events: none; transform: scale(0.5); }
   
-  #dt-choice-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  #dt-choice-buttons, #mt-choice-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .dt-choice-btn { width: auto; text-align: center; background: var(--surface-container); border: 2px solid var(--outline); padding: 20px 16px; border-radius: 24px; font-size: 1.05rem; cursor: pointer; color: var(--on-surface); font-weight: 700; transition: transform 0.1s, box-shadow 0.1s, border-color 0.3s; box-shadow: 0 4px 0 var(--btn-shadow); display: flex; align-items: center; justify-content: center; word-break: break-word; line-height: 1.4;}
   .dt-choice-btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
   .dt-choice-btn.wrong { border-color: var(--accent-red); background: var(--accent-red-bg); color: var(--accent-red); }

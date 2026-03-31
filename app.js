@@ -3,7 +3,6 @@
  * MVC 架构重构版 (极客防穿透 | XSS转义 | 视图抽屉引擎版)
  */
 
-// 🛡️ XSS 防护转义函数
 const escapeHTML = (str) => {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, tag => ({
@@ -11,7 +10,6 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-// 🛡️ 全局弹窗拦截器 (防滚动穿透)
 window.toggleModal = (id, show) => {
     let el = document.getElementById(id);
     if (!el) return;
@@ -97,6 +95,7 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
+    mtStep: 1, // 🌟 记忆检测专属通关步骤
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
     isAnimating: false 
   },
@@ -281,7 +280,7 @@ const View = {
     }
 
     this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
-    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs') {
+    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs' || Model.state.mode === 'memory-test') {
         this.updatePixelMatrix(); 
     }
 
@@ -290,7 +289,6 @@ const View = {
     card.querySelector('.watermark-layer').style.background = visuals.bg;
     this.getEl('flash-watermark').innerText = visuals.wm;
     
-    // 🌟 三段式丝滑动画
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     if (anim !== 'none') {
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
@@ -306,10 +304,29 @@ const View = {
 
   updateCardContent(w, visuals, mode) {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
-    this.getEl('w-word').innerText = w.word; 
-    this.getEl('w-kana').innerText = w.kana;
+    let isMemoryTest = (Model.state.mode === 'memory-test');
+    
+    // 🌟 记忆检测纯物理掩码引擎：防透视！
+    let mask = (str) => '■'.repeat(Array.from(str || '').length);
+    let showWord = true, showKana = true, showMeaning = true;
+    
+    if (isMemoryTest && mode !== 'all') {
+        if (mode === 'word') {
+            showKana = Model.state.mtStep > 1; 
+            showMeaning = false; 
+        } else if (mode === 'kana') {
+            showWord = Model.state.mtStep > 1; 
+            showMeaning = false;
+        } else if (mode === 'meaning') {
+            showKana = Model.state.mtStep > 1; 
+            showWord = false; 
+        }
+    }
+
+    this.getEl('w-word').innerText = (!showWord) ? mask(w.word) : w.word; 
+    this.getEl('w-kana').innerText = (!showKana) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
+    this.getEl('w-meaning').innerText = (!showMeaning) ? mask(w.meaning) : w.meaning;
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
-    this.getEl('w-meaning').innerText = w.meaning;
     
     let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
     this.getEl('star-icon').classList.toggle('icon-filled', isStarred);
@@ -317,27 +334,46 @@ const View = {
     let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
     let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
 
-    this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
-    this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
-    this.getEl('btn-speaker').style.display = isDtSpell ? 'none' : 'block';
+    // 经典与双轨模式的显隐规则
+    if (Model.state.mode !== 'memory-test') {
+        this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
+        this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
+    } else {
+        this.getEl('w-kana').style.display = 'block';
+        this.getEl('w-meaning').style.display = 'block';
+    }
     
+    // 记忆检测模式下，读假名防作弊
+    let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
+    this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
-    if (Model.state.mode !== 'dual-track') {
+    // 原有的高斯模糊滤镜逻辑（仅对非检测模式生效）
+    if (Model.state.mode !== 'dual-track' && !isMemoryTest) {
         ['word','kana','type','meaning'].forEach(k => {
-        let el = this.getEl(`w-${k}`);
-        el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
-        if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) el.classList.add('blur-text');
+            let el = this.getEl(`w-${k}`);
+            el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
+            if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) el.classList.add('blur-text');
         });
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
+    } else if (isMemoryTest) {
+        // 彻底剥夺模糊类的防作弊清理
+        ['word','kana','type','meaning'].forEach(k => {
+            let el = this.getEl(`w-${k}`);
+            el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
+        });
+        this.getEl('w-example-box').className = 'dt-example-box';
+        if (mode !== 'all') this.getEl('w-example-box').style.display = 'none'; // 强制隐藏例句
     }
 
+    // 底部 UI 显隐控制器
     this.getEl('capsule-pendulum').classList.add('hidden');
     this.getEl('capsule-srs').classList.add('hidden');
     this.getEl('dual-track-ui').classList.add('hidden');
+    this.getEl('memory-test-ui').classList.add('hidden');
     
     if (Model.state.mode === 'pendulum') {
       this.getEl('capsule-pendulum').classList.remove('hidden');
@@ -351,9 +387,12 @@ const View = {
     } else if (Model.state.mode === 'dual-track') {
       this.getEl('dual-track-ui').classList.remove('hidden');
       this.renderDualTrackUI(w);
+    } else if (Model.state.mode === 'memory-test') {
+      this.getEl('memory-test-ui').classList.remove('hidden');
+      this.renderMemoryTestUI(w, mode);
     }
     
-    if (this.getEl('auto-speak').checked && !isDtSpell) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+    if (this.getEl('auto-speak').checked && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
   },
 
   renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
@@ -426,6 +465,67 @@ const View = {
           });
       }
   },
+  
+  // 🌟 核心：记忆检测模式 UI 生成器
+  renderMemoryTestUI(wObj, displayMode) {
+      this.getEl('mt-warning').classList.add('hidden');
+      this.getEl('mt-spell-area').classList.add('hidden');
+      this.getEl('mt-choice-area').classList.add('hidden');
+      
+      if (displayMode === 'all') {
+          this.getEl('mt-warning').classList.remove('hidden');
+          return;
+      }
+
+      let currentTestType = '';
+      if (displayMode === 'word') {
+          currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning';
+      } else if (displayMode === 'kana') {
+          currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning';
+      } else if (displayMode === 'meaning') {
+          currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word';
+      }
+
+      if (currentTestType === 'spell') {
+          this.getEl('mt-spell-area').classList.remove('hidden');
+          let targetTokens = Model.splitKanaByMora(wObj.kana);
+          Model.state.dtSpellTarget = targetTokens; // 复用键盘判词逻辑容器
+          Model.state.dtSpellCurrentIdx = 0;
+          this.getEl('mt-spell-input').innerText = ''; 
+          
+          let pool = [];
+          // 🔥 强制填充极客干扰项（至少包含 8 个伪选项）
+          while(pool.length < Math.max(8, 12 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
+          
+          let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
+          let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
+          allTokens.forEach((token) => {
+              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token;
+              btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode);
+              kb.appendChild(btn);
+          });
+      } else if (currentTestType.startsWith('choice')) {
+          this.getEl('mt-choice-area').classList.remove('hidden');
+          let isMeaning = currentTestType === 'choice-meaning';
+          let targetText = isMeaning ? wObj.meaning : wObj.word;
+          
+          let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
+          if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
+          
+          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
+          let choices = [{text: targetText, correct: true}];
+          pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false}));
+          choices.sort(() => Math.random() - 0.5); 
+          
+          let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
+          choices.forEach(c => {
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text;
+              btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode);
+              cb.appendChild(btn);
+          });
+      }
+  },
+
   resetWordbankRenderer() { Model.state.wbCurrentRendered = 0; this.getEl('wb-grid').innerHTML = ''; this.renderMoreWordbank(); },
   renderMoreWordbank() {
     const grid = this.getEl('wb-grid'); const cols = this.getEl('wb-col-select').value; const blurMode = this.getEl('wb-blur-select').value; const currentFilter = this.getEl('wb-folder-filter').value;
@@ -494,13 +594,23 @@ const Controller = {
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
     View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.unlockSpeech(); this.startSRS(); });
+    // 🌟 新绑定：启动记忆检测模式
+    View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
     ['next-display-mode', 'initial-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
-        View.getEl(id).addEventListener('change', () => { Hardware.playSound('click'); if(id === 'next-display-mode') View.renderStudyCard('none'); else if(id.includes('wb')) View.resetWordbankRenderer(); });
+        View.getEl(id).addEventListener('change', () => { 
+            Hardware.playSound('click'); 
+            if(id === 'next-display-mode') {
+                Model.state.mtStep = 1; // 切换选项时重置通关状态
+                View.renderStudyCard('none'); 
+            } else if(id.includes('wb')) {
+                View.resetWordbankRenderer(); 
+            }
+        });
     });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
 
@@ -613,7 +723,7 @@ const Controller = {
       for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
     }
     
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; 
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; // 归零步骤状态
     View.getEl('next-display-mode').value = View.getEl('initial-mode').value; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
     let c = View.getEl('pixel-matrix'); c.innerHTML='';
@@ -653,7 +763,81 @@ const Controller = {
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
   },
 
+  // 🌟 核心：记忆检测模式专用判断器 - 拼写模块
+  handleMtSpellClick(btn, token, wObj, displayMode) {
+      if (Model.state.isAnimating || btn.classList.contains('used')) return;
+      let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
+      if (token === targetChar) {
+          Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
+          View.getEl('mt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
+          
+          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
+              Model.state.isAnimating = true; 
+              Hardware.playSound('success'); Hardware.vibrate(50); 
+              
+              // 拼写成功，物理剥除第一层方块掩盖！
+              if(displayMode === 'word' || displayMode === 'meaning') {
+                  View.getEl('w-kana').innerText = wObj.kana; 
+                  View.getEl('w-kana').classList.add('shake-anim');
+                  setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300);
+              }
+              
+              setTimeout(() => {
+                  Model.state.mtStep = 2; // 进入阶段二
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 600); 
+          }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+  },
+
+  // 🌟 核心：记忆检测模式专用判断器 - 选项模块
+  handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
+      if (Model.state.isAnimating) return;
+      if (isCorrect) {
+          Model.state.isAnimating = true; 
+          btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
+          
+          if (Model.state.mtStep === 1) {
+              // 说明是「只显假名」的第一阶段（选原词）
+              View.getEl('w-word').innerText = wObj.word; 
+              View.getEl('w-word').classList.add('shake-anim');
+              setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
+              
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 600);
+          } else {
+              // mtStep 为 2：完全通关！剥除最后所有遮挡。
+              if (displayMode === 'word' || displayMode === 'kana') {
+                  View.getEl('w-meaning').innerText = wObj.meaning;
+              } else if (displayMode === 'meaning') {
+                  View.getEl('w-word').innerText = wObj.word;
+              }
+              
+              // 彻底通关，亮出隐藏的例句
+              View.getEl('w-example-box').style.display = 'block'; 
+              document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
+              setTimeout(() => this.mtAdvanceNext(), 800);
+          }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+  },
+
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
+  
+  // 🌟 记忆模式专属前推函数（重置 step 状态）
+  mtAdvanceNext() {
+      Model.state.currentIndex++;
+      Model.state.mtStep = 1; 
+      if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
+          this.finishPendulum(); 
+      } else { 
+          View.renderStudyCard('next'); 
+      }
+  },
+
   finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel);

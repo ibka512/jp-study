@@ -67,12 +67,16 @@
       <button id="btn-start-srs" class="btn-srs icon-text-gap" style="margin-bottom: 16px; font-size: 1.1rem; padding: 18px; white-space: nowrap;">
         <span class="material-symbols-rounded">psychology</span> 智能复习 (SRS)
       </button>
-      <div class="flex-row" style="margin-bottom: 32px; flex-wrap: nowrap;">
-        <button id="btn-start-pendulum" style="flex: 1; margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+      
+      <div class="flex-row" style="margin-bottom: 32px; flex-wrap: wrap; gap: 12px;">
+        <button id="btn-start-pendulum" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">directions_run</span> 经典突击
         </button>
-        <button id="btn-start-dual-track" style="flex: 1; background: var(--accent-red); color: var(--on-primary); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+        <button id="btn-start-dual-track" style="flex: 1 1 40%; background: var(--accent-red); color: var(--on-primary); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">swords</span> 闯关模式
+        </button>
+        <button id="btn-start-memory-test" style="flex: 1 1 100%; background: var(--on-surface); color: var(--surface); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+            <span class="material-symbols-rounded">quiz</span> 记忆检测
         </button>
       </div>
 
@@ -123,6 +127,14 @@
     <div id="dual-track-ui" class="hidden">
       <div id="dt-spell-area" class="hidden"><div id="dt-spell-input" class="dt-spell-input-box"></div><div id="dt-spell-keyboard" class="dt-spell-keyboard"></div></div>
       <div id="dt-choice-area" class="hidden"><div id="dt-choice-buttons"></div></div>
+    </div>
+
+    <div id="memory-test-ui" class="hidden" style="margin-bottom: 24px;">
+      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--small-radius); margin: 0 16px;">
+        <span class="material-symbols-rounded" style="font-size: 2.5rem; margin-bottom: 12px;">visibility_off</span><br>全显模式下无法进行检测<br><span style="font-size:0.85rem; opacity:0.8; display:inline-block; margin-top:8px;">请在上方切换「汉字/假名/释义」<br>作为掩盖检测项</span>
+      </div>
+      <div id="mt-spell-area" class="hidden"><div id="mt-spell-input" class="dt-spell-input-box"></div><div id="mt-spell-keyboard"></div></div>
+      <div id="mt-choice-area" class="hidden"><div id="mt-choice-buttons"></div></div>
     </div>
 
     <div id="capsule-pendulum" class="floating-capsule hidden">

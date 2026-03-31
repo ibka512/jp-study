@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v4';
+const CACHE_NAME = 'pendulum-v5';
 const ASSETS = [
   './index.html',
   './manifest.json',

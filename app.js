@@ -256,8 +256,7 @@ const View = {
     });
     select.dispatchEvent(new Event('facade-update'));
     
-    let list = this.getEl('record-list');
-    if(Model.records.length > 0) list.innerHTML = Model.records.slice(0, 5).map(x => `<div style="margin-bottom:8px; font-weight: 600; display:flex; align-items:center; gap:8px;"><span class="material-symbols-rounded" style="font-size:1.1rem; opacity:0.8;">calendar_today</span> ${x.date} <span style="opacity:0.4">|</span> ${x.group}</div>`).join('');
+    
   },
   
   renderStudyCard(anim = 'none') {

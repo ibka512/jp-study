@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      console.log('Service Worker 注册成功');
+    });
+  }
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>钟摆日语 - 乱序版</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0" rel="stylesheet" />
+
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+    chtml: { scale: 1.1 } 
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  
+  :root {
+    --primary: #8b7967; --primary-container: #f4f0ea; --on-primary: #ffffff;
+    --surface: #faf9f7; --surface-container: #ffffff; --on-surface: #3a352f;
+    --outline: #ddd5cc; --tertiary: #6b847b;        
+    --accent-red: #ba6b68; --accent-red-bg: #fdf3f3; --accent-green-bg: #f0f7f3;
+
+    --bg-verb: #D0EFFF; --bg-noun: #FFE5CC; --bg-adj: #FFDDE4;        
+    --bg-adj-na: #FFF2C2; --bg-adv: #C7F6D6; --bg-pronoun: #CCF0F0; --bg-other: #ECEEED;      
+
+    --card-radius: 32px;        
+    --btn-radius: 999px;        
+    --small-radius: 16px;       
+    
+    --btn-shadow: rgba(0,0,0,0.12); 
+    
+    --font-ui: system-ui, -apple-system, "PingFang SC", sans-serif;
+    --font-jp-serif: 'Noto Serif JP', serif; --font-jp-sans: 'Noto Sans JP', sans-serif;
+    --spring: cubic-bezier(0.2, 0.8, 0.2, 1.1); 
+  }
+
+  [data-theme="dark"] {
+    --primary: #d6c3b0; --primary-container: #503f2f; --on-primary: #3b2e21;      
+    --surface: #181614; --surface-container: #23201d; --on-surface: #e8e2d9;      
+    --outline: #79726a; --tertiary: #a4c7b6;        
+    --accent-red: #ffb4a9; --accent-red-bg: #690005; --accent-green-bg: #1c3829; 
+
+    --bg-verb: #113B4D; --bg-noun: #4D280B; --bg-adj: #47152A;        
+    --bg-adj-na: #4A401A; --bg-adv: #163E23; --bg-pronoun: #14404A; --bg-other: #292B2B;      
+
+    --btn-shadow: rgba(0,0,0,0.4);
+  }
+  
+  body.modal-open { overflow: hidden; }
+
+  body { font-family: var(--font-ui); background-color: var(--surface); color: var(--on-surface); padding: 24px 16px; margin: 0; transition: background-color 0.4s, color 0.4s; overflow-x: hidden;}
+  .app-container { max-width: 440px; margin: 0 auto; position: relative;}
+
+  .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24; vertical-align: middle; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+  .icon-filled { font-variation-settings: 'FILL' 1, 'wght' 500; }
+  .icon-text-gap { display: flex; align-items: center; gap: 6px; justify-content: center; }
+  
+  .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 8px;}
+  .header-titles { display: flex; flex-direction: column; justify-content: center;}
+  .header-titles h2 { color: var(--primary); font-weight: 700; margin: 0; font-size: 1.6rem; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;}
+  
+  .custom-select-wrapper { position: relative; display: flex; align-items: center; width: 100%;}
+  .select-icon-left { position: absolute; left: 16px; font-size: 1.1rem; color: var(--primary); pointer-events: none; z-index: 2; }
+  .select-icon-right { position: absolute; right: 12px; font-size: 1.3rem; color: var(--primary); pointer-events: none; opacity: 0.8; z-index: 2; }
+  
+  .bs-facade { background: var(--surface-container); border: 2px solid var(--outline); color: var(--primary); border-radius: var(--btn-radius); padding: 0 38px 0 42px; font-size: 0.95rem; font-weight: 700; cursor: pointer; height: 48px; box-shadow: 0 4px 0 var(--btn-shadow); transition: transform 0.1s, box-shadow 0.1s; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;}
+  .bs-facade:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .bs-facade-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;}
+  
+  .icon-btn { background: var(--surface-container); border: 2px solid var(--outline); color: var(--primary); width: 48px; height: 48px; border-radius: 50%; font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 0 var(--btn-shadow); transition: transform 0.1s, box-shadow 0.1s; flex-shrink: 0;}
+  .icon-btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+
+  .card-panel { background: var(--surface-container); border-radius: var(--card-radius); padding: 24px; margin-bottom: 24px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.04); transition: background-color 0.4s; }
+  [data-theme="light"] .card-panel { box-shadow: 0 8px 32px rgba(139, 121, 103, 0.08); }
+  
+  .stats-grid { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;}
+  .stat-item { background: var(--primary-container); border-radius: var(--small-radius); padding: 16px 8px; flex: 1; text-align: center; min-width: 70px; transition: background 0.4s; }
+  .stat-number { font-size: 1.6rem; font-weight: 800; color: var(--primary); line-height: 1.2; }
+  .stat-label { font-size: 0.75rem; opacity: 0.8; margin-top: 6px; font-weight: 600;}
+
+  h3 { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); margin-top: 0; padding-bottom: 12px; border-bottom: 2px solid var(--outline); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;}
+  
+  textarea, input { background: transparent; border: 2px solid var(--outline); border-radius: var(--small-radius); padding: 16px 20px; font-size: 0.95rem; width: 100%; margin-bottom: 20px; color: var(--on-surface); font-family: var(--font-ui); outline: none; transition: border-color 0.3s; }
+  textarea:focus, input:focus { border-color: var(--primary); }
+  textarea { height: 120px; resize: none; font-size: 0.95rem;}
+  
+  button { background: var(--primary); color: var(--on-primary); border: none; font-family: var(--font-ui); border-radius: var(--btn-radius); padding: 16px 24px; font-weight: 700; font-size: 1.05rem; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s, background-color 0.4s; width: 100%; box-shadow: 0 4px 0 var(--btn-shadow); display: flex; align-items: center; justify-content: center; gap: 8px;}
+  button:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .btn-outline { background: transparent; border: 2px solid var(--outline); color: var(--on-surface); }
+  .btn-small { padding: 10px 16px; font-size: 0.95rem; width: auto; border-radius: var(--small-radius); box-shadow: 0 3px 0 var(--btn-shadow);}
+  .btn-small:active { transform: translateY(3px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .btn-srs { background: var(--tertiary); color: #fff;}
+  [data-theme="dark"] .btn-srs { color: #1a2a22; }
+  .flex-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;}
+
+  .vs-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; background: var(--surface); border: 2px solid var(--outline); color: var(--on-surface); border-radius: var(--small-radius); padding: 14px 0; font-weight: 700; transition: all 0.2s; cursor: pointer; box-shadow: 0 4px 0 var(--btn-shadow); font-size: 0.95rem;}
+  .vs-btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .vs-btn.selected { background: var(--tertiary); border-color: var(--tertiary); color: var(--on-primary); }
+
+  #pixel-matrix { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 100%; margin: 10px auto 24px; padding: 0 16px;}
+  .pixel { height: 6px; flex: 1 1 8%; max-width: 32px; background-color: var(--outline); border-radius: 8px; transition: all 0.4s var(--spring); }
+  .pixel.filled { background-color: var(--fill-color, #8b7967); opacity: 0.95; }
+  .pixel.current { background-color: var(--tertiary); transform: scaleY(1.8); box-shadow: 0 4px 12px rgba(107,132,123,0.4); }
+
+  .watermark-layer { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; transition: background 0.4s ease; }
+  .watermark { position: absolute; bottom: -15px; right: -10px; font-family: var(--font-jp-serif); color: var(--on-surface); opacity: 0.05; font-weight: 900; white-space: nowrap; line-height: 1; }
+  [data-theme="dark"] .watermark { opacity: 0.08; color: #ffffff; }
+
+  .word-main, .info-row-group, .dt-example-box, .wb-c-word, .wb-c-kana, .wb-c-mean, .dt-word { position: relative; z-index: 1; }
+
+  #study-area { padding-bottom: calc(100px + env(safe-area-inset-bottom)); overflow-x: hidden; }
+  
+  .flash-card { text-align: center; padding: 64px 20px 48px 20px; border-radius: var(--card-radius); margin: 16px 0 32px 0; position: relative; background: transparent; transition: transform 0.4s var(--spring), opacity 0.4s ease; z-index: 5; }
+  .flash-card::before, .flash-card::after { content: ''; position: absolute; top: 0; border-radius: var(--card-radius); background: var(--surface-container); border: 2px solid var(--outline); transition: all 0.5s var(--spring); }
+  .flash-card::before { bottom: -10px; left: 12px; right: 12px; opacity: 0.8; z-index: -1; }
+  .flash-card::after { bottom: -20px; left: 24px; right: 24px; opacity: 0.5; z-index: -2; }
+  [data-theme="dark"] .flash-card::before, [data-theme="dark"] .flash-card::after { background: var(--surface-container); border-color: var(--outline); }
+  .flash-card .watermark { font-size: 10rem; right: -20px; bottom: -25px;}
+  
+  .speaker-icon { position: absolute; top: 20px; left: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; opacity: 0.8; z-index: 10; padding: 8px; margin: -8px;}
+  .speaker-icon:active { transform: scale(0.85); }
+  .star-btn { position: absolute; top: 20px; right: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; user-select: none; z-index: 10; padding: 8px; margin: -8px;}
+  .star-btn:active { transform: scale(0.85); }
+
+  .star-particle { position: fixed; width: 8px; height: 8px; background: var(--tertiary); border-radius: 50%; pointer-events: none; z-index: 9999; animation: particle-burst 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+  @keyframes particle-burst { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; } }
+
+  .word-main { font-size: clamp(2.8rem, 13vw, 4.5rem); line-height: 1.2; font-weight: 900; font-family: var(--font-jp-serif); letter-spacing: 2px; margin-bottom: 16px; color: var(--on-surface); cursor: pointer; word-break: keep-all; }
+  .info-row-group { display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 36px; }
+  .kana-row { font-size: 1.2rem; font-weight: 600; font-family: var(--font-jp-sans); color: var(--primary); cursor: pointer; margin: 0; }
+  
+  .type-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; cursor: pointer; }
+  .type-capsule { font-size: 0.85rem; padding: 6px 14px; border-radius: var(--small-radius); color: var(--on-surface); font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: inline-block; transition: background 0.4s;}
+  [data-theme="dark"] .type-capsule { border: 1px solid rgba(255,255,255,0.06); color: #fff;}
+  .dt-type { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+
+  .meaning-row { font-size: 1.4rem; font-weight: 700; color: var(--on-surface); opacity: 0.85; cursor: pointer; margin: 0; }
+  
+  .blur-text { background-color: var(--outline); border-radius: var(--small-radius); opacity: 0.7; filter: blur(6px); padding: 12px 18px; margin: -8px -6px; transition: filter 0.4s var(--spring), background-color 0.4s ease, opacity 0.4s ease; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 80px; user-select: none; }
+  .blur-text.active { filter: blur(0); background-color: transparent; opacity: 1; transform: scale(1.05); padding: 4px 8px; margin: 0;}
+
+  .floating-capsule { position: fixed; bottom: calc(32px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; gap: 8px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 8px; border-radius: 32px; box-shadow: 0 16px 40px rgba(0,0,0,0.12); border: 2px solid rgba(255, 255, 255, 0.5); z-index: 1000; width: 90%; max-width: 380px; transition: background 0.4s, border-color 0.4s; }
+  [data-theme="dark"] .floating-capsule { background: rgba(30, 28, 26, 0.75); border-color: rgba(255,255,255,0.1); box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+  
+  .floating-capsule button { border-radius: 999px; margin: 0; flex: 1 1 40%; padding: 14px 0; font-size: 1.05rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; line-height: 1.2; box-shadow: none; background: transparent; border: 2px solid transparent;}
+  .floating-capsule button:active { transform: scale(0.96); box-shadow: none; }
+  
+  #btn-prev { color: var(--on-surface); opacity: 0.8; border: 2px solid var(--outline); font-weight: 600;}
+  #btn-prev:active { background: rgba(0,0,0,0.06); }
+  [data-theme="dark"] #btn-prev:active { background: rgba(255,255,255,0.1); }
+  
+  #btn-next { background: var(--primary-container); color: var(--primary); font-weight: 800; border-color: transparent;}
+  [data-theme="dark"] #btn-next { background: rgba(214, 195, 176, 0.15); }
+  
+  .btn-srs-again { color: var(--accent-red) !important; }
+  .btn-srs-hard { color: #c48c4b !important; }
+  .btn-srs-good { color: var(--tertiary) !important; }
+  .btn-srs-easy { color: #5c8c6d !important; }
+  [data-theme="dark"] .btn-srs-hard { color: #fcebd7 !important;}
+  [data-theme="dark"] .btn-srs-easy { color: #87c7a5 !important;}
+  .srs-time { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; font-weight: 600;}
+
+  #wordbank-area { display: none; }
+  #btn-exit-wb, #btn-exit-study { padding: 12px 16px; margin: -12px -12px -12px -16px; z-index: 2;}
+  
+  /* 🗃️ 词库头部终极排版（两行流） */
+  .wb-header { position: relative; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 8px;}
+  .wb-title-center { position: absolute; left: 0; right: 0; text-align: center; font-weight: 800; color: var(--primary); font-size: 1.3rem; pointer-events: none;}
+  
+  #wb-grid-container { width: 100%; position: relative; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+  #wb-grid { display: grid; gap: 12px; width: 100%; }
+  #wb-grid[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #wb-grid[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #wb-grid[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+
+  @keyframes fadeUpStagger {
+      from { opacity: 0; transform: translateY(20px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .wb-card { min-width: 0; border-radius: var(--card-radius); padding: 28px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.2s var(--spring), background 0.4s ease, opacity 0.2s; user-select: none; -webkit-user-select: none; box-shadow: 0 4px 12px rgba(0,0,0,0.03); overflow: hidden; cursor: pointer; opacity: 0;}
+  .wb-card.pressing { transform: scale(0.95); opacity: 0.95; }
+  .wb-card::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background 0.4s ease; pointer-events: none; z-index: 2;}
+  .wb-card.pressing::after { background: rgba(0,0,0,0.08); }
+  [data-theme="dark"] .wb-card.pressing::after { background: rgba(255,255,255,0.1); }
+  
+  .wb-card .watermark { font-size: 5.5rem; opacity: 0.06; right: -5px; bottom: -10px;}
+  [data-theme="dark"] .wb-card .watermark { opacity: 0.09; }
+  
+  .wb-c-word, .wb-c-kana, .wb-c-mean { pointer-events: none; }
+  .wb-blur-trigger { pointer-events: auto; }
+  
+  .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: var(--on-surface); line-height: 1.2; word-break: break-word; text-align: center; width: 100%; z-index: 3;}
+  .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: var(--on-surface); text-align: center; word-break: break-word; width: 100%; font-weight: 600; z-index: 3;}
+  .wb-c-mean { font-size: 0.85rem; font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; color: var(--on-surface); opacity: 0.9; z-index: 3;}
+  .wb-c-speaker { position: absolute; top: 12px; right: 12px; font-size: 1.3rem; color: var(--primary); opacity: 0.7; z-index: 10; padding: 8px; margin: -8px;}
+  
+  #wb-grid[data-cols="3"] .wb-card { padding: 24px 8px 12px; border-radius: 20px;}
+  #wb-grid[data-cols="3"] .wb-c-word { font-size: 1.1rem; margin-bottom: 4px; }
+  #wb-grid[data-cols="3"] .wb-c-kana { font-size: 0.8rem; margin-bottom: 8px; }
+  #wb-grid[data-cols="3"] .wb-c-mean { font-size: 0.75rem; }
+  #wb-grid[data-cols="3"] .wb-card .watermark { font-size: 4.5rem; right: -5px; bottom: -5px; }
+
+  #wb-grid[data-cols="4"] .wb-card { padding: 16px 4px 10px; border-radius: 16px; gap: 4px;}
+  #wb-grid[data-cols="4"] .wb-c-word { font-size: 0.95rem; margin-bottom: 2px;}
+  #wb-grid[data-cols="4"] .wb-c-kana { font-size: 0.7rem; margin-bottom: 4px; opacity: 0.7;}
+  #wb-grid[data-cols="4"] .wb-c-mean { font-size: 0.7rem; opacity: 0.8;}
+  #wb-grid[data-cols="4"] .wb-c-speaker { display: none; }
+  #wb-grid[data-cols="4"] .wb-card .watermark { font-size: 3.5rem; right: -5px; bottom: -5px;}
+
+  .wb-checkbox { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); z-index: 10; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; transition: all 0.2s; pointer-events: none;}
+  .wb-checkbox.checked { background: var(--primary); }
+  
+  .batch-bar { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.8); border-radius: 999px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 16px 40px rgba(0,0,0,0.12); z-index: 100; border: 2px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
+  [data-theme="dark"] .batch-bar { background: rgba(30,28,26,0.85); border-color: rgba(255,255,255,0.1); }
+  .batch-bar button { width: auto; padding: 10px 16px; margin: 0; font-size: 0.9rem; box-shadow: 0 4px 0 var(--btn-shadow);}
+  .batch-count { font-size: 0.95rem; font-weight: 700; color: var(--on-surface); margin-left: 8px;}
+
+  .wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);}
+  .wb-manage-overlay.active { opacity: 1; pointer-events: auto;}
+  .wb-btn-move, .wb-btn-edit, .wb-btn-del { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.1s; box-shadow: 0 4px 0 rgba(0,0,0,0.2);}
+  .wb-btn-move:active, .wb-btn-edit:active, .wb-btn-del:active { transform: translateY(4px); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  .wb-btn-move { background: var(--tertiary); color: white; }
+  [data-theme="dark"] .wb-btn-move { color: #1a2a22; }
+  .wb-btn-edit { background: var(--surface-container); color: var(--on-surface); }
+  .wb-btn-del { background: var(--accent-red); color: white; }
+  [data-theme="dark"] .wb-btn-del { color: #3b0002; }
+
+  #wb-grid[data-cols="3"] .wb-manage-overlay { gap: 8px; }
+  #wb-grid[data-cols="3"] .wb-btn-move, #wb-grid[data-cols="3"] .wb-btn-edit, #wb-grid[data-cols="3"] .wb-btn-del { width: 36px; height: 36px; font-size: 1.05rem; }
+  #wb-grid[data-cols="4"] .wb-manage-overlay { flex-direction: column; gap: 6px; }
+  #wb-grid[data-cols="4"] .wb-btn-move, #wb-grid[data-cols="4"] .wb-btn-edit, #wb-grid[data-cols="4"] .wb-btn-del { width: 30px; height: 30px; font-size: 0.9rem; box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+  #wb-grid[data-cols="4"] .wb-btn-move:active, #wb-grid[data-cols="4"] .wb-btn-edit:active, #wb-grid[data-cols="4"] .wb-btn-del:active { transform: translateY(2px); }
+
+  /* 🌟 弹窗体系 */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(30, 27, 24, 0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.4s; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);}
+  .modal-overlay.active { opacity: 1; pointer-events: auto; }
+  
+  .dialog-content { background: var(--surface-container); width: 85%; max-width: 340px; border-radius: var(--card-radius); padding: 32px 24px; text-align: center; color: var(--on-surface); transform: scale(0.95); transition: transform 0.4s var(--spring); box-shadow: 0 24px 48px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto;}
+  .modal-overlay.active .dialog-content { transform: scale(1); }
+  
+  .edit-modal-content { text-align: left; }
+  .edit-input-group { margin-bottom: 16px; }
+  .edit-input-group label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); padding-left: 12px;}
+  .edit-input-group input { margin-bottom: 0; padding: 14px 20px; border-radius: var(--btn-radius); }
+  
+  /* 底部抽屉适配与滚动修复 */
+  #bs-overlay, #view-settings-overlay { align-items: flex-end; }
+  .bottom-sheet { background: var(--surface-container); width: 100%; max-width: 500px; border-radius: 32px 32px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform 0.4s var(--spring); box-shadow: 0 -8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 85vh;}
+  .modal-overlay.active .bottom-sheet { transform: translateY(0); }
+  .bs-handle { width: 48px; height: 6px; background: var(--outline); border-radius: 6px; margin: 0 auto 24px; opacity: 0.6; flex-shrink: 0;}
+  .bs-scrollable-content { overflow-y: auto; padding-bottom: 16px;}
+  #bs-title { text-align: center; margin-bottom: 20px; font-size: 1.15rem; font-weight: 800; color: var(--on-surface); opacity: 0.8;}
+  .bs-option { padding: 18px 24px; border-radius: var(--btn-radius); font-weight: 700; font-size: 1.05rem; color: var(--on-surface); margin-bottom: 12px; background: var(--surface); text-align: center; transition: transform 0.1s, background 0.3s; box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor: pointer;}
+  .bs-option:active { transform: scale(0.96); }
+  .bs-option.selected { background: var(--tertiary); color: var(--on-primary); box-shadow: 0 4px 12px rgba(107,132,123,0.3);}
+
+  .toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--on-surface); color: var(--surface); padding: 14px 28px; border-radius: 999px; font-weight: 700; font-size: 0.95rem; z-index: 9999; box-shadow: 0 12px 32px rgba(0,0,0,0.2); transition: top 0.4s var(--spring), opacity 0.4s; opacity: 0; pointer-events: none; white-space: nowrap;}
+  .toast.show { top: calc(48px + env(safe-area-inset-top)); opacity: 1; }
+
+  .detail-card-container { width: 85%; max-width: 380px; border-radius: var(--card-radius); padding: 48px 24px; position: relative; transform: scale(0.95); transition: transform 0.4s var(--spring); box-shadow: 0 24px 48px rgba(0,0,0,0.15); text-align: center; background: transparent;}
+  .modal-overlay.active .detail-card-container { transform: scale(1); }
+  .detail-card-container .watermark { font-size: 9rem; opacity: 0.04; right: -15px; bottom: -20px;}
+  .detail-anim-wrapper { transition: transform 0.2s ease, opacity 0.2s ease; position: relative;}
+  
+  @keyframes slideOutLeft { to { opacity: 0; transform: translateX(-40px) scale(0.95); } }
+  @keyframes slideOutRight { to { opacity: 0; transform: translateX(40px) scale(0.95); } }
+  @keyframes slideInRight { from { opacity: 0; transform: translateX(40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  @keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  
+  .anim-slide-out-left { animation: slideOutLeft 0.2s var(--spring) forwards; }
+  .anim-slide-out-right { animation: slideOutRight 0.2s var(--spring) forwards; }
+  .anim-slide-in-right { animation: slideInRight 0.2s var(--spring) forwards; }
+  .anim-slide-in-left { animation: slideInLeft 0.2s var(--spring) forwards; }
+  
+  .dt-word { font-family: var(--font-jp-serif); font-size: 3.2rem; font-weight: 900; margin-bottom: 12px; color: var(--on-surface);}
+  .dt-kana { font-family: var(--font-jp-sans); font-size: 1.25rem; font-weight: 600; opacity: 0.8; color: var(--on-surface); margin: 0;}
+  .dt-mean { font-size: 1.5rem; font-weight: 700; color: var(--on-surface); margin: 0;}
+  
+  .dt-example-box { background: rgba(0, 0, 0, 0.03); padding: 20px; border-radius: var(--small-radius); text-align: left; transition: filter 0.4s var(--spring), opacity 0.4s ease;}
+  [data-theme="dark"] .dt-example-box { background: rgba(255, 255, 255, 0.04); }
+  .ex-item { padding-bottom: 16px; margin-bottom: 16px; border-bottom: 2px solid rgba(0,0,0,0.04); }
+  [data-theme="dark"] .ex-item { border-bottom: 2px solid rgba(255,255,255,0.04); }
+  .ex-item:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
+  .dt-ex-jp { font-family: var(--font-jp-sans); font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; color: var(--on-surface); line-height: 2.2; transition: opacity 0.2s ease;}
+  
+  .dt-ex-cn { display: inline-flex; align-items: center; gap: 8px; transform-origin: center; transition: transform 0.3s var(--spring), opacity 0.3s ease; }
+  .dt-ex-cn.revealed-translation { font-size: 0.95rem; opacity: 0.8; color: var(--on-surface); line-height: 1.6; }
+  .dt-ex-cn.hidden-translation { background: rgba(0,0,0,0.06); padding: 8px 16px; border-radius: 16px; color: var(--on-surface); opacity: 0.7; font-size: 0.9rem; font-weight: 700; cursor: default; user-select: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.04); }
+  [data-theme="dark"] .dt-ex-cn.hidden-translation { background: rgba(255,255,255,0.08); opacity: 0.85; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+  
+  .detail-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: var(--surface-container); color: var(--primary); border: 2px solid var(--outline); border-radius: 50%; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; cursor: pointer; box-shadow: 0 4px 0 var(--btn-shadow); z-index: 2010; transition: transform 0.1s; }
+  .detail-nav-btn:active { transform: translateY(calc(-50% + 4px)); box-shadow: 0 0 0 var(--btn-shadow); }
+  #detail-prev { left: -28px; } #detail-next { right: -28px; }
+  #detail-close { position: absolute; top: 20px; right: 20px; font-size: 2rem; color: var(--on-surface); opacity: 0.5; cursor: pointer; z-index: 10; transition: transform 0.2s; padding: 12px; margin: -12px;}
+  #detail-close:active { transform: scale(0.8); }
+  
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  .shake-anim { animation: shake 0.3s forwards; }
+  
+  .dt-spell-input-box { font-size: 2rem; text-align: center; margin-bottom: 24px; min-height: 56px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 10px;}
+  .dt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 24px;}
+  .dt-spell-key { background: var(--surface-container); border: 2px solid var(--outline); font-size: 1.4rem; padding: 14px 20px; border-radius: 20px; cursor: pointer; font-family: var(--font-jp-sans); font-weight: 700; color: var(--on-surface); transition: transform 0.1s, box-shadow 0.1s, border-color 0.3s; box-shadow: 0 4px 0 var(--btn-shadow);}
+  .dt-spell-key:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .dt-spell-key.wrong { border-color: var(--accent-red); background: var(--accent-red-bg); color: var(--accent-red); }
+  .dt-spell-key.used { opacity: 0; pointer-events: none; transform: scale(0.5); }
+  
+  #dt-choice-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .dt-choice-btn { width: auto; text-align: center; background: var(--surface-container); border: 2px solid var(--outline); padding: 20px 16px; border-radius: 24px; font-size: 1.05rem; cursor: pointer; color: var(--on-surface); font-weight: 700; transition: transform 0.1s, box-shadow 0.1s, border-color 0.3s; box-shadow: 0 4px 0 var(--btn-shadow); display: flex; align-items: center; justify-content: center; word-break: break-word; line-height: 1.4;}
+  .dt-choice-btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--btn-shadow); }
+  .dt-choice-btn.wrong { border-color: var(--accent-red); background: var(--accent-red-bg); color: var(--accent-red); }
+  .dt-choice-btn.correct { border-color: var(--tertiary); background: var(--accent-green-bg); color: var(--tertiary); }
+  [data-theme="dark"] .dt-choice-btn.correct { color: #87c7a5; } 
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<div class="app-container">
+  
+  <div id="setup-area">
+    <div class="header-area">
+      <div class="header-titles">
+        <h2><span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem;">local_florist</span> 钟摆日语</h2>
+      </div>
+      <button class="icon-btn theme-toggle-btn" style="box-shadow: none;"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
+    </div>
+
+    <div class="card-panel" id="stats-panel">
+      <div class="stats-grid">
+        <div class="stat-item"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
+        <div class="stat-item"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
+        <div class="stat-item"><div class="stat-number" id="total-words">0</div><div class="stat-label">突击次数</div></div>
+        <div class="stat-item"><div class="stat-number" id="srs-due-count">0</div><div class="stat-label">待复习词</div></div>
+      </div>
+    </div>
+
+    <div class="card-panel">
+      <button id="btn-enter-wb" style="margin-bottom: 32px; background: var(--tertiary); color: var(--on-primary); font-size: 1.15rem; padding: 20px;" class="icon-text-gap">
+        <span class="material-symbols-rounded" style="font-size:1.4rem;">view_cozy</span> 全景词库
+      </button>
+
+      <h3 style="margin-top:0;"><span class="material-symbols-rounded">rocket_launch</span> 学习模式</h3>
+      
+      <div class="custom-select-wrapper" style="margin-bottom: 16px;">
+        <select id="group-select" style="display:none;"></select>
+      </div>
+      
+      <button id="btn-start-srs" class="btn-srs icon-text-gap" style="margin-bottom: 16px; font-size: 1.1rem; padding: 18px; white-space: nowrap;">
+        <span class="material-symbols-rounded">psychology</span> 智能复习 (SRS)
+      </button>
+      <div class="flex-row" style="margin-bottom: 32px; flex-wrap: nowrap;">
+        <button id="btn-start-pendulum" style="flex: 1; margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+            <span class="material-symbols-rounded">directions_run</span> 经典突击
+        </button>
+        <button id="btn-start-dual-track" style="flex: 1; background: var(--accent-red); color: var(--on-primary); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+            <span class="material-symbols-rounded">swords</span> 闯关模式
+        </button>
+      </div>
+
+      <h3 style="border-bottom: 2px solid var(--outline); padding-bottom: 8px;"><span class="material-symbols-rounded">settings</span> 学习设置</h3>
+      <label style="font-size: 0.95rem; opacity: 0.9; display: flex; align-items: center; margin-bottom: 16px; cursor: pointer; font-weight: 600;">
+        <input type="checkbox" id="auto-speak" checked style="width: auto; margin: 0 10px 0 0; transform: scale(1.3);"> 自动朗读
+      </label>
+      
+      <select id="initial-mode" style="display:none;">
+        <option value="all">全部显示 (不遮盖)</option>
+        <option value="word">只显示汉字</option>
+        <option value="kana">只显示假名</option>
+        <option value="meaning">只显示释义</option>
+      </select>
+      
+      <h3 style="border-bottom: 2px solid var(--outline); padding-bottom: 8px; margin-top:24px;"><span class="material-symbols-rounded">calendar_today</span> 最近打卡</h3>
+      <div id="record-list">暂无打卡记录，今天开始努力吧！</div>
+    </div>
+  </div>
+
+  <div id="study-area" class="hidden">
+    <div class="flex-row" id="study-top-bar" style="justify-content: space-between; margin-bottom: 20px; align-items: center; padding: 0 8px;">
+      <button id="btn-exit-study" class="btn-small btn-outline icon-text-gap" style="border: none; font-size: 1.05rem; padding: 12px 16px; margin: -12px -12px -12px -16px; width: auto; color: var(--on-surface); opacity: 0.7; box-shadow: none; font-weight: 700;">
+          <span class="material-symbols-rounded">chevron_left</span> 退出
+      </button>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <select id="next-display-mode" style="display:none;">
+          <option value="all">全显</option><option value="word">汉字</option><option value="kana">假名</option><option value="meaning">释义</option>
+        </select>
+        <span id="progress-text" style="font-size: 0.95rem; font-weight: 700; opacity: 0.7;">0 / 0</span>
+        <button class="icon-btn theme-toggle-btn" style="width: 40px; height: 40px; font-size: 1.3rem; box-shadow: none; border: 2px solid var(--outline); margin: 0; transform: none;">
+            <span class="material-symbols-rounded theme-icon">light_mode</span>
+        </button>
+      </div>
+    </div>
+    
+    <div id="pixel-matrix"></div>
+    
+    <div class="flash-card" id="flash-card">
+      <div class="watermark-layer"><div id="flash-watermark" class="watermark"></div></div>
+      <div id="btn-speaker" class="speaker-icon"><span class="material-symbols-rounded">volume_up</span></div>
+      <div id="star-btn" class="star-btn"><span class="material-symbols-rounded" id="star-icon">star</span></div>
+      <div class="word-main blur-target" id="w-word">单词</div>
+      <div class="info-row-group"><div class="kana-row blur-target" id="w-kana">假名</div><div class="type-row blur-target" id="w-type"></div><div class="meaning-row blur-target" id="w-meaning">释义</div></div>
+      <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
+    </div>
+    
+    <div id="dual-track-ui" class="hidden">
+      <div id="dt-spell-area" class="hidden"><div id="dt-spell-input" class="dt-spell-input-box"></div><div id="dt-spell-keyboard" class="dt-spell-keyboard"></div></div>
+      <div id="dt-choice-area" class="hidden"><div id="dt-choice-buttons"></div></div>
+    </div>
+
+    <div id="capsule-pendulum" class="floating-capsule hidden">
+      <button id="btn-prev" class="btn-outline"><span class="material-symbols-rounded">arrow_back</span><span>上一个</span></button>
+      <button id="btn-next"><span class="material-symbols-rounded">arrow_forward</span><span>下一个</span></button>
+      <button id="btn-finish" style="background: var(--tertiary); display: none; border: none; color: white;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
+    </div>
+
+    <div id="capsule-srs" class="floating-capsule hidden" style="flex-wrap: wrap;">
+      <button id="srs-again" class="btn-outline btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
+      <button id="srs-hard" class="btn-outline btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
+      <button id="srs-good" class="btn-outline btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
+      <button id="srs-easy" class="btn-outline btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
+    </div>
+  </div>
+
+  <div id="wordbank-area">
+    <div class="wb-header">
+      <button id="btn-exit-wb" class="btn-small btn-outline icon-text-gap" style="border: none; font-size: 1.05rem; padding: 12px 16px; margin: -12px -12px -12px -16px; box-shadow: none; font-weight: 700; z-index: 2;">
+          <span class="material-symbols-rounded">chevron_left</span> 返回
+      </button>
+      <div class="wb-title-center">全景词库</div>
+      <div style="display: flex; gap: 8px; align-items: center; z-index: 2;">
+        <button id="wb-manage-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--primary); color: var(--primary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">edit</span></button>
+        <button id="wb-batch-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--tertiary); color: var(--tertiary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">checklist</span></button>
+      </div>
+    </div>
+    
+    <div class="flex-row" style="justify-content: space-between; margin-bottom: 24px; flex-wrap: nowrap; gap: 12px;">
+      <div class="custom-select-wrapper" style="flex: 1;">
+          <select id="wb-folder-filter" style="display:none;"></select>
+      </div>
+      <button id="btn-view-settings" class="icon-btn" style="width: 48px; height: 48px; color: var(--primary); border-color: var(--primary); background: transparent;" title="视图与排版设置">
+          <span class="material-symbols-rounded">pageview</span>
+      </button>
+    </div>
+
+    <div class="card-panel" style="margin-bottom: 24px; border-radius: var(--card-radius);">
+      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">folder_managed</span> 文件夹与导入管理</h3>
+      <div class="flex-row" style="margin-bottom: 16px;">
+         <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--tertiary); color: var(--tertiary); padding: 12px;"><span class="material-symbols-rounded" style="font-size:1.2rem;">create_new_folder</span> 建夹</button>
+         <button id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--accent-red); color: var(--accent-red); padding: 12px;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删夹</button>
+      </div>
+      <textarea id="custom-input" placeholder="格式：单词,假名,词性,释义,例句(可选)&#10;用逗号或Tab分隔"></textarea>
+      <button id="btn-import" style="background: var(--tertiary); color: var(--on-primary); margin-bottom: 20px;">导入新词</button>
+      <button id="btn-reset" class="btn-outline" style="border-color: var(--accent-red); color: var(--accent-red);">恢复内置词汇</button>
+    </div>
+
+    <select id="wb-col-select" style="display:none;" class="no-bs">
+        <option value="2">2</option> <option value="3" selected>3</option> <option value="4">4</option>
+    </select>
+    <select id="wb-blur-select" style="display:none;" class="no-bs">
+        <option value="all">all</option> <option value="word">word</option> <option value="kana">kana</option> <option value="meaning">meaning</option>
+    </select>
+
+    <div id="wb-grid-container">
+      <div id="wb-grid" data-cols="3"></div>
+      <div id="wb-scroll-sentinel" style="height: 40px; width: 100%;"></div> 
+    </div>
+  </div>
+</div>
+
+<div id="bs-overlay" class="modal-overlay">
+    <div class="bottom-sheet">
+        <div class="bs-handle"></div>
+        <div class="bs-scrollable-content">
+            <h3 id="bs-title">请选择</h3>
+            <div id="bs-options" class="bs-options"></div>
+        </div>
+    </div>
+</div>
+
+<div id="view-settings-overlay" class="modal-overlay">
+    <div class="bottom-sheet">
+        <div class="bs-handle"></div>
+        <div class="bs-scrollable-content">
+            <h3 style="text-align:center; margin-bottom: 24px; border:none; justify-content:center; color: var(--on-surface);">视图与排版设置</h3>
+            <div style="font-size:0.95rem; font-weight:800; margin-bottom:12px; color:var(--primary);">视图列数</div>
+            <div class="flex-row" style="gap:12px; margin-bottom: 28px; flex-wrap: nowrap;">
+                <button class="vs-col-btn vs-btn selected" data-val="3" style="flex:1;">3列</button>
+                <button class="vs-col-btn vs-btn" data-val="2" style="flex:1;">2列</button>
+                <button class="vs-col-btn vs-btn" data-val="4" style="flex:1;">4列</button>
+            </div>
+            <div style="font-size:0.95rem; font-weight:800; margin-bottom:12px; color:var(--primary);">列表遮盖模式</div>
+            <div class="flex-row" style="gap:12px; flex-wrap:wrap;">
+                <button class="vs-blur-btn vs-btn selected" data-val="all" style="flex:1 1 40%;">全显 (无遮盖)</button>
+                <button class="vs-blur-btn vs-btn" data-val="meaning" style="flex:1 1 40%;">仅显释义</button>
+                <button class="vs-blur-btn vs-btn" data-val="word" style="flex:1 1 40%;">仅显汉字</button>
+                <button class="vs-blur-btn vs-btn" data-val="kana" style="flex:1 1 40%;">仅显假名</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="dialog-overlay" class="modal-overlay">
+    <div class="dialog-content">
+        <h3 id="dialog-title" style="border:none; margin-bottom:12px; justify-content:center;">提示</h3>
+        <p id="dialog-msg" style="font-size:1rem; opacity:0.8; margin-bottom:24px; line-height:1.5;">内容</p>
+        <div class="flex-row" style="margin-bottom:0;">
+            <button id="dialog-confirm" style="flex:1;">确定</button>
+            <button id="dialog-cancel" class="btn-outline" style="flex:1;">取消</button>
+        </div>
+    </div>
+</div>
+
+<div id="prompt-overlay" class="modal-overlay">
+    <div class="dialog-content">
+        <h3 id="prompt-title" style="border:none; margin-bottom:16px; justify-content:center;">输入</h3>
+        <input type="text" id="prompt-input" style="text-align:center; font-weight:700; border-radius: 999px;" />
+        <div class="flex-row" style="margin-bottom:0;">
+            <button id="prompt-confirm" style="flex:1;">确定</button>
+            <button id="prompt-cancel" class="btn-outline" style="flex:1;">取消</button>
+        </div>
+    </div>
+</div>
+
+<div id="edit-overlay" class="modal-overlay">
+    <div class="dialog-content edit-modal-content">
+        <h3 style="border:none; margin-bottom:20px; justify-content:center;"><span class="material-symbols-rounded">edit_square</span> 编辑单词</h3>
+        <div class="edit-input-group"><label>单词</label><input type="text" id="edit-word"></div>
+        <div class="edit-input-group"><label>假名</label><input type="text" id="edit-kana"></div>
+        <div class="edit-input-group"><label>词性</label><input type="text" id="edit-type"></div>
+        <div class="edit-input-group"><label>释义</label><input type="text" id="edit-meaning"></div>
+        <div class="flex-row" style="margin-top: 24px; margin-bottom: 0;">
+            <button id="btn-save-edit" style="flex: 1; background: var(--tertiary);">保存修改</button>
+            <button id="btn-cancel-edit" class="btn-outline" style="flex: 1;">放弃</button>
+        </div>
+    </div>
+</div>
+
+<div id="move-overlay" class="modal-overlay">
+  <div class="move-modal-content">
+    <h3 style="border: none; padding: 0; margin-bottom: 20px; justify-content:center;"><span class="material-symbols-rounded">move_item</span> 移动至文件夹</h3>
+    <select id="move-dest-select" style="display:none;"></select>
+    <div class="flex-row" style="margin-bottom: 0;">
+      <button id="btn-confirm-move" style="flex: 1;">确认移动</button>
+      <button id="btn-cancel-move" class="btn-outline" style="flex: 1;">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="detail-overlay" class="modal-overlay">
+  <div class="detail-card-container" id="detail-card-container">
+    <div class="watermark-layer"><div id="dt-watermark" class="watermark"></div></div>
+    <div id="detail-close"><span class="material-symbols-rounded">close</span></div>
+    <button class="detail-nav-btn" id="detail-prev"><span class="material-symbols-rounded">chevron_left</span></button>
+    <button class="detail-nav-btn" id="detail-next"><span class="material-symbols-rounded">chevron_right</span></button>
+    <div id="dt-anim-wrapper" class="detail-anim-wrapper">
+      <div class="dt-word" id="dt-word">单词</div>
+      <div class="info-row-group"><div class="dt-kana" id="dt-kana">假名</div><div class="dt-type" id="dt-type"></div><div class="dt-mean" id="dt-mean">释义</div></div>
+      <div class="dt-example-box" id="dt-example-box"></div>
+    </div>
+  </div>
+</div>
+
+<div id="batch-bar" class="batch-bar" style="display: none;">
+  <span class="batch-count">已选 <span id="batch-count-num">0</span> 词</span>
+  <div style="display: flex; gap: 10px;">
+    <button id="btn-batch-move" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">move_item</span> 移动</button>
+    <button id="btn-batch-del" style="background: var(--accent-red); color: var(--on-primary);" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删除</button>
+    <button id="btn-batch-cancel" class="btn-outline" style="border: 2px solid var(--outline); box-shadow: none;">取消</button>
+  </div>
+</div>
+
+<script>
+/**
+ * MVC 架构重构版：钟摆日语 (极客防穿透 | XSS转义 | 视图抽屉引擎版)
+ */
+
+const DefaultWords = [
+  // ⚠️ 警告：请在这里粘贴你所有的几百个词汇数组！
+  {word: "運動", kana: "うんどう", type: "名・自サ", meaning: "运动；体育活动", example: "$\\overset{まいにち}{毎日}$ $\\overset{うんどう}{運動}$ をする。/每天运动。 || $\\overset{うんどう}{運動}$ $\\overset{おんち}{音痴}$ です。/没有运动细胞。"},
+  {word: "感じる", kana: "かんじる", type: "一段自他", meaning: "感觉；感受", example: "$\\overset{さむ}{寒}$ けを $\\overset{かん}{感}$ じる。/感觉发冷。 || $\\overset{しあわ}{幸福}$ を $\\overset{かん}{感}$ じる。/感受到幸福。"},
+    {word: "本棚", kana: "ほんだな", type: "名", meaning: "书架", example: "$\\overset{ほんだな}{本棚}$ に $\\overset{ほん}{本}$ を $\\overset{なら}{並}$ べる。/把书摆在书架上。"},
+  {word: "勇気", kana: "ゆうき", type: "名", meaning: "勇气", example: "$\\overset{ゆうき}{勇気}$ を $\\overset{だ}{出}$ す。/拿出勇气。 || $\\overset{ゆうき}{勇気}$ がある。/有勇气。"},
+  {word: "油断", kana: "ゆだん", type: "名・自サ", meaning: "疏忽；大意", example: "$\\overset{ゆだん}{油断}$ して $\\overset{しっぱい}{失敗}$ した。/因为大意而失败了。 || $\\overset{ゆだん}{油断}$ $\\overset{たいてき}{大敵}$ 。/粗心大意是最大的敌人。"},
+  {word: "料理", kana: "りょうり", type: "名・他サ", meaning: "菜肴；烹饪", example: "$\\overset{りょうり}{料理}$ を $\\overset{つく}{作}$ る。/做菜。 || $\\overset{にほん}{日本}$ $\\overset{りょうり}{料理}$ 。/日本料理。"},
+  {word: "安全", kana: "あんぜん", type: "名・形动", meaning: "安全", example: "$\\overset{あんぜん}{安全}$ を $\\overset{たしか}{確}$ かめる。/确认安全。 || $\\overset{あんぜん}{安全}$ な $\\overset{ばしょ}{場所}$ 。/安全的地方。"},
+  {word: "位置", kana: "いち", type: "名・自サ", meaning: "位置", example: "$\\overset{げんざい}{現在}$ の $\\overset{いち}{位置}$ 。/现在的位置。 || $\\overset{いち}{位置}$ について。/各就各位。"},
+  {word: "映像", kana: "えいぞう", type: "名", meaning: "影像；画面", example: "$\\overset{うつく}{美}$ しい $\\overset{えいぞう}{映像}$ 。/美丽的画面。 || $\\overset{えいぞう}{映像}$ を $\\overset{み}{見}$ る。/看影像。"},
+  {word: "御節料理", kana: "おせちりょうり", type: "名", meaning: "年菜", example: "お$\\overset{しょうがつ}{正月}$ に $\\overset{おせちりょうり}{御節料理}$ を $\\overset{た}{食}$ べる。/过年吃年菜。"},
+  {word: "家事", kana: "かじ", type: "名", meaning: "家务", example: "$\\overset{かじ}{家事}$ を $\\overset{てつだ}{手伝}$ う。/帮忙做家务。 || $\\overset{かじ}{家事}$ に $\\overset{おわ}{追わ}$ れる。/忙于家务。"},
+  {word: "火事", kana: "かじ", type: "名", meaning: "火灾", example: "$\\overset{かじ}{火事}$ が $\\overset{おき}{起き}$ る。/发生火灾。 || $\\overset{かじ}{火事}$ を $\\overset{け}{消}$ す。/灭火。"},
+  {word: "気候", kana: "きこう", type: "名", meaning: "气候", example: "$\\overset{おんわ}{温暖}$ な $\\overset{きこう}{気候}$ 。/温暖的气候。 || $\\overset{にほん}{日本}$ の $\\overset{きこう}{気候}$ 。/日本的气候。"},
+  {word: "気付く", kana: "きづく", type: "五段自", meaning: "发现；发觉", example: "$\\overset{まちが}{間違}$ いに $\\overset{きづ}{気付}$ く。/发现错误。 || $\\overset{だれ}{誰}$ も $\\overset{きづ}{気付}$ かない。/谁也没有发觉。"},
+  {word: "気の毒", kana: "きのどく", type: "形动", meaning: "可怜；同情", example: "それは $\\overset{きのどく}{気の毒}$ ですね。/那真是太可怜了。 || $\\overset{きのどく}{気の毒}$ な $\\overset{ひと}{人}$ 。/可怜的人。"},
+  {word: "気分", kana: "きぶん", type: "名", meaning: "心情；身体状态", example: "$\\overset{きぶん}{気分}$ が $\\overset{わる}{悪}$ い。/身体不舒服。 || $\\overset{きぶん}{気分}$ $\\overset{てんかん}{転換}$ をする。/转换心情。"},
+  {word: "急", kana: "きゅう", type: "名・形动", meaning: "紧急；突然", example: "$\\overset{きゅう}{急}$ に $\\overset{あめ}{雨}$ が $\\overset{ふ}{降}$ り $\\overset{だ}{出}$ した。/突然下起雨来。 || $\\overset{きゅう}{急}$ な $\\overset{ようじ}{用事}$ 。/急事。"},
+  {word: "計画", kana: "けいかく", type: "名・他サ", meaning: "计划", example: "$\\overset{けいかく}{計画}$ を $\\overset{た}{立}$ てる。/制定计划。 || $\\overset{けいかく}{計画}$ が $\\overset{すす}{進}$ む。/计划推进。"},
+  {word: "景気", kana: "けいき", type: "名", meaning: "景气；经济状况", example: "$\\overset{けいき}{景気}$ が $\\overset{よ}{良}$ い。/经济景气。 || $\\overset{けいき}{景気}$ が $\\overset{かいふく}{回復}$ する。/经济复苏。"},
+  {word: "警察", kana: "けいさつ", type: "名", meaning: "警察", example: "$\\overset{けいさつ}{警察}$ を $\\overset{よ}{呼}$ ぶ。/叫警察。 || $\\overset{けいさつ}{警察}$ に $\\overset{とど}{届}$ ける。/报案。"},
+  {word: "健康", kana: "けんこう", type: "名・形动", meaning: "健康", example: "$\\overset{けんこう}{健康}$ に $\\overset{き}{気}$ を $\\overset{つ}{付}$ ける。/注意健康。 || $\\overset{けんこう}{健康}$ な $\\overset{からだ}{体}$ 。/健康的身体。"},
+  {word: "高校", kana: "こうこう", type: "名", meaning: "高中", example: "$\\overset{こうこう}{高校}$ を $\\overset{そつぎょう}{卒業}$ する。/高中毕业。 || $\\overset{こうこう}{高校}$ $\\overset{せい}{生}$ 。/高中生。"},
+  {word: "工事", kana: "こうじ", type: "名・自サ", meaning: "工程；施工", example: "$\\overset{どうろ}{道路}$ の $\\overset{こうじ}{工事}$ をしている。/正在进行道路施工。 || $\\overset{こうじ}{工事}$ $\\overset{ちゅう}{中}$ 。/施工中。"},
+  {word: "困難", kana: "こんなん", type: "名・形动", meaning: "困难", example: "$\\overset{こんなん}{困難}$ を $\\overset{の}{乗}$ り $\\overset{こ}{越}$ える。/克服困难。 || $\\overset{こんなん}{困難}$ な $\\overset{もんだい}{問題}$ 。/困难的问题。"},
+  {word: "酸素", kana: "さんそ", type: "名", meaning: "氧气", example: "$\\overset{さんそ}{酸素}$ を $\\overset{す}{吸}$ う。/吸氧。 || $\\overset{さんそ}{酸素}$ $\\overset{ぶそく}{不足}$ 。/缺氧。"},
+  {word: "散歩", kana: "さんぽ", type: "名・自サ", meaning: "散步", example: "$\\overset{こうえん}{公園}$ を $\\overset{さんぽ}{散歩}$ する。/在公园散步。 || $\\overset{いぬ}{犬}$ の $\\overset{さんぽ}{散歩}$ 。/遛狗。"},
+  {word: "事件", kana: "じけん", type: "名", meaning: "事件；案件", example: "$\\overset{じけん}{事件}$ が $\\overset{おき}{起き}$ る。/发生案件。 || $\\overset{じけん}{事件}$ を $\\overset{かいけつ}{解決}$ する。/解决案件。"},
+  {word: "事故", kana: "じこ", type: "名", meaning: "事故", example: "$\\overset{こうつう}{交通}$ $\\overset{じこ}{事故}$ に $\\overset{あ}{遭}$ う。/遭遇交通事故。 || $\\overset{じこ}{事故}$ を $\\overset{おこ}{起}$ こす。/引发事故。"},
+  {word: "事実", kana: "じじつ", type: "名", meaning: "事实", example: "$\\overset{じじつ}{事実}$ を $\\overset{つた}{伝}$ える。/传达事实。 || それは $\\overset{じじつ}{事実}$ と $\\overset{こと}{異}$ なる。/那与事实不符。"},
+  {word: "事情", kana: "じじょう", type: "名", meaning: "情况；缘由", example: "$\\overset{じじょう}{事情}$ を $\\overset{せつめい}{説明}$ する。/说明情况。 || $\\overset{かてい}{家庭}$ の $\\overset{じじょう}{事情}$ 。/家庭缘由。"},
+  {word: "修理", kana: "しゅうり", type: "名・他サ", meaning: "修理", example: "$\\overset{とけい}{時計}$ を $\\overset{しゅうり}{修理}$ に $\\overset{だ}{出}$ す。/把表拿去修。 || $\\overset{くるま}{車}$ を $\\overset{しゅうり}{修理}$ する。/修车。"},
+  {word: "条件", kana: "じょうけん", type: "名", meaning: "条件", example: "$\\overset{じょうけん}{条件}$ に $\\overset{あ}{合}$ う。/符合条件。 || $\\overset{じょうけん}{条件}$ を $\\overset{だ}{出}$ す。/提出条件。"},
+  {word: "小説", kana: "しょうせつ", type: "名", meaning: "小说", example: "$\\overset{しょうせつ}{小説}$ を $\\overset{よ}{読}$ む。/看小说。 || $\\overset{あたら}{新}$ しい $\\overset{しょうせつ}{小説}$ を $\\overset{か}{買}$ う。/买新小说。"},
+  {word: "招待", kana: "しょうたい", type: "名・他サ", meaning: "招待；邀请", example: "$\\overset{ともだち}{友達}$ を $\\overset{しょうたい}{招待}$ する。/邀请朋友。 || $\\overset{けっこんしき}{結婚式}$ に $\\overset{しょうたい}{招待}$ された。/被邀请参加婚礼。"},
+  {word: "状態", kana: "じょうたい", type: "名", meaning: "状态；情况", example: "$\\overset{きけん}{危険}$ な $\\overset{じょうたい}{状態}$ 。/危险的状态。 || $\\overset{けんこう}{健康}$ $\\overset{じょうたい}{状態}$ が $\\overset{い}{良}$ い。/健康状态良好。"},
+  {word: "証明", kana: "しょうめい", type: "名・他サ", meaning: "证明", example: "$\\overset{みぶん}{身分}$ を $\\overset{しょうめい}{証明}$ する。/证明身份。 || $\\overset{じじつ}{事実}$ を $\\overset{しょうめい}{証明}$ する。/证明事实。"},
+  {word: "処理", kana: "しょり", type: "名・他サ", meaning: "处理", example: "$\\overset{もんだい}{問題}$ を $\\overset{しょり}{処理}$ する。/处理问题。 || $\\overset{ごみ}{ゴミ}$ を $\\overset{しょり}{処理}$ する。/处理垃圾。"},
+  {word: "整理", kana: "せいり", type: "名・他サ", meaning: "整理", example: "$\\overset{へや}{部屋}$ を $\\overset{せいり}{整理}$ する。/整理房间。 || $\\overset{しりょう}{資料}$ を $\\overset{せいり}{整理}$ しておく。/把资料整理好。"},
+  {word: "説明", kana: "せつめい", type: "名・他サ", meaning: "说明；解释", example: "$\\overset{りゆう}{理由}$ を $\\overset{せつめい}{説明}$ する。/说明理由。 || $\\overset{くわ}{詳}$ しく $\\overset{せつめい}{説明}$ してください。/请详细说明一下。"},
+  {word: "増加", kana: "ぞうか", type: "名・自サ", meaning: "增加", example: "$\\overset{じんこう}{人口}$ が $\\overset{ぞうか}{増加}$ する。/人口增加。 || $\\overset{うりあげ}{売上}$ が $\\overset{ぞうか}{増加}$ している。/销售额在增加。"},
+  {word: "調査", kana: "ちょうさ", type: "名・他サ", meaning: "调查", example: "$\\overset{げんいん}{原因}$ を $\\overset{ちょうさ}{調査}$ する。/调查原因。 || $\\overset{アンケート}{アンケート}$ $\\overset{ちょうさ}{調査}$ を $\\overset{おこな}{行}$ う。/进行问卷调查。"},
+  {word: "地理", kana: "ちり", type: "名", meaning: "地理", example: "$\\overset{ちり}{地理}$ に $\\overset{くわ}{詳}$ しい。/熟悉地理。 || $\\overset{ちり}{地理}$ を $\\overset{まな}{学}$ ぶ。/学习地理。"},
+  {word: "伝統", kana: "でんとう", type: "名", meaning: "传统", example: "$\\overset{でんとう}{伝統}$ を $\\overset{まも}{守}$ る。/遵守传统。 || $\\overset{にほん}{日本}$ の $\\overset{でんとう}{伝統}$ $\\overset{ぶんか}{文化}$ 。/日本的传统文化。"},
+  {word: "到着", kana: "とうちゃく", type: "名・自サ", meaning: "到达；抵达", example: "$\\overset{えき}{駅}$ に $\\overset{とうちゃく}{到着}$ する。/到达车站。 || $\\overset{にもつ}{荷物}$ が $\\overset{とうちゃく}{到着}$ した。/行李到了。"},
+  {word: "特別", kana: "とくべつ", type: "名・形动", meaning: "特别；特殊", example: "$\\overset{とくべつ}{特別}$ な $\\overset{ひ}{日}$ 。/特别的日子。 || $\\overset{きょう}{今日}$ は $\\overset{とくべつ}{特別}$ です。/今天很特别。"},
+  {word: "二酸化炭素", kana: "にさんかたんそ", type: "名", meaning: "二氧化碳", example: "$\\overset{にさんかたんそ}{二酸化炭素}$ を $\\overset{だ}{出}$ す。/排放二氧化碳。 || $\\overset{にさんかたんそ}{二酸化炭素}$ が $\\overset{ふ}{増}$ える。/二氧化碳增加。"},
+  {word: "複雑", kana: "ふくざつ", type: "形动", meaning: "复杂", example: "$\\overset{ふくざつ}{複雑}$ な $\\overset{きもち}{気持}$ ち。/复杂的心情。 || $\\overset{ふくざつ}{複雑}$ な $\\overset{もんだい}{問題}$ 。/复杂的问题。"},
+  {word: "物理", kana: "ぶつり", type: "名", meaning: "物理", example: "$\\overset{ぶつり}{物理}$ を $\\overset{まな}{学}$ ぶ。/学习物理。 || $\\overset{ぶつり}{物理}$ の $\\overset{しけん}{試験}$ 。/物理考试。"},
+  {word: "平気", kana: "へいき", type: "形动", meaning: "不在乎；平静", example: "$\\overset{へいき}{平気}$ な $\\overset{かお}{顔}$ をする。/装出满不在乎的样子。 || $\\overset{さむ}{寒}$ くても $\\overset{へいき}{平気}$ だ。/再冷也不在乎。"},
+  {word: "変", kana: "へん", type: "形动", meaning: "奇怪；不寻常", example: "$\\overset{へん}{変}$ な $\\overset{おと}{音}$ がする。/有奇怪的声音。 || $\\overset{あじ}{味}$ が $\\overset{へん}{変}$ です。/味道有些奇怪。"},
+  {word: "摩擦", kana: "まさつ", type: "名・自他サ", meaning: "摩擦", example: "$\\overset{まさつ}{摩擦}$ が $\\overset{おき}{起}$ きる。/发生摩擦。 || $\\overset{て}{手}$ を $\\overset{まさつ}{摩擦}$ して $\\overset{あたた}{温}$ める。/搓手取暖。"},
+  {word: "魅力", kana: "みりょく", type: "名", meaning: "魅力", example: "$\\overset{みりょく}{魅力}$ 的な $\\overset{ひと}{人}$ 。/有魅力的人。 || $\\overset{みりょく}{魅力}$ に $\\overset{あふ}{溢}$ れている。/充满魅力。"},
+  {word: "無理", kana: "むり", type: "名・形动", meaning: "勉强；不讲理", example: "$\\overset{むり}{無理}$ をしないでください。/请不要勉强。 || それは $\\overset{むり}{無理}$ な $\\overset{はなし}{話}$ だ。/那是强人所难。"},
+  {word: "面倒", kana: "めんどう", type: "名・形动", meaning: "麻烦；照顾", example: "$\\overset{めんどう}{面倒}$ を $\\overset{み}{見}$ る。/照顾；照料。 || $\\overset{めんどう}{面倒}$ な $\\overset{しごと}{仕事}$ 。/麻烦的工作。"},
+  {word: "要求", kana: "ようきゅう", type: "名・他サ", meaning: "要求", example: "$\\overset{ようきゅう}{要求}$ を $\\overset{の}{飲}$ む。/接受要求。 || $\\overset{むり}{無理}$ な $\\overset{ようきゅう}{要求}$ をする。/提出无理的要求。"},
+  {word: "用事", kana: "ようじ", type: "名", meaning: "事情", example: "$\\overset{ようじ}{用事}$ がある。/有事情。 || $\\overset{きゅう}{急}$ な $\\overset{ようじ}{用事}$ で $\\overset{かえ}{帰}$ る。/因为急事回去。"},
+  {word: "理解", kana: "りかい", type: "名・他サ", meaning: "理解", example: "$\\overset{りかい}{理解}$ が $\\overset{はや}{早}$ い。/理解得快。 || $\\overset{たがい}{互い}$ に $\\overset{りかい}{理解}$ し $\\overset{あ}{合}$ う。/互相理解。"},
+  {word: "理想", kana: "りそう", type: "名", meaning: "理想", example: "$\\overset{りそう}{理想}$ が $\\overset{たか}{高}$ い。/眼光（理想）高。 || $\\overset{りそう}{理想}$ の $\\overset{ひと}{人}$ 。/理想中的人。"},
+  {word: "理由", kana: "りゆう", type: "名", meaning: "理由", example: "$\\overset{りゆう}{理由}$ を $\\overset{き}{聞}$ く。/询问理由。 || $\\overset{ちこく}{遅刻}$ した $\\overset{りゆう}{理由}$ 。/迟到的理由。"},
+  {word: "理論", kana: "りろん", type: "名", meaning: "理论", example: "$\\overset{りろん}{理論}$ と $\\overset{じっさい}{実際}$ 。/理论与实际。 || $\\overset{りろん}{理論}$ を $\\overset{た}{立}$ てる。/建立理论。"},
+  {word: "お宅", kana: "おたく", type: "名", meaning: "府上；您家", example: "お$\\overset{たく}{宅}$ はどちらですか。/府上在哪里？ || お$\\overset{たく}{宅}$ の $\\overset{こども}{子供}$ さん。/您家的孩子。"},
+  {word: "回復", kana: "かいふく", type: "名・自他サ", meaning: "恢复；康复", example: "$\\overset{びょうき}{病気}$ が $\\overset{かいふく}{回復}$ する。/病情恢复。 || $\\overset{けいき}{景気}$ が $\\overset{かいふく}{回復}$ する。/经济复苏。"},
+  {word: "貝", kana: "かい", type: "名", meaning: "贝壳", example: "$\\overset{かい}{貝}$ を $\\overset{ひろ}{拾}$ う。/捡贝壳。 || $\\overset{かい}{貝}$ を $\\overset{た}{食}$ べる。/吃贝类。"},
+  {word: "火山", kana: "かざん", type: "名", meaning: "火山", example: "$\\overset{かざん}{火山}$ が $\\overset{ふんか}{噴火}$ する。/火山爆发。 || $\\overset{かざん}{火山}$ の $\\overset{ちかく}{近}$ く。/火山附近。"},
+  {word: "気温", kana: "きおん", type: "名", meaning: "气温", example: "$\\overset{きおん}{気温}$ が $\\overset{たか}{高}$ い。/气温高。 || $\\overset{きおん}{気温}$ が $\\overset{さ}{下}$ がる。/气温下降。"},
+  {word: "記事", kana: "きじ", type: "名", meaning: "报道；文章", example: "$\\overset{しんぶん}{新聞}$ の $\\overset{きじ}{記事}$ を $\\overset{よ}{読}$ む。/读报纸的报道。 || $\\overset{ざっし}{雑誌}$ の $\\overset{きじ}{記事}$ 。/杂志的文章。"},
+  {word: "校庭", kana: "こうてい", type: "名", meaning: "校园；操场", example: "$\\overset{こうてい}{校庭}$ で $\\overset{あそ}{遊}$ ぶ。/在操场上玩。 || $\\overset{こうてい}{校庭}$ を $\\overset{はし}{走}$ る。/在操场跑步。"},
+  {word: "古代", kana: "こだい", type: "名", meaning: "古代", example: "$\\overset{こだい}{古代}$ の $\\overset{れきし}{歴史}$ 。/古代的历史。 || $\\overset{こだい}{古代}$ の $\\overset{いせき}{遺跡}$ 。/古代遗迹。"},
+  {word: "四季", kana: "しき", type: "名", meaning: "四季", example: "$\\overset{にほん}{日本}$ には $\\overset{しき}{四季}$ がある。/日本有四季。 || $\\overset{しき}{四季}$ の $\\overset{へんか}{変化}$ 。/四季的变化。"},
+  {word: "事業", kana: "じぎょう", type: "名", meaning: "事业", example: "$\\overset{あたら}{新}$ しい $\\overset{じぎょう}{事業}$ を $\\overset{はじ}{始}$ める。/开始新事业。 || $\\overset{じぎょう}{事業}$ に $\\overset{しっぱい}{失敗}$ する。/事业失败。"},
+  {word: "事務", kana: "じむ", type: "名", meaning: "事务", example: "$\\overset{じむ}{事務}$ の $\\overset{しごと}{仕事}$ をする。/做文职工作。 || $\\overset{じむ}{事務}$ $\\overset{しつ}{室}$ にいる。/在办公室里。"},
+  {word: "挑戦", kana: "ちょうせん", type: "名・自サ", meaning: "挑战", example: "$\\overset{あたら}{新}$ しいことに $\\overset{ちょうせん}{挑戦}$ する。/挑战新事物。 || $\\overset{きろく}{記録}$ に $\\overset{ちょうせん}{挑戦}$ する。/挑战记录。"},
+  {word: "内容", kana: "ないよう", type: "名", meaning: "内容", example: "$\\overset{はなし}{話}$ の $\\overset{ないよう}{内容}$ を $\\overset{き}{聞}$ く。/听谈话的内容。 || $\\overset{ほん}{本}$ の $\\overset{ないよう}{内容}$ 。/书的内容。"},
+  {word: "能率", kana: "のうりつ", type: "名", meaning: "效率", example: "$\\overset{のうりつ}{能率}$ が $\\overset{あが}{上}$ がる。/效率提高。 || $\\overset{のうりつ}{能率}$ が $\\overset{わる}{悪}$ い。/效率低下。"},
+  {word: "理科系", kana: "りかけい", type: "名", meaning: "理科", example: "$\\overset{りかけい}{理科系}$ の $\\overset{がくせい}{学生}$ 。/理科生。 || $\\overset{りかけい}{理科系}$ に $\\overset{すす}{進}$ む。/升入理科。"},
+  {word: "気体", kana: "きたい", type: "名", meaning: "气体", example: "$\\overset{えきたい}{液体}$ が $\\overset{きたい}{気体}$ に $\\overset{な}{成}$ る。/液体变成气体。 || $\\overset{きたい}{気体}$ の $\\overset{じょうたい}{状態}$ 。/气体状态。"},
+  {word: "求人", kana: "きゅうじん", type: "名", meaning: "招人；招聘", example: "$\\overset{きゅうじん}{求人}$ $\\overset{こうこく}{広告}$ を $\\overset{み}{見}$ る。/看招聘广告。 || $\\overset{きゅうじん}{求人}$ に $\\overset{おうぼ}{応募}$ する。/应聘。"},
+  {word: "現象", kana: "げんしょう", type: "名", meaning: "现象", example: "$\\overset{しぜん}{自然}$ $\\overset{げんしょう}{現象}$ を $\\overset{かんさつ}{観察}$ する。/观察自然现象。 || $\\overset{ふしぎ}{不思議}$ な $\\overset{げんしょう}{現象}$ 。/不可思议的现象。"},
+  {word: "考慮", kana: "こうりょ", type: "名・他サ", meaning: "考虑", example: "$\\overset{じじょう}{事情}$ を $\\overset{こうりょ}{考慮}$ する。/考虑到情况。 || $\\overset{こうりょ}{考慮}$ に $\\overset{い}{入}$ れる。/加以考虑。"},
+  {word: "情報", kana: "じょうほう", type: "名", meaning: "信息；情报", example: "$\\overset{じょうほう}{情報}$ を $\\overset{あつ}{集}$ める。/收集信息。 || $\\overset{あたら}{新}$ しい $\\overset{じょうほう}{情報}$ を $\\overset{え}{得}$ る。/获取新信息。"},
+  {word: "省略", kana: "しょうりゃく", type: "名・他サ", meaning: "省略", example: "$\\overset{せつめい}{説明}$ を $\\overset{しょうりゃく}{省略}$ する。/省略说明。 || $\\overset{くわ}{詳}$ しい $\\overset{はなし}{話}$ は $\\overset{しょうりゃく}{省略}$ します。/详细情况就省略了。"},
+  {word: "第一", kana: "だいいち", type: "名", meaning: "第一；最重要", example: "$\\overset{けんこう}{健康}$ が $\\overset{だいいち}{第一}$ だ。/健康第一。 || $\\overset{だいいち}{第一}$ に $\\overset{かんが}{考}$ える。/最先考虑。"},
+  {word: "犯人", kana: "はんにん", type: "名", meaning: "犯人", example: "$\\overset{はんにん}{犯人}$ を $\\overset{つか}{捕}$ まえる。/抓住犯人。 || $\\overset{はんにん}{犯人}$ が $\\overset{に}{逃}$ げた。/犯人逃跑了。"},
+  {word: "略", kana: "りゃく", type: "名", meaning: "省略；简略", example: "$\\overset{いか}{以下}$ $\\overset{りゃく}{略}$ 。/以下省略。 || $\\overset{なまえ}{名前}$ を $\\overset{りゃく}{略}$ して $\\overset{か}{書}$ く。/把名字简写。"},
+  {word: "挨拶", kana: "あいさつ", type: "名・自サ", meaning: "寒暄；打招呼", example: "$\\overset{あいさつ}{挨拶}$ をする。/打招呼。 || $\\overset{あさ}{朝}$ の $\\overset{あいさつ}{挨拶}$ 。/早上的寒暄。"},
+  {word: "椅子", kana: "いす", type: "名", meaning: "椅子", example: "$\\overset{いす}{椅子}$ に $\\overset{すわ}{座}$ る。/坐在椅子上。 || $\\overset{いす}{椅子}$ から $\\overset{た}{立}$ つ。/从椅子上站起来。"},
+  {word: "意味", kana: "いみ", type: "名", meaning: "意思；意义", example: "$\\overset{ことば}{言葉}$ の $\\overset{いみ}{意味}$ を $\\overset{しら}{調}$ べる。/查单词的意思。 || $\\overset{いみ}{意味}$ が $\\overset{わ}{分}$ からない。/不明白意思。"},
+  {word: "お菓子", kana: "おかし", type: "名", meaning: "点心；糖果", example: "お$\\overset{かし}{菓子}$ を $\\overset{た}{食}$ べる。/吃点心。 || お$\\overset{かし}{菓子}$ を $\\overset{つく}{作}$ る。/做糕点。"},
+  {word: "歌手", kana: "かしゅ", type: "名", meaning: "歌手", example: "$\\overset{ゆうめい}{有名}$ な $\\overset{かしゅ}{歌手}$ 。/著名的歌手。 || $\\overset{かしゅ}{歌手}$ になる $\\overset{ゆめ}{夢}$ 。/成为歌手的梦想。"},
+  {word: "漢字", kana: "かんじ", type: "名", meaning: "汉字", example: "$\\overset{かんじ}{漢字}$ を $\\overset{か}{書}$ く。/写汉字。 || $\\overset{かんじ}{漢字}$ の $\\overset{よ}{読}$ み $\\overset{かた}{方}$ 。/汉字的读法。"},
+  {word: "切符", kana: "きっぷ", type: "名", meaning: "票；车票", example: "$\\overset{きっぷ}{切符}$ を $\\overset{か}{買}$ う。/买票。 || $\\overset{おうふく}{往復}$ $\\overset{きっぷ}{切符}$ 。/往返票。"},
+  {word: "きれい", kana: "きれい", type: "形动", meaning: "漂亮；干净", example: "$\\overset{へや}{部屋}$ をきれいに する。/把房间弄干净。 || きれいな $\\overset{はな}{花}$ 。/漂亮的花。"},
+  {word: "勤労", kana: "きんろう", type: "名・自サ", meaning: "勤劳；劳动", example: "$\\overset{きんろう}{勤労}$ を $\\overset{たっと}{尊}$ ぶ。/尊重劳动。 || $\\overset{きんろう}{勤労}$ $\\overset{かんしゃ}{感謝}$ の $\\overset{ひ}{日}$ 。/勤劳感谢日。"},
+  {word: "決して", kana: "けっして", type: "副", meaning: "绝对（不）；决（不）", example: "$\\overset{けっ}{決}$ して $\\overset{わす}{忘}$ れない。/决不忘记。 || $\\overset{けっ}{決}$ して $\\overset{あきら}{諦}$ めない。/绝不放弃。"},
+  {word: "黒板", kana: "こくばん", type: "名", meaning: "黑板", example: "$\\overset{こくばん}{黒板}$ の $\\overset{じ}{字}$ を $\\overset{け}{消}$ す。/擦掉黑板上的字。 || $\\overset{こくばん}{黒板}$ に $\\overset{か}{書}$ く。/写在黑板上。"},
+  {word: "財布", kana: "さいふ", type: "名", meaning: "钱包", example: "$\\overset{さいふ}{財布}$ を $\\overset{お}{落}$ とした。/把钱包弄丢了。 || $\\overset{さいふ}{財布}$ の $\\overset{なか}{中}$ 身。/钱包里的东西。"},
+  {word: "自己紹介", kana: "じこしょうかい", type: "名・自サ", meaning: "自我介绍", example: "$\\overset{じこしょうかい}{自己紹介}$ を お$\\overset{ねが}{願}$ いします。/请自我介绍。 || $\\overset{えいご}{英語}$ で $\\overset{じこしょうかい}{自己紹介}$ する。/用英语自我介绍。"},
+  {word: "自転車", kana: "じてんしゃ", type: "名", meaning: "自行车", example: "$\\overset{じてんしゃ}{自転車}$ に $\\overset{の}{乗}$ る。/骑自行车。 || $\\overset{じてんしゃ}{自転車}$ で $\\overset{がっこう}{学校}$ へ $\\overset{い}{行}$ く。/骑自行车去学校。"},
+  {word: "自分", kana: "じぶん", type: "代", meaning: "自己", example: "$\\overset{じぶん}{自分}$ の $\\overset{こと}{事}$ 。/自己的事情。 || $\\overset{じぶん}{自分}$ で $\\overset{き}{決}$ める。/自己决定。"},
+  {word: "水泳", kana: "すいえい", type: "名・自サ", meaning: "游泳", example: "$\\overset{すいえい}{水泳}$ を $\\overset{なら}{習}$ う。/学习游泳。 || $\\overset{すいえい}{水泳}$ の $\\overset{せんしゅ}{選手}$ 。/游泳选手。"},
+  {word: "雑巾", kana: "ぞうきん", type: "名", meaning: "抹布", example: "$\\overset{ぞうきん}{雑巾}$ で $\\overset{ふ}{拭}$ く。/用抹布擦。 || $\\overset{ぞうきん}{雑巾}$ を $\\overset{しぼ}{絞}$ る。/拧抹布。"},
+  {word: "退院", kana: "たいいん", type: "名・自サ", meaning: "出院", example: "$\\overset{びょういん}{病院}$ を $\\overset{たいいん}{退院}$ する。/出院。 || $\\overset{たいいん}{退院}$ を $\\overset{いわ}{祝}$ う。/庆祝出院。"},
+  {word: "だんだん", kana: "だんだん", type: "副", meaning: "渐渐地", example: "だんだん $\\overset{あたた}{暖}$ かくなる。/渐渐变暖和。 || だんだん $\\overset{わ}{分}$ かってきた。/渐渐明白了。"},
+  {word: "地図", kana: "ちず", type: "名", meaning: "地图", example: "$\\overset{ちず}{地図}$ を $\\overset{み}{見}$ る。/看地图。 || $\\overset{ちず}{地図}$ を $\\overset{か}{書}$ く。/画地图。"},
+  {word: "電子決済", kana: "でんしけっさい", type: "名", meaning: "电子支付", example: "$\\overset{でんしけっさい}{電子決済}$ を $\\overset{りよう}{利用}$ する。/使用电子支付。 || $\\overset{でんしけっさい}{電子決済}$ が $\\overset{ふきゅう}{普及}$ する。/电子支付普及。"},
+  {word: "得意", kana: "とくい", type: "名・形动", meaning: "擅长；得意", example: "$\\overset{すうがく}{数学}$ が $\\overset{とくい}{得意}$ だ。/擅长数学。 || $\\overset{とくい}{得意}$ な $\\overset{かもく}{科目}$ 。/擅长的科目。"},
+  {word: "服", kana: "ふく", type: "名", meaning: "衣服", example: "$\\overset{ふく}{服}$ を $\\overset{き}{着}$ る。/穿衣服。 || $\\overset{あたら}{新}$ しい $\\overset{ふく}{服}$ を $\\overset{か}{買}$ う。/买新衣服。"},
+  {word: "帽子", kana: "ぼうし", type: "名", meaning: "帽子", example: "$\\overset{ぼうし}{帽子}$ を かぶる。/戴帽子。 || $\\overset{ぼうし}{帽子}$ を $\\overset{と}{取}$ る。/摘下帽子。"},
+  {word: "約束", kana: "やくそく", type: "名・自他サ", meaning: "约定；规定", example: "$\\overset{やくそく}{約束}$ を $\\overset{まも}{守}$ る。/遵守约定。 || $\\overset{ともだち}{友達}$ と $\\overset{やくそく}{約束}$ した。/和朋友约好了。"},
+  {word: "以下", kana: "いか", type: "名", meaning: "以下", example: "$\\overset{さんじゅうさい}{三十歳}$ $\\overset{いか}{以下}$ の $\\overset{ひと}{人}$ 。/三十岁以下的人。 || $\\overset{へいきん}{平均}$ $\\overset{いか}{以下}$ だ。/平均水平以下。"},
+  {word: "意義", kana: "いぎ", type: "名", meaning: "意义", example: "$\\overset{いぎ}{意義}$ のある $\\overset{かつどう}{活動}$ 。/有意义的活动。 || $\\overset{じんせい}{人生}$ の $\\overset{いぎ}{意義}$ 。/人生的意义。"},
+  {word: "意見", kana: "いけん", type: "名", meaning: "意见", example: "$\\overset{いけん}{意見}$ を $\\overset{い}{言}$ う。/提意见。 || $\\overset{いけん}{意見}$ が $\\overset{あ}{合}$ わない。/意见不合。"},
+  {word: "意志", kana: "いし", type: "名", meaning: "意志", example: "$\\overset{いし}{意志}$ が $\\overset{つよ}{強}$ い。/意志坚强。 || $\\overset{いし}{意志}$ が $\\overset{よわ}{弱}$ い。/意志薄弱。"},
+  {word: "意識", kana: "いしき", type: "名・他サ", meaning: "意识", example: "$\\overset{いしき}{意識}$ が $\\overset{もど}{戻}$ る。/恢复意识。 || $\\overset{もんだい}{問題}$ を $\\overset{いしき}{意識}$ する。/意识到问题。"},
+  {word: "観察", kana: "かんさつ", type: "名・他サ", meaning: "观察", example: "$\\overset{しょくぶつ}{植物}$ を $\\overset{かんさつ}{観察}$ する。/观察植物。 || $\\overset{かんさつ}{観察}$ $\\overset{りょく}{力}$ がある。/有观察力。"},
+  {word: "間接", kana: "かんせつ", type: "名", meaning: "间接", example: "$\\overset{かんせつ}{間接}$ 的に $\\overset{き}{聞}$ く。/间接听说。 || $\\overset{かんせつ}{間接}$ $\\overset{てき}{的}$ な $\\overset{げんいん}{原因}$ 。/间接原因。"},
+  {word: "現在", kana: "げんざい", type: "名", meaning: "现在；目前", example: "$\\overset{げんざい}{現在}$ の $\\overset{じょうきょう}{状況}$ 。/现在的情况。 || $\\overset{げんざい}{現在}$ は $\\overset{とうきょう}{東京}$ に $\\overset{す}{住}$ んでいる。/目前住在东京。"},
+  {word: "郊外", kana: "こうがい", type: "名", meaning: "郊外", example: "$\\overset{こうがい}{郊外}$ に $\\overset{す}{住}$ む。/住在郊外。 || $\\overset{こうがい}{郊外}$ の $\\overset{ふうけい}{風景}$ 。/郊外的风景。"},
+  {word: "故障", kana: "こしょう", type: "名・自サ", meaning: "故障", example: "$\\overset{きかい}{機械}$ が $\\overset{こしょう}{故障}$ する。/机器发生故障。 || $\\overset{くるま}{車}$ の $\\overset{こしょう}{故障}$ 。/汽车故障。"},
+  {word: "災害", kana: "さいがい", type: "名", meaning: "灾害", example: "$\\overset{さいがい}{災害}$ に $\\overset{そな}{備}$ える。/防备灾害。 || $\\overset{しぜん}{自然}$ $\\overset{さいがい}{災害}$ 。/自然灾害。"},
+  {word: "資源", kana: "しげん", type: "名", meaning: "资源", example: "$\\overset{しげん}{資源}$ を $\\overset{たいせつ}{大切}$ にする。/珍惜资源。 || $\\overset{てんねん}{天然}$ $\\overset{しげん}{資源}$ 。/天然资源。"},
+  {word: "地震", kana: "じしん", type: "名", meaning: "地震", example: "$\\overset{じしん}{地震}$ が $\\overset{おき}{起}$ きる。/发生地震。 || $\\overset{おお}{大}$ きな $\\overset{じしん}{地震}$ 。/大地震。"},
+  {word: "自身", kana: "じしん", type: "名", meaning: "自身；自己", example: "彼 $\\overset{じしん}{自身}$ の $\\overset{もんだい}{問題}$ 。/他自身的问题。 || $\\overset{じぶん}{自分}$ $\\overset{じしん}{自身}$ を $\\overset{しん}{信}$ じる。/相信自己。"},
+  {word: "自然", kana: "しぜん", type: "名・形动", meaning: "自然", example: "$\\overset{しぜん}{自然}$ を $\\overset{まも}{守}$ る。/保护自然。 || $\\overset{しぜん}{自然}$ に $\\overset{かこ}{囲}$ まれる。/被自然环绕。"},
+  {word: "自動車", kana: "じどうしゃ", type: "名", meaning: "汽车", example: "$\\overset{じどうしゃ}{自動車}$ を $\\overset{うんてん}{運転}$ する。/驾驶汽车。 || $\\overset{じどうしゃ}{自動車}$ $\\overset{さんぎょう}{産業}$ 。/汽车产业。"},
+  {word: "自慢", kana: "じまん", type: "名・他サ", meaning: "骄傲；自满", example: "$\\overset{じまん}{自慢}$ の $\\overset{むすこ}{息子}$ 。/引以为傲的儿子。 || $\\overset{りょうり}{料理}$ を $\\overset{じまん}{自慢}$ する。/对厨艺感到自满。"},
+  {word: "地味", kana: "じみ", type: "形动", meaning: "朴素；不起眼", example: "$\\overset{じみ}{地味}$ な $\\overset{ふく}{服}$ を $\\overset{き}{着}$ る。/穿朴素的衣服。 || $\\overset{じみ}{地味}$ な $\\overset{いろ}{色}$ 。/朴素的颜色。"},
+  {word: "自由", kana: "じゆう", type: "名・形动", meaning: "自由", example: "$\\overset{じゆう}{自由}$ な $\\overset{じかん}{時間}$ 。/自由的时间。 || $\\overset{じゆう}{自由}$ に $\\overset{はな}{話}$ す。/自由交谈。"},
+  {word: "主張", kana: "しゅちょう", type: "名・他サ", meaning: "主张", example: "$\\overset{じぶん}{自分}$ の $\\overset{いけん}{意見}$ を $\\overset{しゅちょう}{主張}$ する。/主张自己的意见。 || $\\overset{けんり}{権利}$ を $\\overset{しゅちょう}{主張}$ する。/主张权利。"},
+  {word: "順序", kana: "じゅんじょ", type: "名", meaning: "顺序", example: "$\\overset{じゅんじょ}{順序}$ よく $\\overset{なら}{並}$ ぶ。/按顺序排列。 || $\\overset{じゅんじょ}{順序}$ が $\\overset{ちが}{違}$ う。/顺序错了。"},
+  {word: "少子化", kana: "しょうしか", type: "名", meaning: "少子化", example: "$\\overset{しょうしか}{少子化}$ が $\\overset{すす}{進}$ む。/少子化加剧。 || $\\overset{しょうしか}{少子化}$ $\\overset{たいさく}{対策}$ 。/少子化对策。"},
+  {word: "自立", kana: "じりつ", type: "名・自サ", meaning: "自立", example: "$\\overset{けいざい}{経済}$ 的に $\\overset{じりつ}{自立}$ する。/经济上自立。 || $\\overset{じりつ}{自立}$ した $\\overset{せいかつ}{生活}$ 。/自立的生活。"},
+  {word: "神社", kana: "じんじゃ", type: "名", meaning: "神社", example: "$\\overset{じんじゃ}{神社}$ に お$\\overset{まい}{参}り$ する。/去神社参拜。 || $\\overset{ゆうめい}{有名}$ な $\\overset{じんじゃ}{神社}$ 。/著名的神社。"},
+  {word: "成果", kana: "せいか", type: "名", meaning: "成果", example: "$\\overset{せいか}{成果}$ を $\\overset{あ}{上}$ げる。/取得成果。 || $\\overset{けんきゅう}{研究}$ の $\\overset{せいか}{成果}$ 。/研究成果。"},
+  {word: "太陽", kana: "たいよう", type: "名", meaning: "太阳", example: "$\\overset{たいよう}{太陽}$ が $\\overset{のぼ}{昇}$ る。/太阳升起。 || $\\overset{たいよう}{太陽}$ の $\\overset{ひかり}{光}$ 。/太阳的光芒。"},
+  {word: "箪笥", kana: "たんす", type: "名", meaning: "衣橱", example: "$\\overset{たんす}{箪笥}$ に $\\overset{ふく}{服}$ を $\\overset{しま}{仕舞}$ う。/把衣服收进衣橱。 || $\\overset{あたら}{新}$ しい $\\overset{たんす}{箪笥}$ を $\\overset{か}{買}$ う。/买新衣橱。"},
+  {word: "地域", kana: "ちいき", type: "名", meaning: "地区", example: "$\\overset{ちいき}{地域}$ の $\\overset{はってん}{発展}$ 。/地区的发展。 || この $\\overset{ちいき}{地域}$ は $\\overset{あめ}{雨}$ が $\\overset{おお}{多}$ い。/这个地区雨水多。"},
+  {word: "地下鉄", kana: "ちかてつ", type: "名", meaning: "地铁", example: "$\\overset{ちかてつ}{地下鉄}$ に $\\overset{の}{乗}$ る。/乘地铁。 || $\\overset{ちかてつ}{地下鉄}$ で $\\overset{つうきん}{通勤}$ する。/坐地铁通勤。"},
+  {word: "地球", kana: "ちきゅう", type: "名", meaning: "地球", example: "$\\overset{ちきゅう}{地球}$ の $\\overset{おんだんか}{温暖化}$ 。/全球变暖。 || $\\overset{うつく}{美}$ しい $\\overset{ちきゅう}{地球}$ 。/美丽的地球。"},
+  {word: "注意", kana: "ちゅうい", type: "名・自サ", meaning: "注意", example: "$\\overset{くるま}{車}$ に $\\overset{ちゅうい}{注意}$ する。/注意车辆。 || $\\overset{ちゅうい}{注意}$ を $\\overset{はら}{払}$ う。/引起注意。"},
+  {word: "調子", kana: "ちょうし", type: "名", meaning: "状况；声调", example: "$\\overset{からだ}{体}$ の $\\overset{ちょうし}{調子}$ が $\\overset{い}{良}$ い。/身体状况好。 || $\\overset{きかい}{機械}$ の $\\overset{ちょうし}{調子}$ が $\\overset{わる}{悪}$ い。/机器状况不好。"},
+  {word: "直接", kana: "ちょくせつ", type: "名・副", meaning: "直接", example: "$\\overset{ちょくせつ}{直接}$ $\\overset{はな}{話}$ す。/直接说。 || $\\overset{ちょくせつ}{直接}$ な $\\overset{げんいん}{原因}$ 。/直接原因。"},
+  {word: "敵", kana: "てき", type: "名", meaning: "敌人", example: "$\\overset{てき}{敵}$ と $\\overset{たたか}{戦}$ う。/与敌人战斗。 || $\\overset{ゆだん}{油断}$ は $\\overset{たいてき}{大敵}$ だ。/粗心大意是最大的敌人。"},
+  {word: "独立", kana: "どくりつ", type: "名・自サ", meaning: "独立", example: "$\\overset{くに}{国}$ が $\\overset{どくりつ}{独立}$ する。/国家独立。 || $\\overset{けいざいてき}{経済的}$ に $\\overset{どくりつ}{独立}$ する。/经济上独立。"},
+  {word: "土地", kana: "とち", type: "名", meaning: "土地", example: "$\\overset{とち}{土地}$ を $\\overset{か}{買}$ う。/买土地。 || $\\overset{ひろ}{広}$ い $\\overset{とち}{土地}$ 。/广阔的土地。"},
+  {word: "範囲", kana: "はんい", type: "名", meaning: "范围", example: "$\\overset{しけん}{試験}$ の $\\overset{はんい}{範囲}$ 。/考试范围。 || $\\overset{はんい}{範囲}$ が $\\overset{ひろ}{広}$ い。/范围很广。"},
+  {word: "被災地", kana: "ひさいち", type: "名", meaning: "灾区", example: "$\\overset{ひさいち}{被災地}$ を $\\overset{しえん}{支援}$ する。/支援灾区。 || $\\overset{ひさいち}{被災地}$ に $\\overset{む}{向}$ かう。/前往灾区。"},
+  {word: "評判", kana: "ひょうばん", type: "名", meaning: "评价；名声", example: "$\\overset{ひょうばん}{評判}$ が $\\overset{い}{良}$ い。/评价好。 || $\\overset{ひょうばん}{評判}$ の $\\overset{みせ}{店}$ 。/有名的店。"},
+  {word: "保存", kana: "ほぞん", type: "名・他サ", meaning: "保存", example: "$\\overset{データ}{データ}$ を $\\overset{ほぞん}{保存}$ する。/保存数据。 || $\\overset{しょくりょう}{食料}$ を $\\overset{ほぞん}{保存}$ する。/保存食物。"},
+  {word: "模様", kana: "もよう", type: "名", meaning: "花纹；情况", example: "$\\overset{はな}{花}$ の $\\overset{もよう}{模様}$ 。/花朵的花纹。 || $\\overset{そら}{空}$ の $\\overset{もよう}{模様}$ 。/天空的情况（天气）。"},
+  {word: "門", kana: "もん", type: "名", meaning: "门", example: "$\\overset{がっこう}{学校}$ の $\\overset{もん}{門}$ 。/学校的大门。 || $\\overset{もん}{門}$ を $\\overset{あ}{開}$ ける。/开门。"},
+  {word: "用意", kana: "ようい", type: "名・他サ", meaning: "准备", example: "$\\overset{しょくじ}{食事}$ の $\\overset{ようい}{用意}$ をする。/准备饭菜。 || $\\overset{ようい}{用意}$ ができる。/准备好了。"},
+  {word: "様子", kana: "ようす", type: "名", meaning: "情况；样子", example: "$\\overset{こども}{子供}$ の $\\overset{ようす}{様子}$ を $\\overset{み}{見}$ る。/观察孩子的情况。 || $\\overset{へや}{部屋}$ の $\\overset{ようす}{様子}$ 。/房间的样子。"},
+  {word: "和室", kana: "わしつ", type: "名", meaning: "日式房间", example: "$\\overset{わしつ}{和室}$ で $\\overset{くつろ}{寛}$ ぐ。/在日式房间里休息。 || $\\overset{わしつ}{和室}$ に $\\overset{とま}{泊}$ まる。/住在日式房间。"},
+  {word: "愛", kana: "あい", type: "名・他サ", meaning: "爱", example: "$\\overset{あい}{愛}$ を $\\overset{こ}{込}$ める。/倾注爱意。 || $\\overset{かぞく}{家族}$ への $\\overset{あい}{愛}$ 。/对家人的爱。"},
+  {word: "以外", kana: "いがい", type: "名", meaning: "以外", example: "これ $\\overset{いがい}{以外}$ の $\\overset{ほうほう}{方法}$ 。/这以外的方法。 || $\\overset{わたし}{私}$ $\\overset{いがい}{以外}$ の $\\overset{ひと}{人}$ 。/我以外的人。"},
+  {word: "以後", kana: "いご", type: "名", meaning: "以后", example: "$\\overset{ごじ}{五時}$ $\\overset{いご}{以後}$ に $\\overset{き}{来}$ てください。/请五点以后来。 || これ $\\overset{いご}{以後}$ は $\\overset{き}{気}$ をつけます。/今后我会注意的。"},
+  {word: "以上", kana: "いじょう", type: "名", meaning: "以上；既然", example: "$\\overset{さんじゅうさい}{三十歳}$ $\\overset{いじょう}{以上}$ の $\\overset{ひと}{人}$ 。/三十岁以上的人。 || $\\overset{きたい}{期待}$ $\\overset{いじょう}{以上}$ の $\\overset{けっか}{結果}$ 。/超出期待的结果。"},
+  {word: "以前", kana: "いぜん", type: "名", meaning: "以前", example: "$\\overset{いぜん}{以前}$ ここに $\\overset{き}{来}$ たことがある。/以前来过这里。 || $\\overset{ごねん}{五年}$ $\\overset{いぜん}{以前}$ 。/五年以前。"},
+  {word: "以内", kana: "いない", type: "名", meaning: "以内", example: "$\\overset{いっしゅうかん}{一週間}$ $\\overset{いない}{以内}$ に $\\overset{へんじ}{返事}$ をする。/一周以内回复。 || $\\overset{ひゃくえん}{百円}$ $\\overset{いない}{以内}$ 。/一百日元以内。"},
+  {word: "意欲", kana: "いよく", type: "名", meaning: "意愿；热情", example: "$\\overset{まな}{学}$ ぶ $\\overset{いよく}{意欲}$ がある。/有学习的热情。 || $\\overset{いよく}{意欲}$ に $\\overset{も}{燃}$ える。/热情高涨。"},
+  {word: "原子力", kana: "げんしりょく", type: "名", meaning: "原子能", example: "$\\overset{げんしりょく}{原子力}$ $\\overset{はつでんしょ}{発電所}$ 。/核电站。 || $\\overset{げんしりょく}{原子力}$ の $\\overset{へいわ}{平和}$ $\\overset{りよう}{利用}$ 。/原子能的和平利用。"},
+  {word: "建設", kana: "けんせつ", type: "名・他サ", meaning: "建设", example: "$\\overset{あたら}{新}$ しい $\\overset{ビル}{ビル}$ を $\\overset{けんせつ}{建設}$ する。/建设新大楼。 || $\\overset{けんせつ}{建設}$ $\\overset{こうじ}{工事}$ 。/建设工程。"},
+  {word: "好意", kana: "こうい", type: "名", meaning: "好意", example: "$\\overset{こうい}{好意}$ を $\\overset{も}{持}$ つ。/抱有好意。 || $\\overset{こうい}{好意}$ に $\\overset{かんしゃ}{感謝}$ する。/感谢好意。"},
+  {word: "故郷", kana: "こきょう", type: "名", meaning: "故乡", example: "$\\overset{こきょう}{故郷}$ に $\\overset{かえ}{帰}$ る。/回故乡。 || $\\overset{こきょう}{故郷}$ を $\\overset{おも}{思}$ い $\\overset{だ}{出}$ す。/想起故乡。"},
+  {word: "自信", kana: "じしん", type: "名", meaning: "自信", example: "$\\overset{じしん}{自信}$ を $\\overset{も}{持}$ つ。/有自信。 || $\\overset{じしん}{自信}$ がない。/没有自信。"},
+  {word: "思想", kana: "しそう", type: "名", meaning: "思想", example: "$\\overset{あたら}{新}$ しい $\\overset{しそう}{思想}$ 。/新思想。 || $\\overset{せいじ}{政治}$ $\\overset{しそう}{思想}$ 。/政治思想。"},
+  {word: "市内", kana: "しない", type: "名", meaning: "市内", example: "$\\overset{しない}{市内}$ を $\\overset{かんこう}{観光}$ する。/在市内观光。 || $\\overset{しない}{市内}$ の $\\overset{バス}{バス}$ 。/市内的公交车。"},
+  {word: "定規", kana: "じょうぎ", type: "名", meaning: "尺子", example: "$\\overset{じょうぎ}{定規}$ で $\\overset{せん}{線}$ を $\\overset{ひ}{引}$ く。/用尺子画线。 || $\\overset{じょうぎ}{定規}$ で $\\overset{はか}{測}$ る。/用尺子量。"},
+  {word: "障子", kana: "しょうじ", type: "名", meaning: "纸拉门", example: "$\\overset{しょうじ}{障子}$ を $\\overset{あ}{開}$ ける。/打开纸拉门。 || $\\overset{しょうじ}{障子}$ の $\\overset{かみ}{紙}$ を $\\overset{は}{張}$ り $\\overset{か}{替}$ える。/换纸拉门的纸。"},
+  {word: "女子", kana: "じょし", type: "名", meaning: "女子", example: "$\\overset{じょし}{女子}$ $\\overset{がくせい}{学生}$ 。/女学生。 || $\\overset{じょし}{女子}$ $\\overset{トイレ}{トイレ}$ 。/女厕所。"},
+  {word: "男子", kana: "だんし", type: "名", meaning: "男子", example: "$\\overset{だんし}{男子}$ $\\overset{せいと}{生徒}$ 。/男生。 || $\\overset{だんし}{男子}$ の $\\overset{しあい}{試合}$ 。/男子的比赛。"},
+  {word: "電子", kana: "でんし", type: "名", meaning: "电子", example: "$\\overset{でんし}{電子}$ $\\overset{レンジ}{レンジ}$ 。/微波炉。 || $\\overset{でんし}{電子}$ $\\overset{じしょ}{辞書}$ 。/电子词典。"},
+  {word: "葡萄", kana: "ぶどう", type: "名", meaning: "葡萄", example: "$\\overset{ぶどう}{葡萄}$ を $\\overset{た}{食}$ べる。/吃葡萄。 || $\\overset{ぶどう}{葡萄}$ $\\overset{しゅ}{酒}$ 。/葡萄酒。"},
+  {word: "塀", kana: "へい", type: "名", meaning: "围墙", example: "$\\overset{へい}{塀}$ を $\\overset{の}{乗}$ り $\\overset{こ}{越}$ える。/翻过围墙。 || $\\overset{へい}{塀}$ の $\\overset{そと}{外}$ 。/围墙外。"},
+  {word: "名刺", kana: "めいし", type: "名", meaning: "名片", example: "$\\overset{めいし}{名刺}$ を $\\overset{こうかん}{交換}$ する。/交换名片。 || $\\overset{めいし}{名刺}$ を $\\overset{わた}{渡}$ す。/递名片。"},
+  {word: "利口", kana: "りこう", type: "形动", meaning: "聪明", example: "$\\overset{りこう}{利口}$ な $\\overset{こども}{子供}$ 。/聪明的孩子。 || $\\overset{りこう}{利口}$ な $\\overset{いぬ}{犬}$ 。/聪明的狗。"},
+  {word: "衝突", kana: "しょうとつ", type: "名・自サ", meaning: "冲突；撞车", example: "$\\overset{くるま}{車}$ が $\\overset{しょうとつ}{衝突}$ する。/汽车相撞。 || $\\overset{いけん}{意見}$ が $\\overset{しょうとつ}{衝突}$ する。/意见发生冲突。"},
+  {word: "向上", kana: "こうじょう", type: "名・自サ", meaning: "提高；向上", example: "$\\overset{がくりょく}{学力}$ が $\\overset{こうじょう}{向上}$ する。/学习能力提高。 || $\\overset{ひんしつ}{品質}$ の $\\overset{こうじょう}{向上}$ 。/质量的提高。"},
+  {word: "支援", kana: "しえん", type: "名・他サ", meaning: "支援", example: "$\\overset{ひさいち}{被災地}$ を $\\overset{しえん}{支援}$ する。/支援灾区。 || $\\overset{しえん}{支援}$ を $\\overset{う}{受}$ ける。/接受支援。"},
+  {word: "実家", kana: "じっか", type: "名", meaning: "娘家；老家", example: "$\\overset{じっか}{実家}$ に $\\overset{かえ}{帰}$ る。/回老家。 || $\\overset{じっか}{実家}$ の $\\overset{はは}{母}$ 。/老家的母亲。"},
+  {word: "焦点", kana: "しょうてん", type: "名", meaning: "焦点", example: "$\\overset{はなし}{話}$ の $\\overset{しょうてん}{焦点}$ が $\\overset{ず}{ズ}$ れる。/谈话偏离焦点。 || $\\overset{カメラ}{カメラ}$ の $\\overset{しょうてん}{焦点}$ を $\\overset{あ}{合}$ わせる。/对准相机焦点。"},
+  {word: "書籍", kana: "しょせき", type: "名", meaning: "书籍", example: "$\\overset{しょせき}{書籍}$ を $\\overset{よ}{読}$ む。/阅读书籍。 || $\\overset{でんし}{電子}$ $\\overset{しょせき}{書籍}$ 。/电子书。"},
+  {word: "存在", kana: "そんざい", type: "名・自サ", meaning: "存在", example: "$\\overset{かみ}{神}$ の $\\overset{そんざい}{存在}$ を $\\overset{しん}{信}$ じる。/相信神的存在。 || $\\overset{おお}{大}$ きな $\\overset{そんざい}{存在}$ 。/伟大的存在。"},
+  {word: "導入", kana: "どうにゅう", type: "名・他サ", meaning: "引入；引进", example: "$\\overset{あたら}{新}$ しい $\\overset{システム}{システム}$ を $\\overset{どうにゅう}{導入}$ する。/引入新系统。 || $\\overset{ぎじゅつ}{技術}$ の $\\overset{どうにゅう}{導入}$ 。/技术的引进。"},
+  {word: "日常生活", kana: "にちじょうせいかつ", type: "名", meaning: "日常生活", example: "$\\overset{にちじょうせいかつ}{日常生活}$ に $\\overset{もど}{戻}$ る。/回归日常生活。 || $\\overset{にちじょうせいかつ}{日常生活}$ を $\\overset{おく}{送}$ る。/过着日常生活。"},
+  {word: "発言", kana: "はつげん", type: "名・自サ", meaning: "发言", example: "$\\overset{かいぎ}{会議}$ で $\\overset{はつげん}{発言}$ する。/在会议上发言。 || $\\overset{じゆう}{自由}$ な $\\overset{はつげん}{発言}$ 。/自由的发言。"},
+  {word: "発電所", kana: "はつでんしょ", type: "名", meaning: "发电站", example: "$\\overset{はつでんしょ}{発電所}$ を $\\overset{けんせつ}{建設}$ する。/建设发电站。 || $\\overset{すいりょく}{水力}$ $\\overset{はつでんしょ}{発電所}$ 。/水力发电站。"},
+  {word: "不明", kana: "ふめい", type: "名・形动", meaning: "不明；不清楚", example: "$\\overset{げんいん}{原因}$ は $\\overset{ふめい}{不明}$ です。/原因不明。 || $\\overset{ゆくえ}{行方}$ $\\overset{ふめい}{不明}$ になる。/下落不明。"},
+  {word: "医者", kana: "いしゃ", type: "名", meaning: "医生", example: "$\\overset{いしゃ}{医者}$ に $\\overset{み}{診}$ てもらう。/去看医生。 || $\\overset{いしゃ}{医者}$ になる。/成为医生。"},
+  {word: "お礼", kana: "おれい", type: "名", meaning: "道谢；谢礼", example: "お$\\overset{れい}{礼}$ を $\\overset{い}{言}$ う。/道谢。 || お$\\overset{れい}{礼}$ の $\\overset{しな}{品}$ 。/谢礼。"},
+  {word: "金融", kana: "きんゆう", type: "名", meaning: "金融", example: "$\\overset{きんゆう}{金融}$ $\\overset{きかん}{機関}$ で $\\overset{はたら}{働}$ く。/在金融机构工作。 || $\\overset{きんゆう}{金融}$ $\\overset{きき}{危機}$ 。/金融危机。"},
+  {word: "金曜日", kana: "きんようび", type: "名", meaning: "星期五", example: "$\\overset{きょう}{今日}$ は $\\overset{きんようび}{金曜日}$ です。/今天是星期五。 || $\\overset{きんようび}{金曜日}$ の $\\overset{よる}{夜}$ 。/星期五的晚上。"},
+  {word: "検討", kana: "けんとう", type: "名・他サ", meaning: "探讨；研究", example: "$\\overset{もんだい}{問題}$ を $\\overset{けんとう}{検討}$ する。/探讨问题。 || $\\overset{けんとう}{検討}$ を $\\overset{かさ}{重}$ ねる。/反复研究。"},
+  {word: "柔道", kana: "じゅうどう", type: "名", meaning: "柔道", example: "$\\overset{じゅうどう}{柔道}$ を $\\overset{なら}{習}$ う。/学习柔道。 || $\\overset{じゅうどう}{柔道}$ の $\\overset{せんしゅ}{選手}$ 。/柔道选手。"},
+  {word: "趣味", kana: "しゅみ", type: "名", meaning: "爱好", example: "$\\overset{わたし}{私}$ の $\\overset{しゅみ}{趣味}$ は $\\overset{どくしょ}{読書}$ です。/我的爱好是读书。 || $\\overset{しゅみ}{趣味}$ が $\\overset{あ}{合}$ う。/爱好相投。"},
+  {word: "親切", kana: "しんせつ", type: "名・形动", meaning: "亲切；热情", example: "$\\overset{しんせつ}{親切}$ な $\\overset{ひと}{人}$ 。/亲切的人。 || ご$\\overset{しんせつ}{親切}$ にありがとうございます。/感谢您的热情。"},
+  {word: "新鮮", kana: "しんせん", type: "形动", meaning: "新鲜", example: "$\\overset{しんせん}{新鮮}$ な $\\overset{さかな}{魚}$ 。/新鲜的鱼。 || $\\overset{くうき}{空気}$ が $\\overset{しんせん}{新鮮}$ だ。/空气新鲜。"},
+  {word: "世話", kana: "せわ", type: "名・他サ", meaning: "照顾；帮忙", example: "$\\overset{こども}{子供}$ の $\\overset{せわ}{世話}$ をする。/照顾孩子。 || お$\\overset{せわ}{世話}$ になりました。/承蒙您的照顾。"},
+  {word: "全然", kana: "ぜんぜん", type: "副", meaning: "完全（不）；根本（不）", example: "$\\overset{ぜんぜん}{全然}$ $\\overset{わ}{分}$ からない。/完全不明白。 || $\\overset{ぜんぜん}{全然}$ $\\overset{ちが}{違}$ う。/完全不同。"},
+  {word: "通勤", kana: "つうきん", type: "名・自サ", meaning: "通勤；上下班", example: "$\\overset{でんしゃ}{電車}$ で $\\overset{つうきん}{通勤}$ する。/坐电车上下班。 || $\\overset{つうきん}{通勤}$ $\\overset{じかん}{時間}$ 。/通勤时间。"},
+  {word: "通じる", kana: "つうじる", type: "一段自他", meaning: "通晓；理解；打通", example: "$\\overset{でんわ}{電話}$ が $\\overset{つう}{通}$ じる。/电话打通了。 || $\\overset{ことば}{言葉}$ が $\\overset{つう}{通}$ じる。/语言相通。"},
+  {word: "通訳", kana: "つうやく", type: "名・他サ", meaning: "口译；翻译", example: "$\\overset{えいご}{英語}$ を $\\overset{にほんご}{日本語}$ に $\\overset{つうやく}{通訳}$ する。/把英语口译成日语。 || $\\overset{つうやく}{通訳}$ の $\\overset{しごと}{仕事}$ 。/口译的工作。"},
+  {word: "普通", kana: "ふつう", type: "名・形动・副", meaning: "普通；一般", example: "$\\overset{ふつう}{普通}$ の $\\overset{せいかつ}{生活}$ 。/普通的生活。 || $\\overset{ふつう}{普通}$ は $\\overset{あさ}{朝}$ $\\overset{お}{起}$ きる。/一般来说早上起床。"},
+  {word: "平和", kana: "へいわ", type: "名・形动", meaning: "和平", example: "$\\overset{へいわ}{平和}$ な $\\overset{せかい}{世界}$ 。/和平的世界。 || $\\overset{へいわ}{平和}$ を $\\overset{まも}{守}$ る。/维护和平。"},
+  {word: "報告", kana: "ほうこく", type: "名・他サ", meaning: "报告", example: "$\\overset{けっか}{結果}$ を $\\overset{ほうこく}{報告}$ する。/报告结果。 || $\\overset{じょうし}{上司}$ に $\\overset{ほうこく}{報告}$ する。/向上司汇报。"},
+  {word: "翻訳", kana: "ほんやく", type: "名・他サ", meaning: "笔译；翻译", example: "$\\overset{しょうせつ}{小説}$ を $\\overset{ほんやく}{翻訳}$ する。/翻译小说。 || $\\overset{ほんやく}{翻訳}$ $\\overset{き}{機}$ 。/翻译机。"},
+  {word: "安心", kana: "あんしん", type: "名・形动・自サ", meaning: "放心；安心", example: "$\\overset{あんしん}{安心}$ して $\\overset{やす}{休}$ む。/安心休息。 || それを $\\overset{き}{聞}$ いて $\\overset{あんしん}{安心}$ した。/听了那个就放心了。"},
+  {word: "胃", kana: "い", type: "名", meaning: "胃", example: "$\\overset{い}{胃}$ が $\\overset{いた}{痛}$ い。/胃痛。 || $\\overset{い}{胃}$ の $\\overset{くすり}{薬}$ を $\\overset{の}{飲}$ む。/吃胃药。"},
+  {word: "運転", kana: "うんてん", type: "名・他サ", meaning: "驾驶；运转", example: "$\\overset{くるま}{車}$ を $\\overset{うんてん}{運転}$ する。/开车。 || $\\overset{あんぜん}{安全}$ $\\overset{うんてん}{運転}$ 。/安全驾驶。"},
+  {word: "演じる", kana: "えんじる", type: "一段他", meaning: "扮演；演出", example: "$\\overset{しゅやく}{主役}$ を $\\overset{えん}{演}$ じる。/扮演主角。 || $\\overset{げき}{劇}$ を $\\overset{えん}{演}$ じる。/演剧。"},
+  {word: "お辞儀", kana: "おじぎ", type: "名・自サ", meaning: "鞠躬", example: "$\\overset{ていねい}{丁寧}$ に お$\\overset{じぎ}{辞儀}$ をする。/恭敬地鞠躬。 || $\\overset{あたま}{頭}$ を $\\overset{さ}{下}$ げて お$\\overset{じぎ}{辞儀}$ をする。/低头鞠躬。"},
+  {word: "過去", kana: "かこ", type: "名", meaning: "过去", example: "$\\overset{かこ}{過去}$ を $\\overset{ふ}{振}$ り $\\overset{かえ}{返}$ る。/回顾过去。 || $\\overset{かこ}{過去}$ の $\\overset{できごと}{出来事}$ 。/过去的事情。"},
+  {word: "歌舞伎", kana: "かぶき", type: "名", meaning: "歌舞伎", example: "$\\overset{かぶき}{歌舞伎}$ を $\\overset{み}{見}$ に $\\overset{い}{行}$ く。/去看歌舞伎。 || $\\overset{かぶき}{歌舞伎}$ $\\overset{やくしゃ}{役者}$ 。/歌舞伎演员。"},
+  {word: "関心", kana: "かんしん", type: "名", meaning: "关心；感兴趣", example: "$\\overset{せいじ}{政治}$ に $\\overset{かんしん}{関心}$ を $\\overset{も}{持}$ つ。/关心政治。 || $\\overset{かんしん}{関心}$ が $\\overset{たか}{高}$ まる。/关注度提高。"},
+  {word: "基礎", kana: "きそ", type: "名", meaning: "基础", example: "$\\overset{きそ}{基礎}$ から $\\overset{まな}{学}$ ぶ。/从基础学起。 || $\\overset{きそ}{基礎}$ を $\\overset{かた}{固}$ める。/打好基础。"},
+  {word: "疑問", kana: "ぎもん", type: "名", meaning: "疑问", example: "$\\overset{ぎもん}{疑問}$ に $\\overset{おも}{思}$ う。/感到疑问。 || $\\overset{ぎもん}{疑問}$ を $\\overset{と}{解}$ く。/解答疑问。"},
+  {word: "共通", kana: "きょうつう", type: "名・自サ", meaning: "共同；共通", example: "$\\overset{きょうつう}{共通}$ の $\\overset{しゅみ}{趣味}$ 。/共同的爱好。 || $\\overset{りがい}{利益}$ が $\\overset{きょうつう}{共通}$ する。/利益共通。"},
+  {word: "距離", kana: "きょり", type: "名", meaning: "距离", example: "$\\overset{きょり}{距離}$ を $\\overset{はか}{測}$ る。/测量距离。 || $\\overset{きょり}{距離}$ を $\\overset{お}{置}$ く。/保持距离。"},
+  {word: "経営", kana: "けいえい", type: "名・他サ", meaning: "经营", example: "$\\overset{かいしゃ}{会社}$ を $\\overset{けいえい}{経営}$ する。/经营公司。 || $\\overset{けいえい}{経営}$ $\\overset{しゃ}{者}$ 。/经营者。"},
+  {word: "経験", kana: "けいけん", type: "名・他サ", meaning: "经验", example: "$\\overset{けいけん}{経験}$ が $\\overset{ほうふ}{豊富}$ だ。/经验丰富。 || $\\overset{あたら}{新}$ しいことを $\\overset{けいけん}{経験}$ する。/体验新事物。"},
+  {word: "経済", kana: "けいざい", type: "名", meaning: "经济", example: "$\\overset{けいざい}{経済}$ が $\\overset{はってん}{発展}$ する。/经济发展。 || $\\overset{けいざい}{経済}$ $\\overset{がく}{学}$ 。/经济学。"},
+  {word: "計算", kana: "けいさん", type: "名・他サ", meaning: "计算", example: "$\\overset{けいさん}{計算}$ が $\\overset{あ}{合}$ わない。/计算不符。 || $\\overset{ひよう}{費用}$ を $\\overset{けいさん}{計算}$ する。/计算费用。"},
+  {word: "経費", kana: "けいひ", type: "名", meaning: "经费", example: "$\\overset{けいひ}{経費}$ を $\\overset{さくげん}{削減}$ する。/削减经费。 || $\\overset{けいひ}{経費}$ が かかる。/花费经费。"},
+  {word: "決心", kana: "けっしん", type: "名・自サ", meaning: "决心", example: "$\\overset{けっしん}{決心}$ が $\\overset{にぶ}{鈍}$ る。/决心动摇。 || $\\overset{りゅうがく}{留学}$ を $\\overset{けっしん}{決心}$ する。/下定决心留学。"},
+  {word: "欠点", kana: "けってん", type: "名", meaning: "缺点", example: "$\\overset{けってん}{欠点}$ を $\\overset{なお}{直}$ す。/改正缺点。 || $\\overset{じぶん}{自分}$ の $\\overset{けってん}{欠点}$ 。/自己的缺点。"},
+  {word: "広告", kana: "こうこく", type: "名・他サ", meaning: "广告", example: "$\\overset{しんぶん}{新聞}$ に $\\overset{こうこく}{広告}$ を $\\overset{だ}{出}$ す。/在报纸上登广告。 || $\\overset{こうこく}{広告}$ を $\\overset{み}{見}$ る。/看广告。"},
+  {word: "公平", kana: "こうへい", type: "名・形动", meaning: "公平", example: "$\\overset{こうへい}{公平}$ に $\\overset{あつか}{扱}$ う。/公平对待。 || $\\overset{こうへい}{公平}$ な $\\overset{さいばん}{裁判}$ 。/公平的审判。"},
+  {word: "個性", kana: "こせい", type: "名", meaning: "个性", example: "$\\overset{こせい}{個性}$ を $\\overset{のば}{伸}$ ばす。/发展个性。 || $\\overset{こせい}{個性}$ $\\overset{てき}{的}$ な $\\overset{ファッション}{ファッション}$ 。/有个性的时尚。"},
+  {word: "根性", kana: "こんじょう", type: "名", meaning: "毅力；斗志", example: "$\\overset{こんじょう}{根性}$ がある。/有毅力。 || $\\overset{こんじょう}{根性}$ で $\\overset{の}{乗}$ り $\\overset{き}{切}$ る。/凭毅力克服。"},
+  {word: "財産", kana: "ざいさん", type: "名", meaning: "财产", example: "$\\overset{ざいさん}{財産}$ を $\\overset{のこ}{残}$ す。/留下财产。 || $\\overset{けんこう}{健康}$ は $\\overset{ざいさん}{財産}$ だ。/健康就是财富。"},
+  {word: "裁判", kana: "さいばん", type: "名・他サ", meaning: "审判；裁判", example: "$\\overset{さいばん}{裁判}$ を $\\overset{おこ}{起}$ こす。/提起诉讼。 || $\\overset{こうへい}{公平}$ な $\\overset{さいばん}{裁判}$ 。/公平的审判。"},
+  {word: "作者", kana: "さくしゃ", type: "名", meaning: "作者", example: "この $\\overset{しょうせつ}{小説}$ の $\\overset{さくしゃ}{作者}$ 。/这部小说的作者。 || $\\overset{さくしゃ}{作者}$ $\\overset{ふめい}{不明}$ 。/作者不详。"},
+  {word: "作品", kana: "さくひん", type: "名", meaning: "作品", example: "$\\overset{すば}{素晴}$ らしい $\\overset{さくひん}{作品}$ 。/优秀的作品。 || $\\overset{さくひん}{作品}$ を $\\overset{てんじ}{展示}$ する。/展出作品。"},
+  {word: "質", kana: "しつ", type: "名", meaning: "质量；质地", example: "$\\overset{しつ}{質}$ が $\\overset{い}{良}$ い。/质量好。 || $\\overset{しつ}{質}$ を $\\overset{と}{問}$ う。/追求质量。"},
+  {word: "首都", kana: "しゅと", type: "名", meaning: "首都", example: "$\\overset{にほん}{日本}$ の $\\overset{しゅと}{首都}$ 。/日本的首都。 || $\\overset{しゅと}{首都}$ に $\\overset{す}{住}$ む。/住在首都。"},
+  {word: "使用", kana: "しよう", type: "名・他サ", meaning: "使用", example: "$\\overset{パソコン}{パソコン}$ を $\\overset{しよう}{使用}$ する。/使用电脑。 || $\\overset{しよう}{使用}$ $\\overset{ちゅう}{中}$ です。/正在使用中。"},
+  {word: "常識", kana: "じょうしき", type: "名", meaning: "常识", example: "$\\overset{じょうしき}{常識}$ がない。/没有常识。 || $\\overset{しゃかい}{社会}$ の $\\overset{じょうしき}{常識}$ 。/社会的常识。"},
+  {word: "衝突", kana: "しょうとつ", type: "名・自サ", meaning: "冲突；碰撞", example: "$\\overset{くるま}{車}$ が $\\overset{しょうとつ}{衝突}$ する。/汽车相撞。 || $\\overset{いけん}{意見}$ の $\\overset{しょうとつ}{衝突}$ 。/意见的冲突。"},
+  {word: "商品", kana: "しょうひん", type: "名", meaning: "商品", example: "$\\overset{あたら}{新}$ しい $\\overset{しょうひん}{商品}$ 。/新商品。 || $\\overset{しょうひん}{商品}$ を $\\overset{う}{売}$ る。/卖商品。"},
+  {word: "将来", kana: "しょうらい", type: "名", meaning: "将来", example: "$\\overset{しょうらい}{将来}$ の $\\overset{ゆめ}{夢}$ 。/将来的梦想。 || $\\overset{しょうらい}{将来}$ が $\\overset{たの}{楽}$ しみだ。/期待将来。"},
+  {word: "女性", kana: "じょせい", type: "名", meaning: "女性", example: "$\\overset{じょせい}{女性}$ の $\\overset{はたら}{働}$ き $\\overset{かた}{方}$ 。/女性的工作方式。 || $\\overset{じょせい}{女性}$ $\\overset{せんよう}{専用}$ 。/女性专用。"},
+  {word: "親戚", kana: "しんせき", type: "名", meaning: "亲戚", example: "$\\overset{しんせき}{親戚}$ が $\\overset{あつ}{集}$ まる。/亲戚聚会。 || $\\overset{とお}{遠}$ い $\\overset{しんせき}{親戚}$ 。/远房亲戚。"},
+  {word: "心臓", kana: "しんぞう", type: "名", meaning: "心脏", example: "$\\overset{しんぞう}{心臓}$ が $\\overset{う}{打}$ つ。/心脏跳动。 || $\\overset{しんぞう}{心臓}$ の $\\overset{びょうき}{病気}$ 。/心脏病。"},
+  {word: "心配", kana: "しんぱい", type: "名・形动・他サ", meaning: "担心；操心", example: "$\\overset{しんぱい}{心配}$ をかける。/让人担心。 || $\\overset{しんぱい}{心配}$ しないでください。/请不要担心。"},
+  {word: "親友", kana: "しんゆう", type: "名", meaning: "好友；闺蜜", example: "$\\overset{かれ}{彼}$ は $\\overset{わたし}{私}$ の $\\overset{しんゆう}{親友}$ だ。/他是我的好朋友。 || $\\overset{しんゆう}{親友}$ と $\\overset{あそ}{遊}$ ぶ。/和好朋友玩。"},
+  {word: "信用", kana: "しんよう", type: "名・他サ", meaning: "信用；信任", example: "$\\overset{ひと}{人}$ を $\\overset{しんよう}{信用}$ する。/信任别人。 || $\\overset{しんよう}{信用}$ を $\\overset{うしな}{失}$ う。/失去信用。"},
+  {word: "性格", kana: "せいかく", type: "名", meaning: "性格", example: "$\\overset{せいかく}{性格}$ が $\\overset{あ}{合}$ う。/性格合得来。 || $\\overset{あか}{明}$ るい $\\overset{せいかく}{性格}$ 。/开朗的性格。"},
+  {word: "税金", kana: "ぜいきん", type: "名", meaning: "税金", example: "$\\overset{ぜいきん}{税金}$ を $\\overset{はら}{払}$ う。/交税。 || $\\overset{ぜいきん}{税金}$ が $\\overset{たか}{高}$ い。/税高。"},
+  {word: "性質", kana: "せいしつ", type: "名", meaning: "性质；本性", example: "$\\overset{もんだい}{問題}$ の $\\overset{せいしつ}{性質}$ 。/问题的性质。 || $\\overset{せいしつ}{性質}$ が $\\overset{よ}{良}$ い。/性质好。"},
+  {word: "相談", kana: "そうだん", type: "名・自他サ", meaning: "商量", example: "$\\overset{せんせい}{先生}$ に $\\overset{そうだん}{相談}$ する。/找老师商量。 || $\\overset{そうだん}{相談}$ に $\\overset{の}{乗}$ る。/接受咨询。"},
+  {word: "尊重", kana: "そんちょう", type: "名・他サ", meaning: "尊重", example: "$\\overset{いけん}{意見}$ を $\\overset{そんちょう}{尊重}$ する。/尊重意见。 || $\\overset{こじん}{個人}$ の $\\overset{そんちょう}{尊重}$ 。/尊重个人。"},
+  {word: "男性", kana: "だんせい", type: "名", meaning: "男性", example: "$\\overset{だんせい}{男性}$ の $\\overset{ふく}{服}$ 。/男装。 || $\\overset{だんせい}{男性}$ と $\\overset{じょせい}{女性}$ 。/男性和女性。"},
+  {word: "知恵", kana: "ちえ", type: "名", meaning: "智慧", example: "$\\overset{ちえ}{知恵}$ を $\\overset{だ}{出}$ す。/想办法。 || $\\overset{ちえ}{知恵}$ が $\\overset{つ}{付}$ く。/长智慧。"},
+  {word: "注射", kana: "ちゅうしゃ", type: "名・他サ", meaning: "注射；打针", example: "$\\overset{ちゅうしゃ}{注射}$ を $\\overset{う}{打}$ つ。/打针。 || $\\overset{ちゅうしゃ}{注射}$ が $\\overset{こわ}{怖}$ い。/害怕打针。"},
+  {word: "中心", kana: "ちゅうしん", type: "名", meaning: "中心", example: "$\\overset{まち}{町}$ の $\\overset{ちゅうしん}{中心}$ 。/市中心。 || $\\overset{わだい}{話題}$ の $\\overset{ちゅうしん}{中心}$ 。/话题的中心。"},
+  {word: "貯金", kana: "ちょきん", type: "名・自サ", meaning: "存款；存钱", example: "$\\overset{ちょきん}{貯金}$ をする。/存钱。 || $\\overset{ちょきん}{貯金}$ が $\\overset{た}{溜}$ まる。/攒下存款。"},
+  {word: "熱心", kana: "ねっしん", type: "名・形动", meaning: "热心；热情", example: "$\\overset{ねっしん}{熱心}$ に $\\overset{べんきょう}{勉強}$ する。/热心学习。 || $\\overset{しごと}{仕事}$ に $\\overset{ねっしん}{熱心}$ だ。/对工作很热心。"},
+  {word: "売店", kana: "ばいてん", type: "名", meaning: "小卖部", example: "$\\overset{えき}{駅}$ の $\\overset{ばいてん}{売店}$ 。/车站的小卖部。 || $\\overset{ばいてん}{売店}$ で $\\overset{か}{買}$ う。/在小卖部买。"},
+  {word: "非常", kana: "ひじょう", type: "名・形动", meaning: "紧急；非常", example: "$\\overset{ひじょう}{非常}$ に $\\overset{あつ}{暑}$ い。/非常热。 || $\\overset{ひじょう}{非常}$ $\\overset{ぐち}{口}$ 。/紧急出口。"},
+  {word: "費用", kana: "ひよう", type: "名", meaning: "费用", example: "$\\overset{ひよう}{費用}$ が かかる。/花费费用。 || $\\overset{りょこう}{旅行}$ の $\\overset{ひよう}{費用}$ 。/旅行的费用。"},
+  {word: "瓶", kana: "びん", type: "名", meaning: "瓶子", example: "$\\overset{びん}{瓶}$ に $\\overset{い}{入}$ れる。/装进瓶子里。 || $\\overset{ビール}{ビール}$ $\\overset{びん}{瓶}$ 。/啤酒瓶。"},
+  {word: "平均", kana: "へいきん", type: "名・他サ", meaning: "平均", example: "$\\overset{へいきん}{平均}$ を $\\overset{だ}{出}$ す。/求平均。 || $\\overset{へいきん}{平均}$ $\\overset{てん}{点}$ 。/平均分。"},
+  {word: "未来", kana: "みらい", type: "名", meaning: "未来", example: "$\\overset{みらい}{未来}$ を $\\overset{ゆめ}{夢}$ $\\overset{み}{見}$ る。/梦想未来。 || $\\overset{あか}{明}$ るい $\\overset{みらい}{未来}$ 。/光明的未来。"},
+  {word: "勿論", kana: "もちろん", type: "副", meaning: "当然", example: "$\\overset{もちろん}{勿論}$ $\\overset{い}{行}$ きます。/当然要去。 || それは $\\overset{もちろん}{勿論}$ です。/那是当然的。"},
+  {word: "洋服", kana: "ようふく", type: "名", meaning: "西服；洋装", example: "$\\overset{ようふく}{洋服}$ を $\\overset{き}{着}$ る。/穿洋装。 || $\\overset{あたら}{新}$ しい $\\overset{ようふく}{洋服}$ 。/新衣服。"},
+  {word: "利益", kana: "りえき", type: "名", meaning: "利益；利润", example: "$\\overset{りえき}{利益}$ が $\\overset{で}{出}$ る。/产生利润。 || $\\overset{りえき}{利益}$ を $\\overset{え}{得}$ る。/获得利益。"},
+  {word: "利用", kana: "りよう", type: "名・他サ", meaning: "利用；使用", example: "$\\overset{としょかん}{図書館}$ を $\\overset{りよう}{利用}$ する。/利用图书馆。 || $\\overset{りよう}{利用}$ $\\overset{しゃ}{者}$ 。/使用者。"},
+  {word: "両親", kana: "りょうしん", type: "名", meaning: "父母", example: "$\\overset{りょうしん}{両親}$ に $\\overset{てがみ}{手紙}$ を $\\overset{か}{書}$ く。/给父母写信。 || $\\overset{りょうしん}{両親}$ を $\\overset{そんけい}{尊敬}$ する。/尊敬父母。"},
+  {word: "労働", kana: "ろうどう", type: "名・自サ", meaning: "劳动", example: "$\\overset{ろうどう}{労働}$ $\\overset{じかん}{時間}$ 。/劳动时间。 || $\\overset{ろうどう}{労働}$ の $\\overset{じょうけん}{条件}$ 。/劳动条件。"},
+  {word: "海水浴", kana: "かいすいよく", type: "名・自サ", meaning: "海水浴", example: "$\\overset{かいすいよく}{海水浴}$ に $\\overset{い}{行}$ く。/去洗海水浴。 || $\\overset{なつ}{夏}$ は $\\overset{かいすいよく}{海水浴}$ だ。/夏天就是海水浴。"},
+  {word: "缶", kana: "かん", type: "名", meaning: "罐子", example: "$\\overset{かん}{缶}$ $\\overset{ジュース}{ジュース}$ 。/罐装果汁。 || $\\overset{かん}{缶}$ を $\\overset{あ}{開}$ ける。/开罐头。"},
+  {word: "金", kana: "きん", type: "名", meaning: "金子", example: "$\\overset{きん}{金}$ の $\\overset{ゆびわ}{指輪}$ 。/金戒指。 || $\\overset{きん}{金}$ メダル。/金牌。"},
+  {word: "金魚", kana: "きんぎょ", type: "名", meaning: "金鱼", example: "$\\overset{きんぎょ}{金魚}$ を $\\overset{か}{飼}$ う。/养金鱼。 || $\\overset{きんぎょ}{金魚}$ すくい。/捞金鱼。"},
+  {word: "金属", kana: "きんぞく", type: "名", meaning: "金属", example: "$\\overset{きんぞく}{金属}$ の $\\overset{おと}{音}$ 。/金属的声音。 || $\\overset{きんぞく}{金属}$ $\\overset{せい}{製}$ 。/金属制。"},
+  {word: "下旬", kana: "げじゅん", type: "名", meaning: "下旬", example: "$\\overset{こんげつ}{今月}$ の $\\overset{げじゅん}{下旬}$ 。/这个月下旬。 || $\\overset{さんがつ}{三月}$ $\\overset{げじゅん}{下旬}$ に $\\overset{さくら}{桜}$ が $\\overset{さ}{咲}$ く。/三月下旬樱花开放。"},
+  {word: "化粧", kana: "けしょう", type: "名・自サ", meaning: "化妆", example: "$\\overset{けしょう}{化粧}$ をする。/化妆。 || $\\overset{けしょう}{化粧}$ を $\\overset{おと}{落}$ とす。/卸妆。"},
+  {word: "札", kana: "さつ", type: "名", meaning: "纸币；钞票", example: "$\\overset{いちまんえん}{一万円}$ $\\overset{さつ}{札}$ 。/一万日元纸币。 || $\\overset{さつ}{札}$ を $\\overset{くず}{崩}$ す。/把纸币换开。"},
+  {word: "施設", kana: "しせつ", type: "名・他サ", meaning: "设施", example: "$\\overset{こうきょう}{公共}$ $\\overset{しせつ}{施設}$ 。/公共设施。 || $\\overset{しせつ}{施設}$ を $\\overset{りよう}{利用}$ する。/利用设施。"},
+  {word: "神経", kana: "しんけい", type: "名", meaning: "神经", example: "$\\overset{しんけい}{神経}$ が $\\overset{するど}{鋭}$ い。/神经敏锐。 || $\\overset{うんどう}{運動}$ $\\overset{しんけい}{神経}$ 。/运动神经。"},
+  {word: "親類", kana: "しんるい", type: "名", meaning: "亲属；亲戚", example: "$\\overset{しんるい}{親類}$ を $\\overset{あつ}{集}$ める。/召集亲戚。 || $\\overset{とお}{遠}$ い $\\overset{しんるい}{親類}$ 。/远方亲戚。"},
+  {word: "製", kana: "せい", type: "接尾", meaning: "制造", example: "$\\overset{にほん}{日本}$ $\\overset{せい}{製}$ の $\\overset{とけい}{時計}$ 。/日本造的手表。 || $\\overset{プラスチック}{プラスチック}$ $\\overset{せい}{製}$ 。/塑料制。"},
+  {word: "製造", kana: "せいぞう", type: "名・他サ", meaning: "制造", example: "$\\overset{くるま}{車}$ を $\\overset{せいぞう}{製造}$ する。/制造汽车。 || $\\overset{せいぞう}{製造}$ $\\overset{ぎょう}{業}$ 。/制造业。"},
+  {word: "製品", kana: "せいひん", type: "名", meaning: "制品；产品", example: "$\\overset{あたら}{新}$ しい $\\overset{せいひん}{製品}$ 。/新产品。 || $\\overset{でんき}{電気}$ $\\overset{せいひん}{製品}$ 。/电子产品。"},
+  {word: "石鹸", kana: "せっけん", type: "名", meaning: "肥皂", example: "$\\overset{せっけん}{石鹸}$ で $\\overset{て}{手}$ を $\\overset{あら}{洗}$ う。/用肥皂洗手。 || $\\overset{せっけん}{石鹸}$ の $\\overset{あわ}{泡}$ 。/肥皂的泡沫。"},
+  {word: "太平洋", kana: "たいへいよう", type: "名", meaning: "太平洋", example: "$\\overset{たいへいよう}{太平洋}$ を $\\overset{わた}{渡}$ る。/横渡太平洋。 || $\\overset{ひろ}{広}$ い $\\overset{たいへいよう}{太平洋}$ 。/广阔的太平洋。"},
+  {word: "鉄", kana: "てつ", type: "名", meaning: "铁", example: "$\\overset{てつ}{鉄}$ は $\\overset{あつ}{熱}$ いうちに $\\overset{う}{打}$ て。/趁热打铁。 || $\\overset{てつ}{鉄}$ の $\\overset{とびら}{扉}$ 。/铁门。"},
+  {word: "日用品", kana: "にちようひん", type: "名", meaning: "日用品", example: "$\\overset{にちようひん}{日用品}$ を $\\overset{か}{買}$ う。/买日用品。 || $\\overset{にちようひん}{日用品}$ の $\\overset{ねあ}{値上}$ がり。/日用品涨价。"},
+  {word: "秒", kana: "びょう", type: "名", meaning: "秒", example: "$\\overset{じゅうびょう}{十秒}$ $\\overset{ま}{待}$ つ。/等十秒。 || $\\overset{いちびょう}{一秒}$ も $\\overset{むだ}{無駄}$ にしない。/一秒都不浪费。"},
+  {word: "標準", kana: "ひょうじゅん", type: "名", meaning: "标准", example: "$\\overset{ひょうじゅん}{標準}$ に $\\overset{あ}{合}$ わせる。/符合标准。 || $\\overset{ひょうじゅん}{標準}$ $\\overset{てき}{的}$ な $\\overset{サイズ}{サイズ}$ 。/标准的尺寸。"},
+  {word: "部品", kana: "ぶひん", type: "名", meaning: "零件", example: "$\\overset{きかい}{機械}$ の $\\overset{ぶひん}{部品}$ 。/机器的零件。 || $\\overset{ぶひん}{部品}$ を $\\overset{こうかん}{交換}$ する。/更换零件。"},
+  {word: "平野", kana: "へいや", type: "名", meaning: "平原", example: "$\\overset{ひろ}{広}$ い $\\overset{へいや}{平野}$ 。/广阔的平原。 || $\\overset{かんとう}{関東}$ $\\overset{へいや}{平野}$ 。/关东平原。"},
+  {word: "棒", kana: "ぼう", type: "名", meaning: "棍棒", example: "$\\overset{ぼう}{棒}$ で $\\overset{たた}{叩}$ く。/用棍子敲。 || $\\overset{きのぼう}{木の棒}$ 。/木棍。"},
+  {word: "毎朝", kana: "まいあさ", type: "名・副", meaning: "每天早晨", example: "$\\overset{まいあさ}{毎朝}$ $\\overset{はし}{走}$ る。/每天早上跑步。 || $\\overset{まいあさ}{毎朝}$ の $\\overset{にっか}{日課}$ 。/每天早上的例行公事。"},
+  {word: "面積", kana: "めんせき", type: "名", meaning: "面积", example: "$\\overset{めんせき}{面積}$ を $\\overset{はか}{測}$ る。/测量面积。 || $\\overset{くに}{国}$ の $\\overset{めんせき}{面積}$ 。/国土面积。"},
+  {word: "用", kana: "よう", type: "名", meaning: "事情；用途", example: "$\\overset{よう}{用}$ がある。/有事。 || $\\overset{こども}{子供}$ $\\overset{よう}{用}$ の $\\overset{ふく}{服}$ 。/儿童用的衣服。"},
+  {word: "陸上競技", kana: "りくじょうきょうぎ", type: "名", meaning: "田径运动", example: "$\\overset{りくじょうきょうぎ}{陸上競技}$ の $\\overset{たいかい}{大会}$ 。/田径运动会。 || $\\overset{りくじょうきょうぎ}{陸上競技}$ を $\\overset{み}{見}$ る。/看田径比赛。"},
+  {word: "良心", kana: "りょうしん", type: "名", meaning: "良心", example: "$\\overset{りょうしん}{良心}$ が $\\overset{とが}{咎}$ める。/良心受到谴责。 || $\\overset{りょうしん}{良心}$ に $\\overset{したが}{従}$ う。/凭良心行事。"},
+  {word: "介護", kana: "かいご", type: "名・他サ", meaning: "护理；照顾", example: "$\\overset{ろうじん}{老人}$ を $\\overset{かいご}{介護}$ する。/护理老人。 || $\\overset{かいご}{介護}$ の $\\overset{しごと}{仕事}$ 。/护理工作。"},
+  {word: "管理", kana: "かんり", type: "名・他サ", meaning: "管理", example: "$\\overset{けんこう}{健康}$ を $\\overset{かんり}{管理}$ する。/管理健康。 || $\\overset{マンション}{マンション}$ の $\\overset{かんり}{管理}$ $\\overset{にん}{人}$ 。/公寓管理员。"},
+  {word: "機関", kana: "きかん", type: "名", meaning: "机构", example: "$\\overset{きょういく}{教育}$ $\\overset{きかん}{機関}$ 。/教育机构。 || $\\overset{こうつう}{交通}$ $\\overset{きかん}{機関}$ 。/交通机构。"},
+  {word: "軍事", kana: "ぐんじ", type: "名", meaning: "军事", example: "$\\overset{ぐんじ}{軍事}$ $\\overset{りょく}{力}$ 。/军事力量。 || $\\overset{ぐんじ}{軍事}$ $\\overset{きょうてい}{協定}$ を $\\overset{むす}{結}$ ぶ。/签订军事协定。"},
+  {word: "景品", kana: "けいひん", type: "名", meaning: "赠品；奖品", example: "$\\overset{けいひん}{景品}$ を もらう。/获得赠品。 || $\\overset{ゲーム}{ゲーム}$ の $\\overset{けいひん}{景品}$ 。/游戏的奖品。"},
+  {word: "言動", kana: "げんどう", type: "名", meaning: "言行", example: "$\\overset{げんどう}{言動}$ に $\\overset{ちゅうい}{注意}$ する。/注意言行。 || $\\overset{かれ}{彼}$ の $\\overset{げんどう}{言動}$ が $\\overset{おか}{可笑}$ しい。/他的言行很奇怪。"},
+  {word: "今月", kana: "こんげつ", type: "名", meaning: "本月", example: "$\\overset{こんげつ}{今月}$ の $\\overset{よてい}{予定}$ 。/本月的计划。 || $\\overset{こんげつ}{今月}$ の $\\overset{げじゅん}{下旬}$ 。/本月下旬。"},
+  {word: "再利用", kana: "さいりよう", type: "名・他サ", meaning: "再利用", example: "$\\overset{ごみ}{ゴミ}$ を $\\overset{さいりよう}{再利用}$ する。/垃圾再利用。 || $\\overset{みず}{水}$ の $\\overset{さいりよう}{再利用}$ 。/水的再利用。"},
+  {word: "社内", kana: "しゃない", type: "名", meaning: "公司内", example: "$\\overset{しゃない}{社内}$ の $\\overset{かいぎ}{会議}$ 。/公司内的会议。 || $\\overset{しゃない}{社内}$ $\\overset{きそく}{規則}$ を $\\overset{まも}{守}$ る。/遵守公司规定。"},
+  {word: "従事", kana: "じゅうじ", type: "名・自サ", meaning: "从事", example: "$\\overset{けんきゅう}{研究}$ に $\\overset{じゅうじ}{従事}$ する。/从事研究。 || $\\overset{のうぎょう}{農業}$ に $\\overset{じゅうじ}{従事}$ する。/从事农业。"},
+  {word: "新商品", kana: "しんしょうひん", type: "名", meaning: "新商品", example: "$\\overset{しんしょうひん}{新商品}$ を $\\overset{はつばい}{発売}$ する。/发售新商品。 || $\\overset{しんしょうひん}{新商品}$ の $\\overset{かいはつ}{開発}$ 。/新商品的开发。"},
+  {word: "船内", kana: "せんない", type: "名", meaning: "船内", example: "$\\overset{せんない}{船内}$ を $\\overset{あんない}{案内}$ する。/在船内向导。 || $\\overset{せんない}{船内}$ で $\\overset{すご}{過}$ ごす。/在船里度过。"},
+  {word: "拍動", kana: "はくどう", type: "名・自サ", meaning: "搏动", example: "$\\overset{しんぞう}{心臓}$ の $\\overset{はくどう}{拍動}$ 。/心脏的搏动。 || $\\overset{はくどう}{拍動}$ が $\\overset{はや}{早}$ い。/搏动很快。"},
+  {word: "平等", kana: "びょうどう", type: "名・形动", meaning: "平等", example: "$\\overset{だんじょ}{男女}$ $\\overset{びょうどう}{平等}$ 。/男女平等。 || $\\overset{きかい}{機会}$ は $\\overset{びょうどう}{平等}$ だ。/机会是平等的。"},
+  {word: "品質", kana: "ひんしつ", type: "名", meaning: "品质", example: "$\\overset{ひんしつ}{品質}$ が $\\overset{よ}{良}$ い。/品质好。 || $\\overset{ひんしつ}{品質}$ を $\\overset{ほしょう}{保証}$ する。/保证品质。"},
+  {word: "募集", kana: "ぼしゅう", type: "名・他サ", meaning: "招募；募集", example: "$\\overset{しゃいん}{社員}$ を $\\overset{ぼしゅう}{募集}$ する。/招募员工。 || $\\overset{ぼきん}{募金}$ を $\\overset{ぼしゅう}{募集}$ する。/募集捐款。"},
+  {word: "労働者", kana: "ろうどうしゃ", type: "名", meaning: "劳动者", example: "$\\overset{ろうどうしゃ}{労働者}$ の $\\overset{けんり}{権利}$ 。/劳动者的权利。 || $\\overset{ろうどうしゃ}{労働者}$ が $\\overset{あつ}{集}$ まる。/劳动者聚集。"},
+  {word: "運動", kana: "うんどう", type: "名・自サ", meaning: "运动", example: "$\\overset{まいにち}{毎日}$ $\\overset{うんどう}{運動}$ をする。/每天做运动。 || $\\overset{うんどう}{運動}$ $\\overset{ぶそく}{不足}$ です。/运动不足。"},
+  {word: "感じる", kana: "かんじる", type: "一段自他", meaning: "感觉", example: "$\\overset{いた}{痛}$ みを $\\overset{かん}{感}$ じる。/感到疼痛。 || $\\overset{しあわ}{幸}せ$ を $\\overset{かん}{感}$ じる。/感到幸福。"},
+  {word: "感動", kana: "かんどう", type: "名・自サ", meaning: "感动", example: "$\\overset{えいが}{映画}$ に $\\overset{かんどう}{感動}$ する。/被电影感动。 || $\\overset{ふか}{深}$ く $\\overset{かんどう}{感動}$ した。/深受感动。"},
+  {word: "看板", kana: "かんばん", type: "名", meaning: "招牌", example: "$\\overset{かんばん}{看板}$ を $\\overset{だ}{出}$ す。/挂出招牌。 || $\\overset{みせ}{店}$ の $\\overset{かんばん}{看板}$ 。/店的招牌。"},
+  {word: "去年", kana: "きょねん", type: "名", meaning: "去年", example: "$\\overset{きょねん}{去年}$ の $\\overset{なつ}{夏}$ 。/去年的夏天。 || $\\overset{きょねん}{去年}$ $\\overset{にほん}{日本}$ へ $\\overset{い}{行}$ った。/去年去了日本。"},
+  {word: "空港", kana: "くうこう", type: "名", meaning: "机场", example: "$\\overset{くうこう}{空港}$ に $\\overset{む}{向}$ かう。/前往机场。 || $\\overset{くうこう}{空港}$ で $\\overset{ま}{待}$ つ。/在机场等候。"},
+  {word: "携帯電話", kana: "けいたいでんわ", type: "名", meaning: "手机", example: "$\\overset{けいたいでんわ}{携帯電話}$ を $\\overset{わす}{忘}$ れた。/忘了带手机。 || $\\overset{けいたいでんわ}{携帯電話}$ を $\\overset{か}{買}$ う。/买手机。"},
+  {word: "公園", kana: "こうえん", type: "名", meaning: "公园", example: "$\\overset{こうえん}{公園}$ を $\\overset{さんぽ}{散歩}$ する。/在公园散步。 || $\\overset{こうえん}{公園}$ で $\\overset{あそ}{遊}$ ぶ。/在公园里玩。"},
+  {word: "工場", kana: "こうじょう", type: "名", meaning: "工厂", example: "$\\overset{こうじょう}{工場}$ で $\\overset{はたら}{働}$ く。/在工厂工作。 || $\\overset{じどうしゃ}{自動車}$ $\\overset{こうじょう}{工場}$ 。/汽车工厂。"},
+  {word: "試験", kana: "しけん", type: "名・他サ", meaning: "考试", example: "$\\overset{しけん}{試験}$ を $\\overset{う}{受}$ ける。/参加考试。 || $\\overset{しけん}{試験}$ に $\\overset{う}{受}$ かる。/考试合格。"},
+  {word: "渋滞", kana: "じゅうたい", type: "名・自サ", meaning: "堵车", example: "$\\overset{みち}{道}$ が $\\overset{じゅうたい}{渋滞}$ している。/道路正在堵车。 || $\\overset{こうつう}{交通}$ $\\overset{じゅうたい}{渋滞}$ 。/交通拥堵。"},
+  {word: "新幹線", kana: "しんかんせん", type: "名", meaning: "新干线", example: "$\\overset{しんかんせん}{新幹線}$ に $\\overset{の}{乗}$ る。/乘坐新干线。 || $\\overset{しんかんせん}{新幹線}$ で $\\overset{きょうと}{京都}$ へ $\\overset{い}{行}$ く。/坐新干线去京都。"},
+  {word: "中止", kana: "ちゅうし", type: "名・他サ", meaning: "中止", example: "$\\overset{しあい}{試合}$ は $\\overset{ちゅうし}{中止}$ になった。/比赛中止了。 || $\\overset{けいかく}{計画}$ を $\\overset{ちゅうし}{中止}$ する。/中止计划。"},
+  {word: "電気", kana: "でんき", type: "名", meaning: "电；电灯", example: "$\\overset{でんき}{電気}$ を $\\overset{け}{消}$ す。/关灯。 || $\\overset{でんき}{電気}$ を $\\overset{つ}{付}$ ける。/开灯。"},
+  {word: "電車", kana: "でんしゃ", type: "名", meaning: "电车", example: "$\\overset{でんしゃ}{電車}$ で $\\overset{かえ}{帰}$ る。/坐电车回去。 || $\\overset{でんしゃ}{電車}$ に $\\overset{の}{乗}$ る。/上电车。"},
+  {word: "途中", kana: "とちゅう", type: "名", meaning: "途中", example: "$\\overset{かえ}{帰}$ る $\\overset{とちゅう}{途中}$ で。/在回去的途中。 || $\\overset{とちゅう}{途中}$ で $\\overset{や}{辞}$ める。/半途而废。"},
+  {word: "どなた", kana: "どなた", type: "代", meaning: "哪位", example: "$\\overset{どなた}{何方}$ ですか。/请问您是哪位？ || $\\overset{どなた}{何方}$ かいらっしゃいますか。/有哪位在吗？"},
+  {word: "熱", kana: "ねつ", type: "名", meaning: "热；发烧", example: "$\\overset{ねつ}{熱}$ が $\\overset{さ}{下}$ がる。/退烧。 || $\\overset{たか}{高}$ い $\\overset{ねつ}{熱}$ が $\\overset{で}{出}$ る。/发高烧。"},
+  {word: "場所", kana: "ばしょ", type: "名", meaning: "场所", example: "$\\overset{ばしょ}{場所}$ を $\\overset{か}{変}$ える。/换个地方。 || $\\overset{やくそく}{約束}$ の $\\overset{ばしょ}{場所}$ 。/约定的地方。"},
+  {word: "番号", kana: "ばんごう", type: "名", meaning: "号码", example: "$\\overset{でんわ}{電話}$ $\\overset{ばんごう}{番号}$ を $\\overset{き}{聞}$ く。/询问电话号码。 || $\\overset{ばんごう}{番号}$ を $\\overset{よ}{呼}$ ぶ。/叫号。"},
+  {word: "飛行機", kana: "ひこうき", type: "名", meaning: "飞机", example: "$\\overset{ひこうき}{飛行機}$ に $\\overset{の}{乗}$ る。/乘飞机。 || $\\overset{ひこうき}{飛行機}$ が $\\overset{と}{飛}$ ぶ。/飞机起飞。"},
+  {word: "弁当", kana: "べんとう", type: "名", meaning: "便当", example: "お$\\overset{べんとう}{弁当}$ を $\\overset{つく}{作}$ る。/做便当。 || $\\overset{えき}{駅}$ で $\\overset{えきべん}{駅弁}$ を $\\overset{か}{買}$ う。/在车站买盒饭。"},
+  {word: "本当", kana: "ほんとう", type: "名・形动", meaning: "真的", example: "それは $\\overset{ほんとう}{本当}$ ですか。/那是真的吗？ || $\\overset{ほんとう}{本当}$ にありがとう。/真的很感谢。"},
+  {word: "有名", kana: "ゆうめい", type: "形动", meaning: "有名", example: "$\\overset{ゆうめい}{有名}$ な $\\overset{ひと}{人}$ 。/有名的人。 || この $\\overset{みせ}{店}$ は $\\overset{ゆうめい}{有名}$ だ。/这家店很有名。"},
+  {word: "旅行", kana: "りょこう", type: "名・自サ", meaning: "旅行", example: "$\\overset{りょこう}{旅行}$ に $\\overset{い}{行}$ く。/去旅行。 || $\\overset{かいがい}{海外}$ $\\overset{りょこう}{旅行}$ 。/海外旅行。"},
+  {word: "案内", kana: "あんない", type: "名・他サ", meaning: "引导；通知", example: "$\\overset{まち}{町}$ を $\\overset{あんない}{案内}$ する。/做城市导游。 || $\\overset{あんない}{案内}$ $\\overset{じょう}{状}$ を $\\overset{だ}{出}$ す。/发出通知。"},
+  {word: "往復", kana: "おうふく", type: "名・自サ", meaning: "往返", example: "$\\overset{おうふく}{往復}$ $\\overset{きっぷ}{切符}$ 。/往返票。 || $\\overset{いえ}{家}$ と $\\overset{がっこう}{学校}$ を $\\overset{おうふく}{往復}$ する。/往返于家和学校。"},
+  {word: "活動", kana: "かつどう", type: "名・自サ", meaning: "活动", example: "$\\overset{ぶかつどう}{部活動}$ 。/社团活动。 || $\\overset{かつどう}{活動}$ を $\\overset{はじ}{始}$ める。/开始活动。"},
+  {word: "可能", kana: "かのう", type: "名・形动", meaning: "可能", example: "それは $\\overset{かのう}{可能}$ です。/那是可能的。 || $\\overset{かのう}{可能}$ $\\overset{せい}{性}$ が $\\overset{たか}{高}$ い。/可能性很高。"},
+  {word: "我慢", kana: "がまん", type: "名・他サ", meaning: "忍耐", example: "$\\overset{いた}{痛}$ みを $\\overset{がまん}{我慢}$ する。/忍耐疼痛。 || もう $\\overset{がまん}{我慢}$ できない。/已经无法忍耐了。"},
+  {word: "感覚", kana: "かんかく", type: "名", meaning: "感觉", example: "$\\overset{かんかく}{感覚}$ が $\\overset{するど}{鋭}$ い。/感觉敏锐。 || $\\overset{さむ}{寒}$ さで $\\overset{かんかく}{感覚}$ がない。/冷得没知觉了。"},
+  {word: "感謝", kana: "かんしゃ", type: "名・他サ", meaning: "感谢", example: "$\\overset{かんしゃ}{感謝}$ の $\\overset{きもち}{気持}$ ち。/感谢的心情。 || $\\overset{ふか}{深}$ く $\\overset{かんしゃ}{感謝}$ する。/深深感谢。"},
+  {word: "感情", kana: "かんじょう", type: "名", meaning: "感情", example: "$\\overset{かんじょう}{感情}$ を $\\overset{おさ}{抑}$ える。/压抑感情。 || $\\overset{かんじょう}{感情}$ $\\overset{てき}{的}$ になる。/变得情绪化。"},
+  {word: "勘定", kana: "かんじょう", type: "名・他サ", meaning: "结账；算账", example: "お$\\overset{かんじょう}{勘定}$ をお$\\overset{ねが}{願}$ いします。/麻烦结账。 || $\\overset{かんじょう}{勘定}$ が $\\overset{あ}{合}$ わない。/账对不上。"},
+  {word: "感心", kana: "かんしん", type: "名・自サ・形动", meaning: "佩服；钦佩", example: "$\\overset{かれ}{彼}$ の $\\overset{どりょく}{努力}$ に $\\overset{かんしん}{感心}$ する。/钦佩他的努力。 || $\\overset{かんしん}{感心}$ な $\\overset{こども}{子供}$ だ。/令人佩服的孩子。"},
+  {word: "感想", kana: "かんそう", type: "名", meaning: "感想", example: "$\\overset{えいが}{映画}$ の $\\overset{かんそう}{感想}$ 。/电影的观后感。 || $\\overset{かんそう}{感想}$ を $\\overset{の}{述}$ べる。/发表感想。"},
+  {word: "漢方薬", kana: "かんぽうやく", type: "名", meaning: "中药", example: "$\\overset{かんぽうやく}{漢方薬}$ を $\\overset{の}{飲}$ む。/喝中药。 || $\\overset{かんぽうやく}{漢方薬}$ が $\\overset{き}{効}$ く。/中药有效。"},
+  {word: "希望", kana: "きぼう", type: "名・他サ", meaning: "希望", example: "$\\overset{きぼう}{希望}$ を $\\overset{も}{持}$ つ。/抱有希望。 || $\\overset{きぼう}{希望}$ に $\\overset{あふ}{溢}$ れる。/充满希望。"},
+  {word: "逆", kana: "ぎゃく", type: "名・形动", meaning: "相反", example: "$\\overset{ぎゃく}{逆}$ の $\\overset{ほうこう}{方向}$ 。/相反的方向。 || $\\overset{ぎゃく}{逆}$ の $\\overset{こうか}{効果}$ 。/反效果。"},
+  {word: "記録", kana: "きろく", type: "名・他サ", meaning: "记录", example: "$\\overset{せかい}{世界}$ $\\overset{きろく}{記録}$ 。/世界纪录。 || $\\overset{きろく}{記録}$ を $\\overset{やぶ}{破}$ る。/打破记录。"},
+  {word: "銀行", kana: "ぎんこう", type: "名", meaning: "银行", example: "$\\overset{ぎんこう}{銀行}$ で お$\\overset{かね}{金}$ を $\\overset{お}{下}$ ろす。/在银行取钱。 || $\\overset{ぎんこう}{銀行}$ に $\\overset{い}{行}$ く。/去银行。"},
+  {word: "禁止", kana: "きんし", type: "名・他サ", meaning: "禁止", example: "$\\overset{たちいり}{立入}$ $\\overset{きんし}{禁止}$ 。/禁止入内。 || $\\overset{ちゅうしゃ}{駐車}$ $\\overset{きんし}{禁止}$ 。/禁止停车。"},
+  {word: "区別", kana: "くべつ", type: "名・他サ", meaning: "区别", example: "$\\overset{ぜんあく}{善悪}$ の $\\overset{くべつ}{区別}$ 。/善恶的区别。 || $\\overset{くべつ}{区別}$ が $\\overset{つ}{付}$ かない。/无法区别。"},
+  {word: "稽古", kana: "けいこ", type: "名・他サ", meaning: "练习；排练", example: "$\\overset{ピアノ}{ピアノ}$ の お$\\overset{けいこ}{稽古}$ 。/钢琴练习。 || $\\overset{けいこ}{稽古}$ を $\\overset{かさ}{重}$ ねる。/反复练习。"},
+  {word: "形式", kana: "けいしき", type: "名", meaning: "形式", example: "$\\overset{けいしき}{形式}$ に $\\overset{こだわ}{拘}$ る。/拘泥于形式。 || $\\overset{けいしき}{形式}$ $\\overset{てき}{的}$ な $\\overset{あいさつ}{挨拶}$ 。/形式上的寒暄。"},
+  {word: "劇", kana: "げき", type: "名", meaning: "戏剧", example: "$\\overset{げき}{劇}$ を $\\overset{み}{見}$ る。/看剧。 || $\\overset{げき}{劇}$ に $\\overset{で}{出}$ る。/演剧。"},
+  {word: "結局", kana: "けっきょく", type: "名・副", meaning: "结果；到头来", example: "$\\overset{けっきょく}{結局}$ どうなったの。/结果怎么样了？ || $\\overset{けっきょく}{結局}$ $\\overset{こ}{来}$ なかった。/结果没有来。"},
+  {word: "口述試験", kana: "こうじゅつしけん", type: "名", meaning: "口试", example: "$\\overset{こうじゅつしけん}{口述試験}$ を $\\overset{う}{受}$ ける。/参加口试。 || $\\overset{こうじゅつしけん}{口述試験}$ の $\\overset{じゅんび}{準備}$ 。/口试的准备。"},
+  {word: "行動", kana: "こうどう", type: "名・自サ", meaning: "行动", example: "$\\overset{こうどう}{行動}$ に $\\overset{うつ}{移}$ す。/付诸行动。 || $\\overset{りっぱ}{立派}$ な $\\overset{こうどう}{行動}$ 。/出色的行动。"},
+  {word: "参加", kana: "さんか", type: "名・自サ", meaning: "参加", example: "$\\overset{かいぎ}{会議}$ に $\\overset{さんか}{参加}$ する。/参加会议。 || $\\overset{さんか}{参加}$ $\\overset{しゃ}{者}$ が $\\overset{おお}{多}$ い。/参加者很多。"},
+  {word: "実験", kana: "じっけん", type: "名・自他サ", meaning: "实验", example: "$\\overset{かがく}{化学}$ の $\\overset{じっけん}{実験}$ 。/化学实验。 || $\\overset{じっけん}{実験}$ が $\\overset{せいこう}{成功}$ する。/实验成功。"},
+  {word: "実行", kana: "じっこう", type: "名・他サ", meaning: "实行；执行", example: "$\\overset{けいかく}{計画}$ を $\\overset{じっこう}{実行}$ する。/实行计划。 || $\\overset{じっこう}{実行}$ に $\\overset{うつ}{移}$ す。/付诸实行。"},
+  {word: "支配", kana: "しはい", type: "名・他サ", meaning: "支配；控制", example: "$\\overset{せかい}{世界}$ を $\\overset{しはい}{支配}$ する。/统治世界。 || $\\overset{しはい}{支配}$ から $\\overset{のが}{逃}$ れる。/逃脱支配。"},
+  {word: "就職", kana: "しゅうしょく", type: "名・自サ", meaning: "就业", example: "$\\overset{かいしゃ}{会社}$ に $\\overset{しゅうしょく}{就職}$ する。/在公司就职。 || $\\overset{しゅうしょく}{就職}$ $\\overset{かつどう}{活動}$ 。/求职活动。"},
+  {word: "受験", kana: "じゅけん", type: "名・他サ", meaning: "应考", example: "$\\overset{だいがく}{大学}$ を $\\overset{じゅけん}{受験}$ する。/报考大学。 || $\\overset{じゅけん}{受験}$ $\\overset{べんきょう}{勉強}$ 。/备考学习。"},
+  {word: "需要", kana: "じゅよう", type: "名", meaning: "需求", example: "$\\overset{じゅよう}{需要}$ と $\\overset{きょうきゅう}{供給}$ 。/需求与供给。 || $\\overset{じゅよう}{需要}$ が $\\overset{の}{伸}$ びる。/需求增长。"},
+  {word: "春節", kana: "しゅんせつ", type: "名", meaning: "春节", example: "$\\overset{しゅんせつ}{春節}$ を $\\overset{いわ}{祝}$ う。/庆祝春节。 || $\\overset{しゅんせつ}{春節}$ の お$\\overset{やす}{休}$ み。/春节假期。"},
+  {word: "少年", kana: "しょうねん", type: "名", meaning: "少年", example: "$\\overset{しょうねん}{少年}$ $\\overset{じだい}{時代}$ 。/少年时代。 || $\\overset{げんき}{元気}$ な $\\overset{しょうねん}{少年}$ 。/精力充沛的少年。"},
+  {word: "新年", kana: "しんねん", type: "名", meaning: "新年", example: "$\\overset{しんねん}{新年}$ あけまして おめでとう。/新年快乐。 || $\\overset{しんねん}{新年}$ を $\\overset{むか}{迎}$ える。/迎接新年。"},
+  {word: "青年", kana: "せいねん", type: "名", meaning: "青年", example: "$\\overset{りっぱ}{立派}$ な $\\overset{せいねん}{青年}$ 。/优秀的青年。 || $\\overset{せいねん}{青年}$ $\\overset{じだい}{時代}$ 。/青年时代。"},
+  {word: "政府", kana: "せいふ", type: "名", meaning: "政府", example: "$\\overset{にほん}{日本}$ $\\overset{せいふ}{政府}$ 。/日本政府。 || $\\overset{せいふ}{政府}$ の $\\overset{ほうしん}{方針}$ 。/政府的方针。"},
+  {word: "咳", kana: "せき", type: "名", meaning: "咳嗽", example: "$\\overset{せき}{咳}$ が $\\overset{で}{出}$ る。/咳嗽。 || $\\overset{せき}{咳}$ を $\\overset{と}{止}$ める。/止咳。"},
+  {word: "設備", kana: "せつび", type: "名・他サ", meaning: "设施；设备", example: "$\\overset{せつび}{設備}$ が $\\overset{ととの}{整}$ う。/设备齐全。 || $\\overset{あたら}{新}$ しい $\\overset{せつび}{設備}$ 。/新设备。"},
+  {word: "線", kana: "せん", type: "名", meaning: "线", example: "$\\overset{せん}{線}$ を $\\overset{ひ}{引}$ く。/画线。 || $\\overset{でんわ}{電話}$ $\\overset{せん}{線}$ 。/电话线。"},
+  {word: "相当", kana: "そうとう", type: "名・自サ・副", meaning: "相当；适合", example: "$\\overset{そうとう}{相当}$ な $\\overset{かず}{数}$ 。/相当大的数量。 || $\\overset{そうとう}{相当}$ $\\overset{つか}{疲}$ れている。/相当累了。"},
+  {word: "対する", kana: "たいする", type: "自サ", meaning: "面对；对待", example: "$\\overset{もんだい}{問題}$ に $\\overset{たい}{対}$ する $\\overset{こた}{答}$ え。/对问题的回答。 || $\\overset{ひと}{人}$ に $\\overset{たい}{対}$ して $\\overset{やさ}{優}$ しい。/待人温柔。"},
+  {word: "地方", kana: "ちほう", type: "名", meaning: "地方；地区", example: "$\\overset{ちほう}{地方}$ に $\\overset{す}{住}$ む。/住在地方（外地）。 || $\\overset{ちほう}{地方}$ の $\\overset{ぶんか}{文化}$ 。/地方文化。"},
+  {word: "適当", kana: "てきとう", type: "名・形动", meaning: "适当；合适", example: "$\\overset{てきとう}{適当}$ な $\\overset{ばしょ}{場所}$ 。/适当的场所。 || $\\overset{てきとう}{適当}$ に $\\overset{こた}{答}$ える。/敷衍地回答。"},
+  {word: "天井", kana: "てんじょう", type: "名", meaning: "天花板", example: "$\\overset{てんじょう}{天井}$ が $\\overset{たか}{高}$ い。/天花板很高。 || $\\overset{てんじょう}{天井}$ を $\\overset{み}{見}$ る。/看天花板。"},
+  {word: "当然", kana: "とうぜん", type: "名・形动・副", meaning: "当然；理所当然", example: "$\\overset{とうぜん}{当然}$ の $\\overset{けっか}{結果}$ 。/理所当然的结果。 || $\\overset{とうぜん}{当然}$ $\\overset{い}{行}$ くべきだ。/当然应该去。"},
+  {word: "当番", kana: "とうばん", type: "名", meaning: "值班", example: "$\\overset{きょう}{今日}$ は $\\overset{そうじ}{掃除}$ $\\overset{とうばん}{当番}$ だ。/今天是值日打扫。 || $\\overset{とうばん}{当番}$ を $\\overset{か}{代}$ わる。/代替值班。"},
+  {word: "年配", kana: "ねんぱい", type: "名", meaning: "年长", example: "$\\overset{ねんぱい}{年配}$ の $\\overset{ひと}{人}$ 。/年长的人。 || ご$\\overset{ねんぱい}{年配}$ の $\\overset{かた}{方}$ 。/上了年纪的人。"},
+  {word: "俳優", kana: "はいゆう", type: "名", meaning: "演员", example: "$\\overset{ゆうめい}{有名}$ な $\\overset{はいゆう}{俳優}$ 。/著名的演员。 || $\\overset{はいゆう}{俳優}$ になる。/成为演员。"},
+  {word: "反省", kana: "はんせい", type: "名・自他サ", meaning: "反省", example: "$\\overset{じぶん}{自分}$ の $\\overset{こうどう}{行動}$ を $\\overset{はんせい}{反省}$ する。/反省自己的行为。 || $\\overset{はんせい}{反省}$ の $\\overset{いろ}{色}$ がない。/毫无悔意。"},
+  {word: "筆記試験", kana: "ひっきしけん", type: "名", meaning: "笔试", example: "$\\overset{ひっきしけん}{筆記試験}$ を $\\overset{う}{受}$ ける。/参加笔试。 || $\\overset{ひっきしけん}{筆記試験}$ に $\\overset{ごうかく}{合格}$ する。/笔试及格。"},
+  {word: "必要", kana: "ひつよう", type: "名・形动", meaning: "必要；需要", example: "$\\overset{ひつよう}{必要}$ な $\\overset{もの}{物}$ 。/需要的东西。 || $\\overset{ひつよう}{必要}$ がない。/没必要。"},
+  {word: "布団", kana: "ふとん", type: "名", meaning: "被褥", example: "$\\overset{ふとん}{布団}$ を $\\overset{し}{敷}$ く。/铺被子。 || $\\overset{ふとん}{布団}$ を $\\overset{か}{掛}$ ける。/盖被子。"},
+  {word: "平行", kana: "へいこう", type: "名・自サ", meaning: "平行", example: "$\\overset{へいこう}{平行}$ な $\\overset{せん}{線}$ 。/平行线。 || $\\overset{はなし}{話}$ が $\\overset{へいこう}{平行}$ $\\overset{せん}{線}$ をたどる。/谈话毫无进展。"},
+  {word: "方向", kana: "ほうこう", type: "名", meaning: "方向", example: "$\\overset{ほうこう}{方向}$ を $\\overset{か}{変}$ える。/改变方向。 || $\\overset{ぎゃく}{逆}$ $\\overset{ほうこう}{方向}$ に $\\overset{すす}{進}$ む。/向相反方向前进。"},
+  {word: "方法", kana: "ほうほう", type: "名", meaning: "方法", example: "$\\overset{べんきょう}{勉強}$ の $\\overset{ほうほう}{方法}$ 。/学习的方法。 || $\\overset{あたら}{新}$ しい $\\overset{ほうほう}{方法}$ を $\\overset{ため}{試}$ す。/尝试新方法。"},
+  {word: "味方", kana: "みかた", type: "名・自サ", meaning: "己方；同伴", example: "$\\overset{みかた}{味方}$ に $\\overset{つ}{付}$ く。/成为同伴。 || $\\overset{わたし}{私}$ は あなたの $\\overset{みかた}{味方}$ です。/我是你这边的。"},
+  {word: "面接", kana: "めんせつ", type: "名・他サ", meaning: "面试", example: "$\\overset{かいしゃ}{会社}$ の $\\overset{めんせつ}{面接}$ 。/公司的面试。 || $\\overset{めんせつ}{面接}$ $\\overset{しけん}{試験}$ 。/面试考试。"},
+  {word: "紅葉", kana: "こうよう", type: "名・自サ", meaning: "红叶", example: "$\\overset{あき}{秋}$ は $\\overset{こうよう}{紅葉}$ が $\\overset{うつく}{美}$ しい。/秋天的红叶很美。 || $\\overset{やま}{山}$ が $\\overset{こうよう}{紅葉}$ する。/漫山红叶。"},
+  {word: "薬局", kana: "やっきょく", type: "名", meaning: "药店", example: "$\\overset{やっきょく}{薬局}$ で $\\overset{くすり}{薬}$ を $\\overset{か}{買}$ う。/在药店买药。 || $\\overset{びょういん}{病院}$ の $\\overset{ちか}{近}く$ の $\\overset{やっきょく}{薬局}$ 。/医院附近的药店。"},
+  {word: "欲", kana: "よく", type: "名", meaning: "欲望", example: "$\\overset{よく}{欲}$ が $\\overset{ふか}{深}$ い。/贪得无厌。 || $\\overset{ぶつよく}{物欲}$ がない。/没有物质欲。"},
+  {word: "流行", kana: "りゅうこう", type: "名・自サ", meaning: "流行", example: "$\\overset{かぜ}{風邪}$ が $\\overset{りゅうこう}{流行}$ する。/感冒流行。 || $\\overset{りゅうこう}{流行}$ の $\\overset{ふく}{服}$ 。/流行的衣服。"},
+  {word: "両替", kana: "りょうがえ", type: "名・他サ", meaning: "换钱", example: "$\\overset{ドル}{ドル}$ を $\\overset{えん}{円}$ に $\\overset{りょうがえ}{両替}$ する。/把美元换成日元。 || $\\overset{りょうがえ}{両替}$ $\\overset{じょ}{所}$ 。/外币兑换处。"},
+  {word: "両方", kana: "りょうほう", type: "名", meaning: "双方；两边", example: "$\\overset{りょうほう}{両方}$ とも $\\overset{す}{好}$ きです。/两边都喜欢。 || $\\overset{りょうほう}{両方}$ の $\\overset{いけん}{意見}$ を $\\overset{き}{聞}$ く。/听取双方的意见。"},
+  {word: "旅館", kana: "りょかん", type: "名", meaning: "旅馆", example: "$\\overset{おんせん}{温泉}$ $\\overset{りょかん}{旅館}$ 。/温泉旅馆。 || $\\overset{りょかん}{旅館}$ に $\\overset{とま}{泊}$ まる。/住在旅馆。"},
+  {word: "礼儀", kana: "れいぎ", type: "名", meaning: "礼仪", example: "$\\overset{れいぎ}{礼儀}$ が $\\overset{ただ}{正}$ しい。/懂礼貌。 || $\\overset{れいぎ}{礼儀}$ を $\\overset{まも}{守}$ る。/遵守礼节。"},
+  {word: "一方", kana: "いっぽう", type: "名", meaning: "一方；另一方面", example: "$\\overset{いっぽう}{一方}$ の $\\overset{いけん}{意見}$ 。/一方的意见。 || $\\overset{ふ}{増}え\\overset{る}{る}$ $\\overset{いっぽう}{一方}$ だ。/不断增加。"},
+  {word: "運動場", kana: "うんどうじょう", type: "名", meaning: "运动场", example: "$\\overset{うんどうじょう}{運動場}$ で $\\overset{はし}{走}$ る。/在运动场上跑。 || $\\overset{がっこう}{学校}$ の $\\overset{うんどうじょう}{運動場}$ 。/学校的运动场。"},
+  {word: "円", kana: "えん", type: "名", meaning: "日元；圆", example: "$\\overset{ひゃくえん}{百円}$ $\\overset{だま}{玉}$ 。/一百日元硬币。 || $\\overset{えん}{円}$ を $\\overset{か}{描}$ く。/画圆。"},
+  {word: "感じ", kana: "かんじ", type: "名", meaning: "感觉", example: "$\\overset{い}{良}$ い $\\overset{かんじ}{感じ}$ の $\\overset{ひと}{人}$ 。/感觉很好的人。 || $\\overset{さむ}{寒}$ い $\\overset{かんじ}{感じ}$ がする。/感觉有点冷。"},
+  {word: "技師", kana: "ぎし", type: "名", meaning: "工程师", example: "$\\overset{けんちく}{建築}$ $\\overset{ぎし}{技師}$ 。/建筑工程师。 || $\\overset{ぎし}{技師}$ として $\\overset{はたら}{働}$ く。/作为工程师工作。"},
+  {word: "汽車", kana: "きしゃ", type: "名", meaning: "火车", example: "$\\overset{きしゃ}{汽車}$ に $\\overset{の}{乗}$ る。/坐火车。 || $\\overset{きしゃ}{汽車}$ の $\\overset{たび}{旅}$ 。/火车旅行。"},
+  {word: "急行", kana: "きゅうこう", type: "名・自サ", meaning: "快车", example: "$\\overset{きゅうこう}{急行}$ $\\overset{れっしゃ}{列車}$ 。/急行快车。 || $\\overset{きゅうこう}{急行}$ で $\\overset{い}{行}$ く。/坐快车去。"},
+  {word: "旧暦", kana: "きゅうれき", type: "名", meaning: "农历", example: "$\\overset{きゅうれき}{旧暦}$ の $\\overset{しょうがつ}{正月}$ 。/农历新年。 || $\\overset{きゅうれき}{旧暦}$ で $\\overset{いわ}{祝}$ う。/按农历庆祝。"},
+  {word: "行", kana: "ぎょう", type: "名", meaning: "行（文字）", example: "$\\overset{つぎ}{次}$ の $\\overset{ぎょう}{行}$ を $\\overset{よ}{読}$ む。/读下一行。 || $\\overset{いちぎょう}{一行}$ $\\overset{あ}{空}$ ける。/空一行。"},
+  {word: "供給", kana: "きょうきゅう", type: "名・他サ", meaning: "供给", example: "$\\overset{でんりょく}{電力}$ を $\\overset{きょうきゅう}{供給}$ する。/供给电力。 || $\\overset{じゅよう}{需要}$ と $\\overset{きょうきゅう}{供給}$ 。/需求与供给。"},
+  {word: "曲", kana: "きょく", type: "名", meaning: "乐曲", example: "$\\overset{す}{好}$ きな $\\overset{きょく}{曲}$ を $\\overset{き}{聞}$ く。/听喜欢的歌。 || $\\overset{あたら}{新}$ しい $\\overset{きょく}{曲}$ を $\\overset{つく}{作}$ る。/作新曲子。"},
+  {word: "元", kana: "もと", type: "名", meaning: "原本；从前", example: "$\\overset{もと}{元}$ の $\\overset{ばしょ}{場所}$ に $\\overset{もど}{戻}$ す。/放回原处。 || $\\overset{もと}{元}$ $\\overset{かれ}{彼}$ 。/前男友。"},
+  {word: "現場", kana: "げんば", type: "名", meaning: "现场", example: "$\\overset{じけん}{事件}$ の $\\overset{げんば}{現場}$ 。/案件的现场。 || $\\overset{こうじ}{工事}$ $\\overset{げんば}{現場}$ 。/施工现场。"},
+  {word: "個", kana: "こ", type: "名", meaning: "个", example: "$\\overset{りんご}{林檎}$ を $\\overset{さんこ}{三個}$ $\\overset{か}{買}$ う。/买三个苹果。 || $\\overset{いっこ}{一個}$ ずつ $\\overset{た}{食}$ べる。/一个一个吃。"},
+  {word: "行為", kana: "こうい", type: "名", meaning: "行为", example: "$\\overset{りっぱ}{立派}$ な $\\overset{こうい}{行為}$ 。/出色的行为。 || $\\overset{めいわく}{迷惑}$ な $\\overset{こうい}{行為}$ 。/给人添麻烦的行为。"},
+  {word: "ご覧", kana: "ごらん", type: "名", meaning: "观看（尊敬语）", example: "これをご$\\overset{らん}{覧}$ ください。/请看这个。 || ご$\\overset{らん}{覧}$ のとおりです。/正如您所见。"},
+  {word: "今晩", kana: "こんばん", type: "名・副", meaning: "今晚", example: "$\\overset{こんばん}{今晩}$ は $\\overset{ひま}{暇}$ ですか。/今晚有空吗？ || $\\overset{こんばん}{今晩}$ の お$\\overset{かず}{数}$ 。/今晚的菜。"},
+  {word: "今夜", kana: "こんや", type: "名・副", meaning: "今夜", example: "$\\overset{こんや}{今夜}$ は $\\overset{ほし}{星}$ が $\\overset{きれ}{綺麗}$ だ。/今晚星星很美。 || $\\overset{こんや}{今夜}$ $\\overset{しゅっぱつ}{出発}$ する。/今夜出发。"},
+  {word: "歳月", kana: "さいげつ", type: "名", meaning: "岁月", example: "$\\overset{なが}{長}$ い $\\overset{さいげつ}{歳月}$ 。/漫长的岁月。 || $\\overset{さいげつ}{歳月}$ が $\\overset{なが}{流}$ れる。/岁月流逝。"},
+  {word: "最中", kana: "さいちゅう", type: "名", meaning: "正在...之中", example: "$\\overset{かいぎ}{会議}$ の $\\overset{さいちゅう}{最中}$ だ。/正在开会中。 || $\\overset{べんきょう}{勉強}$ の $\\overset{さいちゅう}{最中}$ 。/正在学习的时候。"},
+  {word: "仕方", kana: "しかた", type: "名", meaning: "方法；办法", example: "$\\overset{やり}{遣り}$ $\\overset{しかた}{仕方}$ が $\\overset{わ}{分}$ からない。/不知道做法。 || $\\overset{しかた}{仕方}$ がない。/没办法。"},
+  {word: "少女", kana: "しょうじょ", type: "名", meaning: "少女", example: "$\\overset{うつく}{美}$ しい $\\overset{しょうじょ}{少女}$ 。/美丽的少女。 || $\\overset{しょうじょ}{少女}$ $\\overset{じだい}{時代}$ 。/少女时代。"},
+  {word: "職場", kana: "しょくば", type: "名", meaning: "职场；工作单位", example: "$\\overset{あたら}{新}$ しい $\\overset{しょくば}{職場}$ 。/新工作单位。 || $\\overset{しょくば}{職場}$ の $\\overset{どうりょう}{同僚}$ 。/职场同事。"},
+  {word: "中央", kana: "ちゅうおう", type: "名", meaning: "中央", example: "$\\overset{まち}{町}$ の $\\overset{ちゅうおう}{中央}$ 。/城镇的中央。 || $\\overset{へや}{部屋}$ の $\\overset{ちゅうおう}{中央}$ に $\\overset{お}{置}$ く。/放在房间中央。"},
+  {word: "駐車場", kana: "ちゅうしゃじょう", type: "名", meaning: "停车场", example: "$\\overset{くるま}{車}$ を $\\overset{ちゅうしゃじょう}{駐車場}$ に $\\overset{と}{止}$ める。/把车停在停车场。 || $\\overset{ちか}{地下}$ $\\overset{ちゅうしゃじょう}{駐車場}$ 。/地下停车场。"},
+  {word: "電池", kana: "でんち", type: "名", meaning: "电池", example: "$\\overset{でんち}{電池}$ を $\\overset{こうかん}{交換}$ する。/换电池。 || $\\overset{でんち}{電池}$ が $\\overset{き}{切}$ れた。/电池没电了。"},
+  {word: "電灯", kana: "でんとう", type: "名", meaning: "电灯", example: "$\\overset{でんとう}{電灯}$ を $\\overset{つ}{付}$ ける。/开电灯。 || $\\overset{みち}{道}$ の $\\overset{でんとう}{電灯}$ 。/路灯。"},
+  {word: "電話", kana: "でんわ", type: "名・自他サ", meaning: "电话", example: "$\\overset{でんわ}{電話}$ を かける。/打电话。 || $\\overset{でんわ}{電話}$ に $\\overset{で}{出}$ る。/接电话。"},
+  {word: "とも", kana: "とも", type: "接尾", meaning: "（表示全部）都", example: "$\\overset{ふたり}{二人}$ とも $\\overset{がくせい}{学生}$ だ。/两人都是学生。 || $\\overset{どれ}{何れ}$ とも $\\overset{ちが}{違}$ う。/哪个都不对。"},
+  {word: "年賀状", kana: "ねんがじょう", type: "名", meaning: "贺年卡", example: "$\\overset{ねんがじょう}{年賀状}$ を $\\overset{だ}{出}$ す。/寄贺年卡。 || $\\overset{ねんがじょう}{年賀状}$ を $\\overset{か}{書}$ く。/写贺年卡。"},
+  {word: "年末", kana: "ねんまつ", type: "名", meaning: "年末", example: "$\\overset{ねんまつ}{年末}$ の $\\overset{やす}{休}$ み。/年末的假期。 || $\\overset{ねんまつ}{年末}$ は $\\overset{いそが}{忙}$ しい。/年末很忙。"},
+  {word: "馬鹿", kana: "ばか", type: "名・形动", meaning: "傻瓜；愚蠢", example: "$\\overset{ばか}{馬鹿}$ な $\\overset{こと}{事}$ を $\\overset{い}{言}$ う。/说傻话。 || $\\overset{ひと}{人}$ を $\\overset{ばか}{馬鹿}$ にする。/把人当傻瓜。"},
+  {word: "場面", kana: "ばめん", type: "名", meaning: "场面；情景", example: "$\\overset{かんどう}{感動}$ $\\overset{てき}{的}$ な $\\overset{ばめん}{場面}$ 。/感人的场面。 || $\\overset{つぎ}{次}$ の $\\overset{ばめん}{場面}$ 。/下一个情景。"},
+  {word: "番", kana: "ばん", type: "名", meaning: "顺序；号码", example: "$\\overset{わたし}{私}$ の $\\overset{ばん}{番}$ です。/轮到我了。 || $\\overset{いちばん}{一番}$ $\\overset{す}{好}$ きだ。/最喜欢。"},
+  {word: "万年筆", kana: "まんねんひつ", type: "名", meaning: "钢笔", example: "$\\overset{まんねんひつ}{万年筆}$ で $\\overset{か}{書}$ く。/用钢笔写字。 || $\\overset{あたら}{新}$ しい $\\overset{まんねんひつ}{万年筆}$ 。/新钢笔。"},
+  {word: "留守番電話", kana: "るすばんでんわ", type: "名", meaning: "电话留言机", example: "$\\overset{るすばんでんわ}{留守番電話}$ に $\\overset{メッセージ}{メッセージ}$ を $\\overset{のこ}{残}$ す。/在留言机留言。 || $\\overset{るすばんでんわ}{留守番電話}$ を $\\overset{き}{聞}$ く。/听电话留言。"},
+  {word: "列", kana: "れつ", type: "名", meaning: "队列；列", example: "$\\overset{れつ}{列}$ に $\\overset{なら}{並}$ ぶ。/排队。 || $\\overset{れつ}{列}$ を $\\overset{つく}{作}$ る。/排成一列。"},
+  {word: "曖昧", kana: "あいまい", type: "形动", meaning: "暧昧；含糊", example: "$\\overset{あいまい}{曖昧}$ な $\\overset{へんじ}{返事}$ 。/含糊的回答。 || $\\overset{きおく}{記憶}$ が $\\overset{あいまい}{曖昧}$ だ。/记忆模糊。"},
+  {word: "安定", kana: "あんてい", type: "名・自サ", meaning: "稳定", example: "$\\overset{あんてい}{安定}$ した $\\overset{せいかつ}{生活}$ 。/稳定的生活。 || $\\overset{けいか}{経過}$ は $\\overset{あんてい}{安定}$ している。/过程稳定。"},
+  {word: "音痴", kana: "おんち", type: "名", meaning: "五音不全；路痴", example: "$\\overset{わたし}{私}$ は $\\overset{おんち}{音痴}$ です。/我五音不全。 || $\\overset{ほうこう}{方向}$ $\\overset{おんち}{音痴}$ 。/路痴。"},
+  {word: "改革", kana: "かいかく", type: "名・他サ", meaning: "改革", example: "$\\overset{きょういく}{教育}$ の $\\overset{かいかく}{改革}$ 。/教育改革。 || $\\overset{かいかく}{改革}$ を $\\overset{すす}{進}$ める。/推进改革。"},
+  {word: "確認", kana: "かくにん", type: "名・他サ", meaning: "确认", example: "$\\overset{あんぜん}{安全}$ を $\\overset{かくにん}{確認}$ する。/确认安全。 || $\\overset{よやく}{予約}$ を $\\overset{かくにん}{確認}$ する。/确认预约。"},
+  {word: "過失", kana: "かしつ", type: "名", meaning: "过失", example: "$\\overset{かしつ}{過失}$ を $\\overset{みと}{認}$ める。/承认过错。 || $\\overset{じゅうだい}{重大}$ な $\\overset{かしつ}{過失}$ 。/重大的过失。"},
+  {word: "貴重", kana: "きちょう", type: "形动", meaning: "贵重；宝贵", example: "$\\overset{きちょう}{貴重}$ な $\\overset{けいけん}{経験}$ 。/宝贵的经验。 || $\\overset{きちょう}{貴重}$ $\\overset{ひん}{品}$ を $\\overset{あず}{預}$ ける。/寄存贵重物品。"},
+  {word: "行事", kana: "ぎょうじ", type: "名", meaning: "活动；仪式", example: "$\\overset{がっこう}{学校}$ の $\\overset{ぎょうじ}{行事}$ 。/学校的活动。 || $\\overset{ねんじゅう}{年中}$ $\\overset{ぎょうじ}{行事}$ 。/全年的常规活动。"},
+  {word: "行政", kana: "ぎょうせい", type: "名", meaning: "行政", example: "$\\overset{ぎょうせい}{行政}$ の $\\overset{しどう}{指導}$ 。/行政指导。 || $\\overset{ぎょうせい}{行政}$ $\\overset{きかん}{機関}$ 。/行政机构。"},
+  {word: "蜘蛛", kana: "くも", type: "名", meaning: "蜘蛛", example: "$\\overset{くも}{蜘蛛}$ の $\\overset{す}{巣}$ 。/蜘蛛网。 || $\\overset{くも}{蜘蛛}$ を $\\overset{み}{見}$ つける。/发现蜘蛛。"},
+  {word: "契約", kana: "けいやく", type: "名・自他サ", meaning: "契约；合同", example: "$\\overset{けいやく}{契約}$ を $\\overset{むす}{結}$ ぶ。/签订合同。 || $\\overset{けいやく}{契約}$ を $\\overset{まも}{守}$ る。/遵守合同。"},
+  {word: "言語", kana: "げんご", type: "名", meaning: "语言", example: "$\\overset{げんご}{言語}$ を $\\overset{まな}{学}$ ぶ。/学习语言。 || $\\overset{にほん}{日本}$ の $\\overset{げんご}{言語}$ 。/日本的语言。"},
+  {word: "公共", kana: "こうきょう", type: "名", meaning: "公共", example: "$\\overset{こうきょう}{公共}$ の $\\overset{ばしょ}{場所}$ 。/公共场所。 || $\\overset{こうきょう}{公共}$ $\\overset{しせつ}{施設}$ 。/公共设施。"},
+  {word: "公私", kana: "こうし", type: "名", meaning: "公私", example: "$\\overset{こうし}{公私}$ を $\\overset{わ}{分}$ ける。/公私分明。 || $\\overset{こうし}{公私}$ $\\overset{こんどう}{混同}$ 。/公私不分。"},
+  {word: "購入", kana: "こうにゅう", type: "名・他サ", meaning: "购买", example: "$\\overset{あたら}{新}$ しい $\\overset{くるま}{車}$ を $\\overset{こうにゅう}{購入}$ する。/购买新车。 || $\\overset{こうにゅう}{購入}$ $\\overset{しゃ}{者}$ 。/购买者。"},
+  {word: "再現", kana: "さいげん", type: "名・他サ", meaning: "再现", example: "$\\overset{じこ}{事故}$ の $\\overset{じょうきょう}{状況}$ を $\\overset{さいげん}{再現}$ する。/重现事故状况。 || $\\overset{さいげん}{再現}$ が $\\overset{むずか}{難}$ しい。/很难再现。"},
+  {word: "撮影", kana: "さつえい", type: "名・他サ", meaning: "摄影；拍照", example: "$\\overset{えいが}{映画}$ を $\\overset{さつえい}{撮影}$ する。/拍摄电影。 || $\\overset{きねん}{記念}$ $\\overset{さつえい}{撮影}$ 。/纪念拍照。"},
+  {word: "自治", kana: "じち", type: "名", meaning: "自治", example: "$\\overset{ちほう}{地方}$ $\\overset{じち}{自治}$ 。/地方自治。 || $\\overset{がくせい}{学生}$ $\\overset{じち}{自治}$ 。/学生自治。"},
+  {word: "実施", kana: "じっし", type: "名・他サ", meaning: "实施", example: "$\\overset{しけん}{試験}$ を $\\overset{じっし}{実施}$ する。/实施考试。 || $\\overset{けいかく}{計画}$ を $\\overset{じっし}{実施}$ する。/实施计划。"},
+  {word: "集権", kana: "しゅうけん", type: "名", meaning: "集权", example: "$\\overset{ちゅうおう}{中央}$ $\\overset{しゅうけん}{集権}$ 。/中央集权。 || $\\overset{しゅうけん}{集権}$ $\\overset{こっか}{国家}$ 。/集权国家。"},
+  {word: "充電", kana: "じゅうでん", type: "名・自他サ", meaning: "充电", example: "$\\overset{スマホ}{スマホ}$ を $\\overset{じゅうでん}{充電}$ する。/给手机充电。 || $\\overset{じゅうでん}{充電}$ が $\\overset{き}{切}$ れた。/电量耗尽了。"},
+  {word: "祝日", kana: "しゅくじつ", type: "名", meaning: "节日；法定假日", example: "$\\overset{あした}{明日}$ は $\\overset{しゅくじつ}{祝日}$ です。/明天是法定假日。 || $\\overset{しゅくじつ}{祝日}$ を $\\overset{いわ}{祝}$ う。/庆祝节日。"},
+  {word: "盛大", kana: "せいだい", type: "形动", meaning: "盛大", example: "$\\overset{せいだい}{盛大}$ な $\\overset{パーティー}{パーティー}$ 。/盛大的派对。 || $\\overset{せいだい}{盛大}$ に $\\overset{いわ}{祝}$ う。/盛大庆祝。"},
+  {word: "体験", kana: "たいけん", type: "名・他サ", meaning: "体验", example: "$\\overset{にほん}{日本}$ $\\overset{ぶんか}{文化}$ を $\\overset{たいけん}{体験}$ する。/体验日本文化。 || $\\overset{きちょう}{貴重}$ な $\\overset{たいけん}{体験}$ 。/宝贵的体验。"},
+  {word: "着陸", kana: "ちゃくりく", type: "名・自サ", meaning: "着陆", example: "$\\overset{ひこうき}{飛行機}$ が $\\overset{ちゃくりく}{着陸}$ する。/飞机着陆。 || $\\overset{ぶじ}{無事}$ に $\\overset{ちゃくりく}{着陸}$ する。/平安着陆。"},
+  {word: "中華街", kana: "ちゅうかがい", type: "名", meaning: "中华街；唐人街", example: "$\\overset{よこはま}{横浜}$ の $\\overset{ちゅうかがい}{中華街}$ 。/横滨的中华街。 || $\\overset{ちゅうかがい}{中華街}$ で $\\overset{しょくじ}{食事}$ する。/在中华街吃饭。"},
+  {word: "年中", kana: "ねんじゅう", type: "名・副", meaning: "全年；一年到头", example: "$\\overset{ねんじゅう}{年中}$ $\\overset{むきゅう}{無休}$ 。/全年无休。 || $\\overset{かれ}{彼}$ は $\\overset{ねんじゅう}{年中}$ $\\overset{いそが}{忙}$ しい。/他一年到头都很忙。"},
+  {word: "年配者", kana: "ねんぱいしゃ", type: "名", meaning: "年长者", example: "$\\overset{ねんぱいしゃ}{年配者}$ を $\\overset{うやま}{敬}$ う。/尊敬年长者。 || $\\overset{ねんぱいしゃ}{年配者}$ に $\\overset{せき}{席}$ を $\\overset{ゆず}{譲}$ る。/给年长者让座。"},
+  {word: "頻繁", kana: "ひんぱん", type: "形动", meaning: "频繁", example: "$\\overset{ひんぱん}{頻繁}$ に $\\overset{れんらく}{連絡}$ する。/频繁联系。 || $\\overset{じしん}{地震}$ が $\\overset{ひんぱん}{頻繁}$ に $\\overset{おき}{起}$ きる。/频繁发生地震。"},
+  {word: "ほう", kana: "ほう", type: "名", meaning: "方面；一边", example: "$\\overset{こっち}{此方}$ の $\\overset{ほう}{方}$ が $\\overset{い}{良}$ い。/这边比较好。 || $\\overset{やさ}{優}$ しい $\\overset{ほう}{方}$ だ。/算是温柔的那一类。"},
+  {word: "方言", kana: "ほうげん", type: "名", meaning: "方言", example: "$\\overset{ほうげん}{方言}$ を $\\overset{はな}{話}$ す。/说方言。 || $\\overset{ちほう}{地方}$ の $\\overset{ほうげん}{方言}$ 。/地方的方言。"},
+  {word: "有利", kana: "ゆうり", type: "形动", meaning: "有利", example: "$\\overset{ゆうり}{有利}$ な $\\overset{じょうけん}{条件}$ 。/有利的条件。 || $\\overset{しあい}{試合}$ を $\\overset{ゆうり}{有利}$ に $\\overset{すす}{進}$ める。/向有利的方向推进比赛。"},
+  {word: "礼儀正しい", kana: "れいぎただしい", type: "形", meaning: "彬彬有礼的", example: "$\\overset{かれ}{彼}$ は $\\overset{れいぎただ}{礼儀正}しい$。/他很有礼貌。 || $\\overset{れいぎただ}{礼儀正}しい$ $\\overset{ひと}{人}$ 。/彬彬有礼的人。"}
+];
+
+const Gojuon = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ".split('');
+
+// 🛡️ XSS 防护转义函数
+const escapeHTML = (str) => {
+    if (!str) return '';
+    return String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag]));
+};
+
+// 🛡️ 全局弹窗拦截器 (防滚动穿透)
+window.toggleModal = (id, show) => {
+    let el = document.getElementById(id);
+    if (!el) return;
+    if (show) el.classList.add('active'); else el.classList.remove('active');
+    if (document.querySelectorAll('.modal-overlay.active').length > 0) {
+        document.body.classList.add('modal-open');
+    } else {
+        document.body.classList.remove('modal-open');
+    }
+};
+
+window.showToast = (msg) => {
+    let t = document.getElementById('toast');
+    t.innerText = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+};
+
+window.showConfirm = (title, msg, onConfirm) => {
+    document.getElementById('dialog-title').innerHTML = title;
+    document.getElementById('dialog-msg').innerHTML = msg;
+    window.toggleModal('dialog-overlay', true);
+    document.getElementById('dialog-confirm').onclick = () => { window.toggleModal('dialog-overlay', false); onConfirm(); };
+    document.getElementById('dialog-cancel').onclick = () => { window.toggleModal('dialog-overlay', false); };
+};
+
+window.showPrompt = (title, defaultVal, onConfirm) => {
+    document.getElementById('prompt-title').innerHTML = title;
+    let input = document.getElementById('prompt-input');
+    input.value = defaultVal || '';
+    window.toggleModal('prompt-overlay', true);
+    setTimeout(() => input.focus(), 100);
+    document.getElementById('prompt-confirm').onclick = () => { 
+        let val = input.value.trim(); if(val) { window.toggleModal('prompt-overlay', false); onConfirm(val); }
+    };
+    document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
+};
+
+const BottomSheet = {
+    init() {
+        document.querySelectorAll('select:not(.no-bs)').forEach(sel => {
+            let facade = document.createElement('div');
+            facade.className = 'bs-facade'; 
+            if(sel.style.marginBottom) facade.style.marginBottom = sel.style.marginBottom;
+            if(sel.style.flex) facade.style.flex = sel.style.flex;
+            if(sel.style.width) facade.style.width = sel.style.width;
+            
+            let textSpan = document.createElement('span');
+            textSpan.className = 'bs-facade-text';
+            textSpan.innerText = sel.options[sel.selectedIndex]?.text || '';
+            let arrowSpan = document.createElement('span');
+            arrowSpan.className = 'material-symbols-rounded'; arrowSpan.innerText = 'keyboard_arrow_down'; arrowSpan.style.opacity = '0.5';
+            
+            facade.appendChild(textSpan); facade.appendChild(arrowSpan);
+            sel.style.display = 'none'; sel.parentNode.insertBefore(facade, sel.nextSibling);
+            
+            facade.addEventListener('click', () => this.open(sel, textSpan));
+            sel.addEventListener('facade-update', () => { textSpan.innerText = sel.options[sel.selectedIndex]?.text || ''; });
+        });
+    },
+    open(selectEl, textSpan) {
+        let container = document.getElementById('bs-options'); container.innerHTML = '';
+        let titleMap = {'group-select':'选择突击范围','initial-mode':'默认显示模式','next-display-mode':'显示模式','wb-folder-filter':'选择词库','move-dest-select':'移动至目标文件夹'};
+        document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
+        
+        Array.from(selectEl.options).forEach(opt => {
+            let btn = document.createElement('div');
+            btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
+            btn.innerText = opt.text;
+            btn.onclick = () => {
+                selectEl.value = opt.value;
+                selectEl.dispatchEvent(new Event('facade-update'));
+                selectEl.dispatchEvent(new Event('change')); 
+                window.toggleModal('bs-overlay', false);
+            };
+            container.appendChild(btn);
+        });
+        window.toggleModal('bs-overlay', true);
+    }
+};
+
+const Model = {
+  db: [], folders: ["默认词库"], stars: [], records: [], editingIdx: -1,
+  state: {
+    mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
+    dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
+    batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
+    isAnimating: false 
+  },
+  init() { this.loadData(); this.migrateSRSData(); },
+  loadData() {
+    this.folders = JSON.parse(localStorage.getItem('myFolders_v3')) || ["默认词库"];
+    let storedDB = localStorage.getItem('myWordDB_v3');
+    if (storedDB) this.db = JSON.parse(storedDB);
+    else { this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); this.saveDB(); }
+    this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
+    this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
+    if(this.folders.includes("📦 默认词库")) {
+        let fIdx = this.folders.indexOf("📦 默认词库"); this.folders[fIdx] = "默认词库";
+        this.db.forEach(w => { if(w.folder === "📦 默认词库") w.folder = "默认词库"; });
+        this.records.forEach(r => { if(r.group && r.group.includes("📦 默认词库")) r.group = r.group.replace("📦 默认词库", "默认词库"); });
+        this.saveFolders(); this.saveDB(); this.saveRecords();
+    }
+  },
+  saveDB() { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); },
+  saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
+  saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
+  saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
+  migrateSRSData() {
+    let modified = false;
+    this.db.forEach(w => { if (!w.srs) { w.srs = { ease: 2.5, interval: 0, nextReview: Date.now() }; modified = true; } });
+    if (modified) this.saveDB();
+  },
+  calculateSRS(wordIdx, rating) {
+    let srs = this.db[wordIdx].srs; let now = Date.now(); let dayMs = 86400000;
+    switch(rating) {
+      case 'again': srs.ease = Math.max(1.3, srs.ease - 0.2); srs.interval = 0; srs.nextReview = now + 60000; break;
+      case 'hard': srs.ease = Math.max(1.3, srs.ease - 0.15); srs.interval = Math.max(1, srs.interval * 1.2); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
+      case 'good': srs.interval = (srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
+      case 'easy': srs.ease += 0.15; srs.interval = (srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
+    }
+    this.saveDB();
+  },
+  previewSRSTimes(wordIdx) {
+    let srs = this.db[wordIdx].srs;
+    return { hard: Math.round(Math.max(1, srs.interval * 1.2)) + '天', good: Math.round((srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease)) + '天', easy: Math.round((srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3)) + '天' };
+  },
+  getSRSDueQueue() {
+    let now = Date.now(); let due = [];
+    this.db.forEach((w, idx) => { if (w.srs.nextReview <= now) due.push(idx); });
+    return due.sort(() => Math.random() - 0.5);
+  },
+  splitKanaByMora(kanaStr) {
+      let tokens = kanaStr.replace(/[【】\[\]()]/g, '').match(/([ぁ-んァ-ン][ゃゅょャュョぁぃぅぇぉァィゥェォ]?|[っッんンー])/g);
+      return tokens || kanaStr.split('');
+  }
+};
+
+const Hardware = {
+  audioCtx: null, jaVoiceCache: null,
+  init() {
+    try {
+        if (window.speechSynthesis) {
+          let loadVoice = () => { this.jaVoiceCache = window.speechSynthesis.getVoices().find(v => v.lang.includes('ja') || v.lang.includes('JP')); };
+          loadVoice();
+          if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoice;
+        }
+    } catch(e) {}
+  },
+  vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {} },
+  playSound(type) {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        if (!this.audioCtx) this.audioCtx = new AudioContext();
+        if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+        const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain();
+        osc.connect(gain); gain.connect(this.audioCtx.destination);
+        const now = this.audioCtx.currentTime;
+        if (type === 'click') {
+          osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+          gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+          osc.start(now); osc.stop(now + 0.05);
+        } else if (type === 'success') {
+          osc.type = 'triangle'; osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(783.99, now + 0.2); osc.frequency.setValueAtTime(1046.50, now + 0.3);
+          gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05); gain.gain.linearRampToValueAtTime(0, now + 0.6);   
+          osc.start(now); osc.stop(now + 0.6);
+        } else if (type === 'error') {
+          osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+          gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+          osc.start(now); osc.stop(now + 0.15);
+        }
+    } catch(e) {}
+  },
+  unlockSpeech() {
+      try { if (!window.speechSynthesis) return; let unlock = new SpeechSynthesisUtterance('あ'); unlock.volume = 0; window.speechSynthesis.speak(unlock); } catch(e) {}
+  },
+  speakText(text) {
+    try {
+        if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { window.speechSynthesis.cancel(); }
+        let utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
+        if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
+        window.speechSynthesis.speak(utterance);
+    } catch(e) {}
+  }
+};
+
+const View = {
+  getEl: (id) => document.getElementById(id),
+  toggleTheme() {
+    let dark = document.body.getAttribute('data-theme') === 'dark';
+    if (dark) { 
+        document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
+        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
+    } else { 
+        document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
+        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
+    }
+  },
+  getCardVisuals(typeStr) {
+    if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
+    let wm = '';
+    if (typeStr.includes('自他')) wm = 'が / を'; else if (typeStr.includes('自')) wm = 'が'; else if (typeStr.includes('他')) wm = 'を';
+    const getCat = (t) => {
+        if (t.includes('形动') || t.includes('形动')) return { color: 'var(--bg-adj-na)' };
+        if (t.includes('形')) return { color: 'var(--bg-adj)' };
+        if (/[段変变動自他サ]/.test(t)) return { color: 'var(--bg-verb)' };
+        if (t.includes('代')) return { color: 'var(--bg-pronoun)' };
+        if (t.includes('名')) return { color: 'var(--bg-noun)' };
+        if (t.includes('副') || t.includes('接')) return { color: 'var(--bg-adv)' };
+        return { color: 'var(--bg-other)' }; 
+    };
+    let tags = typeStr.split('・').map(t => t.trim()).filter(t => t);
+    if (tags.length === 0) tags = [typeStr]; 
+    let mainColors = [];
+    let tagsHTML = tags.map(t => {
+        let catInfo = getCat(t); mainColors.push(catInfo.color);
+        return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
+    }).join('');
+    let uniqueColors = [...new Set(mainColors)];
+    let bg = uniqueColors[0] || 'var(--surface-container)';
+    if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
+    return { bg, wm, tagsHTML };
+  },
+  
+  updatePixelMatrix() {
+    let c = this.getEl('pixel-matrix');
+    let total = Model.state.studyQueue.length;
+    let current = Model.state.currentIndex;
+    while (c.children.length < total) {
+      let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p);
+    }
+    Array.from(c.children).forEach((p, i) => {
+      p.className = (i < current) ? 'pixel filled' : (i === current ? 'pixel current' : 'pixel');
+      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/total)*10))]);
+    });
+  },
+
+  renderDashboard() {
+    let dueCount = Model.getSRSDueQueue().length;
+    this.getEl('srs-due-count').innerText = dueCount;
+    this.getEl('total-words').innerText = Model.records.length;
+    
+    let select = this.getEl('group-select'); select.innerHTML = '';
+    Model.folders.forEach(f => {
+      let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
+      let i = 0; while (i * 7 < total) { let startIdx = i * 7; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
+    });
+    select.dispatchEvent(new Event('facade-update'));
+    
+    let list = this.getEl('record-list');
+    if(Model.records.length > 0) list.innerHTML = Model.records.slice(0, 5).map(x => `<div style="margin-bottom:8px; font-weight: 600; display:flex; align-items:center; gap:8px;"><span class="material-symbols-rounded" style="font-size:1.1rem; opacity:0.8;">calendar_today</span> ${x.date} <span style="opacity:0.4">|</span> ${x.group}</div>`).join('');
+  },
+  
+  renderStudyCard(anim = 'none') {
+    let idx = Model.state.studyQueue[Model.state.currentIndex];
+    let w = Model.db[idx];
+    let mode = this.getEl('next-display-mode').value;
+    Model.state.isAnimating = false; 
+    
+    if (Model.state.mode === 'dual-track') {
+        Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
+        let count = Model.state.dtWordAppearanceMap[idx];
+        Model.state.dtSubMode = ((count - 1) % 5 < 3) ? 'choice' : 'spell';
+        mode = 'all';
+    }
+
+    this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
+    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs') {
+        this.updatePixelMatrix(); 
+    }
+
+    let card = this.getEl('flash-card');
+    let visuals = this.getCardVisuals(w.type);
+    card.querySelector('.watermark-layer').style.background = visuals.bg;
+    this.getEl('flash-watermark').innerText = visuals.wm;
+    
+    // 🌟 三段式丝滑动画
+    card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
+    if (anim !== 'none') {
+        card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
+        setTimeout(() => {
+            this.updateCardContent(w, visuals, mode);
+            card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
+            card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
+        }, 200); 
+    } else {
+        this.updateCardContent(w, visuals, mode);
+    }
+  },
+
+  updateCardContent(w, visuals, mode) {
+    let idx = Model.state.studyQueue[Model.state.currentIndex];
+    this.getEl('w-word').innerText = w.word; 
+    this.getEl('w-kana').innerText = w.kana;
+    this.getEl('w-type').innerHTML = visuals.tagsHTML; 
+    this.getEl('w-meaning').innerText = w.meaning;
+    
+    let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
+    this.getEl('star-icon').classList.toggle('icon-filled', isStarred);
+
+    let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
+    let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
+
+    this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
+    this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
+    this.getEl('btn-speaker').style.display = isDtSpell ? 'none' : 'block';
+    
+    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
+
+    this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
+
+    if (Model.state.mode !== 'dual-track') {
+        ['word','kana','type','meaning'].forEach(k => {
+        let el = this.getEl(`w-${k}`);
+        el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
+        if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) el.classList.add('blur-text');
+        });
+        let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
+        if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
+    }
+
+    this.getEl('capsule-pendulum').classList.add('hidden');
+    this.getEl('capsule-srs').classList.add('hidden');
+    this.getEl('dual-track-ui').classList.add('hidden');
+    
+    if (Model.state.mode === 'pendulum') {
+      this.getEl('capsule-pendulum').classList.remove('hidden');
+      this.getEl('btn-prev').disabled = Model.state.currentIndex === 0;
+      this.getEl('btn-next').style.display = Model.state.currentIndex === Model.state.studyQueue.length - 1 ? 'none' : 'flex';
+      this.getEl('btn-finish').style.display = Model.state.currentIndex === Model.state.studyQueue.length - 1 ? 'flex' : 'none';
+    } else if (Model.state.mode === 'srs') {
+      this.getEl('capsule-srs').classList.remove('hidden');
+      let times = Model.previewSRSTimes(idx);
+      this.getEl('time-hard').innerText = times.hard; this.getEl('time-good').innerText = times.good; this.getEl('time-easy').innerText = times.easy;
+    } else if (Model.state.mode === 'dual-track') {
+      this.getEl('dual-track-ui').classList.remove('hidden');
+      this.renderDualTrackUI(w);
+    }
+    
+    if (this.getEl('auto-speak').checked && !isDtSpell) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+  },
+
+  renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
+    let exBox = this.getEl(boxId);
+    if (!exString) { exBox.style.display = 'none'; exBox.innerHTML = ''; return; }
+    exBox.style.display = 'block';
+    
+    let processedStr = exString;
+    if (mode === 'spell' && targetWordObj) {
+        processedStr = exString.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
+            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${kanji}}`;
+            return match;
+        });
+    }
+
+    let htmlStr = processedStr.split('||').map(blk => {
+        let parts = blk.split('/');
+        let jpPart = parts[0] ? parts[0].trim() : "暂无例句";
+        let cnPart = parts[1] ? parts[1].trim() : "";
+
+        if (mode === 'choice' && cnPart) {
+            return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`;
+        }
+        return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
+    }).join('');
+    
+    exBox.innerHTML = htmlStr;
+    
+    let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
+    if (window.MathJax) {
+        MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1'));
+    } else {
+        jpExEls.forEach(el => el.style.opacity = '1');
+    }
+  },
+
+  renderDualTrackUI(wObj) {
+      if (Model.state.dtSubMode === 'spell') {
+          this.getEl('dt-choice-area').classList.add('hidden');
+          this.getEl('dt-spell-area').classList.remove('hidden');
+          let targetTokens = Model.splitKanaByMora(wObj.kana);
+          Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
+          this.getEl('dt-spell-input').innerText = ''; 
+          
+          let pool = [];
+          while(pool.length < Math.max(3, 8 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
+          
+          let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
+          let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
+          allTokens.forEach((token) => {
+              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token;
+              btn.onclick = () => Controller.handleDtSpellClick(btn, token);
+              kb.appendChild(btn);
+          });
+      } else if (Model.state.dtSubMode === 'choice') {
+          this.getEl('dt-spell-area').classList.add('hidden');
+          this.getEl('dt-choice-area').classList.remove('hidden');
+          let targetMeaning = wObj.meaning;
+          let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
+          if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word && x.meaning !== targetMeaning); 
+          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
+          let choices = [{text: targetMeaning, correct: true}];
+          pool.forEach(x => choices.push({text: x.meaning, correct: false}));
+          choices.sort(() => Math.random() - 0.5); 
+          let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
+          choices.forEach(c => {
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text;
+              btn.onclick = () => Controller.handleDtChoiceClick(btn, c.correct);
+              cb.appendChild(btn);
+          });
+      }
+  },
+  resetWordbankRenderer() { Model.state.wbCurrentRendered = 0; this.getEl('wb-grid').innerHTML = ''; this.renderMoreWordbank(); },
+  renderMoreWordbank() {
+    const grid = this.getEl('wb-grid'); const cols = this.getEl('wb-col-select').value; const blurMode = this.getEl('wb-blur-select').value; const currentFilter = this.getEl('wb-folder-filter').value;
+    grid.setAttribute('data-cols', cols);
+    let filteredData = Model.db.map((w, i) => ({w, idx: i})).filter(item => currentFilter === 'all' || item.w.folder === currentFilter);
+    
+    // 🌟 空状态反馈 Empty State
+    if (filteredData.length === 0 && Model.state.wbCurrentRendered === 0) {
+        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">inbox</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">当前文件夹空空如也</div></div>`;
+        return;
+    }
+
+    let slice = filteredData.slice(Model.state.wbCurrentRendered, Model.state.wbCurrentRendered + Model.state.wbRenderLimit);
+    if (slice.length === 0) return;
+    let fragment = document.createDocumentFragment();
+    slice.forEach((item, innerIdx) => {
+      let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);
+      let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
+      let isChecked = Model.state.selectedSet.has(idx);
+      let card = document.createElement('div'); card.className = 'wb-card'; card.style.background = visuals.bg; card.dataset.idx = idx; 
+      
+      card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
+      
+      // 🛡️ XSS 防护过滤
+      let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
+
+      card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
+      fragment.appendChild(card);
+    });
+    grid.appendChild(fragment); Model.state.wbCurrentRendered += slice.length;
+  },
+  updateWordbankUI() {
+    this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
+    this.getEl('wb-batch-toggle').style.background = Model.state.batchMode ? "var(--tertiary)" : "transparent"; this.getEl('wb-batch-toggle').style.color = Model.state.batchMode ? "white" : "var(--tertiary)";
+    this.getEl('wb-manage-toggle').style.background = Model.state.manageMode ? "var(--primary)" : "transparent"; this.getEl('wb-manage-toggle').style.color = Model.state.manageMode ? "white" : "var(--primary)"; 
+    let selFilter = this.getEl('wb-folder-filter'); let currentVal = selFilter.value;
+    selFilter.innerHTML = '<option value="all">查看所有词汇</option>'; 
+    Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
+    if(Model.folders.includes(currentVal) || currentVal === 'all') selFilter.value = currentVal;
+    selFilter.dispatchEvent(new Event('facade-update'));
+  }
+};
+
+const Controller = {
+  init() {
+    BottomSheet.init();
+    Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
+    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
+  },
+  setupIntersectionObserver() {
+    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('wordbank-area').style.display !== 'none') View.renderMoreWordbank(); }, { rootMargin: '200px' });
+    observer.observe(document.getElementById('wb-scroll-sentinel'));
+  },
+
+  bindEvents() {
+    // 盲点关闭所有的遮罩层
+    document.querySelectorAll('.modal-overlay').forEach(ov => {
+        ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); });
+    });
+
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
+    View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.getEl('setup-area').classList.add('hidden'); View.getEl('wordbank-area').style.display = 'block'; View.resetWordbankRenderer(); });
+    View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.getEl('wordbank-area').style.display = 'none'; View.getEl('setup-area').classList.remove('hidden'); View.renderDashboard(); });
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.getEl('study-area').classList.add('hidden'); View.getEl('setup-area').classList.remove('hidden'); View.renderDashboard(); });
+
+    View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
+    View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
+    View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.unlockSpeech(); this.startSRS(); });
+
+    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
+    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
+    View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
+    
+    ['next-display-mode', 'initial-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
+        View.getEl(id).addEventListener('change', () => { Hardware.playSound('click'); if(id === 'next-display-mode') View.renderStudyCard('none'); else if(id.includes('wb')) View.resetWordbankRenderer(); });
+    });
+    View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
+
+    ['again', 'hard', 'good', 'easy'].forEach(rating => { View.getEl(`srs-${rating}`).addEventListener('click', () => this.handleSRSRating(rating)); });
+
+    View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
+    View.getEl('star-btn').addEventListener('click', (e) => {
+      Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
+      let idx = Model.stars.indexOf(wordObj.word); 
+      if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); createStarParticles(e.currentTarget); Hardware.vibrate(20); }
+      Model.saveStars(); View.renderStudyCard('none'); 
+    });
+
+    document.addEventListener('click', (e) => {
+      let target = e.target.closest('.blur-target, .wb-blur-trigger');
+      if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) {
+        let el = target.classList.contains('blur-text') ? target : target.parentElement;
+        el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15);
+      }
+    });
+
+    // 🎯 完美 ScrollY 防滑长按引擎
+    let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
+    const clearPress = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
+    
+    const onPointerDown = (e) => {
+        if(e.pointerType === 'mouse' && e.button !== 0) return; 
+        let card = e.target.closest('.wb-card');
+        if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker')) return;
+        if (Model.state.batchMode || Model.state.manageMode) return;
+        
+        startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true;
+        card.classList.add('pressing'); 
+        pressTimer = setTimeout(() => {
+            // 滑动超过 10px 拦截长按
+            if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { 
+                Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPress(card); 
+            }
+        }, 500);
+    };
+    const onPointerMove = (e) => {
+        if(!isPressing) return;
+        if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPress(card); }
+    };
+    const onPointerUp = (e) => { let card = e.target.closest('.wb-card'); clearPress(card); };
+
+    let grid = View.getEl('wb-grid');
+    grid.addEventListener('pointerdown', onPointerDown); grid.addEventListener('pointermove', onPointerMove); grid.addEventListener('pointerup', onPointerUp); grid.addEventListener('pointercancel', onPointerUp);
+
+    grid.addEventListener('click', (e) => {
+      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
+      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
+      if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); this.openMoveModal(idx); return; }
+      if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); this.editWord(idx); return; }
+      if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); this.deleteWord(idx); return; }
+      if (Model.state.batchMode && !e.target.closest('.wb-blur-trigger')) {
+        if (Model.state.selectedSet.has(idx)) Model.state.selectedSet.delete(idx); else Model.state.selectedSet.add(idx);
+        Hardware.playSound('click'); Hardware.vibrate(10); View.updateWordbankUI();
+        let checkEl = card.querySelector('.wb-checkbox'); if (checkEl) { checkEl.classList.toggle('checked'); checkEl.innerText = Model.state.selectedSet.has(idx) ? '✓' : ''; }
+      }
+    });
+
+    View.getEl('wb-manage-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); if(Model.state.batchMode) this.toggleBatchMode(); Model.state.manageMode = !Model.state.manageMode; View.updateWordbankUI(); document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.toggle('active', Model.state.manageMode)); });
+    View.getEl('wb-batch-toggle').addEventListener('click', () => this.toggleBatchMode()); View.getEl('btn-batch-cancel').addEventListener('click', () => this.toggleBatchMode());
+    View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
+    View.getEl('btn-batch-move').addEventListener('click', () => this.openMoveModal(-2)); View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
+    View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
+    View.getEl('btn-import').addEventListener('click', () => this.importWords());
+    
+    // 视图排版设置控制台
+    View.getEl('btn-view-settings').addEventListener('click', () => {
+        window.toggleModal('view-settings-overlay', true);
+        document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }});
+        document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }});
+    });
+
+    View.getEl('btn-reset').addEventListener('click', () => { 
+        showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => {
+            Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); 
+        });
+    });
+    
+    View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false));
+    View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
+    
+    // 🌟 编辑表单保存逻辑
+    View.getEl('btn-save-edit').addEventListener('click', () => {
+        if(Model.editingIdx > -1) {
+            let w = Model.db[Model.editingIdx];
+            w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim();
+            Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存！");
+        }
+    });
+    View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
+  },
+
+  startPendulum(launchMode = 'pendulum') {
+    let sel = View.getEl('group-select'); if(!sel.value) return;
+    Hardware.playSound('click'); 
+    Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
+    let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
+    let startIdx = idx * 7; let endIdx = startIdx + 10;
+    let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
+    if(sourceWords.length === 0) return;
+
+    Model.state.studyQueue = []; let len = sourceWords.length;
+    for (let i = 0; i < len; i++) {
+      Model.state.studyQueue.push(sourceWords[i].i);
+      for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i);
+      for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
+    }
+    
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; 
+    View.getEl('next-display-mode').value = View.getEl('initial-mode').value; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
+    let c = View.getEl('pixel-matrix'); c.innerHTML='';
+    View.renderStudyCard('none'); Hardware.vibrate(40);
+  },
+
+  handleDtSpellClick(btn, token) {
+      if (Model.state.isAnimating || btn.classList.contains('used')) return;
+      let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
+      if (token === targetChar) {
+          Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
+          View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
+          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
+              Model.state.isAnimating = true; 
+              Hardware.playSound('success'); Hardware.vibrate(50); 
+              setTimeout(() => this.dtAdvanceNext(), 300); 
+          }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+  },
+
+  handleDtChoiceClick(btn, isCorrect) {
+      if (Model.state.isAnimating) return;
+      if (isCorrect) {
+          Model.state.isAnimating = true; 
+          btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
+          
+          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
+              el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0';
+              setTimeout(() => {
+                  el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; 
+                  el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth;
+                  el.style.transform = 'rotateX(0)'; el.style.opacity = '1';
+              }, 150);
+          });
+          document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
+          setTimeout(() => this.dtAdvanceNext(), 600);
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+  },
+
+  dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
+  finishPendulum() {
+    Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
+    let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel);
+    if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel}); Model.saveRecords();
+    showToast(`🎉 恭喜！打卡完成！`); View.getEl('btn-exit-study').click();
+  },
+
+  startSRS() {
+    Hardware.playSound('click'); let queue = Model.getSRSDueQueue();
+    if(queue.length === 0) return showToast("🎉 今天没有需要复习的单词！");
+    Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0;
+    View.getEl('next-display-mode').value = View.getEl('initial-mode').value; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
+    let c = View.getEl('pixel-matrix'); c.innerHTML=''; 
+    View.renderStudyCard('none'); Hardware.vibrate(40);
+  },
+
+  handleSRSRating(rating) {
+    if (Model.state.isAnimating) return;
+    Hardware.playSound('click'); Hardware.vibrate(30); let realIdx = Model.state.studyQueue[Model.state.currentIndex];
+    Model.calculateSRS(realIdx, rating); 
+    
+    if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
+    Model.state.currentIndex++;
+    if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
+        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("🎉 恭喜！智能复习队列已清空！"); View.getEl('btn-exit-study').click(); 
+    } else {
+        View.renderStudyCard('next');
+    }
+  },
+
+  toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
+  createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在！"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
+  deleteFolder() { Hardware.vibrate(20); let filter = View.getEl('wb-folder-filter').value; if (filter === 'all' || filter === '默认词库') return showToast("不能删除默认词库"); showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); Model.folders = Model.folders.filter(f => f !== filter); Model.saveFolders(); Model.saveDB(); View.getEl('wb-folder-filter').value = "all"; View.updateWordbankUI(); View.resetWordbankRenderer(); showToast("已删除"); }); },
+  openMoveModal(idx) { 
+      if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); 
+      Model.state.moveTargetIdx = idx; 
+      let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = '';
+      Model.folders.forEach(f => { destSelect.add(new Option(f, f)); });
+      destSelect.dispatchEvent(new Event('facade-update'));
+      window.toggleModal('move-overlay', true); 
+  },
+  confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
+  batchDelete() { Hardware.playSound('click'); Hardware.vibrate(30); if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); Model.saveDB(); this.toggleBatchMode(); showToast("已批量删除"); }); },
+  
+  editWord(idx) { 
+      Model.editingIdx = idx; let w = Model.db[idx];
+      View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning;
+      window.toggleModal('edit-overlay', true);
+  },
+  
+  deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
+  importWords() {
+    Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all') target = "默认词库";
+    let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } });
+    if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词！`); View.getEl('custom-input').value=''; }
+  },
+  openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
+  navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
+  
+  // 🌟 物理级三段式平滑动画重构
+  renderDetailCard(anim) {
+    let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
+    
+    if(anim !== 'none') {
+        wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
+        setTimeout(() => {
+            this.updateDetailContent(w);
+            wrapper.className = 'detail-anim-wrapper';
+            wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
+        }, 200);
+    } else {
+        this.updateDetailContent(w);
+    }
+  },
+  
+  updateDetailContent(w) {
+      let visuals = View.getCardVisuals(w.type); document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; View.getEl('dt-watermark').innerText = visuals.wm;
+      View.getEl('dt-word').innerText = w.word; View.getEl('dt-kana').innerText = w.kana; View.getEl('dt-type').innerHTML = visuals.tagsHTML; View.getEl('dt-mean').innerText = w.meaning; View.renderExampleBox(w.example, 'dt-example-box');
+  }
+};
+
+window.onload = () => Controller.init();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (极客防穿透 | XSS转义 | 视图抽屉引擎版)
+ * MVC 架构重构版 (防穿透 | XSS转义 | 视图抽屉引擎版)
  */
 
 const escapeHTML = (str) => {
@@ -71,7 +71,7 @@ const BottomSheet = {
     },
     open(selectEl, textSpan) {
         let container = document.getElementById('bs-options'); container.innerHTML = '';
-        let titleMap = {'group-select':'选择突击范围','initial-mode':'默认显示模式','next-display-mode':'显示模式','wb-folder-filter':'选择词库','move-dest-select':'移动至目标文件夹'};
+        let titleMap = {'group-select':'选择突击范围','next-display-mode':'显示模式','wb-folder-filter':'选择词库','move-dest-select':'移动至目标文件夹'};
         document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
         
         Array.from(selectEl.options).forEach(opt => {
@@ -95,7 +95,7 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    mtStep: 1, // 🌟 记忆检测专属通关步骤
+    mtStep: 1, 
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
     isAnimating: false 
   },
@@ -107,12 +107,6 @@ const Model = {
     else { this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); this.saveDB(); }
     this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
     this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
-    if(this.folders.includes("📦 默认词库")) {
-        let fIdx = this.folders.indexOf("📦 默认词库"); this.folders[fIdx] = "默认词库";
-        this.db.forEach(w => { if(w.folder === "📦 默认词库") w.folder = "默认词库"; });
-        this.records.forEach(r => { if(r.group && r.group.includes("📦 默认词库")) r.group = r.group.replace("📦 默认词库", "默认词库"); });
-        this.saveFolders(); this.saveDB(); this.saveRecords();
-    }
   },
   saveDB() { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); },
   saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
@@ -306,7 +300,6 @@ const View = {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
     let isMemoryTest = (Model.state.mode === 'memory-test');
     
-    // 🌟 记忆检测纯物理掩码引擎：防透视！
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let showWord = true, showKana = true, showMeaning = true;
     
@@ -334,7 +327,6 @@ const View = {
     let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
     let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
 
-    // 经典与双轨模式的显隐规则
     if (Model.state.mode !== 'memory-test') {
         this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
         this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
@@ -343,14 +335,12 @@ const View = {
         this.getEl('w-meaning').style.display = 'block';
     }
     
-    // 记忆检测模式下，读假名防作弊
     let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
-    // 原有的高斯模糊滤镜逻辑（仅对非检测模式生效）
     if (Model.state.mode !== 'dual-track' && !isMemoryTest) {
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
@@ -360,16 +350,14 @@ const View = {
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
     } else if (isMemoryTest) {
-        // 彻底剥夺模糊类的防作弊清理
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if (mode !== 'all') this.getEl('w-example-box').style.display = 'none'; // 强制隐藏例句
+        if (mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
 
-    // 底部 UI 显隐控制器
     this.getEl('capsule-pendulum').classList.add('hidden');
     this.getEl('capsule-srs').classList.add('hidden');
     this.getEl('dual-track-ui').classList.add('hidden');
@@ -392,7 +380,8 @@ const View = {
       this.renderMemoryTestUI(w, mode);
     }
     
-    if (this.getEl('auto-speak').checked && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
+    if (autoSpeak && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
   },
 
   renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
@@ -466,7 +455,6 @@ const View = {
       }
   },
   
-  // 🌟 核心：记忆检测模式 UI 生成器
   renderMemoryTestUI(wObj, displayMode) {
       this.getEl('mt-warning').classList.add('hidden');
       this.getEl('mt-spell-area').classList.add('hidden');
@@ -489,12 +477,11 @@ const View = {
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
           let targetTokens = Model.splitKanaByMora(wObj.kana);
-          Model.state.dtSpellTarget = targetTokens; // 复用键盘判词逻辑容器
+          Model.state.dtSpellTarget = targetTokens; 
           Model.state.dtSpellCurrentIdx = 0;
           this.getEl('mt-spell-input').innerText = ''; 
           
           let pool = [];
-          // 🔥 强制填充极客干扰项（至少包含 8 个伪选项）
           while(pool.length < Math.max(8, 12 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
           
           let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
@@ -532,7 +519,6 @@ const View = {
     grid.setAttribute('data-cols', cols);
     let filteredData = Model.db.map((w, i) => ({w, idx: i})).filter(item => currentFilter === 'all' || item.w.folder === currentFilter);
     
-    // 🌟 空状态反馈 Empty State
     if (filteredData.length === 0 && Model.state.wbCurrentRendered === 0) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">inbox</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">当前文件夹空空如也</div></div>`;
         return;
@@ -549,7 +535,6 @@ const View = {
       
       card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
       
-      // 🛡️ XSS 防护过滤
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
 
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
@@ -573,7 +558,17 @@ const Controller = {
   init() {
     BottomSheet.init();
     Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
-    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
+    
+    if(localStorage.getItem('theme') === 'dark') { 
+        document.body.setAttribute('data-theme', 'dark'); 
+        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
+    }
+    
+    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
+    View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
+    
+    let savedMode = localStorage.getItem('displayMode') || 'all';
+    View.getEl('next-display-mode').value = savedMode;
   },
   setupIntersectionObserver() {
     let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('wordbank-area').style.display !== 'none') View.renderMoreWordbank(); }, { rootMargin: '200px' });
@@ -581,7 +576,6 @@ const Controller = {
   },
 
   bindEvents() {
-    // 盲点关闭所有的遮罩层
     document.querySelectorAll('.modal-overlay').forEach(ov => {
         ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); });
     });
@@ -594,18 +588,28 @@ const Controller = {
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
     View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.unlockSpeech(); this.startSRS(); });
-    // 🌟 新绑定：启动记忆检测模式
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    ['next-display-mode', 'initial-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
-        View.getEl(id).addEventListener('change', () => { 
+    View.getEl('btn-auto-speak-toggle').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
+        autoSpeak = !autoSpeak;
+        localStorage.setItem('autoSpeak', autoSpeak);
+        View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
+        showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读");
+    });
+    
+    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
+        View.getEl(id).addEventListener('change', (e) => { 
             Hardware.playSound('click'); 
             if(id === 'next-display-mode') {
-                Model.state.mtStep = 1; // 切换选项时重置通关状态
+                localStorage.setItem('displayMode', e.target.value);
+                Model.state.mtStep = 1; 
                 View.renderStudyCard('none'); 
             } else if(id.includes('wb')) {
                 View.resetWordbankRenderer(); 
@@ -632,7 +636,6 @@ const Controller = {
       }
     });
 
-    // 🎯 完美 ScrollY 防滑长按引擎
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPress = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
     
@@ -645,7 +648,6 @@ const Controller = {
         startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true;
         card.classList.add('pressing'); 
         pressTimer = setTimeout(() => {
-            // 滑动超过 10px 拦截长按
             if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { 
                 Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPress(card); 
             }
@@ -680,7 +682,6 @@ const Controller = {
     View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     
-    // 视图排版设置控制台
     View.getEl('btn-view-settings').addEventListener('click', () => {
         window.toggleModal('view-settings-overlay', true);
         document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }});
@@ -696,7 +697,6 @@ const Controller = {
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false));
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     
-    // 🌟 编辑表单保存逻辑
     View.getEl('btn-save-edit').addEventListener('click', () => {
         if(Model.editingIdx > -1) {
             let w = Model.db[Model.editingIdx];
@@ -723,8 +723,12 @@ const Controller = {
       for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
     }
     
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; // 归零步骤状态
-    View.getEl('next-display-mode').value = View.getEl('initial-mode').value; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
+    
+    let savedMode = localStorage.getItem('displayMode') || 'all';
+    View.getEl('next-display-mode').value = savedMode;
+    View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    
     View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
     let c = View.getEl('pixel-matrix'); c.innerHTML='';
     View.renderStudyCard('none'); Hardware.vibrate(40);
@@ -763,7 +767,6 @@ const Controller = {
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
   },
 
-  // 🌟 核心：记忆检测模式专用判断器 - 拼写模块
   handleMtSpellClick(btn, token, wObj, displayMode) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
@@ -775,7 +778,6 @@ const Controller = {
               Model.state.isAnimating = true; 
               Hardware.playSound('success'); Hardware.vibrate(50); 
               
-              // 拼写成功，物理剥除第一层方块掩盖！
               if(displayMode === 'word' || displayMode === 'meaning') {
                   View.getEl('w-kana').innerText = wObj.kana; 
                   View.getEl('w-kana').classList.add('shake-anim');
@@ -783,7 +785,7 @@ const Controller = {
               }
               
               setTimeout(() => {
-                  Model.state.mtStep = 2; // 进入阶段二
+                  Model.state.mtStep = 2; 
                   Model.state.isAnimating = false;
                   View.renderMemoryTestUI(wObj, displayMode);
               }, 600); 
@@ -791,7 +793,6 @@ const Controller = {
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
   },
 
-  // 🌟 核心：记忆检测模式专用判断器 - 选项模块
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
@@ -799,7 +800,6 @@ const Controller = {
           btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
           
           if (Model.state.mtStep === 1) {
-              // 说明是「只显假名」的第一阶段（选原词）
               View.getEl('w-word').innerText = wObj.word; 
               View.getEl('w-word').classList.add('shake-anim');
               setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
@@ -810,14 +810,12 @@ const Controller = {
                   View.renderMemoryTestUI(wObj, displayMode);
               }, 600);
           } else {
-              // mtStep 为 2：完全通关！剥除最后所有遮挡。
               if (displayMode === 'word' || displayMode === 'kana') {
                   View.getEl('w-meaning').innerText = wObj.meaning;
               } else if (displayMode === 'meaning') {
                   View.getEl('w-word').innerText = wObj.word;
               }
               
-              // 彻底通关，亮出隐藏的例句
               View.getEl('w-example-box').style.display = 'block'; 
               document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
               setTimeout(() => this.mtAdvanceNext(), 800);
@@ -827,7 +825,6 @@ const Controller = {
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
   
-  // 🌟 记忆模式专属前推函数（重置 step 状态）
   mtAdvanceNext() {
       Model.state.currentIndex++;
       Model.state.mtStep = 1; 
@@ -842,14 +839,18 @@ const Controller = {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel);
     if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel}); Model.saveRecords();
-    showToast(`🎉 恭喜！打卡完成！`); View.getEl('btn-exit-study').click();
+    showToast("恭喜！打卡完成！"); View.getEl('btn-exit-study').click();
   },
 
   startSRS() {
     Hardware.playSound('click'); let queue = Model.getSRSDueQueue();
-    if(queue.length === 0) return showToast("🎉 今天没有需要复习的单词！");
+    if(queue.length === 0) return showToast("今天没有需要复习的单词！");
     Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0;
-    View.getEl('next-display-mode').value = View.getEl('initial-mode').value; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    
+    let savedMode = localStorage.getItem('displayMode') || 'all';
+    View.getEl('next-display-mode').value = savedMode;
+    View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    
     View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
     let c = View.getEl('pixel-matrix'); c.innerHTML=''; 
     View.renderStudyCard('none'); Hardware.vibrate(40);
@@ -863,7 +864,7 @@ const Controller = {
     if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
     Model.state.currentIndex++;
     if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
-        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("🎉 恭喜！智能复习队列已清空！"); View.getEl('btn-exit-study').click(); 
+        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("恭喜！智能复习队列已清空！"); View.getEl('btn-exit-study').click(); 
     } else {
         View.renderStudyCard('next');
     }
@@ -898,7 +899,6 @@ const Controller = {
   openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
   navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
   
-  // 🌟 物理级三段式平滑动画重构
   renderDetailCard(anim) {
     let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
     

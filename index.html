@@ -66,9 +66,14 @@
         <h3 style="margin: 0; border: none; padding: 0;">
           <span class="material-symbols-rounded">rocket_launch</span> 学习模式
         </h3>
-        <button id="btn-auto-speak-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--primary);" title="自动朗读开关">
-          <span class="material-symbols-rounded" id="auto-speak-icon">volume_up</span>
-        </button>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-vol-nav-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--on-surface); opacity: 0.5;" title="音量键翻页开关">
+            <span class="material-symbols-rounded" id="vol-nav-icon">swap_vert</span>
+          </button>
+          <button id="btn-auto-speak-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--primary);" title="自动朗读开关">
+            <span class="material-symbols-rounded" id="auto-speak-icon">volume_up</span>
+          </button>
+        </div>
       </div>
       
       <button id="btn-start-srs" class="btn-srs icon-text-gap" style="margin-bottom: 16px; font-size: 1.1rem; padding: 18px; white-space: nowrap;">
@@ -83,7 +88,7 @@
             <span class="material-symbols-rounded">swords</span> 闯关模式
         </button>
         <button id="btn-start-memory-test" style="flex: 1 1 100%; background: var(--on-surface); color: var(--surface); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
-            <span class="material-symbols-rounded">quiz</span> 死记硬背
+            <span class="material-symbols-rounded">quiz</span> 记忆检测
         </button>
       </div>
       

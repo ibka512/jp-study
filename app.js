@@ -266,7 +266,6 @@ const View = {
     let mode = this.getEl('next-display-mode').value;
     Model.state.isAnimating = false; 
     
-    // 强制闯关模式不受选择下拉框的影响，固定为'all'
     if (Model.state.mode === 'dual-track') {
         Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
         let count = Model.state.dtWordAppearanceMap[idx];
@@ -342,9 +341,7 @@ const View = {
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
-    // 🌟 核心修复点：强制清洗 DOM 残留类名！
     if (Model.state.mode !== 'dual-track' && !isMemoryTest) {
-        // 如果是经典模式/复习模式，按正常情况加模糊滤镜
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
@@ -353,13 +350,11 @@ const View = {
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
     } else {
-        // 如果是闯关模式或记忆检测模式，强制剥离上一轮可能残留的所有的模糊类名 (防状态污染)
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
         this.getEl('w-example-box').className = 'dt-example-box';
-        // 记忆检测模式还需要把例句强制隐藏防作弊
         if (isMemoryTest && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
 
@@ -572,6 +567,14 @@ const Controller = {
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
     View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
     
+    // 🌟 初始化时读取音量键翻页设置并应用样式
+    let volNavEnabled = localStorage.getItem('volNav') === 'true';
+    let volBtn = View.getEl('btn-vol-nav-toggle');
+    if (volNavEnabled) {
+        volBtn.style.color = 'var(--primary)';
+        volBtn.style.opacity = '1';
+    }
+    
     let savedMode = localStorage.getItem('displayMode') || 'all';
     View.getEl('next-display-mode').value = savedMode;
   },
@@ -608,6 +611,57 @@ const Controller = {
         View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
         showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读");
     });
+    
+    // 🌟 新增：音量键翻页的开启与关闭逻辑
+    View.getEl('btn-vol-nav-toggle').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        let volNavEnabled = localStorage.getItem('volNav') === 'true';
+        volNavEnabled = !volNavEnabled;
+        localStorage.setItem('volNav', volNavEnabled);
+        
+        let btn = View.getEl('btn-vol-nav-toggle');
+        if(volNavEnabled) {
+            btn.style.color = 'var(--primary)';
+            btn.style.opacity = '1';
+            showToast("已开启音量键翻页(音量减=下一个)");
+        } else {
+            btn.style.color = 'var(--on-surface)';
+            btn.style.opacity = '0.5';
+            showToast("已关闭音量键翻页");
+        }
+    });
+
+    // 🌟 新增：全局监听物理音量按键事件
+    window.addEventListener('keydown', (e) => {
+        if (localStorage.getItem('volNav') !== 'true') return;
+        
+        let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
+        let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
+        
+        if (!isVolUp && !isVolDown) return;
+        
+        let inDetail = document.getElementById('detail-overlay').classList.contains('active');
+        let inStudy = !document.getElementById('study-area').classList.contains('hidden');
+        let isPendulum = Model.state.mode === 'pendulum';
+        
+        // 只有在详情弹窗内，或者经典突击模式下，才允许截获音量键
+        if (!inDetail && !(inStudy && isPendulum)) return;
+        
+        // 试图阻止浏览器触发系统默认的音量条，注意这在部分iOS系统上可能失效
+        e.preventDefault(); 
+        
+        if (inDetail) {
+            if (isVolDown) Controller.navDetail(1);
+            else if (isVolUp) Controller.navDetail(-1);
+        } else if (inStudy && isPendulum) {
+            if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) {
+                document.getElementById('btn-next').click();
+            } else if (isVolUp && Model.state.currentIndex > 0) {
+                document.getElementById('btn-prev').click();
+            }
+        }
+    }, { passive: false });
     
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
         View.getEl(id).addEventListener('change', (e) => { 
@@ -844,12 +898,12 @@ const Controller = {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel);
     if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel}); Model.saveRecords();
-    showToast("恭喜！打卡完成！"); View.getEl('btn-exit-study').click();
+    showToast("打卡完成"); View.getEl('btn-exit-study').click();
   },
 
   startSRS() {
     Hardware.playSound('click'); let queue = Model.getSRSDueQueue();
-    if(queue.length === 0) return showToast("今天没有需要复习的单词！");
+    if(queue.length === 0) return showToast("今天没有需要复习的单词");
     Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0;
     
     let savedMode = localStorage.getItem('displayMode') || 'all';
@@ -869,14 +923,14 @@ const Controller = {
     if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
     Model.state.currentIndex++;
     if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
-        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("恭喜！智能复习队列已清空！"); View.getEl('btn-exit-study').click(); 
+        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); 
     } else {
         View.renderStudyCard('next');
     }
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
-  createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在！"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
+  createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
   deleteFolder() { Hardware.vibrate(20); let filter = View.getEl('wb-folder-filter').value; if (filter === 'all' || filter === '默认词库') return showToast("不能删除默认词库"); showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); Model.folders = Model.folders.filter(f => f !== filter); Model.saveFolders(); Model.saveDB(); View.getEl('wb-folder-filter').value = "all"; View.updateWordbankUI(); View.resetWordbankRenderer(); showToast("已删除"); }); },
   openMoveModal(idx) { 
       if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); 
@@ -899,12 +953,11 @@ const Controller = {
   importWords() {
     Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all') target = "默认词库";
     let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } });
-    if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词！`); View.getEl('custom-input').value=''; }
+    if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; }
   },
   openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
   navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
   
-  // 🌟 物理级三段式平滑动画重构
   renderDetailCard(anim) {
     let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
     

@@ -677,6 +677,7 @@ const Controller = {
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
     View.getEl('btn-start-rote-learning').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('rote-learning'); });
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
+    View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.playSound('click'); this.startSRS(); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });

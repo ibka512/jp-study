@@ -46,7 +46,7 @@
     --radius-lg: 28px;   
     --radius-full: 999px; 
     
-    /* MD3 海拔阴影 (Elevation) - 注入主色调增加通透感 */
+    /* MD3 海拔阴影 (Elevation) */
     --elevation-1: 0px 1px 2px 0px rgba(139,121,103,0.15), 0px 1px 3px 1px rgba(139,121,103,0.10);
     --elevation-2: 0px 1px 2px 0px rgba(139,121,103,0.15), 0px 2px 6px 2px rgba(139,121,103,0.10);
     --elevation-3: 0px 1px 3px 0px rgba(139,121,103,0.15), 0px 4px 8px 3px rgba(139,121,103,0.10);
@@ -63,7 +63,6 @@
     --primary-container: #624021;
     --on-primary-container: #FFDCC1;
 
-    /* 💡 补全缺失的 Secondary 变量，修复底部导航栏的发光问题 */
     --secondary: #E5C0A4;
     --on-secondary: #412D1D;
     --secondary-container: #4D3624; 
@@ -87,7 +86,6 @@
     --accent-red-bg: #410002; 
     --accent-green-bg: #083816; 
 
-    /* 词卡背景色：改用 8% 透明度的亮色叠加，消除浑浊感 */
     --bg-verb: rgba(208, 239, 255, 0.08); 
     --bg-noun: rgba(255, 229, 204, 0.08); 
     --bg-adj: rgba(255, 221, 228, 0.08);        
@@ -171,24 +169,25 @@
   .setting-title { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); }
   .setting-desc { font-size: 0.8rem; color: var(--on-surface); opacity: 0.6; font-weight: 500; }
   
-  /* 🌟 原生 MD3 Switch 开关 */
+  /* 🌟 原生 MD3 Switch 开关 (纯 CSS 绘制，带物理呼吸感) */
   .toggle-switch-btn { 
-      background: transparent; border: 2px solid var(--outline); padding: 0; 
+      background: var(--surface-container-high); border: 2px solid var(--outline); padding: 0; 
       width: 52px; height: 32px; border-radius: 16px; cursor: pointer; 
       transition: all 0.3s var(--spring); position: relative;
-      display: flex; align-items: center; justify-content: flex-start;
+      display: flex; align-items: center; justify-content: flex-start; outline: none;
   }
   .toggle-switch-btn:active { transform: scale(0.95); }
   .toggle-switch-btn .switch-thumb {
       width: 16px; height: 16px; border-radius: 50%; background: var(--outline);
       margin-left: 6px; transition: all 0.3s var(--spring); pointer-events: none;
   }
+  /* 开启状态 */
   .toggle-switch-btn.on { 
-      background: var(--tertiary); border-color: transparent; 
+      background: var(--primary); border-color: transparent; 
   }
   .toggle-switch-btn.on .switch-thumb {
-      width: 24px; height: 24px; background: var(--on-tertiary);
-      margin-left: 24px;
+      width: 24px; height: 24px; background: var(--on-primary);
+      margin-left: 26px; 
   }
 
   /* MD3 Outlined Card */

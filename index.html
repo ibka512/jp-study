@@ -136,24 +136,24 @@
     </div>
 
     <div id="memory-test-ui" class="hidden" style="margin-bottom: 24px;">
-      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--radius-sm); margin: 0 16px;">
+      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--small-radius); margin: 0 16px;">
         <span class="material-symbols-rounded" style="font-size: 2.5rem; margin-bottom: 12px;">visibility_off</span><br>全显模式下无法进行检测<br><span style="font-size:0.85rem; opacity:0.8; display:inline-block; margin-top:8px;">请在上方切换「汉字/假名/释义」<br>作为掩盖检测项</span>
       </div>
       <div id="mt-spell-area" class="hidden"><div id="mt-spell-input" class="dt-spell-input-box"></div><div id="mt-spell-keyboard"></div></div>
       <div id="mt-choice-area" class="hidden"><div id="mt-choice-buttons"></div></div>
     </div>
 
-    <div id="capsule-pendulum" class="floating-capsule hidden">
-      <button id="btn-prev" class="btn-outline"><span class="material-symbols-rounded">arrow_back</span><span>上一个</span></button>
-      <button id="btn-next"><span class="material-symbols-rounded">arrow_forward</span><span>下一个</span></button>
-      <button id="btn-finish" style="background: var(--tertiary); display: none; border: none; color: white;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
+    <div id="capsule-pendulum" class="action-grid-2 hidden">
+      <button id="btn-prev" class="btn-action"><span class="material-symbols-rounded">arrow_back</span><span>上一个</span></button>
+      <button id="btn-next" class="btn-action"><span class="material-symbols-rounded">arrow_forward</span><span>下一个</span></button>
+      <button id="btn-finish" class="btn-action" style="display: none;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
     </div>
 
-    <div id="capsule-srs" class="floating-capsule hidden" style="flex-wrap: wrap;">
-      <button id="srs-again" class="btn-outline btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
-      <button id="srs-hard" class="btn-outline btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
-      <button id="srs-good" class="btn-outline btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
-      <button id="srs-easy" class="btn-outline btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
+    <div id="capsule-srs" class="action-grid-2 hidden">
+      <button id="srs-again" class="btn-action btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
+      <button id="srs-hard" class="btn-action btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
+      <button id="srs-good" class="btn-action btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
+      <button id="srs-easy" class="btn-action btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
     </div>
   </div>
 
@@ -178,7 +178,7 @@
       </button>
     </div>
 
-    <div class="card-panel" style="margin-bottom: 24px; border-radius: var(--radius-lg);">
+    <div class="card-panel" style="margin-bottom: 24px; border-radius: var(--card-radius);">
       <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">folder_managed</span> 文件夹与导入管理</h3>
       <div class="flex-row" style="margin-bottom: 16px;">
          <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--tertiary); color: var(--tertiary); padding: 12px;"><span class="material-symbols-rounded" style="font-size:1.2rem;">create_new_folder</span> 建夹</button>

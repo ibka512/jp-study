@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MD3 & Gamified UI 深度融合版 + 全局涟漪引擎
+ * MD3 & Gamified UI 终极进化版 (底层 Tab 路由架构)
  */
 
 const escapeHTML = (str) => {
@@ -307,21 +307,36 @@ const Hardware = {
 
 const View = {
   getEl: (id) => document.getElementById(id),
-  showPage(pageId) {
-      ['setup-area', 'study-area', 'wordbank-area'].forEach(id => {
-          let el = this.getEl(id);
-          if (id === pageId) {
-              if (id === 'wordbank-area') el.style.display = 'block';
-              else el.classList.remove('hidden');
-              el.classList.remove('anim-fade-in');
-              void el.offsetWidth;
-              el.classList.add('anim-fade-in');
+  
+  // 🌟 全新 Tab 路由系统
+  switchTab(tabId) {
+      document.querySelectorAll('.tab-view').forEach(el => {
+          if (el.id === tabId) {
+              el.classList.remove('hidden');
+              el.classList.add('active');
           } else {
-              if (id === 'wordbank-area') el.style.display = 'none';
-              else el.classList.add('hidden');
+              el.classList.remove('active');
+              el.classList.add('hidden');
           }
       });
+      document.querySelectorAll('.nav-item').forEach(el => {
+          el.classList.toggle('active', el.dataset.target === tabId);
+      });
+      if (tabId === 'tab-wordbank') {
+          this.resetWordbankRenderer();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   },
+
+  // 控制沉浸式学习模式覆盖层的显示与隐藏
+  toggleStudyMode(show) {
+      if (show) {
+          this.getEl('study-area').classList.remove('hidden');
+      } else {
+          this.getEl('study-area').classList.add('hidden');
+      }
+  },
+
   toggleTheme() {
     let dark = document.body.getAttribute('data-theme') === 'dark';
     if (dark) { 
@@ -397,10 +412,10 @@ const View = {
     if (btn) {
         let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
         if(isPunched) {
-            btn.className = 'btn-long-press done';
+            btn.className = 'fab-btn done';
             btn.innerHTML = `<span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">task_alt</span> 今日已完成</span>`;
         } else {
-            btn.className = 'btn-long-press';
+            btn.className = 'fab-btn';
             btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
         }
     }
@@ -691,20 +706,29 @@ const Controller = {
   init() {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
-    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
-    let volNavEnabled = localStorage.getItem('volNav') === 'true'; let volBtn = View.getEl('btn-vol-nav-toggle'); if (volNavEnabled) { volBtn.style.color = 'var(--primary)'; volBtn.style.opacity = '1'; }
+    
+    // 初始化设置页面的开关状态
+    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
+    let asIcon = View.getEl('auto-speak-icon');
+    asIcon.innerText = autoSpeak ? 'toggle_on' : 'toggle_off';
+    asIcon.parentElement.classList.toggle('on', autoSpeak);
+
+    let volNav = localStorage.getItem('volNav') === 'true'; 
+    let vnIcon = View.getEl('vol-nav-icon');
+    vnIcon.innerText = volNav ? 'toggle_on' : 'toggle_off';
+    vnIcon.parentElement.classList.toggle('on', volNav);
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
   setupIntersectionObserver() {
-    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('wordbank-area').style.display !== 'none') View.renderMoreWordbank(); }, { rootMargin: '200px' });
+    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('tab-wordbank').classList.contains('active')) View.renderMoreWordbank(); }, { rootMargin: '200px' });
     observer.observe(document.getElementById('wb-scroll-sentinel'));
   },
 
   bindEvents() {
-    // 🌟 核心：全局涟漪引擎 (Global Ripple Engine)
+    // 🌟 全局涟漪引擎
     document.addEventListener('pointerdown', (e) => {
-        let target = e.target.closest('button, .wb-card, .icon-btn, .btn-action, .dt-choice-btn, .dt-spell-key, .bs-facade, .detail-nav-btn');
-        // 长按打卡有自己的专属动画，跳过涟漪
+        let target = e.target.closest('button:not(.toggle-switch-btn), .wb-card, .icon-btn, .btn-action, .dt-choice-btn, .dt-spell-key, .bs-facade, .detail-nav-btn, .nav-item');
         if (!target || target.id === 'btn-long-press' || target.disabled || target.classList.contains('pressing')) return;
         
         let rect = target.getBoundingClientRect();
@@ -718,21 +742,30 @@ const Controller = {
         ripple.style.left = (x - size / 2) + 'px';
         ripple.style.top = (y - size / 2) + 'px';
         
-        if (window.getComputedStyle(target).position === 'static') {
-            target.style.position = 'relative';
-        }
+        if (window.getComputedStyle(target).position === 'static') { target.style.position = 'relative'; }
         target.style.overflow = 'hidden';
         
         target.appendChild(ripple);
-        // 动画结束后自动清理 DOM 节点
         setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
+    });
+
+    // 🌟 底部导航栏点击事件
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            let target = item.dataset.target;
+            if (target === 'tab-wordbank' && !item.classList.contains('active')) {
+                View.resetWordbankRenderer();
+            }
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            View.switchTab(target);
+        });
     });
 
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
-    View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.showPage('wordbank-area'); View.resetWordbankRenderer(); });
-    View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.showPage('setup-area'); View.renderDashboard(); });
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('setup-area'); View.renderDashboard(); });
+    
+    // 退出沉浸式学习模式
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.toggleStudyMode(false); View.renderDashboard(); });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
@@ -744,8 +777,27 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    View.getEl('btn-auto-speak-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; autoSpeak = !autoSpeak; localStorage.setItem('autoSpeak', autoSpeak); View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off'; showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读"); });
-    View.getEl('btn-vol-nav-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let volNavEnabled = localStorage.getItem('volNav') === 'true'; volNavEnabled = !volNavEnabled; localStorage.setItem('volNav', volNavEnabled); let btn = View.getEl('btn-vol-nav-toggle'); if(volNavEnabled) { btn.style.color = 'var(--primary)'; btn.style.opacity = '1'; showToast("已开启音量键翻页"); } else { btn.style.color = 'var(--on-surface)'; btn.style.opacity = '0.5'; showToast("已关闭音量键翻页"); } });
+    // 🌟 设置页开关状态切换
+    View.getEl('btn-auto-speak-toggle').addEventListener('click', (e) => { 
+        let btn = e.currentTarget;
+        let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
+        autoSpeak = !autoSpeak; 
+        localStorage.setItem('autoSpeak', autoSpeak); 
+        btn.querySelector('.material-symbols-rounded').innerText = autoSpeak ? 'toggle_on' : 'toggle_off';
+        btn.classList.toggle('on', autoSpeak);
+        Hardware.playSound('click'); Hardware.vibrate(15); 
+        showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读"); 
+    });
+    View.getEl('btn-vol-nav-toggle').addEventListener('click', (e) => { 
+        let btn = e.currentTarget;
+        let volNav = localStorage.getItem('volNav') === 'true'; 
+        volNav = !volNav; 
+        localStorage.setItem('volNav', volNav); 
+        btn.querySelector('.material-symbols-rounded').innerText = volNav ? 'toggle_on' : 'toggle_off';
+        btn.classList.toggle('on', volNav);
+        Hardware.playSound('click'); Hardware.vibrate(15); 
+        showToast(volNav ? "已开启音量键翻页" : "已关闭音量键翻页"); 
+    });
 
     window.addEventListener('keydown', (e) => {
         if (localStorage.getItem('volNav') !== 'true') return;
@@ -763,6 +815,7 @@ const Controller = {
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
     
+    // 🌟 悬浮 FAB 长按打卡事件
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null;
     const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
@@ -873,7 +926,7 @@ const Controller = {
     }
     
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
-    View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
+    View.toggleStudyMode(true); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
   handleDtSpellClick(btn, token) {
@@ -962,7 +1015,7 @@ const Controller = {
     if(queue.length === 0) return showToast("今天没有需要复习的单词");
     Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0;
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
-    View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
+    View.toggleStudyMode(true); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
   handleSRSRating(rating) {

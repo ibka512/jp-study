@@ -86,13 +86,14 @@
     --accent-red-bg: #410002; 
     --accent-green-bg: #083816; 
 
-    --bg-verb: rgba(208, 239, 255, 0.08); 
-    --bg-noun: rgba(255, 229, 204, 0.08); 
-    --bg-adj: rgba(255, 221, 228, 0.08);        
-    --bg-adj-na: rgba(255, 242, 194, 0.08); 
-    --bg-adv: rgba(199, 246, 214, 0.08); 
-    --bg-pronoun: rgba(204, 240, 240, 0.08); 
-    --bg-other: rgba(236, 238, 237, 0.08);      
+        /* 🌟 恢复原本饱满且深邃的词性卡片背景色 */
+    --bg-verb: #113B4D; 
+    --bg-noun: #4D280B; 
+    --bg-adj: #47152A;        
+    --bg-adj-na: #4A401A; 
+    --bg-adv: #163E23; 
+    --bg-pronoun: #14404A; 
+    --bg-other: #292B2B; 
 
     --elevation-1: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
     --elevation-2: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);

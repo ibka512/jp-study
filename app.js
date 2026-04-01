@@ -256,7 +256,8 @@ const View = {
     });
     select.dispatchEvent(new Event('facade-update'));
     
-    
+    let list = this.getEl('record-list');
+    if(Model.records.length > 0) list.innerHTML = Model.records.slice(0, 5).map(x => `<div style="margin-bottom:8px; font-weight: 600; display:flex; align-items:center; gap:8px;"><span class="material-symbols-rounded" style="font-size:1.1rem; opacity:0.8;">calendar_today</span> ${x.date} <span style="opacity:0.4">|</span> ${x.group}</div>`).join('');
   },
   
   renderStudyCard(anim = 'none') {
@@ -336,7 +337,9 @@ const View = {
     
     let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
-    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') ? 'none' : 'inline-flex';
+    
+    // 🌟 核心修复：仅在闯关模式隐藏下拉框，在记忆检测模式保持显示，防止卡死！
+    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
@@ -566,7 +569,6 @@ const Controller = {
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
     View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
     
-    // 🌟 初始化时读取音量键翻页设置并应用样式
     let volNavEnabled = localStorage.getItem('volNav') === 'true';
     let volBtn = View.getEl('btn-vol-nav-toggle');
     if (volNavEnabled) {
@@ -611,7 +613,6 @@ const Controller = {
         showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读");
     });
     
-    // 🌟 新增：音量键翻页的开启与关闭逻辑
     View.getEl('btn-vol-nav-toggle').addEventListener('click', () => {
         Hardware.playSound('click');
         Hardware.vibrate(15);
@@ -631,7 +632,6 @@ const Controller = {
         }
     });
 
-    // 🌟 新增：全局监听物理音量按键事件
     window.addEventListener('keydown', (e) => {
         if (localStorage.getItem('volNav') !== 'true') return;
         
@@ -644,10 +644,8 @@ const Controller = {
         let inStudy = !document.getElementById('study-area').classList.contains('hidden');
         let isPendulum = Model.state.mode === 'pendulum';
         
-        // 只有在详情弹窗内，或者经典突击模式下，才允许截获音量键
         if (!inDetail && !(inStudy && isPendulum)) return;
         
-        // 试图阻止浏览器触发系统默认的音量条，注意这在部分iOS系统上可能失效
         e.preventDefault(); 
         
         if (inDetail) {

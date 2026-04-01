@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (加入长按能量压缩引擎)
+ * MVC 架构重构版 (加入长按能量压缩引擎、死记硬背与动态淘汰制)
  */
 
 const escapeHTML = (str) => {
@@ -96,6 +96,7 @@ const Model = {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtStep: 1, 
+    seenWords: new Set(), currentWordFailed: false, totalTestWords: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
     isAnimating: false 
   },
@@ -140,8 +141,6 @@ const Model = {
       let tokens = kanaStr.replace(/[【】\[\]()]/g, '').match(/([ぁ-んァ-ン][ゃゅょャュョぁぃぅぇぉァィゥェォ]?|[っッんンー])/g);
       return tokens || kanaStr.split('');
   },
-  
-  // 🌟 核心：全自动精准计算打卡天数与连击
   calculateStats() {
       let dailyRecords = this.records.filter(r => r.type === 'daily_punch').map(r => r.date);
       let uniqueDates = [...new Set(dailyRecords)].sort((a, b) => new Date(b) - new Date(a));
@@ -166,8 +165,7 @@ const Model = {
 };
 
 const Hardware = {
-  audioCtx: null, jaVoiceCache: null,
-  chargeOsc: null, chargeGain: null,
+  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null,
   init() {
     try {
         if (window.speechSynthesis) {
@@ -202,7 +200,6 @@ const Hardware = {
         }
     } catch(e) {}
   },
-  // 🌟 物理级高频音效发生器 (逐渐拉高音调充能)
   playChargeSound() {
       try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -237,7 +234,6 @@ const Hardware = {
           }
       } catch(e) {}
   },
-  // 🌟 叮咚双重清脆释放音效
   playDingDong() {
       try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -328,11 +324,17 @@ const View = {
   
   updatePixelMatrix() {
     let c = this.getEl('pixel-matrix');
-    let total = Model.state.studyQueue.length;
-    let current = Model.state.currentIndex;
+    let isMemTest = Model.state.mode === 'memory-test';
+    let total = isMemTest ? Model.state.totalTestWords : Model.state.studyQueue.length;
+    let current = isMemTest ? (total - Model.state.studyQueue.length) : Model.state.currentIndex;
+    
     while (c.children.length < total) {
       let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p);
     }
+    while (c.children.length > total) {
+      c.removeChild(c.lastChild);
+    }
+    
     Array.from(c.children).forEach((p, i) => {
       p.className = (i < current) ? 'pixel filled' : (i === current ? 'pixel current' : 'pixel');
       p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/total)*10))]);
@@ -343,7 +345,6 @@ const View = {
     let dueCount = Model.getSRSDueQueue().length;
     this.getEl('srs-due-count').innerText = dueCount;
     
-    // 🌟 计算并渲染最新逻辑的统计仪表盘
     let stats = Model.calculateStats();
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
@@ -356,7 +357,6 @@ const View = {
     });
     select.dispatchEvent(new Event('facade-update'));
     
-    // 🌟 控制大打卡按钮的状态闭环
     let t = new Date().toLocaleDateString('zh-CN');
     let btn = this.getEl('btn-long-press');
     if (btn) {
@@ -377,6 +377,17 @@ const View = {
     let mode = this.getEl('next-display-mode').value;
     Model.state.isAnimating = false; 
     
+    let isMemTest = (Model.state.mode === 'memory-test');
+    let isRote = (Model.state.mode === 'rote-learning');
+    
+    // 🌟 死记硬背的“初见杀”全显设定
+    let forceRoteFull = false;
+    if (isRote && !Model.state.seenWords.has(idx)) {
+        forceRoteFull = true;
+        Model.state.seenWords.add(idx);
+        mode = 'all'; // 强制无视下拉框
+    }
+
     if (Model.state.mode === 'dual-track') {
         Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
         let count = Model.state.dtWordAppearanceMap[idx];
@@ -384,8 +395,13 @@ const View = {
         mode = 'all';
     }
 
-    this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
-    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs' || Model.state.mode === 'memory-test') {
+    if (isMemTest) {
+        this.getEl('progress-text').innerText = `剩余: ${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
+    } else {
+        this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
+    }
+    
+    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs' || isMemTest || isRote) {
         this.updatePixelMatrix(); 
     }
 
@@ -398,23 +414,21 @@ const View = {
     if (anim !== 'none') {
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
-            this.updateCardContent(w, visuals, mode);
+            this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
         }, 200); 
     } else {
-        this.updateCardContent(w, visuals, mode);
+        this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
     }
   },
 
-  updateCardContent(w, visuals, mode) {
+  updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote) {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
-    let isMemoryTest = (Model.state.mode === 'memory-test');
-    
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let showWord = true, showKana = true, showMeaning = true;
     
-    if (isMemoryTest && mode !== 'all') {
+    if ((isMemTest || isRote) && mode !== 'all' && !forceRoteFull) {
         if (mode === 'word') {
             showKana = Model.state.mtStep > 1; 
             showMeaning = false; 
@@ -438,7 +452,7 @@ const View = {
     let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
     let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
 
-    if (Model.state.mode !== 'memory-test') {
+    if (!isMemTest && !isRote) {
         this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
         this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
     } else {
@@ -446,13 +460,13 @@ const View = {
         this.getEl('w-meaning').style.display = 'block';
     }
     
-    let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
+    let hideSpeaker = isDtSpell || ((isMemTest || isRote) && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
-    if (Model.state.mode !== 'dual-track' && !isMemoryTest) {
+    if (Model.state.mode !== 'dual-track' && !isMemTest && !isRote) {
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
@@ -460,13 +474,21 @@ const View = {
         });
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
+    } else if (forceRoteFull) {
+        // 死记硬背初见时，撤销一切隐瞒，如同全显
+        ['word','kana','type','meaning'].forEach(k => {
+            let el = this.getEl(`w-${k}`);
+            el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
+        });
+        this.getEl('w-example-box').className = 'dt-example-box';
+        this.getEl('w-example-box').style.display = 'block'; 
     } else {
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if (isMemoryTest && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
+        if ((isMemTest || isRote) && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
 
     this.getEl('capsule-pendulum').classList.add('hidden');
@@ -474,11 +496,11 @@ const View = {
     this.getEl('dual-track-ui').classList.add('hidden');
     this.getEl('memory-test-ui').classList.add('hidden');
     
-    if (Model.state.mode === 'pendulum') {
+    if (Model.state.mode === 'pendulum' || forceRoteFull) {
       this.getEl('capsule-pendulum').classList.remove('hidden');
       this.getEl('btn-prev').disabled = Model.state.currentIndex === 0;
-      this.getEl('btn-next').style.display = Model.state.currentIndex === Model.state.studyQueue.length - 1 ? 'none' : 'flex';
-      this.getEl('btn-finish').style.display = Model.state.currentIndex === Model.state.studyQueue.length - 1 ? 'flex' : 'none';
+      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest) ? 'none' : 'flex';
+      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest) ? 'flex' : 'none';
     } else if (Model.state.mode === 'srs') {
       this.getEl('capsule-srs').classList.remove('hidden');
       let times = Model.previewSRSTimes(idx);
@@ -486,7 +508,7 @@ const View = {
     } else if (Model.state.mode === 'dual-track') {
       this.getEl('dual-track-ui').classList.remove('hidden');
       this.renderDualTrackUI(w);
-    } else if (Model.state.mode === 'memory-test') {
+    } else if (isMemTest || isRote) {
       this.getEl('memory-test-ui').classList.remove('hidden');
       this.renderMemoryTestUI(w, mode);
     }
@@ -714,7 +736,7 @@ const Controller = {
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
-    View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.unlockSpeech(); this.startSRS(); });
+    View.getEl('btn-start-rote-learning').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('rote-learning'); });
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
@@ -742,15 +764,17 @@ const Controller = {
         let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
         let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
         if (!isVolUp && !isVolDown) return;
+        
         let inDetail = document.getElementById('detail-overlay').classList.contains('active');
         let inStudy = !document.getElementById('study-area').classList.contains('hidden');
         let isPendulum = Model.state.mode === 'pendulum';
-        if (!inDetail && !(inStudy && isPendulum)) return;
+        let isRoteFirstTime = Model.state.mode === 'rote-learning' && !document.getElementById('capsule-pendulum').classList.contains('hidden');
+        
+        if (!inDetail && !(inStudy && (isPendulum || isRoteFirstTime))) return;
         e.preventDefault(); 
-        if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && isPendulum) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
+        if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
     
-    // 🌟 长按打卡事件引擎
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null;
     const clearPunch = () => {
@@ -883,14 +907,22 @@ const Controller = {
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
     if(sourceWords.length === 0) return;
 
-    Model.state.studyQueue = []; let len = sourceWords.length;
-    for (let i = 0; i < len; i++) {
-      Model.state.studyQueue.push(sourceWords[i].i);
-      for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i);
-      for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
+    Model.state.seenWords = new Set(); Model.state.currentWordFailed = false;
+
+    // 🌟 动态淘汰制：直接乱序，不走钟摆序列
+    if (launchMode === 'memory-test') {
+        Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
+        Model.state.totalTestWords = Model.state.studyQueue.length;
+    } else {
+        Model.state.studyQueue = []; let len = sourceWords.length;
+        for (let i = 0; i < len; i++) {
+          Model.state.studyQueue.push(sourceWords[i].i);
+          for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i);
+          for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
+        }
     }
     
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -930,7 +962,11 @@ const Controller = {
               if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); }
               setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); 
           }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+      } else { 
+          Hardware.playSound('error'); Hardware.vibrate(50); 
+          btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong');
+          Model.state.currentWordFailed = true; // 🌟 答错标记，触发淘汰惩罚
+      }
   },
 
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
@@ -944,15 +980,41 @@ const Controller = {
               if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; }
               View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800);
           }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+      } else { 
+          Hardware.playSound('error'); Hardware.vibrate(50); 
+          btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
+          Model.state.currentWordFailed = true; // 🌟 答错标记
+      }
   },
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
-  mtAdvanceNext() { Model.state.currentIndex++; Model.state.mtStep = 1; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
+  
+  // 🌟 淘汰制结算引擎
+  mtAdvanceNext() { 
+      if (Model.state.mode === 'memory-test') {
+          if (Model.state.currentWordFailed) {
+              let failedIdx = Model.state.studyQueue.shift();
+              Model.state.studyQueue.push(failedIdx); // 答错重置回队尾
+          } else {
+              Model.state.studyQueue.shift(); // 答对彻底淘汰
+          }
+          Model.state.currentWordFailed = false;
+          Model.state.mtStep = 1;
+          Model.state.currentIndex = 0; // 测试模式只盯着队列第一位猛打
+          
+          if (Model.state.studyQueue.length === 0) this.finishPendulum();
+          else View.renderStudyCard('next');
+      } else {
+          // 死记硬背的推进保持不变
+          Model.state.currentIndex++; Model.state.mtStep = 1; 
+          if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); 
+          else View.renderStudyCard('next'); 
+      }
+  },
 
   finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
-    let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && r.type === 'pendulum');
+    let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
     if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords();
     showToast("任务完成"); View.getEl('btn-exit-study').click();
   },

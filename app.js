@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (加入长按能量压缩引擎、死记硬背与动态淘汰制)
+ * MVC 架构重构版 (全功能终极合并版)
  */
 
 const escapeHTML = (str) => {
@@ -95,8 +95,7 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    mtStep: 1, 
-    seenWords: new Set(), currentWordFailed: false, totalTestWords: 0,
+    mtStep: 1, seenWords: new Set(), currentWordFailed: false, totalTestWords: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
     isAnimating: false 
   },
@@ -144,15 +143,11 @@ const Model = {
   calculateStats() {
       let dailyRecords = this.records.filter(r => r.type === 'daily_punch').map(r => r.date);
       let uniqueDates = [...new Set(dailyRecords)].sort((a, b) => new Date(b) - new Date(a));
-      
-      let totalDays = uniqueDates.length;
-      let streak = 0;
+      let totalDays = uniqueDates.length; let streak = 0;
       let today = new Date(); today.setHours(0,0,0,0);
-      
       for (let i = 0; i < uniqueDates.length; i++) {
           let d = new Date(uniqueDates[i]); d.setHours(0,0,0,0);
           let diff = (today - d) / 86400000;
-          
           if (i === 0 && diff > 1) break; 
           if (i > 0) {
               let prevD = new Date(uniqueDates[i-1]); prevD.setHours(0,0,0,0);
@@ -380,12 +375,11 @@ const View = {
     let isMemTest = (Model.state.mode === 'memory-test');
     let isRote = (Model.state.mode === 'rote-learning');
     
-    // 🌟 死记硬背的“初见杀”全显设定
     let forceRoteFull = false;
     if (isRote && !Model.state.seenWords.has(idx)) {
         forceRoteFull = true;
         Model.state.seenWords.add(idx);
-        mode = 'all'; // 强制无视下拉框
+        mode = 'all'; 
     }
 
     if (Model.state.mode === 'dual-track') {
@@ -429,16 +423,9 @@ const View = {
     let showWord = true, showKana = true, showMeaning = true;
     
     if ((isMemTest || isRote) && mode !== 'all' && !forceRoteFull) {
-        if (mode === 'word') {
-            showKana = Model.state.mtStep > 1; 
-            showMeaning = false; 
-        } else if (mode === 'kana') {
-            showWord = Model.state.mtStep > 1; 
-            showMeaning = false;
-        } else if (mode === 'meaning') {
-            showKana = Model.state.mtStep > 1; 
-            showWord = false; 
-        }
+        if (mode === 'word') { showKana = Model.state.mtStep > 1; showMeaning = false; } 
+        else if (mode === 'kana') { showWord = Model.state.mtStep > 1; showMeaning = false; } 
+        else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
     this.getEl('w-word').innerText = (!showWord) ? mask(w.word) : w.word; 
@@ -475,18 +462,10 @@ const View = {
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
     } else if (forceRoteFull) {
-        // 死记硬背初见时，撤销一切隐瞒，如同全显
-        ['word','kana','type','meaning'].forEach(k => {
-            let el = this.getEl(`w-${k}`);
-            el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
-        });
-        this.getEl('w-example-box').className = 'dt-example-box';
-        this.getEl('w-example-box').style.display = 'block'; 
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
+        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; 
     } else {
-        ['word','kana','type','meaning'].forEach(k => {
-            let el = this.getEl(`w-${k}`);
-            el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
-        });
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
         this.getEl('w-example-box').className = 'dt-example-box';
         if ((isMemTest || isRote) && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
@@ -499,8 +478,8 @@ const View = {
     if (Model.state.mode === 'pendulum' || forceRoteFull) {
       this.getEl('capsule-pendulum').classList.remove('hidden');
       this.getEl('btn-prev').disabled = Model.state.currentIndex === 0;
-      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest) ? 'none' : 'flex';
-      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest) ? 'flex' : 'none';
+      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'none' : 'flex';
+      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'flex' : 'none';
     } else if (Model.state.mode === 'srs') {
       this.getEl('capsule-srs').classList.remove('hidden');
       let times = Model.previewSRSTimes(idx);
@@ -525,124 +504,71 @@ const View = {
     let processedStr = exString;
     if (mode === 'spell' && targetWordObj) {
         processedStr = exString.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
-            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${kanji}}`;
-            return match;
+            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${kanji}}`; return match;
         });
     }
 
     let htmlStr = processedStr.split('||').map(blk => {
-        let parts = blk.split('/');
-        let jpPart = parts[0] ? parts[0].trim() : "暂无例句";
-        let cnPart = parts[1] ? parts[1].trim() : "";
-
-        if (mode === 'choice' && cnPart) {
-            return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`;
-        }
+        let parts = blk.split('/'); let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; let cnPart = parts[1] ? parts[1].trim() : "";
+        if (mode === 'choice' && cnPart) { return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; }
         return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
     }).join('');
     
     exBox.innerHTML = htmlStr;
-    
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
-    if (window.MathJax) {
-        MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1'));
-    } else {
-        jpExEls.forEach(el => el.style.opacity = '1');
-    }
+    if (window.MathJax) { MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1')); } 
+    else { jpExEls.forEach(el => el.style.opacity = '1'); }
   },
 
   renderDualTrackUI(wObj) {
       if (Model.state.dtSubMode === 'spell') {
-          this.getEl('dt-choice-area').classList.add('hidden');
-          this.getEl('dt-spell-area').classList.remove('hidden');
-          let targetTokens = Model.splitKanaByMora(wObj.kana);
-          Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
+          this.getEl('dt-choice-area').classList.add('hidden'); this.getEl('dt-spell-area').classList.remove('hidden');
+          let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('dt-spell-input').innerText = ''; 
-          
-          let pool = [];
-          while(pool.length < Math.max(3, 8 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
-          
+          let pool = []; while(pool.length < Math.max(3, 8 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
           let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
           let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
-          allTokens.forEach((token) => {
-              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token;
-              btn.onclick = () => Controller.handleDtSpellClick(btn, token);
-              kb.appendChild(btn);
-          });
+          allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleDtSpellClick(btn, token); kb.appendChild(btn); });
       } else if (Model.state.dtSubMode === 'choice') {
-          this.getEl('dt-spell-area').classList.add('hidden');
-          this.getEl('dt-choice-area').classList.remove('hidden');
+          this.getEl('dt-spell-area').classList.add('hidden'); this.getEl('dt-choice-area').classList.remove('hidden');
           let targetMeaning = wObj.meaning;
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
           if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word && x.meaning !== targetMeaning); 
           pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
           let choices = [{text: targetMeaning, correct: true}];
-          pool.forEach(x => choices.push({text: x.meaning, correct: false}));
-          choices.sort(() => Math.random() - 0.5); 
+          pool.forEach(x => choices.push({text: x.meaning, correct: false})); choices.sort(() => Math.random() - 0.5); 
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => {
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text;
-              btn.onclick = () => Controller.handleDtChoiceClick(btn, c.correct);
-              cb.appendChild(btn);
-          });
+          choices.forEach(c => { let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; btn.onclick = () => Controller.handleDtChoiceClick(btn, c.correct); cb.appendChild(btn); });
       }
   },
   
   renderMemoryTestUI(wObj, displayMode) {
-      this.getEl('mt-warning').classList.add('hidden');
-      this.getEl('mt-spell-area').classList.add('hidden');
-      this.getEl('mt-choice-area').classList.add('hidden');
-      
-      if (displayMode === 'all') {
-          this.getEl('mt-warning').classList.remove('hidden');
-          return;
-      }
+      this.getEl('mt-warning').classList.add('hidden'); this.getEl('mt-spell-area').classList.add('hidden'); this.getEl('mt-choice-area').classList.add('hidden');
+      if (displayMode === 'all') { this.getEl('mt-warning').classList.remove('hidden'); return; }
 
       let currentTestType = '';
-      if (displayMode === 'word') {
-          currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning';
-      } else if (displayMode === 'kana') {
-          currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning';
-      } else if (displayMode === 'meaning') {
-          currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word';
-      }
+      if (displayMode === 'word') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning'; } 
+      else if (displayMode === 'kana') { currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning'; } 
+      else if (displayMode === 'meaning') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word'; }
 
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
-          let targetTokens = Model.splitKanaByMora(wObj.kana);
-          Model.state.dtSpellTarget = targetTokens; 
-          Model.state.dtSpellCurrentIdx = 0;
+          let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('mt-spell-input').innerText = ''; 
-          
-          let pool = [];
-          while(pool.length < Math.max(8, 12 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
-          
+          let pool = []; while(pool.length < Math.max(8, 12 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
           let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
           let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
-          allTokens.forEach((token) => {
-              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token;
-              btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode);
-              kb.appendChild(btn);
-          });
+          allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); kb.appendChild(btn); });
       } else if (currentTestType.startsWith('choice')) {
           this.getEl('mt-choice-area').classList.remove('hidden');
-          let isMeaning = currentTestType === 'choice-meaning';
-          let targetText = isMeaning ? wObj.meaning : wObj.word;
-          
+          let isMeaning = currentTestType === 'choice-meaning'; let targetText = isMeaning ? wObj.meaning : wObj.word;
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
           if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
-          
           pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
           let choices = [{text: targetText, correct: true}];
-          pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false}));
-          choices.sort(() => Math.random() - 0.5); 
-          
+          pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false})); choices.sort(() => Math.random() - 0.5); 
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => {
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text;
-              btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode);
-              cb.appendChild(btn);
-          });
+          choices.forEach(c => { let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); cb.appendChild(btn); });
       }
   },
 
@@ -666,23 +592,14 @@ const View = {
       let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
       let isChecked = Model.state.selectedSet.has(idx);
       let card = document.createElement('div'); card.className = 'wb-card'; card.style.background = visuals.bg; card.dataset.idx = idx; 
-      
       card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
-      
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
-
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
       fragment.appendChild(card);
     });
-    grid.appendChild(fragment); 
-    Model.state.wbCurrentRendered += slice.length;
-
+    grid.appendChild(fragment); Model.state.wbCurrentRendered += slice.length;
     let sentinel = this.getEl('wb-scroll-sentinel');
-    if (Model.state.wbCurrentRendered >= filteredData.length) {
-        sentinel.style.display = 'none';
-    } else {
-        sentinel.style.display = 'flex';
-    }
+    if (Model.state.wbCurrentRendered >= filteredData.length) { sentinel.style.display = 'none'; } else { sentinel.style.display = 'flex'; }
   },
   updateWordbankUI() {
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
@@ -698,26 +615,11 @@ const View = {
 
 const Controller = {
   init() {
-    BottomSheet.init();
-    Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
-    
-    if(localStorage.getItem('theme') === 'dark') { 
-        document.body.setAttribute('data-theme', 'dark'); 
-        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
-    }
-    
-    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-    View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
-    
-    let volNavEnabled = localStorage.getItem('volNav') === 'true';
-    let volBtn = View.getEl('btn-vol-nav-toggle');
-    if (volNavEnabled) {
-        volBtn.style.color = 'var(--primary)';
-        volBtn.style.opacity = '1';
-    }
-    
-    let savedMode = localStorage.getItem('displayMode') || 'all';
-    View.getEl('next-display-mode').value = savedMode;
+    BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
+    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
+    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
+    let volNavEnabled = localStorage.getItem('volNav') === 'true'; let volBtn = View.getEl('btn-vol-nav-toggle'); if (volNavEnabled) { volBtn.style.color = 'var(--primary)'; volBtn.style.opacity = '1'; }
+    let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
   setupIntersectionObserver() {
     let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('wordbank-area').style.display !== 'none') View.renderMoreWordbank(); }, { rootMargin: '200px' });
@@ -725,10 +627,7 @@ const Controller = {
   },
 
   bindEvents() {
-    document.querySelectorAll('.modal-overlay').forEach(ov => {
-        ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); });
-    });
-
+    document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
     View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.showPage('wordbank-area'); View.resetWordbankRenderer(); });
     View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.showPage('setup-area'); View.renderDashboard(); });
@@ -743,21 +642,8 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    View.getEl('btn-auto-speak-toggle').addEventListener('click', () => {
-        Hardware.playSound('click'); Hardware.vibrate(15);
-        let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-        autoSpeak = !autoSpeak; localStorage.setItem('autoSpeak', autoSpeak);
-        View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
-        showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读");
-    });
-    
-    View.getEl('btn-vol-nav-toggle').addEventListener('click', () => {
-        Hardware.playSound('click'); Hardware.vibrate(15);
-        let volNavEnabled = localStorage.getItem('volNav') === 'true';
-        volNavEnabled = !volNavEnabled; localStorage.setItem('volNav', volNavEnabled);
-        let btn = View.getEl('btn-vol-nav-toggle');
-        if(volNavEnabled) { btn.style.color = 'var(--primary)'; btn.style.opacity = '1'; showToast("已开启音量键翻页"); } else { btn.style.color = 'var(--on-surface)'; btn.style.opacity = '0.5'; showToast("已关闭音量键翻页"); }
-    });
+    View.getEl('btn-auto-speak-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; autoSpeak = !autoSpeak; localStorage.setItem('autoSpeak', autoSpeak); View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off'; showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读"); });
+    View.getEl('btn-vol-nav-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let volNavEnabled = localStorage.getItem('volNav') === 'true'; volNavEnabled = !volNavEnabled; localStorage.setItem('volNav', volNavEnabled); let btn = View.getEl('btn-vol-nav-toggle'); if(volNavEnabled) { btn.style.color = 'var(--primary)'; btn.style.opacity = '1'; showToast("已开启音量键翻页"); } else { btn.style.color = 'var(--on-surface)'; btn.style.opacity = '0.5'; showToast("已关闭音量键翻页"); } });
 
     window.addEventListener('keydown', (e) => {
         if (localStorage.getItem('volNav') !== 'true') return;
@@ -777,106 +663,45 @@ const Controller = {
     
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null;
-    const clearPunch = () => {
-        if(punchTimer) clearTimeout(punchTimer);
-        if(vibrateInterval) clearInterval(vibrateInterval);
-        punchTimer = null; vibrateInterval = null;
-        if(lpBtn) lpBtn.classList.remove('pressing');
-        Hardware.stopChargeSound();
-    };
+    const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
 
     if(lpBtn) {
         lpBtn.addEventListener('pointerdown', (e) => {
-            if(lpBtn.classList.contains('done')) return;
-            if(e.pointerType === 'mouse' && e.button !== 0) return;
-            Hardware.unlockSpeech(); 
-            
-            lpBtn.setPointerCapture(e.pointerId); 
-            lpBtn.classList.add('pressing');
-            Hardware.playChargeSound();
-            
+            if(lpBtn.classList.contains('done')) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
+            Hardware.unlockSpeech(); lpBtn.setPointerCapture(e.pointerId); lpBtn.classList.add('pressing'); Hardware.playChargeSound();
             vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            
-            punchTimer = setTimeout(() => {
-                clearInterval(vibrateInterval); Hardware.stopChargeSound();
-                Hardware.playDingDong(); Hardware.vibrate(200); 
-                
-                let t = new Date().toLocaleDateString('zh-CN');
-                Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords();
-                View.renderDashboard(); showToast("打卡成功！能量满点");
-                
-            }, 1500);
+            punchTimer = setTimeout(() => { clearInterval(vibrateInterval); Hardware.stopChargeSound(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
         });
-
-        lpBtn.addEventListener('pointerup', clearPunch);
-        lpBtn.addEventListener('pointercancel', clearPunch);
-        lpBtn.addEventListener('pointerleave', clearPunch);
-        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
+        lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('pointerleave', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
     }
 
-    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => {
-        View.getEl(id).addEventListener('change', (e) => { 
-            Hardware.playSound('click'); 
-            if(id === 'next-display-mode') {
-                localStorage.setItem('displayMode', e.target.value);
-                Model.state.mtStep = 1; View.renderStudyCard('none'); 
-            } else if(id.includes('wb')) { View.resetWordbankRenderer(); }
-        });
-    });
+    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
-
     ['again', 'hard', 'good', 'easy'].forEach(rating => { View.getEl(`srs-${rating}`).addEventListener('click', () => this.handleSRSRating(rating)); });
-
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
-    View.getEl('star-btn').addEventListener('click', (e) => {
-      Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-      let idx = Model.stars.indexOf(wordObj.word); 
-      if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); createStarParticles(e.currentTarget); Hardware.vibrate(20); }
-      Model.saveStars(); View.renderStudyCard('none'); 
-    });
+    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); createStarParticles(e.currentTarget); Hardware.vibrate(20); } Model.saveStars(); View.renderStudyCard('none'); });
 
-    document.addEventListener('click', (e) => {
-      let target = e.target.closest('.blur-target, .wb-blur-trigger');
-      if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) {
-        let el = target.classList.contains('blur-text') ? target : target.parentElement;
-        el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15);
-      }
-    });
+    document.addEventListener('click', (e) => { let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } });
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
     
     const onPointerDownCard = (e) => {
-        if(e.pointerType === 'mouse' && e.button !== 0) return; 
-        let card = e.target.closest('.wb-card');
-        if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker')) return;
-        if (Model.state.batchMode || Model.state.manageMode) return;
-        
-        startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true;
-        card.classList.add('pressing'); 
-        pressTimer = setTimeout(() => {
-            if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { 
-                Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); 
-            }
-        }, 500);
+        if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker')) return; if (Model.state.batchMode || Model.state.manageMode) return;
+        startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); 
+        pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500);
     };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
 
-    let grid = View.getEl('wb-grid');
-    grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
-
+    let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); this.openMoveModal(idx); return; }
       if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); this.editWord(idx); return; }
       if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); this.deleteWord(idx); return; }
-      if (Model.state.batchMode && !e.target.closest('.wb-blur-trigger')) {
-        if (Model.state.selectedSet.has(idx)) Model.state.selectedSet.delete(idx); else Model.state.selectedSet.add(idx);
-        Hardware.playSound('click'); Hardware.vibrate(10); View.updateWordbankUI();
-        let checkEl = card.querySelector('.wb-checkbox'); if (checkEl) { checkEl.classList.toggle('checked'); checkEl.innerText = Model.state.selectedSet.has(idx) ? '✓' : ''; }
-      }
+      if (Model.state.batchMode && !e.target.closest('.wb-blur-trigger')) { if (Model.state.selectedSet.has(idx)) Model.state.selectedSet.delete(idx); else Model.state.selectedSet.add(idx); Hardware.playSound('click'); Hardware.vibrate(10); View.updateWordbankUI(); let checkEl = card.querySelector('.wb-checkbox'); if (checkEl) { checkEl.classList.toggle('checked'); checkEl.innerText = Model.state.selectedSet.has(idx) ? '✓' : ''; } }
     });
 
     View.getEl('wb-manage-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); if(Model.state.batchMode) this.toggleBatchMode(); Model.state.manageMode = !Model.state.manageMode; View.updateWordbankUI(); document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.toggle('active', Model.state.manageMode)); });
@@ -885,13 +710,7 @@ const Controller = {
     View.getEl('btn-batch-move').addEventListener('click', () => this.openMoveModal(-2)); View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
     View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
-    
-    View.getEl('btn-view-settings').addEventListener('click', () => {
-        window.toggleModal('view-settings-overlay', true);
-        document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }});
-        document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }});
-    });
-
+    View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
@@ -910,7 +729,6 @@ const Controller = {
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
     Model.state.seenWords = new Set(); Model.state.currentWordFailed = false;
 
-    // 🌟 动态淘汰制：直接乱序，不走钟摆序列
     if (launchMode === 'memory-test') {
         Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
         Model.state.totalTestWords = Model.state.studyQueue.length;
@@ -965,7 +783,7 @@ const Controller = {
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong');
-          Model.state.currentWordFailed = true; // 🌟 答错标记，触发淘汰惩罚
+          Model.state.currentWordFailed = true;
       }
   },
 
@@ -983,32 +801,20 @@ const Controller = {
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
-          Model.state.currentWordFailed = true; // 🌟 答错标记
+          Model.state.currentWordFailed = true;
       }
   },
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
   
-  // 🌟 淘汰制结算引擎
   mtAdvanceNext() { 
       if (Model.state.mode === 'memory-test') {
-          if (Model.state.currentWordFailed) {
-              let failedIdx = Model.state.studyQueue.shift();
-              Model.state.studyQueue.push(failedIdx); // 答错重置回队尾
-          } else {
-              Model.state.studyQueue.shift(); // 答对彻底淘汰
-          }
-          Model.state.currentWordFailed = false;
-          Model.state.mtStep = 1;
-          Model.state.currentIndex = 0; // 测试模式只盯着队列第一位猛打
-          
-          if (Model.state.studyQueue.length === 0) this.finishPendulum();
-          else View.renderStudyCard('next');
+          if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue.shift(); Model.state.studyQueue.push(failedIdx); } else { Model.state.studyQueue.shift(); }
+          Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
+          if (Model.state.studyQueue.length === 0) this.finishPendulum(); else View.renderStudyCard('next');
       } else {
-          // 死记硬背的推进保持不变
           Model.state.currentIndex++; Model.state.mtStep = 1; 
-          if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); 
-          else View.renderStudyCard('next'); 
+          if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); 
       }
   },
 

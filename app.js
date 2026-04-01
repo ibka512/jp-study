@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (全功能终极合并版 - 修复死记硬背状态污染)
+ * MVC 架构重构版 (全功能终极版 - 深度 Bug 修复)
  */
 
 const escapeHTML = (str) => {
@@ -8,6 +8,23 @@ const escapeHTML = (str) => {
     return String(str).replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[tag]));
+};
+
+// 🌟 修复 Bug 1: 补全缺失的粒子特效生成器
+window.createStarParticles = (el) => {
+    let rect = el.getBoundingClientRect();
+    for (let i = 0; i < 5; i++) {
+        let p = document.createElement('div'); 
+        p.className = 'star-particle';
+        p.style.left = (rect.left + rect.width / 2) + 'px'; 
+        p.style.top = (rect.top + rect.height / 2) + 'px';
+        let angle = Math.random() * Math.PI * 2; 
+        let dist = 25 + Math.random() * 25;
+        p.style.setProperty('--tx', Math.cos(angle) * dist + 'px'); 
+        p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+        document.body.appendChild(p); 
+        setTimeout(() => p.remove(), 400);
+    }
 };
 
 window.toggleModal = (id, show) => {
@@ -38,7 +55,7 @@ window.showConfirm = (title, msg, onConfirm) => {
 window.showPrompt = (title, defaultVal, onConfirm) => {
     document.getElementById('prompt-title').innerHTML = title;
     let input = document.getElementById('prompt-input');
-    input.value = defaultVal || '';
+    input.value = defaultVal || ''; // 打开时重置输入状态
     window.toggleModal('prompt-overlay', true);
     setTimeout(() => input.focus(), 100);
     document.getElementById('prompt-confirm').onclick = () => { 
@@ -348,7 +365,8 @@ const View = {
     let select = this.getEl('group-select'); select.innerHTML = '';
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
-      let i = 0; while (i * 7 < total) { let startIdx = i * 7; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
+      // 🌟 修复 Bug 4: 分组索引不再重叠，严格以 10 为步长切块
+      let i = 0; while (i * 10 < total) { let startIdx = i * 10; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
     });
     select.dispatchEvent(new Event('facade-update'));
     
@@ -370,18 +388,16 @@ const View = {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
     let w = Model.db[idx];
     let mode = this.getEl('next-display-mode').value;
-    Model.state.isAnimating = false; 
     
     let isMemTest = (Model.state.mode === 'memory-test');
     let isRote = (Model.state.mode === 'rote-learning');
     
-    // 🌟 修复状态污染：纯通过队列索引比对来判断是否为首次出现，不再依赖集合状态
     let forceRoteFull = false;
     if (isRote) {
         let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
         if (isFirstAppearance) {
             forceRoteFull = true;
-            mode = 'all'; // 初见强制全显，无视下拉框
+            mode = 'all'; 
         }
     }
 
@@ -408,15 +424,20 @@ const View = {
     this.getEl('flash-watermark').innerText = visuals.wm;
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
+    
+    // 🌟 修复 Bug 2: 严格的 isAnimating 动画锁管理
     if (anim !== 'none') {
+        Model.state.isAnimating = true; // 加锁
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
             this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
+            setTimeout(() => { Model.state.isAnimating = false; }, 200); // 彻底滑入完成后解锁
         }, 200); 
     } else {
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
+        Model.state.isAnimating = false; // 无动画直接解锁
     }
   },
 
@@ -528,8 +549,16 @@ const View = {
           this.getEl('dt-choice-area').classList.add('hidden'); this.getEl('dt-spell-area').classList.remove('hidden');
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('dt-spell-input').innerText = ''; 
-          let pool = []; while(pool.length < Math.max(3, 8 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
-          let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
+          
+          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
+          let poolSet = new Set();
+          let neededFakes = Math.max(3, 12 - targetTokens.length);
+          while(poolSet.size < neededFakes) { 
+              let char = Gojuon[Math.floor(Math.random() * Gojuon.length)];
+              if (!targetTokens.includes(char)) poolSet.add(char); 
+          }
+          let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
+          
           let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
           allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleDtSpellClick(btn, token); kb.appendChild(btn); });
       } else if (Model.state.dtSubMode === 'choice') {
@@ -558,8 +587,16 @@ const View = {
           this.getEl('mt-spell-area').classList.remove('hidden');
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('mt-spell-input').innerText = ''; 
-          let pool = []; while(pool.length < Math.max(8, 12 - targetTokens.length)) { pool.push(Gojuon[Math.floor(Math.random() * Gojuon.length)]); }
-          let allTokens = [...targetTokens, ...pool].sort(() => Math.random() - 0.5); 
+          
+          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
+          let poolSet = new Set();
+          let neededFakes = Math.max(3, 12 - targetTokens.length);
+          while(poolSet.size < neededFakes) { 
+              let char = Gojuon[Math.floor(Math.random() * Gojuon.length)];
+              if (!targetTokens.includes(char)) poolSet.add(char); 
+          }
+          let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
+          
           let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
           allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); kb.appendChild(btn); });
       } else if (currentTestType.startsWith('choice')) {
@@ -682,7 +719,7 @@ const Controller = {
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
     ['again', 'hard', 'good', 'easy'].forEach(rating => { View.getEl(`srs-${rating}`).addEventListener('click', () => this.handleSRSRating(rating)); });
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
-    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); createStarParticles(e.currentTarget); Hardware.vibrate(20); } Model.saveStars(); View.renderStudyCard('none'); });
+    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); } Model.saveStars(); View.renderStudyCard('none'); });
 
     document.addEventListener('click', (e) => { let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } });
 
@@ -698,6 +735,10 @@ const Controller = {
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
 
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
+    
+    // 🌟 修复 Bug 6: iOS 全景词库卡片长按时，阻止默认弹出的“复制/分享”菜单
+    grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card')) e.preventDefault(); });
+
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
@@ -724,8 +765,11 @@ const Controller = {
     let sel = View.getEl('group-select'); if(!sel.value) return;
     Hardware.playSound('click'); 
     Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
+    
+    // 🌟 修复 Bug 4: 开始学习时的切片步长同步调整为 10，消灭重叠
     let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
-    let startIdx = idx * 7; let endIdx = startIdx + 10;
+    let startIdx = idx * 10; let endIdx = startIdx + 10;
+    
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
     if(sourceWords.length === 0) return;
 

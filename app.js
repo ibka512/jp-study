@@ -707,16 +707,14 @@ const Controller = {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
-    // 初始化设置页面的开关状态
+    // 初始化设置页面的 MD3 开关状态
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
-    let asIcon = View.getEl('auto-speak-icon');
-    asIcon.innerText = autoSpeak ? 'toggle_on' : 'toggle_off';
-    asIcon.parentElement.classList.toggle('on', autoSpeak);
+    let btnAs = View.getEl('btn-auto-speak-toggle');
+    if(btnAs) btnAs.classList.toggle('on', autoSpeak);
 
     let volNav = localStorage.getItem('volNav') === 'true'; 
-    let vnIcon = View.getEl('vol-nav-icon');
-    vnIcon.innerText = volNav ? 'toggle_on' : 'toggle_off';
-    vnIcon.parentElement.classList.toggle('on', volNav);
+    let btnVn = View.getEl('btn-vol-nav-toggle');
+    if(btnVn) btnVn.classList.toggle('on', volNav);
 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
@@ -749,6 +747,12 @@ const Controller = {
         setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
     });
 
+    // 🌟 MD3 滚动海拔反馈 (Top App Bar)
+    window.addEventListener('scroll', () => {
+        let topBar = document.querySelector('.tab-view.active .top-app-bar');
+        if (topBar) topBar.classList.toggle('scrolled', window.scrollY > 10);
+    }, { passive: true });
+
     // 🌟 底部导航栏点击事件
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -777,13 +781,12 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    // 🌟 设置页开关状态切换
+    // 🌟 设置页开关状态切换 (MD3 纯 CSS 开关)
     View.getEl('btn-auto-speak-toggle').addEventListener('click', (e) => { 
         let btn = e.currentTarget;
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
         autoSpeak = !autoSpeak; 
         localStorage.setItem('autoSpeak', autoSpeak); 
-        btn.querySelector('.material-symbols-rounded').innerText = autoSpeak ? 'toggle_on' : 'toggle_off';
         btn.classList.toggle('on', autoSpeak);
         Hardware.playSound('click'); Hardware.vibrate(15); 
         showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读"); 
@@ -793,7 +796,6 @@ const Controller = {
         let volNav = localStorage.getItem('volNav') === 'true'; 
         volNav = !volNav; 
         localStorage.setItem('volNav', volNav); 
-        btn.querySelector('.material-symbols-rounded').innerText = volNav ? 'toggle_on' : 'toggle_off';
         btn.classList.toggle('on', volNav);
         Hardware.playSound('click'); Hardware.vibrate(15); 
         showToast(volNav ? "已开启音量键翻页" : "已关闭音量键翻页"); 

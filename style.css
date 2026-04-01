@@ -52,7 +52,8 @@
     --elevation-3: 0px 1px 3px 0px rgba(0,0,0,0.12), 0px 4px 8px 3px rgba(0,0,0,0.08);
     
     --font-ui: system-ui, -apple-system, "PingFang SC", sans-serif;
-    --font-jp-serif: 'Noto Serif JP', serif; --font-jp-sans: 'Noto Sans JP', sans-serif;
+    --font-jp-serif: 'Noto Serif JP', serif; 
+    --font-jp-sans: 'Noto Sans JP', sans-serif;
     --spring: cubic-bezier(0.34, 1.56, 0.64, 1); 
   }
 
@@ -216,72 +217,301 @@
   .star-particle { position: fixed; width: 8px; height: 8px; background: var(--tertiary); border-radius: 50%; pointer-events: none; z-index: 9999; animation: particle-burst 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
   @keyframes particle-burst { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; } }
 
-  .word-main { font-size: clamp(2.8rem, 13vw, 4.5rem); line-height: 1.2; font-weight: 900; font-family: var(--font-jp-serif); letter-spacing: 2px; margin-bottom: var(--space-sm); color: var(--on-surface); cursor: pointer; word-break: keep-all; }
-  .kana-row { font-size: 1.2rem; font-weight: 600; font-family: var(--font-jp-sans); color: var(--primary); cursor: pointer; margin: 0; }
-  .type-capsule { font-size: 0.85rem; padding: 6px 14px; border-radius: var(--radius-sm); color: var(--on-surface); font-weight: 700; background: var(--surface-container-high); display: inline-block; transition: background 0.4s;}
-  .meaning-row { font-size: 1.4rem; font-weight: 700; color: var(--on-surface); opacity: 0.85; cursor: pointer; margin: 0; }
-  
-  .blur-text { background-color: var(--surface-container-high); border-radius: var(--radius-sm); opacity: 0.9; filter: blur(6px); padding: 12px 18px; margin: -8px -6px; transition: all 0.4s var(--spring); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 80px; user-select: none; }
-  .blur-text.active { filter: blur(0); background-color: transparent; opacity: 1; transform: scale(1.05); padding: 4px 8px; margin: 0;}
-
-  .btn-action { 
-      border-radius: var(--radius-lg); padding: 16px; font-size: 1.05rem; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; line-height: 1.2; 
-      border: 1px solid var(--outline-variant); background: var(--surface-container); color: var(--on-surface);
-      transition: all 0.2s var(--spring); cursor: pointer; user-select: none; -webkit-user-select: none;
+  /* 🌟 单词主文字使用明朝体 */
+  .word-main { 
+    font-size: clamp(2.8rem, 13vw, 4.5rem); 
+    line-height: 1.2; 
+    font-weight: 900; 
+    font-family: var(--font-jp-serif); 
+    letter-spacing: 2px; 
+    margin-bottom: var(--space-sm); 
+    color: var(--on-surface); 
+    cursor: pointer; 
+    word-break: keep-all;
   }
   
-  #capsule-srs .btn-srs-again { color: var(--accent-red); background: var(--accent-red-bg); }
-  #capsule-srs .btn-srs-hard { color: #8F4C38; background: #FFDCC5; }
-  #capsule-srs .btn-srs-good { color: var(--on-tertiary-container); background: var(--tertiary-container); }
-  #capsule-srs .btn-srs-easy { color: #0F5223; background: var(--accent-green-bg); }
+  .kana-row { 
+    font-size: 1.2rem; 
+    font-weight: 600; 
+    font-family: var(--font-jp-sans); 
+    color: var(--primary); 
+    cursor: pointer; 
+    margin: 0;
+  }
   
-  .wb-card { border-radius: var(--radius-md); padding: 24px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.3s var(--spring); cursor: pointer; opacity: 0; overflow: hidden;}
-  .wb-card.pressing { transform: scale(0.94); }
+  .type-capsule { 
+    font-size: 0.85rem; 
+    padding: 6px 14px; 
+    border-radius: var(--radius-sm); 
+    color: var(--on-surface); 
+    font-weight: 700; 
+    background: var(--surface-container-high); 
+    display: inline-block; 
+    transition: background 0.4s;
+  }
   
-  .wb-checkbox { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); z-index: 10; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; transition: all 0.2s;}
-  .wb-checkbox.checked { background: var(--primary); border-color: var(--primary); }
+  .meaning-row { 
+    font-size: 1.4rem; 
+    font-weight: 700; 
+    color: var(--on-surface); 
+    opacity: 0.85; 
+    cursor: pointer; 
+    margin: 0;
+  }
   
-  .batch-bar { position: fixed; bottom: calc(88px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: var(--surface-container-high); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--elevation-3); z-index: 100;}
+  .blur-text { 
+    background-color: var(--surface-container-high); 
+    border-radius: var(--radius-sm); 
+    opacity: 0.9; 
+    filter: blur(6px); 
+    padding: 12px 18px; 
+    margin: -8px -6px; 
+    transition: all 0.4s var(--spring); 
+    cursor: pointer; 
+    display: inline-flex; 
+    align-items: center; 
+    justify-content: center; 
+    min-width: 80px; 
+    user-select: none;
+    /* 确保模糊时仍使用正确的字体（不覆盖字体） */
+    font-family: inherit;
+  }
+  .blur-text.active { 
+    filter: blur(0); 
+    background-color: transparent; 
+    opacity: 1; 
+    transform: scale(1.05); 
+    padding: 4px 8px; 
+    margin: 0;
+  }
 
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 2500; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);}
-  .modal-overlay.active { opacity: 1; pointer-events: auto; }
-  .dialog-content { background: var(--surface-container-high); width: 85%; max-width: 340px; border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-md); text-align: center; transform: scale(0.95); transition: transform 0.3s var(--spring); box-shadow: var(--elevation-3); overflow-y: auto;}
-  .modal-overlay.active .dialog-content { transform: scale(1); }
+  /* 🌟 词库卡片样式（确保垂直排列） */
+  .wb-card { 
+    border-radius: var(--radius-md); 
+    padding: 24px 12px 16px; 
+    position: relative; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    transition: all 0.3s var(--spring); 
+    cursor: pointer; 
+    opacity: 0; 
+    overflow: hidden;
+  }
   
-  .bottom-sheet { background: var(--surface-container); width: 100%; max-width: 500px; border-radius: 28px 28px 0 0; padding: var(--space-md) 20px calc(var(--space-md) + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform 0.4s var(--spring); box-shadow: var(--elevation-3); display: flex; flex-direction: column; max-height: 85vh;}
-  .modal-overlay.active .bottom-sheet { transform: translateY(0); }
-  .bs-handle { width: 32px; height: 4px; background: var(--outline); border-radius: 4px; margin: 0 auto var(--space-md); opacity: 0.4; }
-  .bs-option { padding: 16px var(--space-md); border-radius: var(--radius-sm); font-weight: 700; text-align: center; transition: all 0.2s; cursor: pointer;}
-  .bs-option.selected { background: var(--secondary-container); color: var(--on-secondary-container); }
+  /* 卡片内部文字样式 */
+  .wb-c-word,
+  .wb-c-kana,
+  .wb-c-mean {
+    text-align: center;
+    width: 100%;
+    margin: 4px 0;
+    font-family: var(--font-ui);
+  }
+  
+  /* 单词汉字在卡片中可使用明朝体，但保留降级 */
+  .wb-c-word {
+    font-weight: 800;
+    font-size: 1.15rem;
+    font-family: var(--font-jp-serif);
+  }
+  
+  .wb-c-kana {
+    font-size: 0.85rem;
+    color: var(--primary);
+    font-family: var(--font-jp-sans);
+  }
+  
+  .wb-c-mean {
+    font-size: 0.8rem;
+    opacity: 0.8;
+  }
+  
+  /* 卡片内扬声器按钮 */
+  .wb-c-speaker {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.05);
+    transition: background 0.2s;
+  }
+  .wb-c-speaker:active {
+    transform: scale(0.9);
+  }
+  
+  .wb-checkbox { 
+    position: absolute; 
+    top: 12px; 
+    left: 12px; 
+    width: 24px; 
+    height: 24px; 
+    border-radius: 50%; 
+    border: 2px solid var(--primary); 
+    z-index: 10; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: white; 
+    font-size: 14px; 
+    transition: all 0.2s;
+  }
+  .wb-checkbox.checked { 
+    background: var(--primary); 
+    border-color: var(--primary);
+  }
+  
+  .batch-bar { 
+    position: fixed; 
+    bottom: calc(88px + env(safe-area-inset-bottom)); 
+    left: 50%; 
+    transform: translateX(-50%); 
+    width: 90%; 
+    max-width: 400px; 
+    background: var(--surface-container-high); 
+    border-radius: var(--radius-full); 
+    padding: 12px 20px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    box-shadow: var(--elevation-3); 
+    z-index: 100;
+  }
 
-  .toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--on-surface); color: var(--surface); padding: 14px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; z-index: 9999; box-shadow: var(--elevation-2); transition: all 0.4s var(--spring); opacity: 0; white-space: nowrap;}
-  .toast.show { top: calc(48px + env(safe-area-inset-top)); opacity: 1; }
+  .modal-overlay { 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0, 0, 0, 0.4); 
+    z-index: 2500; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    opacity: 0; 
+    pointer-events: none; 
+    transition: opacity 0.3s; 
+    backdrop-filter: blur(8px); 
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .modal-overlay.active { 
+    opacity: 1; 
+    pointer-events: auto;
+  }
+  .dialog-content { 
+    background: var(--surface-container-high); 
+    width: 85%; 
+    max-width: 340px; 
+    border-radius: var(--radius-lg); 
+    padding: var(--space-lg) var(--space-md); 
+    text-align: center; 
+    transform: scale(0.95); 
+    transition: transform 0.3s var(--spring); 
+    box-shadow: var(--elevation-3); 
+    overflow-y: auto;
+  }
+  .modal-overlay.active .dialog-content { 
+    transform: scale(1);
+  }
+  
+  .bottom-sheet { 
+    background: var(--surface-container); 
+    width: 100%; 
+    max-width: 500px; 
+    border-radius: 28px 28px 0 0; 
+    padding: var(--space-md) 20px calc(var(--space-md) + env(safe-area-inset-bottom)); 
+    transform: translateY(100%); 
+    transition: transform 0.4s var(--spring); 
+    box-shadow: var(--elevation-3); 
+    display: flex; 
+    flex-direction: column; 
+    max-height: 85vh;
+  }
+  .modal-overlay.active .bottom-sheet { 
+    transform: translateY(0);
+  }
+  .bs-handle { 
+    width: 32px; 
+    height: 4px; 
+    background: var(--outline); 
+    border-radius: 4px; 
+    margin: 0 auto var(--space-md); 
+    opacity: 0.4;
+  }
+  .bs-option { 
+    padding: 16px var(--space-md); 
+    border-radius: var(--radius-sm); 
+    font-weight: 700; 
+    text-align: center; 
+    transition: all 0.2s; 
+    cursor: pointer;
+  }
+  .bs-option.selected { 
+    background: var(--secondary-container); 
+    color: var(--on-secondary-container);
+  }
+
+  .toast { 
+    position: fixed; 
+    top: -100px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    background: var(--on-surface); 
+    color: var(--surface); 
+    padding: 14px 24px; 
+    border-radius: 8px; 
+    font-weight: 600; 
+    font-size: 0.95rem; 
+    z-index: 9999; 
+    box-shadow: var(--elevation-2); 
+    transition: all 0.4s var(--spring); 
+    opacity: 0; 
+    white-space: nowrap;
+  }
+  .toast.show { 
+    top: calc(48px + env(safe-area-inset-top)); 
+    opacity: 1;
+  }
 
   /* 🌟 全局涟漪反馈 */
   .ripple-element {
-      position: absolute; border-radius: 50%; background: currentColor; opacity: 0.12;
-      transform: scale(0); pointer-events: none; animation: rippleAnim 0.5s ease-out forwards; z-index: 10;
+      position: absolute; 
+      border-radius: 50%; 
+      background: currentColor; 
+      opacity: 0.12;
+      transform: scale(0); 
+      pointer-events: none; 
+      animation: rippleAnim 0.5s ease-out forwards; 
+      z-index: 10;
   }
-  @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
+  @keyframes rippleAnim { 
+    to { transform: scale(4); opacity: 0; } 
+  }
 
   @keyframes energyCompress {
       0%   { transform: scale(0.98) translate(-4px, 2px); }
       20%  { transform: scale(0.96) translate(4px, -2px); }
       100% { transform: scale(0.88) translate(0, 0); }
   }
-  @keyframes burstDone { 0% { transform: scale(0.88); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
-  @keyframes pageFadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes burstDone { 
+    0% { transform: scale(0.88); } 
+    50% { transform: scale(1.05); } 
+    100% { transform: scale(1); } 
+  }
+  @keyframes pageFadeIn { 
+    from { opacity: 0; transform: translateY(15px); } 
+    to { opacity: 1; transform: translateY(0); } 
+  }
   .hidden { display: none !important; }
 
-  /* ========== 新增修复样式 ========== */
+  /* ========== 动画与交互样式 ========== */
 
-  /* 词库卡片渐入动画 */
   @keyframes fadeUpStagger {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* 学习卡片切换动画 */
   .anim-slide-out-left {
     animation: slideOutLeft 0.2s ease forwards;
   }
@@ -311,7 +541,6 @@
     to { transform: translateX(0); opacity: 1; }
   }
 
-  /* 错误/正确反馈动画 */
   @keyframes shakeAnim {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-5px); }
@@ -397,17 +626,7 @@
   }
 
   /* 详情弹窗样式 */
-  #detail-card-container {
-    position: relative;
-    background: var(--surface-container-high);
-    width: 85%;
-    max-width: 380px;
-    border-radius: var(--radius-lg);
-    padding: 32px 24px 40px;
-    box-shadow: var(--elevation-3);
-    text-align: center;
-    transition: transform 0.3s var(--spring);
-  }
+  #detail-card-container,
   .detail-card-container {
     position: relative;
     background: var(--surface-container-high);
@@ -433,6 +652,7 @@
   .dt-kana {
     font-size: 1.2rem;
     font-weight: 600;
+    font-family: var(--font-jp-sans);
     color: var(--primary);
     margin-bottom: 12px;
   }

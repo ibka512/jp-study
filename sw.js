@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v18';  // 版本升级，确保旧缓存被清除
+const CACHE_NAME = 'pendulum-v19';  // 版本升级，确保旧缓存被清除
 const ASSETS = [
   './',
   './index.html',

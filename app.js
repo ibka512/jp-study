@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (全功能终极版 - 深度 Bug 修复)
+ * MVC 架构重构版 (全功能终极版 - 深度 Bug 修复与体验优化)
  */
 
 const escapeHTML = (str) => {
@@ -10,7 +10,12 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-// 🌟 修复 Bug 1: 补全缺失的粒子特效生成器
+// 🌟 修复隐患三：彻底解决 iOS / Safari 日期格式化兼容性导致的打卡天数丢失问题
+window.getSafeDateStr = () => {
+    let d = new Date();
+    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+};
+
 window.createStarParticles = (el) => {
     let rect = el.getBoundingClientRect();
     for (let i = 0; i < 5; i++) {
@@ -125,7 +130,17 @@ const Model = {
     this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
     this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
   },
-  saveDB() { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); },
+  
+  // 🌟 修复隐患二：防止词库太大撑爆本地存储导致静默崩溃
+  saveDB() { 
+    try {
+      localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); 
+    } catch(e) {
+      showToast("⚠️ 警告：存储空间已满！请清理缓存或精简词库。");
+      console.error("Storage Limit Exceeded", e);
+    }
+  },
+  
   saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
   saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
   saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
@@ -134,16 +149,32 @@ const Model = {
     this.db.forEach(w => { if (!w.srs) { w.srs = { ease: 2.5, interval: 0, nextReview: Date.now() }; modified = true; } });
     if (modified) this.saveDB();
   },
+  
+  // 🌟 修复隐患一：彻底解决复习时间的时差漂移，对齐到凌晨 0 点
   calculateSRS(wordIdx, rating) {
     let srs = this.db[wordIdx].srs; let now = Date.now(); let dayMs = 86400000;
     switch(rating) {
-      case 'again': srs.ease = Math.max(1.3, srs.ease - 0.2); srs.interval = 0; srs.nextReview = now + 60000; break;
-      case 'hard': srs.ease = Math.max(1.3, srs.ease - 0.15); srs.interval = Math.max(1, srs.interval * 1.2); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
-      case 'good': srs.interval = (srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
-      case 'easy': srs.ease += 0.15; srs.interval = (srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3); srs.nextReview = now + Math.round(srs.interval) * dayMs; break;
+      case 'again': 
+        srs.ease = Math.max(1.3, srs.ease - 0.2); srs.interval = 0; srs.nextReview = now + 60000; 
+        break;
+      case 'hard': 
+        srs.ease = Math.max(1.3, srs.ease - 0.15); 
+        srs.interval = Math.max(1, srs.interval * 1.2); 
+        let d1 = new Date(now + Math.round(srs.interval) * dayMs); d1.setHours(0,0,0,0); srs.nextReview = d1.getTime(); 
+        break;
+      case 'good': 
+        srs.interval = (srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease); 
+        let d2 = new Date(now + Math.round(srs.interval) * dayMs); d2.setHours(0,0,0,0); srs.nextReview = d2.getTime(); 
+        break;
+      case 'easy': 
+        srs.ease += 0.15; 
+        srs.interval = (srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3); 
+        let d3 = new Date(now + Math.round(srs.interval) * dayMs); d3.setHours(0,0,0,0); srs.nextReview = d3.getTime(); 
+        break;
     }
     this.saveDB();
   },
+  
   previewSRSTimes(wordIdx) {
     let srs = this.db[wordIdx].srs;
     return { hard: Math.round(Math.max(1, srs.interval * 1.2)) + '天', good: Math.round((srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease)) + '天', easy: Math.round((srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3)) + '天' };
@@ -364,12 +395,11 @@ const View = {
     
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
-      // 🌟 修复 Bug 4: 分组索引不再重叠，严格以 10 为步长切块
       let i = 0; while (i * 10 < total) { let startIdx = i * 10; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
     });
     select.dispatchEvent(new Event('facade-update'));
     
-    let t = new Date().toLocaleDateString('zh-CN');
+    let t = window.getSafeDateStr();
     let btn = this.getEl('btn-long-press');
     if (btn) {
         let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
@@ -407,7 +437,6 @@ const View = {
         mode = 'all';
     }
 
-    // 🌟 核心修改: 方案一进度显示逻辑
     if (Model.state.mode === 'srs') {
         this.getEl('pixel-matrix').style.display = 'none';
         this.getEl('srs-progress-container').classList.remove('hidden');
@@ -440,19 +469,18 @@ const View = {
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
-    // 🌟 修复 Bug 2: 严格的 isAnimating 动画锁管理
     if (anim !== 'none') {
-        Model.state.isAnimating = true; // 加锁
+        Model.state.isAnimating = true; 
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
             this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
-            setTimeout(() => { Model.state.isAnimating = false; }, 200); // 彻底滑入完成后解锁
+            setTimeout(() => { Model.state.isAnimating = false; }, 200); 
         }, 200); 
     } else {
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
-        Model.state.isAnimating = false; // 无动画直接解锁
+        Model.state.isAnimating = false; 
     }
   },
 
@@ -565,7 +593,6 @@ const View = {
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('dt-spell-input').innerText = ''; 
           
-          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
           let poolSet = new Set();
           let neededFakes = Math.max(3, 12 - targetTokens.length);
           while(poolSet.size < neededFakes) { 
@@ -603,7 +630,6 @@ const View = {
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('mt-spell-input').innerText = ''; 
           
-          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
           let poolSet = new Set();
           let neededFakes = Math.max(3, 12 - targetTokens.length);
           while(poolSet.size < neededFakes) { 
@@ -726,7 +752,12 @@ const Controller = {
             if(lpBtn.classList.contains('done')) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
             Hardware.unlockSpeech(); lpBtn.setPointerCapture(e.pointerId); lpBtn.classList.add('pressing'); Hardware.playChargeSound();
             vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            punchTimer = setTimeout(() => { clearInterval(vibrateInterval); Hardware.stopChargeSound(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
+            punchTimer = setTimeout(() => { 
+                clearInterval(vibrateInterval); Hardware.stopChargeSound(); Hardware.playDingDong(); Hardware.vibrate(200); 
+                let t = window.getSafeDateStr(); 
+                Model.records.push({date: t, type: 'daily_punch'}); 
+                Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); 
+            }, 1500);
         });
         lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('pointerleave', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
     }
@@ -752,7 +783,6 @@ const Controller = {
 
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     
-    // 🌟 修复 Bug 6: iOS 全景词库卡片长按时，阻止默认弹出的“复制/分享”菜单
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card')) e.preventDefault(); });
 
     grid.addEventListener('click', (e) => {
@@ -773,7 +803,27 @@ const Controller = {
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
-    View.getEl('btn-save-edit').addEventListener('click', () => { if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
+    
+    // 🌟 修复隐患四：增加对编辑单词为空时的拦截
+    View.getEl('btn-save-edit').addEventListener('click', () => { 
+        if(Model.editingIdx > -1) { 
+            let w = Model.db[Model.editingIdx]; 
+            let newWord = View.getEl('edit-word').value.trim();
+            if (!newWord) {
+                showToast("⚠️ 单词名称不能为空！");
+                Hardware.playSound('error');
+                return;
+            }
+            w.word = newWord; 
+            w.kana = View.getEl('edit-kana').value.trim(); 
+            w.type = View.getEl('edit-type').value.trim(); 
+            w.meaning = View.getEl('edit-meaning').value.trim(); 
+            Model.saveDB(); 
+            View.resetWordbankRenderer(); 
+            window.toggleModal('edit-overlay', false); 
+            showToast("修改已保存"); 
+        } 
+    });
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
   },
 
@@ -782,7 +832,6 @@ const Controller = {
     Hardware.playSound('click'); 
     Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
     
-    // 🌟 修复 Bug 4: 开始学习时的切片步长同步调整为 10，消灭重叠
     let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
     let startIdx = idx * 10; let endIdx = startIdx + 10;
     
@@ -882,7 +931,8 @@ const Controller = {
   },
 
   finishPendulum() {
-    Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
+    Hardware.playSound('success'); Hardware.vibrate(1000); 
+    let t = window.getSafeDateStr();
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
     if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords();
     showToast("任务完成"); View.getEl('btn-exit-study').click();
@@ -896,7 +946,6 @@ const Controller = {
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
-  // 🌟 核心修改：增加流光动画触发逻辑
   handleSRSRating(rating) {
     if (Model.state.isAnimating) return;
     Model.state.isAnimating = true; Hardware.playSound('click'); Hardware.vibrate(30); 
@@ -906,11 +955,10 @@ const Controller = {
         if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
         Model.state.currentIndex++; Model.state.isAnimating = false;
         
-        // 触发流光动画
         let glow = View.getEl('srs-progress-glow');
         if (glow) {
             glow.classList.remove('srs-glow-active');
-            void glow.offsetWidth; // 触发重绘
+            void glow.offsetWidth; 
             glow.classList.add('srs-glow-active');
         }
 

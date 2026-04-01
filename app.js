@@ -195,6 +195,21 @@ const Hardware = {
 
 const View = {
   getEl: (id) => document.getElementById(id),
+  showPage(pageId) {
+      ['setup-area', 'study-area', 'wordbank-area'].forEach(id => {
+          let el = this.getEl(id);
+          if (id === pageId) {
+              if (id === 'wordbank-area') el.style.display = 'block';
+              else el.classList.remove('hidden');
+              el.classList.remove('anim-fade-in');
+              void el.offsetWidth;
+              el.classList.add('anim-fade-in');
+          } else {
+              if (id === 'wordbank-area') el.style.display = 'none';
+              else el.classList.add('hidden');
+          }
+      });
+  },
   toggleTheme() {
     let dark = document.body.getAttribute('data-theme') === 'dark';
     if (dark) { 
@@ -337,8 +352,6 @@ const View = {
     
     let hideSpeaker = isDtSpell || (isMemoryTest && mode !== 'kana' && mode !== 'all');
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
-    
-    // 🌟 核心修复：仅在闯关模式隐藏下拉框，在记忆检测模式保持显示，防止卡死！
     this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
@@ -523,6 +536,7 @@ const View = {
     
     if (filteredData.length === 0 && Model.state.wbCurrentRendered === 0) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">inbox</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">当前文件夹空空如也</div></div>`;
+        this.getEl('wb-scroll-sentinel').style.display = 'none';
         return;
     }
 
@@ -542,7 +556,15 @@ const View = {
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
       fragment.appendChild(card);
     });
-    grid.appendChild(fragment); Model.state.wbCurrentRendered += slice.length;
+    grid.appendChild(fragment); 
+    Model.state.wbCurrentRendered += slice.length;
+
+    let sentinel = this.getEl('wb-scroll-sentinel');
+    if (Model.state.wbCurrentRendered >= filteredData.length) {
+        sentinel.style.display = 'none';
+    } else {
+        sentinel.style.display = 'flex';
+    }
   },
   updateWordbankUI() {
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
@@ -590,9 +612,9 @@ const Controller = {
     });
 
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
-    View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.getEl('setup-area').classList.add('hidden'); View.getEl('wordbank-area').style.display = 'block'; View.resetWordbankRenderer(); });
-    View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.getEl('wordbank-area').style.display = 'none'; View.getEl('setup-area').classList.remove('hidden'); View.renderDashboard(); });
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.getEl('study-area').classList.add('hidden'); View.getEl('setup-area').classList.remove('hidden'); View.renderDashboard(); });
+    View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.showPage('wordbank-area'); View.resetWordbankRenderer(); });
+    View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.showPage('setup-area'); View.renderDashboard(); });
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('setup-area'); View.renderDashboard(); });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
@@ -785,7 +807,7 @@ const Controller = {
     View.getEl('next-display-mode').value = savedMode;
     View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     
-    View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
+    View.showPage('study-area');
     let c = View.getEl('pixel-matrix'); c.innerHTML='';
     View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -907,23 +929,36 @@ const Controller = {
     View.getEl('next-display-mode').value = savedMode;
     View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     
-    View.getEl('setup-area').classList.add('hidden'); View.getEl('study-area').classList.remove('hidden');
+    View.showPage('study-area');
     let c = View.getEl('pixel-matrix'); c.innerHTML=''; 
     View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
+  // 🌟 核心：加入了 300 毫秒的吸收防连击反馈机制
   handleSRSRating(rating) {
     if (Model.state.isAnimating) return;
-    Hardware.playSound('click'); Hardware.vibrate(30); let realIdx = Model.state.studyQueue[Model.state.currentIndex];
-    Model.calculateSRS(realIdx, rating); 
+    Model.state.isAnimating = true; 
+    Hardware.playSound('click'); Hardware.vibrate(30); 
     
-    if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
-    Model.state.currentIndex++;
-    if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
-        Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); 
-    } else {
-        View.renderStudyCard('next');
-    }
+    let btn = View.getEl(`srs-${rating}`);
+    btn.classList.add('btn-active-feedback');
+    
+    setTimeout(() => {
+        btn.classList.remove('btn-active-feedback');
+        let realIdx = Model.state.studyQueue[Model.state.currentIndex];
+        Model.calculateSRS(realIdx, rating); 
+        
+        if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
+        Model.state.currentIndex++;
+        
+        Model.state.isAnimating = false;
+        
+        if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
+            Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); 
+        } else {
+            View.renderStudyCard('next');
+        }
+    }, 300);
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },

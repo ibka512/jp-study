@@ -44,7 +44,7 @@
   
   body.modal-open { overflow: hidden; }
 
-  body { font-family: var(--font-ui); background-color: var(--surface); color: var(--on-surface); padding: var(--space-md) var(--space-sm); margin: 0; transition: background-color 0.4s, color 0.4s; overflow-x: hidden;}
+  body { font-family: var(--font-ui); background-color: var(--surface); color: var(--on-surface); padding: calc(var(--space-md) + env(safe-area-inset-top)) var(--space-sm) var(--space-md) var(--space-sm); margin: 0; transition: background-color 0.4s, color 0.4s; overflow-x: hidden;}
   
   body::after {
     content: ''; position: fixed; inset: 0; z-index: 9999; pointer-events: none;
@@ -207,7 +207,7 @@
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 
   #wordbank-area { display: none; }
-  #btn-exit-wb, #btn-exit-study { padding: 12px 16px; margin: -12px -12px -12px -16px; z-index: 2;}
+  #btn-exit-wb, #btn-exit-study { padding: 12px 16px; margin: -12px -12px -12px -16px; z-index: 2; position: relative;}
   
   .wb-header { position: relative; display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md); padding: 0 8px;}
   .wb-title-center { position: absolute; left: 0; right: 0; text-align: center; font-weight: 800; color: var(--primary); font-size: 1.3rem; pointer-events: none;}
@@ -428,3 +428,61 @@
       50% { transform: scale(1.05); } 
       100% { transform: scale(1); } 
   }
+/* =========================================
+   🎨 终极进化：彩色厚卡纸 & 触觉排版风 补丁
+   ========================================= */
+
+/* 1. 全局定义特种纸环境光与油墨变量 */
+:root {
+  --paper-highlight: rgba(255, 255, 255, 0.7);
+  --paper-shadow: rgba(139, 121, 103, 0.15);
+  --ink-emboss: rgba(255, 255, 255, 0.6);
+  --ink-deboss: rgba(0, 0, 0, 0.1);
+}
+[data-theme="dark"] {
+  --paper-highlight: rgba(255, 255, 255, 0.05);
+  --paper-shadow: rgba(0, 0, 0, 0.6);
+  --ink-emboss: rgba(255, 255, 255, 0.03);
+  --ink-deboss: rgba(0, 0, 0, 0.8);
+}
+
+/* 2. 重塑所有卡片与按钮的 Z 轴厚度 (取代 0 4px 0 硬阴影) */
+button, .btn-action, .icon-btn, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn, .wb-btn-move, .wb-btn-edit, .wb-btn-del {
+    box-shadow: inset 0 1px 1px var(--paper-highlight), 0 4px 12px var(--paper-shadow) !important;
+    border: 1px solid var(--paper-highlight) !important; /* 强化纸张边缘切割感 */
+    border-bottom-color: transparent !important; /* 底部受光少，淡化边框增强立体感 */
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s !important;
+}
+
+/* SRS 模式的按钮自带实心背景色，去掉原有粗边框，完全依靠纸张高光 */
+#capsule-srs .btn-action { border: 1px solid var(--paper-highlight) !important; border-bottom-color: transparent !important; }
+
+/* 3. 注入 MD3 状态层 (State Layers) - 取消生硬下移，改为柔和弹性缩放与色彩加深 */
+button:active, .btn-action:active:not(:disabled), .icon-btn:active, .bs-facade:active, .vs-btn:active, .dt-spell-key:active, .dt-choice-btn:active, .wb-btn-move:active, .wb-btn-edit:active, .wb-btn-del:active {
+    transform: scale(0.96) !important; /* 物理挤压感 */
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow) !important;
+    filter: brightness(0.92) !important; /* 模拟被手指压实后的环境光遮蔽，MD3 核心交互 */
+}
+
+/* 4. 核心学习卡片 (彩色厚卡纸实体化) */
+.flash-card {
+    border-radius: 20px !important; /* 收紧圆角，从“气球”变成“硬朗的厚卡片” */
+    box-shadow: 0 16px 40px var(--paper-shadow) !important;
+}
+.flash-card::before, .flash-card::after { border-radius: 20px !important; }
+
+.watermark-layer {
+    /* JS 赋予的彩色背景在这里被套上了高光内阴影，变成真实的彩色卡纸 */
+    box-shadow: inset 0 1px 2px var(--paper-highlight), inset 0 -2px 6px rgba(0,0,0,0.05) !important;
+    border: 1px solid var(--paper-highlight) !important;
+    border-bottom-color: transparent !important;
+}
+
+/* 5. 凸版印刷字 (Letterpress Typography) - 油墨压痕模拟 */
+.word-main {
+    color: rgba(45, 40, 35, 0.95) !important; /* 降低一点纯黑的死板感，模拟真实油墨 */
+    text-shadow: 0 1.5px 1px var(--ink-emboss), 0 -1px 1px var(--ink-deboss) !important;
+}
+[data-theme="dark"] .word-main {
+    color: rgba(240, 235, 230, 0.95) !important;
+}

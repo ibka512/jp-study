@@ -337,19 +337,30 @@ const View = {
   updatePixelMatrix() {
     let c = this.getEl('pixel-matrix');
     let isMemTest = Model.state.mode === 'memory-test';
+    let isSRS = Model.state.mode === 'srs';
+    
     let total = isMemTest ? Model.state.totalTestWords : Model.state.studyQueue.length;
     let current = isMemTest ? (total - Model.state.studyQueue.length) : Model.state.currentIndex;
     
-    while (c.children.length < total) {
+    let displayTotal = total;
+    let displayCurrent = current;
+
+    // 🌟 核心逻辑：在 SRS 模式下，如果单词总数大于 10，则采用 10 词循环切片
+    if (isSRS && total > 10) {
+        displayTotal = 10;
+        displayCurrent = current % 10;
+    }
+    
+    while (c.children.length < displayTotal) {
       let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p);
     }
-    while (c.children.length > total) {
+    while (c.children.length > displayTotal) {
       c.removeChild(c.lastChild);
     }
     
     Array.from(c.children).forEach((p, i) => {
-      p.className = (i < current) ? 'pixel filled' : (i === current ? 'pixel current' : 'pixel');
-      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/total)*10))]);
+      p.className = (i < displayCurrent) ? 'pixel filled' : (i === displayCurrent ? 'pixel current' : 'pixel');
+      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/displayTotal)*10))]);
     });
   },
 
@@ -677,6 +688,7 @@ const Controller = {
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
     View.getEl('btn-start-rote-learning').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('rote-learning'); });
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
+    View.getEl('btn-start-srs').addEventListener('click', () => { Hardware.unlockSpeech(); this.startSRS(); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });

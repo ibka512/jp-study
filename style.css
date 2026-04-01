@@ -258,6 +258,8 @@
   
   [data-theme="dark"] #capsule-srs .btn-srs-hard { background: #4F2514; color: #FFDCC5; }
   [data-theme="dark"] #capsule-srs .btn-srs-easy { background: #083816; color: #C4EED0; }
+  [data-theme="dark"] #capsule-srs .btn-srs-good { background: #23352A; color: #B4CCBF; }
+  [data-theme="dark"] #capsule-srs .btn-srs-again { background: #410002; color: #FFB4AB; }
   
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 
@@ -489,4 +491,20 @@
       0% { transform: scale(0.88); } 
       50% { transform: scale(1.05); } 
       100% { transform: scale(1); } 
+  }
+
+  /* 🌟 MD3 涟漪反馈 (Ripple Effect) */
+  .ripple-element {
+      position: absolute;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.12;
+      transform: scale(0);
+      pointer-events: none;
+      animation: rippleAnim 0.5s ease-out forwards;
+      z-index: 10;
+  }
+  [data-theme="dark"] .ripple-element { opacity: 0.2; }
+  @keyframes rippleAnim {
+      to { transform: scale(4); opacity: 0; }
   }

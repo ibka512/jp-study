@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (全功能终极版 - 深度 Bug 修复与体验优化)
+ * MD3 & Gamified UI 深度融合版 + 全局涟漪引擎
  */
 
 const escapeHTML = (str) => {
@@ -10,7 +10,6 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-// 🌟 修复隐患三：彻底解决 iOS / Safari 日期格式化兼容性导致的打卡天数丢失问题
 window.getSafeDateStr = () => {
     let d = new Date();
     return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
@@ -60,7 +59,7 @@ window.showConfirm = (title, msg, onConfirm) => {
 window.showPrompt = (title, defaultVal, onConfirm) => {
     document.getElementById('prompt-title').innerHTML = title;
     let input = document.getElementById('prompt-input');
-    input.value = defaultVal || ''; // 打开时重置输入状态
+    input.value = defaultVal || ''; 
     window.toggleModal('prompt-overlay', true);
     setTimeout(() => input.focus(), 100);
     document.getElementById('prompt-confirm').onclick = () => { 
@@ -130,8 +129,6 @@ const Model = {
     this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
     this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
   },
-  
-  // 🌟 修复隐患二：防止词库太大撑爆本地存储导致静默崩溃
   saveDB() { 
     try {
       localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); 
@@ -140,7 +137,6 @@ const Model = {
       console.error("Storage Limit Exceeded", e);
     }
   },
-  
   saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
   saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
   saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
@@ -149,8 +145,6 @@ const Model = {
     this.db.forEach(w => { if (!w.srs) { w.srs = { ease: 2.5, interval: 0, nextReview: Date.now() }; modified = true; } });
     if (modified) this.saveDB();
   },
-  
-  // 🌟 修复隐患一：彻底解决复习时间的时差漂移，对齐到凌晨 0 点
   calculateSRS(wordIdx, rating) {
     let srs = this.db[wordIdx].srs; let now = Date.now(); let dayMs = 86400000;
     switch(rating) {
@@ -174,7 +168,6 @@ const Model = {
     }
     this.saveDB();
   },
-  
   previewSRSTimes(wordIdx) {
     let srs = this.db[wordIdx].srs;
     return { hard: Math.round(Math.max(1, srs.interval * 1.2)) + '天', good: Math.round((srs.interval === 0) ? 1 : (srs.interval === 1 ? 3 : srs.interval * srs.ease)) + '天', easy: Math.round((srs.interval === 0) ? 4 : (srs.interval * srs.ease * 1.3)) + '天' };
@@ -708,6 +701,33 @@ const Controller = {
   },
 
   bindEvents() {
+    // 🌟 核心：全局涟漪引擎 (Global Ripple Engine)
+    document.addEventListener('pointerdown', (e) => {
+        let target = e.target.closest('button, .wb-card, .icon-btn, .btn-action, .dt-choice-btn, .dt-spell-key, .bs-facade, .detail-nav-btn');
+        // 长按打卡有自己的专属动画，跳过涟漪
+        if (!target || target.id === 'btn-long-press' || target.disabled || target.classList.contains('pressing')) return;
+        
+        let rect = target.getBoundingClientRect();
+        let size = Math.max(rect.width, rect.height);
+        let x = e.clientX - rect.left;
+        let y = e.clientY - rect.top;
+        
+        let ripple = document.createElement('span');
+        ripple.className = 'ripple-element';
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (x - size / 2) + 'px';
+        ripple.style.top = (y - size / 2) + 'px';
+        
+        if (window.getComputedStyle(target).position === 'static') {
+            target.style.position = 'relative';
+        }
+        target.style.overflow = 'hidden';
+        
+        target.appendChild(ripple);
+        // 动画结束后自动清理 DOM 节点
+        setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
+    });
+
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
     View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.showPage('wordbank-area'); View.resetWordbankRenderer(); });
@@ -804,7 +824,6 @@ const Controller = {
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     
-    // 🌟 修复隐患四：增加对编辑单词为空时的拦截
     View.getEl('btn-save-edit').addEventListener('click', () => { 
         if(Model.editingIdx > -1) { 
             let w = Model.db[Model.editingIdx]; 

@@ -110,6 +110,7 @@
 
   .stats-grid { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;}
   .stat-item { background: var(--primary-container); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xs); flex: 1; text-align: center; min-width: 70px; transition: background 0.4s; }
+  .stat-item-wide { flex: 2; }
   .stat-number { font-size: 1.6rem; font-weight: 800; color: var(--primary); line-height: 1.2; }
   .stat-label { font-size: 0.75rem; opacity: 0.8; margin-top: 6px; font-weight: 600;}
 

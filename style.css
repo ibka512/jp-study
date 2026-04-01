@@ -377,3 +377,53 @@
   .loading-dots div:nth-child(1) { animation-delay: -0.32s; }
   .loading-dots div:nth-child(2) { animation-delay: -0.16s; }
   @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+  /* 🔋 能量压缩：长按打卡大按钮 */
+  .btn-long-press { 
+      position: relative; width: 100%; height: 72px; border-radius: var(--radius-full); 
+      background: var(--primary); color: var(--on-primary); font-size: 1.2rem; font-weight: 800; 
+      border: none; overflow: hidden; outline: none; user-select: none; -webkit-user-select: none; 
+      box-shadow: var(--shadow-float); transition: transform 0.2s, background 0.4s, color 0.4s, box-shadow 0.2s; 
+      display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 32px; 
+      touch-action: none; /* 必须加，防止手机长按时误触滑动 */
+  }
+  .lp-bg { 
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0%; 
+      background: rgba(0,0,0,0.15); z-index: 1; transition: width 1.5s linear; pointer-events: none;
+  }
+  [data-theme="dark"] .lp-bg { background: rgba(255,255,255,0.15); }
+  .lp-text { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; pointer-events: none;}
+  
+  /* 按压时触发 1.5s 的渐紧摇晃 */
+  .btn-long-press.pressing { 
+      animation: energyCompress 1.5s ease-in forwards; 
+      box-shadow: 0 0 0 transparent; 
+  }
+  .btn-long-press.pressing .lp-bg { width: 100%; }
+  
+  @keyframes energyCompress {
+      0%   { transform: scale(0.98) translate(-6px, 3px); }
+      10%  { transform: scale(0.97) translate(6px, -3px); }
+      20%  { transform: scale(0.96) translate(-5px, 2px); }
+      30%  { transform: scale(0.95) translate(5px, -2px); }
+      40%  { transform: scale(0.94) translate(-4px, 2px); }
+      50%  { transform: scale(0.93) translate(4px, -2px); }
+      60%  { transform: scale(0.92) translate(-3px, 1px); }
+      70%  { transform: scale(0.91) translate(3px, -1px); }
+      80%  { transform: scale(0.90) translate(-2px, 1px); }
+      90%  { transform: scale(0.89) translate(1px, -1px); }
+      100% { transform: scale(0.88) translate(0, 0); }
+  }
+  
+  /* 打卡完成状态 */
+  .btn-long-press.done { 
+      background: var(--outline); color: var(--on-surface); opacity: 0.6; 
+      pointer-events: none; box-shadow: none; transform: scale(1); 
+      animation: burstDone 0.5s var(--spring); 
+  }
+  .btn-long-press.done .lp-bg { width: 100%; transition: none; opacity: 0; }
+  @keyframes burstDone { 
+      0% { transform: scale(0.88); } 
+      50% { transform: scale(1.05); } 
+      100% { transform: scale(1); } 
+  }

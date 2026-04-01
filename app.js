@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (全功能终极合并版)
+ * MVC 架构重构版 (全功能终极合并版 - 修复死记硬背状态污染)
  */
 
 const escapeHTML = (str) => {
@@ -95,7 +95,7 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    mtStep: 1, seenWords: new Set(), currentWordFailed: false, totalTestWords: 0,
+    mtStep: 1, currentWordFailed: false, totalTestWords: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
     isAnimating: false 
   },
@@ -375,11 +375,14 @@ const View = {
     let isMemTest = (Model.state.mode === 'memory-test');
     let isRote = (Model.state.mode === 'rote-learning');
     
+    // 🌟 修复状态污染：纯通过队列索引比对来判断是否为首次出现，不再依赖集合状态
     let forceRoteFull = false;
-    if (isRote && !Model.state.seenWords.has(idx)) {
-        forceRoteFull = true;
-        Model.state.seenWords.add(idx);
-        mode = 'all'; 
+    if (isRote) {
+        let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
+        if (isFirstAppearance) {
+            forceRoteFull = true;
+            mode = 'all'; // 初见强制全显，无视下拉框
+        }
     }
 
     if (Model.state.mode === 'dual-track') {
@@ -418,7 +421,6 @@ const View = {
   },
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote) {
-    let idx = Model.state.studyQueue[Model.state.currentIndex];
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let showWord = true, showKana = true, showMeaning = true;
     
@@ -482,6 +484,7 @@ const View = {
       this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'flex' : 'none';
     } else if (Model.state.mode === 'srs') {
       this.getEl('capsule-srs').classList.remove('hidden');
+      let idx = Model.state.studyQueue[Model.state.currentIndex];
       let times = Model.previewSRSTimes(idx);
       this.getEl('time-hard').innerText = times.hard; this.getEl('time-good').innerText = times.good; this.getEl('time-easy').innerText = times.easy;
     } else if (Model.state.mode === 'dual-track') {
@@ -727,7 +730,7 @@ const Controller = {
     if(sourceWords.length === 0) return;
 
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
-    Model.state.seenWords = new Set(); Model.state.currentWordFailed = false;
+    Model.state.currentWordFailed = false;
 
     if (launchMode === 'memory-test') {
         Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);

@@ -13,7 +13,7 @@
   }
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>钟摆日语 - 乱序版</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
@@ -34,47 +34,37 @@
 
 <div id="toast" class="toast"></div>
 
-<div class="app-container">
-  
-  <div id="setup-area">
-    <div class="header-area">
-      <div class="header-titles">
-        <h2><span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem;">local_florist</span> 钟摆日语</h2>
-      </div>
-      <button class="icon-btn theme-toggle-btn" style="box-shadow: none;"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
-    </div>
+<div class="global-header" id="global-header">
+  <div class="header-titles">
+    <h2 id="app-global-title"><span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem; margin-right: 6px;">local_florist</span> 钟摆日语</h2>
+  </div>
+  <button class="glass-icon-btn theme-toggle-btn" title="切换夜间模式"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
+</div>
 
+<div class="app-container" id="main-container">
+  
+  <div id="tab-home" class="tab-content active">
+    
     <div class="card-panel" id="stats-panel">
-      <div class="stats-grid">
-        <div class="stat-item"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
-        <div class="stat-item"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
-        <div class="stat-item"><div class="stat-number" id="total-words">0</div><div class="stat-label">突击次数</div></div>
-        <div class="stat-item"><div class="stat-number" id="srs-due-count">0</div><div class="stat-label">待复习词</div></div>
+      <div class="stats-grid" style="flex-wrap: nowrap; margin-bottom: 0;">
+        <div class="stat-item" style="flex: 1;"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
+        <div class="stat-item" style="flex: 1;"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
+        <div class="stat-item" style="flex: 2; background: var(--accent-green-bg); border: 2px dashed var(--tertiary); display: flex; flex-direction: column; justify-content: center;">
+          <div class="stat-number" id="db-total-count" style="color: var(--tertiary); font-size: 1.6rem;">0</div>
+          <div class="stat-label" style="color: var(--tertiary); font-weight: 800;">词库词汇</div>
+        </div>
       </div>
     </div>
+    <div id="total-words" style="display:none;"></div>
 
     <div class="card-panel">
-      <button id="btn-enter-wb" style="margin-bottom: 32px; background: var(--tertiary); color: var(--on-primary); font-size: 1.15rem; padding: 20px;" class="icon-text-gap">
-        <span class="material-symbols-rounded" style="font-size:1.4rem;">view_cozy</span> 全景词库
-      </button>
-
       <div class="custom-select-wrapper" style="margin-bottom: 24px;">
         <select id="group-select" style="display:none;"></select>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 20px;">
-        <h3 style="margin: 0; border: none; padding: 0;">
-          <span class="material-symbols-rounded">rocket_launch</span> 学习模式
-        </h3>
-        <div style="display: flex; gap: 8px;">
-          <button id="btn-vol-nav-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--on-surface); opacity: 0.5;" title="音量键翻页开关">
-            <span class="material-symbols-rounded" id="vol-nav-icon">swap_vert</span>
-          </button>
-          <button id="btn-auto-speak-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--primary);" title="自动朗读开关">
-            <span class="material-symbols-rounded" id="auto-speak-icon">volume_up</span>
-          </button>
-        </div>
-      </div>
+      <h3 style="margin-bottom: 20px;">
+        <span class="material-symbols-rounded">rocket_launch</span> 学习模式
+      </h3>
       
       <button id="btn-start-srs" class="btn-srs icon-text-gap" style="margin-bottom: 16px; font-size: 1.1rem; padding: 18px; white-space: nowrap;">
         <span class="material-symbols-rounded">psychology</span> 智能复习 (SRS)
@@ -99,94 +89,35 @@
         <div class="lp-bg"></div>
         <span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>
       </button>
-
     </div>
   </div>
 
-  <div id="study-area" class="hidden">
-    <div class="flex-row" id="study-top-bar" style="justify-content: space-between; margin-bottom: 20px; align-items: center; padding: 0 8px;">
-      <button id="btn-exit-study" class="btn-small btn-outline icon-text-gap" style="border: none; font-size: 1.05rem; padding: 12px 16px; margin: -12px -12px -12px -16px; width: auto; color: var(--on-surface); opacity: 0.7; box-shadow: none; font-weight: 700;">
-          <span class="material-symbols-rounded">chevron_left</span> 退出
-      </button>
-      <div style="display: flex; align-items: center; gap: 16px;">
-        <select id="next-display-mode" style="display:none;">
-          <option value="all">全显</option><option value="word">汉字</option><option value="kana">假名</option><option value="meaning">释义</option>
-        </select>
-        <span id="progress-text" style="font-size: 0.95rem; font-weight: 700; opacity: 0.7;">0 / 0</span>
-        <button class="icon-btn theme-toggle-btn" style="width: 40px; height: 40px; font-size: 1.3rem; box-shadow: none; border: 2px solid var(--outline); margin: 0; transform: none;">
-            <span class="material-symbols-rounded theme-icon">light_mode</span>
-        </button>
-      </div>
-    </div>
-    
-    <div id="pixel-matrix"></div>
-    
-    <div class="flash-card" id="flash-card">
-      <div class="watermark-layer"><div id="flash-watermark" class="watermark"></div></div>
-      <div id="btn-speaker" class="speaker-icon"><span class="material-symbols-rounded">volume_up</span></div>
-      <div id="star-btn" class="star-btn"><span class="material-symbols-rounded" id="star-icon">star</span></div>
-      <div class="word-main blur-target" id="w-word">单词</div>
-      <div class="info-row-group"><div class="kana-row blur-target" id="w-kana">假名</div><div class="type-row blur-target" id="w-type"></div><div class="meaning-row blur-target" id="w-meaning">释义</div></div>
-      <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
-    </div>
-    
-    <div id="dual-track-ui" class="hidden">
-      <div id="dt-spell-area" class="hidden"><div id="dt-spell-input" class="dt-spell-input-box"></div><div id="dt-spell-keyboard" class="dt-spell-keyboard"></div></div>
-      <div id="dt-choice-area" class="hidden"><div id="dt-choice-buttons"></div></div>
-    </div>
 
-    <div id="memory-test-ui" class="hidden" style="margin-bottom: 24px;">
-      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--small-radius); margin: 0 16px;">
-        <span class="material-symbols-rounded" style="font-size: 2.5rem; margin-bottom: 12px;">visibility_off</span><br>全显模式下无法进行检测<br><span style="font-size:0.85rem; opacity:0.8; display:inline-block; margin-top:8px;">请在上方切换「汉字/假名/释义」<br>作为掩盖检测项</span>
-      </div>
-      <div id="mt-spell-area" class="hidden"><div id="mt-spell-input" class="dt-spell-input-box"></div><div id="mt-spell-keyboard"></div></div>
-      <div id="mt-choice-area" class="hidden"><div id="mt-choice-buttons"></div></div>
-    </div>
-
-    <div id="capsule-pendulum" class="action-grid-2 hidden">
-      <button id="btn-prev" class="btn-action"><span class="material-symbols-rounded">arrow_back</span><span>上一个</span></button>
-      <button id="btn-next" class="btn-action"><span class="material-symbols-rounded">arrow_forward</span><span>下一个</span></button>
-      <button id="btn-finish" class="btn-action" style="display: none;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
-    </div>
-
-    <div id="capsule-srs" class="action-grid-2 hidden">
-      <button id="srs-again" class="btn-action btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
-      <button id="srs-hard" class="btn-action btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
-      <button id="srs-good" class="btn-action btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
-      <button id="srs-easy" class="btn-action btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
-    </div>
-  </div>
-
-  <div id="wordbank-area">
-    <div class="wb-header">
-      <button id="btn-exit-wb" class="btn-small btn-outline icon-text-gap" style="border: none; font-size: 1.05rem; padding: 12px 16px; margin: -12px -12px -12px -16px; box-shadow: none; font-weight: 700; z-index: 2;">
-          <span class="material-symbols-rounded">chevron_left</span> 返回
-      </button>
-      <div class="wb-title-center">全景词库</div>
-      <div style="display: flex; gap: 8px; align-items: center; z-index: 2;">
-        <button id="wb-manage-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--primary); color: var(--primary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">edit</span></button>
-        <button id="wb-batch-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--tertiary); color: var(--tertiary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">checklist</span></button>
-      </div>
-    </div>
+  <div id="tab-wordbank" class="tab-content hidden">
     
     <div class="flex-row" style="justify-content: space-between; margin-bottom: 24px; flex-wrap: nowrap; gap: 12px;">
       <div class="custom-select-wrapper" style="flex: 1;">
           <select id="wb-folder-filter" style="display:none;"></select>
       </div>
-      <button id="btn-view-settings" class="icon-btn" style="width: 48px; height: 48px; color: var(--primary); border-color: var(--primary); background: transparent;" title="视图与排版设置">
+      <button id="btn-view-settings" class="glass-icon-btn" title="视图与排版设置">
           <span class="material-symbols-rounded">pageview</span>
       </button>
     </div>
 
     <div class="card-panel" style="margin-bottom: 24px; border-radius: var(--card-radius);">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">folder_managed</span> 文件夹与导入管理</h3>
-      <div class="flex-row" style="margin-bottom: 16px;">
-         <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--tertiary); color: var(--tertiary); padding: 12px;"><span class="material-symbols-rounded" style="font-size:1.2rem;">create_new_folder</span> 建夹</button>
-         <button id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--accent-red); color: var(--accent-red); padding: 12px;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删夹</button>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 16px;">
+        <h3 style="margin: 0; border: none; padding: 0;"><span class="material-symbols-rounded">folder_managed</span> 词汇与文件管理</h3>
+        <div style="display: flex; gap: 8px;">
+           <button id="wb-manage-toggle" class="glass-icon-btn" title="管理编辑"><span class="material-symbols-rounded" id="manage-icon">edit</span></button>
+           <button id="wb-batch-toggle" class="glass-icon-btn" title="多选模式"><span class="material-symbols-rounded" id="batch-icon">checklist_rtl</span></button>
+        </div>
       </div>
-      <textarea id="custom-input" placeholder="格式：单词,假名,词性,释义,例句(可选)&#10;用逗号或Tab分隔"></textarea>
-      <button id="btn-import" style="background: var(--tertiary); color: var(--on-primary); margin-bottom: 20px;">导入新词</button>
-      <button id="btn-reset" class="btn-outline" style="border-color: var(--accent-red); color: var(--accent-red);">恢复内置词汇</button>
+      
+      <div class="flex-row" style="margin-bottom: 0; gap: 12px;">
+         <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--on-surface); padding: 12px; font-size: 0.95rem; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">create_new_folder</span> 新建夹</button>
+         <button id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--accent-red); padding: 12px; font-size: 0.95rem; box-shadow: none;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.1rem;">delete</span> 删除夹</button>
+      </div>
     </div>
 
     <select id="wb-col-select" style="display:none;" class="no-bs">
@@ -201,7 +132,120 @@
       <div id="wb-scroll-sentinel" class="loading-dots" style="display: none;"><div></div><div></div><div></div></div> 
     </div>
   </div>
+
+
+  <div id="tab-settings" class="tab-content hidden">
+    
+    <div class="card-panel">
+      <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">tune</span> 偏好设置</h3>
+      
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-title">音量键翻页</div>
+          <div class="setting-desc">在背词界面使用实体音量键切换卡片</div>
+        </div>
+        <label class="tactile-switch-wrap">
+          <input type="checkbox" id="setting-vol-nav" class="tactile-switch">
+          <span class="tactile-slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+        <div class="setting-info">
+          <div class="setting-title">自动朗读假名</div>
+          <div class="setting-desc">切换卡片时自动使用系统 TTS 朗读</div>
+        </div>
+        <label class="tactile-switch-wrap">
+          <input type="checkbox" id="setting-auto-speak" class="tactile-switch">
+          <span class="tactile-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card-panel">
+      <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">library_add</span> 导入与重置</h3>
+      <textarea id="custom-input" placeholder="格式：单词,假名,词性,释义,例句(可选)&#10;用逗号或Tab分隔" class="settings-textarea"></textarea>
+      <button id="btn-import" style="background: var(--tertiary); color: var(--on-primary); margin-bottom: 20px;">确认导入新词</button>
+      
+      <div class="danger-zone">
+        <div class="setting-desc" style="margin-bottom: 12px; color: var(--accent-red);">警告：此操作将清空所有个人进度与导入词汇</div>
+        <button id="btn-reset" class="btn-outline" style="border-color: var(--accent-red); color: var(--accent-red);">恢复内置词汇</button>
+      </div>
+    </div>
+
+  </div>
+
+</div> <div id="study-area" class="hidden fullscreen-overlay">
+  <div id="study-top-bar" class="study-header">
+    <div class="sh-left">
+      <button id="btn-exit-study" class="sh-btn"><span class="material-symbols-rounded">chevron_left</span> 退出</button>
+    </div>
+    <div class="sh-center">
+      <span id="progress-text" class="sh-progress">0 / 0</span>
+    </div>
+    <div class="sh-right">
+      <select id="next-display-mode" class="no-bs" style="display:none;">
+        <option value="all">全显</option><option value="word">汉字</option><option value="kana">假名</option><option value="meaning">释义</option>
+      </select>
+      <button id="btn-display-mode-trigger" class="glass-icon-btn" title="遮盖模式"><span class="material-symbols-rounded">visibility</span></button>
+      <button class="glass-icon-btn theme-toggle-btn"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
+    </div>
+  </div>
+  
+  <div id="pixel-matrix"></div>
+  
+  <div class="flash-card" id="flash-card">
+    <div class="watermark-layer"><div id="flash-watermark" class="watermark"></div></div>
+    <div id="btn-speaker" class="speaker-icon"><span class="material-symbols-rounded">volume_up</span></div>
+    <div id="star-btn" class="star-btn"><span class="material-symbols-rounded" id="star-icon">star</span></div>
+    <div class="word-main blur-target" id="w-word">单词</div>
+    <div class="info-row-group"><div class="kana-row blur-target" id="w-kana">假名</div><div class="type-row blur-target" id="w-type"></div><div class="meaning-row blur-target" id="w-meaning">释义</div></div>
+    <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
+  </div>
+  
+  <div id="dual-track-ui" class="hidden">
+    <div id="dt-spell-area" class="hidden"><div id="dt-spell-input" class="dt-spell-input-box"></div><div id="dt-spell-keyboard" class="dt-spell-keyboard"></div></div>
+    <div id="dt-choice-area" class="hidden"><div id="dt-choice-buttons"></div></div>
+  </div>
+
+  <div id="memory-test-ui" class="hidden" style="margin-bottom: 24px;">
+    <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--small-radius); margin: 0 16px;">
+      <span class="material-symbols-rounded" style="font-size: 2.5rem; margin-bottom: 12px;">visibility_off</span><br>全显模式下无法进行检测<br><span style="font-size:0.85rem; opacity:0.8; display:inline-block; margin-top:8px;">请在上方切换「汉字/假名/释义」<br>作为掩盖检测项</span>
+    </div>
+    <div id="mt-spell-area" class="hidden"><div id="mt-spell-input" class="dt-spell-input-box"></div><div id="mt-spell-keyboard"></div></div>
+    <div id="mt-choice-area" class="hidden"><div id="mt-choice-buttons"></div></div>
+  </div>
+
+  <div id="capsule-pendulum" class="action-grid-2 hidden">
+    <button id="btn-prev" class="btn-action"><span class="material-symbols-rounded">arrow_back</span><span>上一个</span></button>
+    <button id="btn-next" class="btn-action"><span class="material-symbols-rounded">arrow_forward</span><span>下一个</span></button>
+    <button id="btn-finish" class="btn-action" style="display: none;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
+  </div>
+
+  <div id="capsule-srs" class="action-grid-2 hidden">
+    <button id="srs-again" class="btn-action btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
+    <button id="srs-hard" class="btn-action btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
+    <button id="srs-good" class="btn-action btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
+    <button id="srs-easy" class="btn-action btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
+  </div>
 </div>
+
+
+<nav id="bottom-nav" class="bottom-nav">
+  <div class="nav-item active" data-target="tab-home" data-title="local_florist|钟摆日语">
+    <span class="material-symbols-rounded nav-icon">home</span>
+    <span class="nav-label">主页</span>
+  </div>
+  <div class="nav-item" data-target="tab-wordbank" data-title="view_cozy|全景词库">
+    <span class="material-symbols-rounded nav-icon">grid_view</span>
+    <span class="nav-label">词库</span>
+  </div>
+  <div class="nav-item" data-target="tab-settings" data-title="settings|应用设置">
+    <span class="material-symbols-rounded nav-icon">settings</span>
+    <span class="nav-label">设置</span>
+  </div>
+</nav>
+
 
 <div id="bs-overlay" class="modal-overlay">
     <div class="bottom-sheet">

@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MVC 架构重构版 (全功能终极版 - 深度 Bug 修复)
+ * 轻拟物 + 对称导航 + 紧凑看板 终极版
  */
 
 const escapeHTML = (str) => {
@@ -10,7 +10,6 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-// 🌟 修复 Bug 1: 补全缺失的粒子特效生成器
 window.createStarParticles = (el) => {
     let rect = el.getBoundingClientRect();
     for (let i = 0; i < 5; i++) {
@@ -55,13 +54,66 @@ window.showConfirm = (title, msg, onConfirm) => {
 window.showPrompt = (title, defaultVal, onConfirm) => {
     document.getElementById('prompt-title').innerHTML = title;
     let input = document.getElementById('prompt-input');
-    input.value = defaultVal || ''; // 打开时重置输入状态
+    input.value = defaultVal || ''; 
     window.toggleModal('prompt-overlay', true);
     setTimeout(() => input.focus(), 100);
     document.getElementById('prompt-confirm').onclick = () => { 
         let val = input.value.trim(); if(val) { window.toggleModal('prompt-overlay', false); onConfirm(val); }
     };
     document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
+};
+
+// 📱 原生底部导航栏管理器
+const Nav = {
+    init() {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                Hardware.playSound('click'); Hardware.vibrate(10);
+                let targetId = e.currentTarget.getAttribute('data-target');
+                let titleData = e.currentTarget.getAttribute('data-title');
+                this.switchTab(targetId, titleData, e.currentTarget);
+            });
+        });
+
+        // ⌨️ 键盘避让系统
+        let inputs = document.querySelectorAll('input[type="text"], textarea');
+        let nav = document.getElementById('bottom-nav');
+        inputs.forEach(el => {
+            el.addEventListener('focus', () => { if(nav) nav.style.transform = 'translateY(150%)'; });
+            el.addEventListener('blur', () => { if(nav) nav.style.transform = 'translateY(0)'; });
+        });
+    },
+    switchTab(targetId, titleData, navItemEl) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        if(navItemEl) navItemEl.classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(el => {
+            el.classList.add('hidden');
+            el.classList.remove('active');
+        });
+        
+        let targetEl = document.getElementById(targetId);
+        if(targetEl) {
+            targetEl.classList.remove('hidden');
+            void targetEl.offsetWidth; 
+            targetEl.classList.add('active');
+        }
+
+        if (titleData) {
+            let [icon, text] = titleData.split('|');
+            let titleEl = document.getElementById('app-global-title');
+            if(titleEl) titleEl.innerHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem; margin-right: 6px;">${icon}</span> ${text}`;
+        }
+
+        // 🌟 新增：数据同步拦截器。每次切回主页，强制重新渲染看板和下拉框
+        if (targetId === 'tab-home') {
+            View.renderDashboard();
+        }
+
+        if(targetId === 'tab-wordbank' && Model.state.wbCurrentRendered === 0) {
+            View.resetWordbankRenderer();
+        }
+    }
 };
 
 const BottomSheet = {
@@ -283,21 +335,23 @@ const Hardware = {
 
 const View = {
   getEl: (id) => document.getElementById(id),
+  
   showPage(pageId) {
-      ['setup-area', 'study-area', 'wordbank-area'].forEach(id => {
-          let el = this.getEl(id);
-          if (id === pageId) {
-              if (id === 'wordbank-area') el.style.display = 'block';
-              else el.classList.remove('hidden');
-              el.classList.remove('anim-fade-in');
-              void el.offsetWidth;
-              el.classList.add('anim-fade-in');
-          } else {
-              if (id === 'wordbank-area') el.style.display = 'none';
-              else el.classList.add('hidden');
-          }
-      });
+      let studyArea = this.getEl('study-area');
+      let bottomNav = this.getEl('bottom-nav');
+      let globalHeader = this.getEl('global-header');
+
+      if (pageId === 'study-area') {
+          studyArea.classList.remove('hidden');
+          if(bottomNav) bottomNav.style.transform = 'translateY(150%)';
+          if(globalHeader) globalHeader.style.transform = 'translateY(-150%)';
+      } else {
+          studyArea.classList.add('hidden');
+          if(bottomNav) bottomNav.style.transform = 'translateY(0)';
+          if(globalHeader) globalHeader.style.transform = 'translateY(0)';
+      }
   },
+  
   toggleTheme() {
     let dark = document.body.getAttribute('data-theme') === 'dark';
     if (dark) { 
@@ -308,6 +362,7 @@ const View = {
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
     }
   },
+  
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
     let wm = '';
@@ -345,7 +400,6 @@ const View = {
     let displayTotal = total;
     let displayCurrent = current;
 
-    // 🌟 核心逻辑：在 SRS 模式下，如果单词总数大于 10，则采用 10 词循环切片
     if (isSRS && total > 10) {
         displayTotal = 10;
         displayCurrent = current % 10;
@@ -365,18 +419,17 @@ const View = {
   },
 
   renderDashboard() {
-    let dueCount = Model.getSRSDueQueue().length;
-    this.getEl('srs-due-count').innerText = dueCount;
+    // 渲染词库总词汇量
+    let dbTotalEl = this.getEl('db-total-count');
+    if (dbTotalEl) dbTotalEl.innerText = Model.db.length;
     
     let stats = Model.calculateStats();
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
-    this.getEl('total-words').innerText = Model.records.filter(r => !r.type || r.type === 'pendulum').length; 
     
     let select = this.getEl('group-select'); select.innerHTML = '';
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
-      // 🌟 修复 Bug 4: 分组索引不再重叠，严格以 10 为步长切块
       let i = 0; while (i * 10 < total) { let startIdx = i * 10; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
     });
     select.dispatchEvent(new Event('facade-update'));
@@ -420,7 +473,7 @@ const View = {
     }
 
     if (isMemTest) {
-        this.getEl('progress-text').innerText = `剩余: ${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
+        this.getEl('progress-text').innerText = `${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
     } else {
         this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
     }
@@ -436,19 +489,18 @@ const View = {
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
-    // 🌟 修复 Bug 2: 严格的 isAnimating 动画锁管理
     if (anim !== 'none') {
-        Model.state.isAnimating = true; // 加锁
+        Model.state.isAnimating = true;
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
             this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
-            setTimeout(() => { Model.state.isAnimating = false; }, 200); // 彻底滑入完成后解锁
+            setTimeout(() => { Model.state.isAnimating = false; }, 200); 
         }, 200); 
     } else {
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote);
-        Model.state.isAnimating = false; // 无动画直接解锁
+        Model.state.isAnimating = false; 
     }
   },
 
@@ -483,7 +535,9 @@ const View = {
     
     let hideSpeaker = isDtSpell || ((isMemTest || isRote) && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
-    this.getEl('next-display-mode').nextSibling.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
+    
+    let displayTrigger = this.getEl('btn-display-mode-trigger');
+    if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
@@ -561,7 +615,6 @@ const View = {
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('dt-spell-input').innerText = ''; 
           
-          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
           let poolSet = new Set();
           let neededFakes = Math.max(3, 12 - targetTokens.length);
           while(poolSet.size < neededFakes) { 
@@ -599,7 +652,6 @@ const View = {
           let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
           this.getEl('mt-spell-input').innerText = ''; 
           
-          // 🌟 修复 Bug 3: 去除干扰项重复，并限制键盘最大按钮数为 12
           let poolSet = new Set();
           let neededFakes = Math.max(3, 12 - targetTokens.length);
           while(poolSet.size < neededFakes) { 
@@ -654,8 +706,19 @@ const View = {
   },
   updateWordbankUI() {
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
-    this.getEl('wb-batch-toggle').style.background = Model.state.batchMode ? "var(--tertiary)" : "transparent"; this.getEl('wb-batch-toggle').style.color = Model.state.batchMode ? "white" : "var(--tertiary)";
-    this.getEl('wb-manage-toggle').style.background = Model.state.manageMode ? "var(--primary)" : "transparent"; this.getEl('wb-manage-toggle').style.color = Model.state.manageMode ? "white" : "var(--primary)"; 
+    
+    let batchBtn = this.getEl('wb-batch-toggle');
+    if(batchBtn) {
+        batchBtn.style.color = Model.state.batchMode ? "var(--tertiary)" : "var(--primary)";
+        batchBtn.style.boxShadow = Model.state.batchMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
+    }
+    
+    let manageBtn = this.getEl('wb-manage-toggle');
+    if(manageBtn) {
+        manageBtn.style.color = Model.state.manageMode ? "var(--tertiary)" : "var(--primary)";
+        manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
+    }
+
     let selFilter = this.getEl('wb-folder-filter'); let currentVal = selFilter.value;
     selFilter.innerHTML = '<option value="all">查看所有词汇</option>'; 
     Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
@@ -666,23 +729,37 @@ const View = {
 
 const Controller = {
   init() {
-    BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
+    BottomSheet.init(); 
+    Nav.init(); 
+    Model.init(); 
+    Hardware.init(); 
+    View.renderDashboard(); 
+    View.updateWordbankUI(); 
+    this.bindEvents(); 
+    this.setupIntersectionObserver();
+    
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
-    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off';
-    let volNavEnabled = localStorage.getItem('volNav') === 'true'; let volBtn = View.getEl('btn-vol-nav-toggle'); if (volNavEnabled) { volBtn.style.color = 'var(--primary)'; volBtn.style.opacity = '1'; }
+    
+    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
+    let autoSpeakCheck = View.getEl('setting-auto-speak');
+    if(autoSpeakCheck) autoSpeakCheck.checked = autoSpeak;
+
+    let volNavEnabled = localStorage.getItem('volNav') === 'true'; 
+    let volCheck = View.getEl('setting-vol-nav');
+    if(volCheck) volCheck.checked = volNavEnabled;
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
   setupIntersectionObserver() {
-    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('wordbank-area').style.display !== 'none') View.renderMoreWordbank(); }, { rootMargin: '200px' });
+    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('tab-wordbank').classList.contains('active')) View.renderMoreWordbank(); }, { rootMargin: '200px' });
     observer.observe(document.getElementById('wb-scroll-sentinel'));
   },
 
   bindEvents() {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
-    View.getEl('btn-enter-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(30); View.showPage('wordbank-area'); View.resetWordbankRenderer(); });
-    View.getEl('btn-exit-wb').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.showPage('setup-area'); View.renderDashboard(); });
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('setup-area'); View.renderDashboard(); });
+    
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('tab-home'); View.renderDashboard(); });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
@@ -694,8 +771,32 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    View.getEl('btn-auto-speak-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; autoSpeak = !autoSpeak; localStorage.setItem('autoSpeak', autoSpeak); View.getEl('auto-speak-icon').innerText = autoSpeak ? 'volume_up' : 'volume_off'; showToast(autoSpeak ? "已开启自动朗读" : "已关闭自动朗读"); });
-    View.getEl('btn-vol-nav-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let volNavEnabled = localStorage.getItem('volNav') === 'true'; volNavEnabled = !volNavEnabled; localStorage.setItem('volNav', volNavEnabled); let btn = View.getEl('btn-vol-nav-toggle'); if(volNavEnabled) { btn.style.color = 'var(--primary)'; btn.style.opacity = '1'; showToast("已开启音量键翻页"); } else { btn.style.color = 'var(--on-surface)'; btn.style.opacity = '0.5'; showToast("已关闭音量键翻页"); } });
+    // 绑定新的眼睛图标呼出显示模式菜单
+    let displayTrigger = View.getEl('btn-display-mode-trigger');
+    if (displayTrigger) {
+        displayTrigger.addEventListener('click', () => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span'));
+        });
+    }
+
+    let autoSpeakCheck = View.getEl('setting-auto-speak');
+    if (autoSpeakCheck) {
+        autoSpeakCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('autoSpeak', e.target.checked);
+            showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读");
+        });
+    }
+
+    let volCheck = View.getEl('setting-vol-nav');
+    if (volCheck) {
+        volCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('volNav', e.target.checked);
+            showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页");
+        });
+    }
 
     window.addEventListener('keydown', (e) => {
         if (localStorage.getItem('volNav') !== 'true') return;
@@ -748,7 +849,6 @@ const Controller = {
 
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     
-    // 🌟 修复 Bug 6: iOS 全景词库卡片长按时，阻止默认弹出的“复制/分享”菜单
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card')) e.preventDefault(); });
 
     grid.addEventListener('click', (e) => {
@@ -778,7 +878,6 @@ const Controller = {
     Hardware.playSound('click'); 
     Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
     
-    // 🌟 修复 Bug 4: 开始学习时的切片步长同步调整为 10，消灭重叠
     let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
     let startIdx = idx * 10; let endIdx = startIdx + 10;
     

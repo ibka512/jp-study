@@ -46,7 +46,7 @@
     --radius-lg: 28px;   
     --radius-full: 999px; 
     
-    /* MD3 海拔阴影 (Elevation) */
+    /* MD3 海拔阴影 (Elevation) - 注入主色调增加通透感 */
     --elevation-1: 0px 1px 2px 0px rgba(139,121,103,0.15), 0px 1px 3px 1px rgba(139,121,103,0.10);
     --elevation-2: 0px 1px 2px 0px rgba(139,121,103,0.15), 0px 2px 6px 2px rgba(139,121,103,0.10);
     --elevation-3: 0px 1px 3px 0px rgba(139,121,103,0.15), 0px 4px 8px 3px rgba(139,121,103,0.10);
@@ -63,14 +63,9 @@
     --primary-container: #624021;
     --on-primary-container: #FFDCC1;
 
-    --secondary: #E5C0A4;
-    --on-secondary: #412D1D;
-    --secondary-container: #4D3624; 
-    --on-secondary-container: #FFDCBE; 
-
     --tertiary: #B4CCBF;
     --on-tertiary: #20352D;
-    --tertiary-container: #374B43; 
+    --tertiary-container: #374B43;
     --on-tertiary-container: #D1E9DF;
 
     --surface: #151311; 
@@ -83,17 +78,11 @@
     --outline-variant: #504539;
 
     --accent-red: #FFB4AB; 
-    --accent-red-bg: #410002; 
-    --accent-green-bg: #083816; 
+    --accent-red-bg: #93000A; 
+    --accent-green-bg: #0F5223; 
 
-        /* 🌟 恢复原本饱满且深邃的词性卡片背景色 */
-    --bg-verb: #113B4D; 
-    --bg-noun: #4D280B; 
-    --bg-adj: #47152A;        
-    --bg-adj-na: #4A401A; 
-    --bg-adv: #163E23; 
-    --bg-pronoun: #14404A; 
-    --bg-other: #292B2B; 
+    --bg-verb: #113B4D; --bg-noun: #4D280B; --bg-adj: #47152A;        
+    --bg-adj-na: #4A401A; --bg-adv: #163E23; --bg-pronoun: #14404A; --bg-other: #292B2B;      
 
     --elevation-1: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
     --elevation-2: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
@@ -143,7 +132,7 @@
   .nav-item.active .nav-icon { font-variation-settings: 'FILL' 1; color: var(--on-secondary-container);}
   .nav-label { font-size: 0.75rem; font-weight: 700; pointer-events: none;}
 
-  /* 🌟 悬浮操作按钮 FAB (Floating Action Button) - 维持高亮主色 */
+  /* 🌟 悬浮操作按钮 FAB (Floating Action Button) */
   .fab-btn { 
       position: fixed; right: var(--space-md); bottom: calc(96px + env(safe-area-inset-bottom)); 
       width: auto; height: 64px; border-radius: var(--radius-lg); 
@@ -170,25 +159,24 @@
   .setting-title { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); }
   .setting-desc { font-size: 0.8rem; color: var(--on-surface); opacity: 0.6; font-weight: 500; }
   
-  /* 🌟 原生 MD3 Switch 开关 (纯 CSS 绘制，带物理呼吸感) */
+  /* 🌟 原生 MD3 Switch 开关 */
   .toggle-switch-btn { 
-      background: var(--surface-container-high); border: 2px solid var(--outline); padding: 0; 
+      background: transparent; border: 2px solid var(--outline); padding: 0; 
       width: 52px; height: 32px; border-radius: 16px; cursor: pointer; 
       transition: all 0.3s var(--spring); position: relative;
-      display: flex; align-items: center; justify-content: flex-start; outline: none;
+      display: flex; align-items: center; justify-content: flex-start;
   }
   .toggle-switch-btn:active { transform: scale(0.95); }
   .toggle-switch-btn .switch-thumb {
       width: 16px; height: 16px; border-radius: 50%; background: var(--outline);
       margin-left: 6px; transition: all 0.3s var(--spring); pointer-events: none;
   }
-  /* 开启状态 */
   .toggle-switch-btn.on { 
-      background: var(--primary); border-color: transparent; 
+      background: var(--tertiary); border-color: transparent; 
   }
   .toggle-switch-btn.on .switch-thumb {
-      width: 24px; height: 24px; background: var(--on-primary);
-      margin-left: 26px; 
+      width: 24px; height: 24px; background: var(--on-tertiary);
+      margin-left: 24px;
   }
 
   /* MD3 Outlined Card */
@@ -200,11 +188,9 @@
   
   h3 { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid var(--outline-variant); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;}
   
-  /* 按钮统一规范 - 降级为柔和的 Container 色 */
+  /* 按钮统一规范 */
   button { 
-      background: var(--primary-container); 
-      color: var(--on-primary-container); 
-      border: none; font-family: var(--font-ui); 
+      background: var(--primary); color: var(--on-primary); border: none; font-family: var(--font-ui); 
       border-radius: var(--radius-full); padding: var(--space-sm) var(--space-md); 
       font-weight: 700; font-size: 1.05rem; cursor: pointer; 
       transition: transform 0.2s var(--spring), background-color 0.3s, opacity 0.3s; width: 100%; 
@@ -219,9 +205,7 @@
   .action-icon-btn { width: 40px; height: 40px; font-size: 1.2rem; } /* 顶栏稍小的操作按钮 */
 
   .btn-small { padding: 10px var(--space-sm); font-size: 0.95rem; width: auto; border-radius: var(--radius-full); }
-  
-  /* 💡 修复 SRS 按钮为 Container 色 */
-  .btn-srs { background: var(--tertiary-container); color: var(--on-tertiary-container);}
+  .btn-srs { background: var(--tertiary); color: var(--on-tertiary);}
 
   textarea, input { background: transparent; border: 1px solid var(--outline); border-radius: var(--radius-sm); padding: var(--space-sm) 20px; font-size: 0.95rem; width: 100%; margin-bottom: 20px; color: var(--on-surface); font-family: var(--font-ui); outline: none; transition: border-color 0.3s, box-shadow 0.3s; }
   textarea:focus, input:focus { border-color: var(--primary); border-width: 2px; padding: calc(var(--space-sm) - 1px) 19px; }
@@ -305,8 +289,7 @@
   
   #capsule-pendulum .btn-action { flex-direction: row; gap: 8px; padding: 20px 16px;}
   #btn-prev { background: transparent; border-color: var(--outline); opacity: 0.8; }
-  /* 下一个按钮：保持高亮的 Primary 色 */
-  #btn-next { background: var(--primary); color: var(--on-primary); border-color: transparent;}
+  #btn-next { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent;}
   #btn-finish { background: var(--tertiary); color: var(--on-tertiary); border-color: transparent;}
   
   #capsule-srs .btn-action { padding: 14px 8px; font-weight: 700; border: none; }
@@ -315,11 +298,10 @@
   #capsule-srs .btn-srs-good { color: var(--on-tertiary-container); background: var(--tertiary-container); }
   #capsule-srs .btn-srs-easy { color: #0F5223; background: var(--accent-green-bg); }
   
-  /* SRS 按钮深色模式：使用 12% 的亮色叠加背景，消除浑浊感 */
-  [data-theme="dark"] #capsule-srs .btn-srs-again { background: rgba(255, 180, 171, 0.12); color: #FFB4AB; }
-  [data-theme="dark"] #capsule-srs .btn-srs-hard { background: rgba(255, 184, 120, 0.12); color: #FFB878; }
-  [data-theme="dark"] #capsule-srs .btn-srs-good { background: rgba(180, 204, 191, 0.12); color: #B4CCBF; }
-  [data-theme="dark"] #capsule-srs .btn-srs-easy { background: rgba(168, 234, 185, 0.12); color: #A8EAB9; }
+  [data-theme="dark"] #capsule-srs .btn-srs-hard { background: #4F2514; color: #FFDCC5; }
+  [data-theme="dark"] #capsule-srs .btn-srs-easy { background: #083816; color: #C4EED0; }
+  [data-theme="dark"] #capsule-srs .btn-srs-good { background: #23352A; color: #B4CCBF; }
+  [data-theme="dark"] #capsule-srs .btn-srs-again { background: #410002; color: #FFB4AB; }
   
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 

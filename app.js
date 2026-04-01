@@ -707,12 +707,14 @@ const Controller = {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
-    // 初始化设置页面的开关状态 (纯类名控制)
+    // 初始化设置页面的 MD3 开关状态
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
-    View.getEl('btn-auto-speak-toggle').classList.toggle('on', autoSpeak);
+    let btnAs = View.getEl('btn-auto-speak-toggle');
+    if(btnAs) btnAs.classList.toggle('on', autoSpeak);
 
     let volNav = localStorage.getItem('volNav') === 'true'; 
-    View.getEl('btn-vol-nav-toggle').classList.toggle('on', volNav);
+    let btnVn = View.getEl('btn-vol-nav-toggle');
+    if(btnVn) btnVn.classList.toggle('on', volNav);
 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
@@ -745,6 +747,12 @@ const Controller = {
         setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
     });
 
+    // 🌟 MD3 滚动海拔反馈 (Top App Bar)
+    window.addEventListener('scroll', () => {
+        let topBar = document.querySelector('.tab-view.active .top-app-bar');
+        if (topBar) topBar.classList.toggle('scrolled', window.scrollY > 10);
+    }, { passive: true });
+
     // 🌟 底部导航栏点击事件
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -773,7 +781,7 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    // 🌟 设置页开关状态切换 (去掉了修改图标文本的代码)
+    // 🌟 设置页开关状态切换 (MD3 纯 CSS 开关)
     View.getEl('btn-auto-speak-toggle').addEventListener('click', (e) => { 
         let btn = e.currentTarget;
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 

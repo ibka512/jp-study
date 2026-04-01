@@ -41,15 +41,15 @@
       <div class="header-titles">
         <h2><span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem;">local_florist</span> 钟摆日语</h2>
       </div>
-      <button class="icon-btn theme-toggle-btn" style="box-shadow: none;"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
+      <button class="icon-btn theme-toggle-btn"><span class="material-symbols-rounded theme-icon">light_mode</span></button>
     </div>
 
     <div class="card-panel" id="stats-panel">
       <div class="stats-grid">
-  <div class="stat-item"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
-  <div class="stat-item"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
-  <div class="stat-item stat-item-wide"><div class="stat-number" id="srs-due-count">0</div><div class="stat-label">待复习词</div></div>
-</div>
+        <div class="stat-item"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
+        <div class="stat-item"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
+        <div class="stat-item stat-item-wide"><div class="stat-number" id="srs-due-count">0</div><div class="stat-label">待复习词</div></div>
+      </div>
     </div>
 
     <div class="card-panel">
@@ -61,15 +61,15 @@
         <select id="group-select" style="display:none;"></select>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--outline-variant); padding-bottom: 12px; margin-bottom: 20px;">
         <h3 style="margin: 0; border: none; padding: 0;">
           <span class="material-symbols-rounded">rocket_launch</span> 学习模式
         </h3>
         <div style="display: flex; gap: 8px;">
-          <button id="btn-vol-nav-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--on-surface); opacity: 0.5;" title="音量键翻页开关">
+          <button id="btn-vol-nav-toggle" class="icon-btn" style="width: 40px; height: 40px; color: var(--on-surface); opacity: 0.5;" title="音量键翻页开关">
             <span class="material-symbols-rounded" id="vol-nav-icon">swap_vert</span>
           </button>
-          <button id="btn-auto-speak-toggle" class="icon-btn" style="width: 40px; height: 40px; box-shadow: none; border-color: var(--outline); background: var(--surface-container); color: var(--primary);" title="自动朗读开关">
+          <button id="btn-auto-speak-toggle" class="icon-btn" style="width: 40px; height: 40px; color: var(--primary);" title="自动朗读开关">
             <span class="material-symbols-rounded" id="auto-speak-icon">volume_up</span>
           </button>
         </div>
@@ -112,7 +112,7 @@
           <option value="all">全显</option><option value="word">汉字</option><option value="kana">假名</option><option value="meaning">释义</option>
         </select>
         <span id="progress-text" style="font-size: 0.95rem; font-weight: 700; opacity: 0.7;">0 / 0</span>
-        <button class="icon-btn theme-toggle-btn" style="width: 40px; height: 40px; font-size: 1.3rem; box-shadow: none; border: 2px solid var(--outline); margin: 0; transform: none;">
+        <button class="icon-btn theme-toggle-btn" style="width: 40px; height: 40px; font-size: 1.3rem; margin: 0;">
             <span class="material-symbols-rounded theme-icon">light_mode</span>
         </button>
       </div>
@@ -140,7 +140,7 @@
     </div>
 
     <div id="memory-test-ui" class="hidden" style="margin-bottom: 24px;">
-      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--small-radius); margin: 0 16px;">
+      <div id="mt-warning" class="hidden" style="text-align: center; color: var(--accent-red); font-weight: 700; padding: 24px; border: 2px dashed var(--accent-red); border-radius: var(--radius-sm); margin: 0 16px;">
         <span class="material-symbols-rounded" style="font-size: 2.5rem; margin-bottom: 12px;">visibility_off</span><br>全显模式下无法进行检测<br><span style="font-size:0.85rem; opacity:0.8; display:inline-block; margin-top:8px;">请在上方切换「汉字/假名/释义」<br>作为掩盖检测项</span>
       </div>
       <div id="mt-spell-area" class="hidden"><div id="mt-spell-input" class="dt-spell-input-box"></div><div id="mt-spell-keyboard"></div></div>
@@ -168,8 +168,8 @@
       </button>
       <div class="wb-title-center">全景词库</div>
       <div style="display: flex; gap: 8px; align-items: center; z-index: 2;">
-        <button id="wb-manage-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--primary); color: var(--primary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">edit</span></button>
-        <button id="wb-batch-toggle" class="btn-small btn-outline icon-text-gap" style="border-color: var(--tertiary); color: var(--tertiary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">checklist</span></button>
+        <button id="wb-manage-toggle" class="btn-small btn-outline icon-text-gap" style="border: none; color: var(--primary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">edit</span></button>
+        <button id="wb-batch-toggle" class="btn-small btn-outline icon-text-gap" style="border: none; color: var(--tertiary); margin: 0; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">checklist</span></button>
       </div>
     </div>
     
@@ -177,12 +177,12 @@
       <div class="custom-select-wrapper" style="flex: 1;">
           <select id="wb-folder-filter" style="display:none;"></select>
       </div>
-      <button id="btn-view-settings" class="icon-btn" style="width: 48px; height: 48px; color: var(--primary); border-color: var(--primary); background: transparent;" title="视图与排版设置">
+      <button id="btn-view-settings" class="icon-btn" style="width: 48px; height: 48px; color: var(--primary);" title="视图与排版设置">
           <span class="material-symbols-rounded">pageview</span>
       </button>
     </div>
 
-    <div class="card-panel" style="margin-bottom: 24px; border-radius: var(--card-radius);">
+    <div class="card-panel" style="margin-bottom: 24px;">
       <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">folder_managed</span> 文件夹与导入管理</h3>
       <div class="flex-row" style="margin-bottom: 16px;">
          <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--tertiary); color: var(--tertiary); padding: 12px;"><span class="material-symbols-rounded" style="font-size:1.2rem;">create_new_folder</span> 建夹</button>
@@ -253,7 +253,7 @@
 <div id="prompt-overlay" class="modal-overlay">
     <div class="dialog-content">
         <h3 id="prompt-title" style="border:none; margin-bottom:16px; justify-content:center;">输入</h3>
-        <input type="text" id="prompt-input" style="text-align:center; font-weight:700; border-radius: 999px;" />
+        <input type="text" id="prompt-input" style="text-align:center; font-weight:700;" />
         <div class="flex-row" style="margin-bottom:0;">
             <button id="prompt-confirm" style="flex:1;">确定</button>
             <button id="prompt-cancel" class="btn-outline" style="flex:1;">取消</button>
@@ -305,7 +305,7 @@
   <div style="display: flex; gap: 10px;">
     <button id="btn-batch-move" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">move_item</span> 移动</button>
     <button id="btn-batch-del" style="background: var(--accent-red); color: var(--on-primary);" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删除</button>
-    <button id="btn-batch-cancel" class="btn-outline" style="border: 2px solid var(--outline); box-shadow: none;">取消</button>
+    <button id="btn-batch-cancel" class="btn-outline" style="border: 1px solid var(--outline); box-shadow: none;">取消</button>
   </div>
 </div>
 

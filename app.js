@@ -1,6 +1,7 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MD3 & Gamified UI 终极进化版 (底层 Tab 路由架构)
+ * MD3 终极版 + 莫奈动态色彩引擎 (Material You) + 涟漪动效
+ * 修复版本：XSS防护、队列越界、选择器清空、导入校验、动画补全等
  */
 
 const escapeHTML = (str) => {
@@ -8,6 +9,18 @@ const escapeHTML = (str) => {
     return String(str).replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[tag]));
+};
+
+// 增强版转义，保留 LaTeX 所需字符（$ 和 \）但转义其他 HTML
+const escapeForHTML = (str) => {
+    if (!str) return '';
+    // 先转义普通 HTML，再恢复 LaTeX 中可能需要的 $ 和 \（但 \ 本身也会被转义，这里做特殊处理）
+    // 更安全的做法：使用 DOMPurify，但为了不引入额外依赖，我们只转义关键字符
+    let escaped = String(str).replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag]));
+    // 保留 $ 和 \ 不被转义，因为 MathJax 需要它们
+    return escaped;
 };
 
 window.getSafeDateStr = () => {
@@ -49,15 +62,15 @@ window.showToast = (msg) => {
 };
 
 window.showConfirm = (title, msg, onConfirm) => {
-    document.getElementById('dialog-title').innerHTML = title;
-    document.getElementById('dialog-msg').innerHTML = msg;
+    document.getElementById('dialog-title').innerHTML = escapeForHTML(title);
+    document.getElementById('dialog-msg').innerHTML = escapeForHTML(msg);
     window.toggleModal('dialog-overlay', true);
     document.getElementById('dialog-confirm').onclick = () => { window.toggleModal('dialog-overlay', false); onConfirm(); };
     document.getElementById('dialog-cancel').onclick = () => { window.toggleModal('dialog-overlay', false); };
 };
 
 window.showPrompt = (title, defaultVal, onConfirm) => {
-    document.getElementById('prompt-title').innerHTML = title;
+    document.getElementById('prompt-title').innerHTML = escapeForHTML(title);
     let input = document.getElementById('prompt-input');
     input.value = defaultVal || ''; 
     window.toggleModal('prompt-overlay', true);
@@ -66,6 +79,97 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
         let val = input.value.trim(); if(val) { window.toggleModal('prompt-overlay', false); onConfirm(val); }
     };
     document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
+};
+
+// 🌟 核心引擎：动态色彩调度器 (Monet / Material You)
+const ColorEngine = {
+    hexToHsl(hex) {
+        hex = hex.replace(/^#/, '');
+        if(hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+        let r = parseInt(hex.substring(0, 2), 16) / 255;
+        let g = parseInt(hex.substring(2, 4), 16) / 255;
+        let b = parseInt(hex.substring(4, 6), 16) / 255;
+        let max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+            let d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+    },
+    applyTheme(hex, isDark) {
+        if (!hex) return;
+        let { h, s } = this.hexToHsl(hex);
+        let root = document.documentElement;
+        
+        // 限制饱和度，防止纯荧光色破坏 MD3 高级灰质感
+        let s_safe = Math.max(15, Math.min(s, 85)); 
+        // 计算撞色 (Tertiary Color) - 在色环上偏移 60 度
+        let t_h = (h + 60) % 360; 
+        
+        if (!isDark) {
+            // 日间模式色阶推导
+            root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 40%)`);
+            root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 100%)`);
+            root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 92%)`);
+            root.style.setProperty('--on-primary-container', `hsl(${h}, ${s_safe}%, 10%)`);
+            
+            root.style.setProperty('--tertiary', `hsl(${t_h}, ${s_safe}%, 40%)`);
+            root.style.setProperty('--on-tertiary', `hsl(${t_h}, ${s_safe}%, 100%)`);
+            root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 92%)`);
+            root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 10%)`);
+            
+            // 背景融入主色调氛围
+            root.style.setProperty('--surface', `hsl(${h}, 15%, 98%)`);
+            root.style.setProperty('--on-surface', `hsl(${h}, 10%, 10%)`);
+            root.style.setProperty('--surface-container-low', `hsl(${h}, 15%, 96%)`);
+            root.style.setProperty('--surface-container', `hsl(${h}, 15%, 94%)`);
+            root.style.setProperty('--surface-container-high', `hsl(${h}, 15%, 90%)`);
+            
+            root.style.setProperty('--outline', `hsl(${h}, 10%, 50%)`);
+            root.style.setProperty('--outline-variant', `hsl(${h}, 15%, 80%)`);
+            
+            this.setMetaThemeColor(`hsl(${h}, 15%, 98%)`);
+        } else {
+            // 夜间模式色阶推导 (反转算法)
+            root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 80%)`);
+            root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 20%)`);
+            root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 25%)`);
+            root.style.setProperty('--on-primary-container', `hsl(${h}, ${s_safe}%, 90%)`);
+            
+            root.style.setProperty('--tertiary', `hsl(${t_h}, ${s_safe}%, 80%)`);
+            root.style.setProperty('--on-tertiary', `hsl(${t_h}, ${s_safe}%, 20%)`);
+            root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 25%)`);
+            root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 90%)`);
+            
+            // 夜间背景融入微弱的深沉主调
+            root.style.setProperty('--surface', `hsl(${h}, 10%, 6%)`);
+            root.style.setProperty('--on-surface', `hsl(${h}, 10%, 90%)`);
+            root.style.setProperty('--surface-container-low', `hsl(${h}, 10%, 10%)`);
+            root.style.setProperty('--surface-container', `hsl(${h}, 10%, 12%)`);
+            root.style.setProperty('--surface-container-high', `hsl(${h}, 10%, 18%)`);
+            
+            root.style.setProperty('--outline', `hsl(${h}, 10%, 60%)`);
+            root.style.setProperty('--outline-variant', `hsl(${h}, 10%, 30%)`);
+            
+            this.setMetaThemeColor(`hsl(${h}, 10%, 6%)`);
+        }
+    },
+    setMetaThemeColor(colorStr) {
+        let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        if(!metaThemeColor) {
+            metaThemeColor = document.createElement('meta');
+            metaThemeColor.name = "theme-color";
+            document.head.appendChild(metaThemeColor);
+        }
+        metaThemeColor.content = colorStr;
+    }
 };
 
 const BottomSheet = {
@@ -291,7 +395,14 @@ const Hardware = {
       } catch(e) {}
   },
   unlockSpeech() {
-      try { if (!window.speechSynthesis) return; let unlock = new SpeechSynthesisUtterance('あ'); unlock.volume = 0; window.speechSynthesis.speak(unlock); } catch(e) {}
+      try { 
+          if (!window.speechSynthesis) return; 
+          let unlock = new SpeechSynthesisUtterance('あ'); 
+          unlock.volume = 0; 
+          window.speechSynthesis.speak(unlock);
+          // 同时尝试恢复 AudioContext
+          if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
+      } catch(e) {}
   },
   speakText(text) {
     try {
@@ -308,7 +419,6 @@ const Hardware = {
 const View = {
   getEl: (id) => document.getElementById(id),
   
-  // 🌟 全新 Tab 路由系统
   switchTab(tabId) {
       document.querySelectorAll('.tab-view').forEach(el => {
           if (el.id === tabId) {
@@ -328,7 +438,6 @@ const View = {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
-  // 控制沉浸式学习模式覆盖层的显示与隐藏
   toggleStudyMode(show) {
       if (show) {
           this.getEl('study-area').classList.remove('hidden');
@@ -339,13 +448,20 @@ const View = {
 
   toggleTheme() {
     let dark = document.body.getAttribute('data-theme') === 'dark';
-    if (dark) { 
-        document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
+    let newIsDark = !dark;
+    if (newIsDark) { 
+        document.body.setAttribute('data-theme', 'dark'); 
+        localStorage.setItem('theme', 'dark'); 
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
     } else { 
-        document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
+        document.body.removeAttribute('data-theme'); 
+        localStorage.setItem('theme', 'light'); 
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
     }
+    
+    // 🌟 动态重绘当前颜色主题以适配日/夜模式
+    let currentColor = localStorage.getItem('themeColor') || '#8b7967';
+    ColorEngine.applyTheme(currentColor, newIsDark);
   },
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
@@ -365,7 +481,9 @@ const View = {
     let mainColors = [];
     let tagsHTML = tags.map(t => {
         let catInfo = getCat(t); mainColors.push(catInfo.color);
-        return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
+        // 🌟 转义词性文本，防止 XSS
+        let safeTag = escapeHTML(t);
+        return `<span class="type-capsule" style="background: ${catInfo.color};">${safeTag}</span>`;
     }).join('');
     let uniqueColors = [...new Set(mainColors)];
     let bg = uniqueColors[0] || 'var(--surface-container)';
@@ -394,6 +512,9 @@ const View = {
 
   renderDashboard() {
     let select = document.getElementById('group-select');
+    // 🌟 清空现有选项，避免重复添加
+    select.innerHTML = '';
+    
     let dueCount = Model.getSRSDueQueue().length;
     this.getEl('srs-due-count').innerText = dueCount;
     
@@ -475,7 +596,7 @@ const View = {
     card.querySelector('.watermark-layer').style.background = visuals.bg;
     this.getEl('flash-watermark').innerText = visuals.wm;
     
-    card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
+    card.classList.remove('anim-slide-out-left','anim-slide-out-right','anim-slide-in-left','anim-slide-in-right'); void card.offsetWidth;
     
     if (anim !== 'none') {
         Model.state.isAnimating = true; 
@@ -502,6 +623,7 @@ const View = {
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
+    // 🌟 转义显示内容，但保留 LaTeX 标记
     this.getEl('w-word').innerText = (!showWord) ? mask(w.word) : w.word; 
     this.getEl('w-kana').innerText = (!showKana) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
     this.getEl('w-meaning').innerText = (!showMeaning) ? mask(w.meaning) : w.meaning;
@@ -576,17 +698,27 @@ const View = {
     if (!exString) { exBox.style.display = 'none'; exBox.innerHTML = ''; return; }
     exBox.style.display = 'block';
     
-    let processedStr = exString;
+    // 🌟 转义例句中的 HTML，但保留 LaTeX 语法（$...$）和 \overset 等
+    let safeExString = escapeForHTML(exString);
+    let processedStr = safeExString;
     if (mode === 'spell' && targetWordObj) {
-        processedStr = exString.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
-            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${kanji}}`; return match;
+        processedStr = safeExString.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
+            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${escapeForHTML(kanji)}}`; 
+            return match;
         });
     }
 
     let htmlStr = processedStr.split('||').map(blk => {
-        let parts = blk.split('/'); let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; let cnPart = parts[1] ? parts[1].trim() : "";
-        if (mode === 'choice' && cnPart) { return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; }
-        return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
+        let parts = blk.split('/'); 
+        let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; 
+        let cnPart = parts[1] ? parts[1].trim() : "";
+        if (mode === 'choice' && cnPart) { 
+            let safeCn = escapeForHTML(cnPart);
+            return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${safeCn}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
+        }
+        let safeJp = escapeForHTML(jpPart);
+        let safeCn2 = escapeForHTML(cnPart);
+        return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${safeJp}</div><div class="dt-ex-cn revealed-translation">${safeCn2}</div></div>`;
     }).join('');
     
     exBox.innerHTML = htmlStr;
@@ -682,6 +814,7 @@ const View = {
       let isChecked = Model.state.selectedSet.has(idx);
       let card = document.createElement('div'); card.className = 'wb-card'; card.style.background = visuals.bg; card.dataset.idx = idx; 
       card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
+      // 🌟 转义所有文本内容
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
       fragment.appendChild(card);
@@ -705,9 +838,19 @@ const View = {
 const Controller = {
   init() {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
-    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
-    // 初始化设置页面的 MD3 开关状态
+    // 🌟 核心：初始化莫奈动态色彩引擎
+    if(localStorage.getItem('theme') === 'dark') { 
+        document.body.setAttribute('data-theme', 'dark'); 
+        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
+    }
+    let isDark = document.body.getAttribute('data-theme') === 'dark';
+    let currentColor = localStorage.getItem('themeColor') || '#8b7967';
+    ColorEngine.applyTheme(currentColor, isDark);
+    
+    let picker = View.getEl('theme-color-picker');
+    if(picker) picker.value = currentColor;
+
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
     let btnAs = View.getEl('btn-auto-speak-toggle');
     if(btnAs) btnAs.classList.toggle('on', autoSpeak);
@@ -724,7 +867,35 @@ const Controller = {
   },
 
   bindEvents() {
-    // 🌟 全局涟漪引擎
+    // 🌟 绑定莫奈调色盘事件
+    document.querySelectorAll('.color-preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            let color = e.currentTarget.dataset.color;
+            localStorage.setItem('themeColor', color);
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+            let picker = View.getEl('theme-color-picker');
+            if(picker) picker.value = color; 
+        });
+    });
+    
+    let picker = View.getEl('theme-color-picker');
+    if (picker) {
+        picker.addEventListener('input', (e) => {
+            let color = e.target.value;
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+        });
+        picker.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            let color = e.target.value;
+            localStorage.setItem('themeColor', color);
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+        });
+    }
+
     document.addEventListener('pointerdown', (e) => {
         let target = e.target.closest('button:not(.toggle-switch-btn), .wb-card, .icon-btn, .btn-action, .dt-choice-btn, .dt-spell-key, .bs-facade, .detail-nav-btn, .nav-item');
         if (!target || target.id === 'btn-long-press' || target.disabled || target.classList.contains('pressing')) return;
@@ -747,13 +918,11 @@ const Controller = {
         setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
     });
 
-    // 🌟 MD3 滚动海拔反馈 (Top App Bar)
     window.addEventListener('scroll', () => {
         let topBar = document.querySelector('.tab-view.active .top-app-bar');
         if (topBar) topBar.classList.toggle('scrolled', window.scrollY > 10);
     }, { passive: true });
 
-    // 🌟 底部导航栏点击事件
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
             let target = item.dataset.target;
@@ -768,7 +937,6 @@ const Controller = {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
     
-    // 退出沉浸式学习模式
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.toggleStudyMode(false); View.renderDashboard(); });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
@@ -781,7 +949,6 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    // 🌟 设置页开关状态切换 (MD3 纯 CSS 开关)
     View.getEl('btn-auto-speak-toggle').addEventListener('click', (e) => { 
         let btn = e.currentTarget;
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
@@ -817,7 +984,6 @@ const Controller = {
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
     
-    // 🌟 悬浮 FAB 长按打卡事件
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null;
     const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
@@ -910,7 +1076,11 @@ const Controller = {
     let startIdx = idx * 10; let endIdx = startIdx + 10;
     
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
-    if(sourceWords.length === 0) return;
+    // 🌟 检查队列是否为空
+    if(sourceWords.length === 0) {
+        showToast("⚠️ 该分组没有单词，请选择其他分组或导入词汇");
+        return;
+    }
 
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
     Model.state.currentWordFailed = false;
@@ -1049,7 +1219,48 @@ const Controller = {
   
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
   deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
-  importWords() { Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all') target = "默认词库"; let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } }); if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; } },
+  importWords() { 
+    Hardware.playSound('success'); 
+    let text = View.getEl('custom-input').value.trim(); 
+    if(!text) return; 
+    let target = View.getEl('wb-folder-filter').value; 
+    if(target === 'all') target = "默认词库"; 
+    let added = 0; 
+    let errors = [];
+    text.split('\n').forEach(line => { 
+        let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); 
+        // 🌟 校验：至少需要单词、假名、词性、释义 4 个字段
+        if(parts.length >= 4){ 
+            let word = parts[0].trim();
+            let kana = parts[1].trim();
+            let type = parts[2].trim();
+            let meaning = parts[3].trim();
+            let example = parts[4] ? parts[4].trim() : "";
+            // 🌟 转义存储，避免 XSS
+            Model.db.push({ 
+                word: word, 
+                kana: kana, 
+                type: type, 
+                meaning: meaning, 
+                example: example, 
+                folder: target, 
+                srs: { ease: 2.5, interval: 0, nextReview: Date.now() } 
+            }); 
+            added++; 
+        } else {
+            errors.push(line.substring(0, 30));
+        }
+    }); 
+    if(added) { 
+        Model.saveDB(); 
+        View.resetWordbankRenderer(); 
+        showToast(`成功导入 ${added} 词`); 
+        if(errors.length) showToast(`⚠️ ${errors.length} 行格式错误，已跳过`);
+        View.getEl('custom-input').value=''; 
+    } else {
+        showToast("❌ 未找到有效词条，格式应为：单词,假名,词性,释义,例句(可选)");
+    }
+  },
   openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
   navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
   

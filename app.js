@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * MD3 & Gamified UI 终极进化版 (底层 Tab 路由架构)
+ * MD3 终极版 + 莫奈动态色彩引擎 (Material You) + 涟漪动效
  */
 
 const escapeHTML = (str) => {
@@ -66,6 +66,97 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
         let val = input.value.trim(); if(val) { window.toggleModal('prompt-overlay', false); onConfirm(val); }
     };
     document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
+};
+
+// 🌟 核心引擎：动态色彩调度器 (Monet / Material You)
+const ColorEngine = {
+    hexToHsl(hex) {
+        hex = hex.replace(/^#/, '');
+        if(hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+        let r = parseInt(hex.substring(0, 2), 16) / 255;
+        let g = parseInt(hex.substring(2, 4), 16) / 255;
+        let b = parseInt(hex.substring(4, 6), 16) / 255;
+        let max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+            let d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h /= 6;
+        }
+        return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+    },
+    applyTheme(hex, isDark) {
+        if (!hex) return;
+        let { h, s } = this.hexToHsl(hex);
+        let root = document.documentElement;
+        
+        // 限制饱和度，防止纯荧光色破坏 MD3 高级灰质感
+        let s_safe = Math.max(15, Math.min(s, 85)); 
+        // 计算撞色 (Tertiary Color) - 在色环上偏移 60 度
+        let t_h = (h + 60) % 360; 
+        
+        if (!isDark) {
+            // 日间模式色阶推导
+            root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 40%)`);
+            root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 100%)`);
+            root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 92%)`);
+            root.style.setProperty('--on-primary-container', `hsl(${h}, ${s_safe}%, 10%)`);
+            
+            root.style.setProperty('--tertiary', `hsl(${t_h}, ${s_safe}%, 40%)`);
+            root.style.setProperty('--on-tertiary', `hsl(${t_h}, ${s_safe}%, 100%)`);
+            root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 92%)`);
+            root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 10%)`);
+            
+            // 背景融入主色调氛围
+            root.style.setProperty('--surface', `hsl(${h}, 15%, 98%)`);
+            root.style.setProperty('--on-surface', `hsl(${h}, 10%, 10%)`);
+            root.style.setProperty('--surface-container-low', `hsl(${h}, 15%, 96%)`);
+            root.style.setProperty('--surface-container', `hsl(${h}, 15%, 94%)`);
+            root.style.setProperty('--surface-container-high', `hsl(${h}, 15%, 90%)`);
+            
+            root.style.setProperty('--outline', `hsl(${h}, 10%, 50%)`);
+            root.style.setProperty('--outline-variant', `hsl(${h}, 15%, 80%)`);
+            
+            this.setMetaThemeColor(`hsl(${h}, 15%, 98%)`);
+        } else {
+            // 夜间模式色阶推导 (反转算法)
+            root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 80%)`);
+            root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 20%)`);
+            root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 25%)`);
+            root.style.setProperty('--on-primary-container', `hsl(${h}, ${s_safe}%, 90%)`);
+            
+            root.style.setProperty('--tertiary', `hsl(${t_h}, ${s_safe}%, 80%)`);
+            root.style.setProperty('--on-tertiary', `hsl(${t_h}, ${s_safe}%, 20%)`);
+            root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 25%)`);
+            root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 90%)`);
+            
+            // 夜间背景融入微弱的深沉主调
+            root.style.setProperty('--surface', `hsl(${h}, 10%, 6%)`);
+            root.style.setProperty('--on-surface', `hsl(${h}, 10%, 90%)`);
+            root.style.setProperty('--surface-container-low', `hsl(${h}, 10%, 10%)`);
+            root.style.setProperty('--surface-container', `hsl(${h}, 10%, 12%)`);
+            root.style.setProperty('--surface-container-high', `hsl(${h}, 10%, 18%)`);
+            
+            root.style.setProperty('--outline', `hsl(${h}, 10%, 60%)`);
+            root.style.setProperty('--outline-variant', `hsl(${h}, 10%, 30%)`);
+            
+            this.setMetaThemeColor(`hsl(${h}, 10%, 6%)`);
+        }
+    },
+    setMetaThemeColor(colorStr) {
+        let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        if(!metaThemeColor) {
+            metaThemeColor = document.createElement('meta');
+            metaThemeColor.name = "theme-color";
+            document.head.appendChild(metaThemeColor);
+        }
+        metaThemeColor.content = colorStr;
+    }
 };
 
 const BottomSheet = {
@@ -308,7 +399,6 @@ const Hardware = {
 const View = {
   getEl: (id) => document.getElementById(id),
   
-  // 🌟 全新 Tab 路由系统
   switchTab(tabId) {
       document.querySelectorAll('.tab-view').forEach(el => {
           if (el.id === tabId) {
@@ -328,7 +418,6 @@ const View = {
       window.scrollTo({ top: 0, behavior: 'smooth' });
   },
 
-  // 控制沉浸式学习模式覆盖层的显示与隐藏
   toggleStudyMode(show) {
       if (show) {
           this.getEl('study-area').classList.remove('hidden');
@@ -339,13 +428,20 @@ const View = {
 
   toggleTheme() {
     let dark = document.body.getAttribute('data-theme') === 'dark';
-    if (dark) { 
-        document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
+    let newIsDark = !dark;
+    if (newIsDark) { 
+        document.body.setAttribute('data-theme', 'dark'); 
+        localStorage.setItem('theme', 'dark'); 
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
     } else { 
-        document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
+        document.body.removeAttribute('data-theme'); 
+        localStorage.setItem('theme', 'light'); 
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
     }
+    
+    // 🌟 动态重绘当前颜色主题以适配日/夜模式
+    let currentColor = localStorage.getItem('themeColor') || '#8b7967';
+    ColorEngine.applyTheme(currentColor, newIsDark);
   },
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
@@ -705,9 +801,19 @@ const View = {
 const Controller = {
   init() {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
-    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
-    // 初始化设置页面的 MD3 开关状态
+    // 🌟 核心：初始化莫奈动态色彩引擎
+    if(localStorage.getItem('theme') === 'dark') { 
+        document.body.setAttribute('data-theme', 'dark'); 
+        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
+    }
+    let isDark = document.body.getAttribute('data-theme') === 'dark';
+    let currentColor = localStorage.getItem('themeColor') || '#8b7967';
+    ColorEngine.applyTheme(currentColor, isDark);
+    
+    let picker = View.getEl('theme-color-picker');
+    if(picker) picker.value = currentColor;
+
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
     let btnAs = View.getEl('btn-auto-speak-toggle');
     if(btnAs) btnAs.classList.toggle('on', autoSpeak);
@@ -724,7 +830,35 @@ const Controller = {
   },
 
   bindEvents() {
-    // 🌟 全局涟漪引擎
+    // 🌟 绑定莫奈调色盘事件
+    document.querySelectorAll('.color-preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            let color = e.currentTarget.dataset.color;
+            localStorage.setItem('themeColor', color);
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+            let picker = View.getEl('theme-color-picker');
+            if(picker) picker.value = color; 
+        });
+    });
+    
+    let picker = View.getEl('theme-color-picker');
+    if (picker) {
+        picker.addEventListener('input', (e) => {
+            let color = e.target.value;
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+        });
+        picker.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            let color = e.target.value;
+            localStorage.setItem('themeColor', color);
+            let isDark = document.body.getAttribute('data-theme') === 'dark';
+            ColorEngine.applyTheme(color, isDark);
+        });
+    }
+
     document.addEventListener('pointerdown', (e) => {
         let target = e.target.closest('button:not(.toggle-switch-btn), .wb-card, .icon-btn, .btn-action, .dt-choice-btn, .dt-spell-key, .bs-facade, .detail-nav-btn, .nav-item');
         if (!target || target.id === 'btn-long-press' || target.disabled || target.classList.contains('pressing')) return;
@@ -747,13 +881,11 @@ const Controller = {
         setTimeout(() => { if(ripple.parentNode) ripple.remove(); }, 500);
     });
 
-    // 🌟 MD3 滚动海拔反馈 (Top App Bar)
     window.addEventListener('scroll', () => {
         let topBar = document.querySelector('.tab-view.active .top-app-bar');
         if (topBar) topBar.classList.toggle('scrolled', window.scrollY > 10);
     }, { passive: true });
 
-    // 🌟 底部导航栏点击事件
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', () => {
             let target = item.dataset.target;
@@ -768,7 +900,6 @@ const Controller = {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
     
-    // 退出沉浸式学习模式
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.toggleStudyMode(false); View.renderDashboard(); });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
@@ -781,7 +912,6 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    // 🌟 设置页开关状态切换 (MD3 纯 CSS 开关)
     View.getEl('btn-auto-speak-toggle').addEventListener('click', (e) => { 
         let btn = e.currentTarget;
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
@@ -817,7 +947,6 @@ const Controller = {
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
     
-    // 🌟 悬浮 FAB 长按打卡事件
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null;
     const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };

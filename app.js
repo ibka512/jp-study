@@ -1,7 +1,7 @@
 /**
  * 钟摆日语 - 核心控制逻辑
  * MD3 终极版 + 莫奈动态色彩引擎 (Material You) + 涟漪动效
- * 修复版本：XSS防护、队列越界、选择器清空、导入校验、动画补全等
+ * 修复版本：激活DOMPurify防护、解决MathJax竞态漏洞、优化导入容错
  */
 
 const escapeHTML = (str) => {
@@ -11,15 +11,17 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
-// 增强版转义，保留 LaTeX 所需字符（$ 和 \）但转义其他 HTML
+// 增强版转义，真正激活 DOMPurify 彻底阻断 XSS 注入
 const escapeForHTML = (str) => {
     if (!str) return '';
-    // 先转义普通 HTML，再恢复 LaTeX 中可能需要的 $ 和 \（但 \ 本身也会被转义，这里做特殊处理）
-    // 更安全的做法：使用 DOMPurify，但为了不引入额外依赖，我们只转义关键字符
+    // 如果 DOMPurify 成功加载，使用它进行严格清洗（保留纯文本和安全字符）
+    if (typeof window.DOMPurify !== 'undefined') {
+        return window.DOMPurify.sanitize(String(str), { ALLOWED_TAGS: [] });
+    }
+    // 网络差未加载时的降级方案
     let escaped = String(str).replace(/[&<>'"]/g, tag => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
     }[tag]));
-    // 保留 $ 和 \ 不被转义，因为 MathJax 需要它们
     return escaped;
 };
 
@@ -81,7 +83,6 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
 };
 
-// 🌟 核心引擎：动态色彩调度器 (Monet / Material You)
 const ColorEngine = {
     hexToHsl(hex) {
         hex = hex.replace(/^#/, '');
@@ -108,13 +109,10 @@ const ColorEngine = {
         let { h, s } = this.hexToHsl(hex);
         let root = document.documentElement;
         
-        // 限制饱和度，防止纯荧光色破坏 MD3 高级灰质感
         let s_safe = Math.max(15, Math.min(s, 85)); 
-        // 计算撞色 (Tertiary Color) - 在色环上偏移 60 度
         let t_h = (h + 60) % 360; 
         
         if (!isDark) {
-            // 日间模式色阶推导
             root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 40%)`);
             root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 100%)`);
             root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 92%)`);
@@ -125,7 +123,6 @@ const ColorEngine = {
             root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 92%)`);
             root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 10%)`);
             
-            // 背景融入主色调氛围
             root.style.setProperty('--surface', `hsl(${h}, 15%, 98%)`);
             root.style.setProperty('--on-surface', `hsl(${h}, 10%, 10%)`);
             root.style.setProperty('--surface-container-low', `hsl(${h}, 15%, 96%)`);
@@ -137,7 +134,6 @@ const ColorEngine = {
             
             this.setMetaThemeColor(`hsl(${h}, 15%, 98%)`);
         } else {
-            // 夜间模式色阶推导 (反转算法)
             root.style.setProperty('--primary', `hsl(${h}, ${s_safe}%, 80%)`);
             root.style.setProperty('--on-primary', `hsl(${h}, ${s_safe}%, 20%)`);
             root.style.setProperty('--primary-container', `hsl(${h}, ${s_safe}%, 25%)`);
@@ -148,7 +144,6 @@ const ColorEngine = {
             root.style.setProperty('--tertiary-container', `hsl(${t_h}, ${s_safe}%, 25%)`);
             root.style.setProperty('--on-tertiary-container', `hsl(${t_h}, ${s_safe}%, 90%)`);
             
-            // 夜间背景融入微弱的深沉主调
             root.style.setProperty('--surface', `hsl(${h}, 10%, 6%)`);
             root.style.setProperty('--on-surface', `hsl(${h}, 10%, 90%)`);
             root.style.setProperty('--surface-container-low', `hsl(${h}, 10%, 10%)`);
@@ -400,7 +395,6 @@ const Hardware = {
           let unlock = new SpeechSynthesisUtterance('あ'); 
           unlock.volume = 0; 
           window.speechSynthesis.speak(unlock);
-          // 同时尝试恢复 AudioContext
           if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
       } catch(e) {}
   },
@@ -459,7 +453,6 @@ const View = {
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
     }
     
-    // 🌟 动态重绘当前颜色主题以适配日/夜模式
     let currentColor = localStorage.getItem('themeColor') || '#8b7967';
     ColorEngine.applyTheme(currentColor, newIsDark);
   },
@@ -481,7 +474,6 @@ const View = {
     let mainColors = [];
     let tagsHTML = tags.map(t => {
         let catInfo = getCat(t); mainColors.push(catInfo.color);
-        // 🌟 转义词性文本，防止 XSS
         let safeTag = escapeHTML(t);
         return `<span class="type-capsule" style="background: ${catInfo.color};">${safeTag}</span>`;
     }).join('');
@@ -512,7 +504,6 @@ const View = {
 
   renderDashboard() {
     let select = document.getElementById('group-select');
-    // 🌟 清空现有选项，避免重复添加
     select.innerHTML = '';
     
     let dueCount = Model.getSRSDueQueue().length;
@@ -623,7 +614,6 @@ const View = {
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
-    // 🌟 转义显示内容，但保留 LaTeX 标记
     this.getEl('w-word').innerText = (!showWord) ? mask(w.word) : w.word; 
     this.getEl('w-kana').innerText = (!showKana) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
     this.getEl('w-meaning').innerText = (!showMeaning) ? mask(w.meaning) : w.meaning;
@@ -723,8 +713,13 @@ const View = {
     
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
-    if (window.MathJax) { MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1')); } 
-    else { jpExEls.forEach(el => el.style.opacity = '1'); }
+    
+    // 🌟 修复 MathJax 竞态漏洞：检测 typesetPromise 是否已成功挂载
+    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') { 
+        MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1')); 
+    } else { 
+        jpExEls.forEach(el => el.style.opacity = '1'); 
+    }
   },
 
   renderDualTrackUI(wObj) {
@@ -814,7 +809,6 @@ const View = {
       let isChecked = Model.state.selectedSet.has(idx);
       let card = document.createElement('div'); card.className = 'wb-card'; card.style.background = visuals.bg; card.dataset.idx = idx; 
       card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
-      // 🌟 转义所有文本内容
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
       fragment.appendChild(card);
@@ -839,7 +833,6 @@ const Controller = {
   init() {
     BottomSheet.init(); Model.init(); Hardware.init(); View.renderDashboard(); View.updateWordbankUI(); this.bindEvents(); this.setupIntersectionObserver();
     
-    // 🌟 核心：初始化莫奈动态色彩引擎
     if(localStorage.getItem('theme') === 'dark') { 
         document.body.setAttribute('data-theme', 'dark'); 
         document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
@@ -867,7 +860,6 @@ const Controller = {
   },
 
   bindEvents() {
-    // 🌟 绑定莫奈调色盘事件
     document.querySelectorAll('.color-preset-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             Hardware.playSound('click'); Hardware.vibrate(15);
@@ -1040,7 +1032,54 @@ const Controller = {
     View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
     View.getEl('btn-batch-move').addEventListener('click', () => this.openMoveModal(-2)); View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
     View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
-    View.getEl('btn-import').addEventListener('click', () => this.importWords());
+    
+    // 🌟 修复：完善导入容错功能
+    View.getEl('btn-import').addEventListener('click', () => { 
+        Hardware.playSound('success'); 
+        let text = View.getEl('custom-input').value.trim(); 
+        if(!text) return; 
+        let target = View.getEl('wb-folder-filter').value; 
+        if(target === 'all') target = "默认词库"; 
+        let added = 0; 
+        let errors = [];
+        text.split('\n').forEach(line => { 
+            let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); 
+            // 校验：至少需要单词、假名、词性、释义 4 个字段
+            if(parts.length >= 4){ 
+                let word = parts[0].trim();
+                let kana = parts[1].trim();
+                let type = parts[2].trim();
+                let meaning = parts[3].trim();
+                let example = parts[4] ? parts[4].trim() : "";
+                Model.db.push({ 
+                    word: escapeHTML(word), 
+                    kana: escapeHTML(kana), 
+                    type: escapeHTML(type), 
+                    meaning: escapeHTML(meaning), 
+                    example: escapeForHTML(example), 
+                    folder: escapeHTML(target), 
+                    srs: { ease: 2.5, interval: 0, nextReview: Date.now() } 
+                }); 
+                added++; 
+            } else if (line.trim() !== '') {
+                // 剔除空行干扰，并使用 escapeHTML 进行转义保护
+                errors.push(escapeHTML(line.substring(0, 30)));
+            }
+        }); 
+        if(added) { 
+            Model.saveDB(); 
+            View.resetWordbankRenderer(); 
+            showToast(`成功导入 ${added} 词`); 
+            if(errors.length) {
+                // 采用 setTimeout 错开导入成功和错误的提示 Toast
+                setTimeout(() => showToast(`⚠️ ${errors.length} 行格式错误，已跳过`), 2500);
+            }
+            View.getEl('custom-input').value=''; 
+        } else {
+            showToast("❌ 未找到有效词条，格式应为：单词,假名,词性,释义,例句(可选)");
+        }
+    });
+
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
@@ -1076,7 +1115,6 @@ const Controller = {
     let startIdx = idx * 10; let endIdx = startIdx + 10;
     
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
-    // 🌟 检查队列是否为空
     if(sourceWords.length === 0) {
         showToast("⚠️ 该分组没有单词，请选择其他分组或导入词汇");
         return;
@@ -1219,48 +1257,7 @@ const Controller = {
   
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
   deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
-  importWords() { 
-    Hardware.playSound('success'); 
-    let text = View.getEl('custom-input').value.trim(); 
-    if(!text) return; 
-    let target = View.getEl('wb-folder-filter').value; 
-    if(target === 'all') target = "默认词库"; 
-    let added = 0; 
-    let errors = [];
-    text.split('\n').forEach(line => { 
-        let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); 
-        // 🌟 校验：至少需要单词、假名、词性、释义 4 个字段
-        if(parts.length >= 4){ 
-            let word = parts[0].trim();
-            let kana = parts[1].trim();
-            let type = parts[2].trim();
-            let meaning = parts[3].trim();
-            let example = parts[4] ? parts[4].trim() : "";
-            // 🌟 转义存储，避免 XSS
-            Model.db.push({ 
-                word: word, 
-                kana: kana, 
-                type: type, 
-                meaning: meaning, 
-                example: example, 
-                folder: target, 
-                srs: { ease: 2.5, interval: 0, nextReview: Date.now() } 
-            }); 
-            added++; 
-        } else {
-            errors.push(line.substring(0, 30));
-        }
-    }); 
-    if(added) { 
-        Model.saveDB(); 
-        View.resetWordbankRenderer(); 
-        showToast(`成功导入 ${added} 词`); 
-        if(errors.length) showToast(`⚠️ ${errors.length} 行格式错误，已跳过`);
-        View.getEl('custom-input').value=''; 
-    } else {
-        showToast("❌ 未找到有效词条，格式应为：单词,假名,词性,释义,例句(可选)");
-    }
-  },
+  
   openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
   navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
   

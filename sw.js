@@ -1,4 +1,5 @@
-const CACHE_NAME = 'pendulum-v19';  // 版本升级，确保旧缓存被清除
+// 🌟 缓存版本号升级到 v19，强制拉取最新的安全修复与特性
+const CACHE_NAME = 'pendulum-v19';  
 const ASSETS = [
   './',
   './index.html',
@@ -70,10 +71,8 @@ const OFFLINE_PAGE = `<!DOCTYPE html>
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // 使用 addAll 同时缓存所有指定资源
       return cache.addAll(ASSETS).catch(err => {
         console.warn('缓存部分资源失败', err);
-        // 即使部分失败，也尝试继续
       });
     })
   );
@@ -114,22 +113,16 @@ self.addEventListener('fetch', (event) => {
 
       // 否则发起网络请求
       return fetch(event.request).then((networkResponse) => {
-        // 确保响应有效且状态为 200（成功），或者 304（未修改）也可以处理
-        // 注意：304 响应没有 body，不能直接缓存，但我们可以认为它等同于缓存中的版本，这里不处理 304 的缓存
+        // 确保响应有效且状态为 200（成功）
         if (networkResponse && networkResponse.status === 200) {
-          // 克隆响应，因为响应流只能使用一次
           const responseToCache = networkResponse.clone();
-          // 将新资源存入缓存（仅限于 GET 请求且不是浏览器扩展请求）
           caches.open(CACHE_NAME).then((cache) => {
-            // 可以缓存跨域资源，但需要注意响应类型
             cache.put(event.request, responseToCache);
           }).catch(err => console.warn('缓存写入失败', err));
         }
-        // 返回网络响应
         return networkResponse;
       }).catch(() => {
         // 网络请求失败（无网络），返回离线页面作为 fallback
-        // 尝试匹配 index.html 或者直接返回离线提示页面
         return caches.match('./index.html').then(cachedIndex => {
           if (cachedIndex) {
             return cachedIndex;

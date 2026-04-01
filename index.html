@@ -68,13 +68,13 @@
         <button id="btn-start-pendulum" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">directions_run</span> 经典突击
         </button>
-        <button id="btn-start-dual-track" style="flex: 1 1 40%; background: var(--accent-red); color: var(--on-primary); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+        <button id="btn-start-dual-track" style="flex: 1 1 40%; background: var(--accent-red-bg); color: var(--accent-red); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">swords</span> 闯关模式
         </button>
-        <button id="btn-start-rote-learning" style="flex: 1 1 40%; background: var(--tertiary); color: var(--on-primary); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+        <button id="btn-start-rote-learning" style="flex: 1 1 40%; background: var(--tertiary-container); color: var(--on-tertiary-container); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">menu_book</span> 死记硬背
         </button>
-        <button id="btn-start-memory-test" style="flex: 1 1 40%; background: var(--on-surface); color: var(--surface); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
+        <button id="btn-start-memory-test" style="flex: 1 1 40%; background: var(--surface-container-high); color: var(--on-surface); margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
             <span class="material-symbols-rounded">quiz</span> 记忆检测
         </button>
       </div>
@@ -129,14 +129,14 @@
           <div class="setting-title">音量键翻页</div>
           <div class="setting-desc">使用手机侧边音量键切换卡片</div>
         </div>
-        <button id="btn-vol-nav-toggle" class="toggle-switch-btn"><div class="switch-thumb"></div></button>
+        <button id="btn-vol-nav-toggle" class="toggle-switch-btn"><span class="material-symbols-rounded" id="vol-nav-icon">toggle_off</span></button>
       </div>
       <div class="setting-row">
         <div class="setting-info">
           <div class="setting-title">自动朗读</div>
           <div class="setting-desc">翻页时自动播放单词假名发音</div>
         </div>
-        <button id="btn-auto-speak-toggle" class="toggle-switch-btn"><div class="switch-thumb"></div></button>
+        <button id="btn-auto-speak-toggle" class="toggle-switch-btn"><span class="material-symbols-rounded" id="auto-speak-icon">toggle_on</span></button>
       </div>
     </div>
 
@@ -147,7 +147,7 @@
          <button id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--accent-red); color: var(--accent-red); padding: 12px;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删夹</button>
       </div>
       <textarea id="custom-input" placeholder="格式：单词,假名,词性,释义,例句(可选)&#10;用逗号或Tab分隔"></textarea>
-      <button id="btn-import" style="background: var(--tertiary); color: var(--on-tertiary); margin-bottom: 20px;">导入新词</button>
+      <button id="btn-import" style="background: var(--tertiary-container); color: var(--on-tertiary-container); margin-bottom: 20px;">导入新词</button>
       
       <div style="border-top: 1px solid var(--outline-variant); padding-top: 20px; margin-top: 8px;">
         <button id="btn-reset" class="btn-outline" style="border-color: var(--accent-red); color: var(--accent-red);">恢复初始内置词汇</button>

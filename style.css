@@ -63,9 +63,15 @@
     --primary-container: #624021;
     --on-primary-container: #FFDCC1;
 
+    /* 💡 补全缺失的 Secondary 变量，修复底部导航栏的发光问题 */
+    --secondary: #E5C0A4;
+    --on-secondary: #412D1D;
+    --secondary-container: #4D3624; 
+    --on-secondary-container: #FFDCBE; 
+
     --tertiary: #B4CCBF;
     --on-tertiary: #20352D;
-    --tertiary-container: #374B43;
+    --tertiary-container: #374B43; 
     --on-tertiary-container: #D1E9DF;
 
     --surface: #151311; 
@@ -78,10 +84,10 @@
     --outline-variant: #504539;
 
     --accent-red: #FFB4AB; 
-    --accent-red-bg: #93000A; 
-    --accent-green-bg: #0F5223; 
+    --accent-red-bg: #410002; 
+    --accent-green-bg: #083816; 
 
-    /* 词卡背景色：改用 8% 透明度的亮色叠加，告别深色模式下的浑浊感 */
+    /* 词卡背景色：改用 8% 透明度的亮色叠加，消除浑浊感 */
     --bg-verb: rgba(208, 239, 255, 0.08); 
     --bg-noun: rgba(255, 229, 204, 0.08); 
     --bg-adj: rgba(255, 221, 228, 0.08);        
@@ -213,7 +219,9 @@
   .action-icon-btn { width: 40px; height: 40px; font-size: 1.2rem; } /* 顶栏稍小的操作按钮 */
 
   .btn-small { padding: 10px var(--space-sm); font-size: 0.95rem; width: auto; border-radius: var(--radius-full); }
-  .btn-srs { background: var(--tertiary); color: var(--on-tertiary);}
+  
+  /* 💡 修复 SRS 按钮为 Container 色 */
+  .btn-srs { background: var(--tertiary-container); color: var(--on-tertiary-container);}
 
   textarea, input { background: transparent; border: 1px solid var(--outline); border-radius: var(--radius-sm); padding: var(--space-sm) 20px; font-size: 0.95rem; width: 100%; margin-bottom: 20px; color: var(--on-surface); font-family: var(--font-ui); outline: none; transition: border-color 0.3s, box-shadow 0.3s; }
   textarea:focus, input:focus { border-color: var(--primary); border-width: 2px; padding: calc(var(--space-sm) - 1px) 19px; }

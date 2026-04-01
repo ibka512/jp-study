@@ -360,9 +360,7 @@ const View = {
     let stats = Model.calculateStats();
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
-    this.getEl('total-words').innerText = Model.records.filter(r => !r.type || r.type === 'pendulum').length; 
     
-    let select = this.getEl('group-select'); select.innerHTML = '';
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
       // 🌟 修复 Bug 4: 分组索引不再重叠，严格以 10 为步长切块

@@ -354,6 +354,7 @@ const View = {
   },
 
   renderDashboard() {
+    let select = document.getElementById('group-select');
     let dueCount = Model.getSRSDueQueue().length;
     this.getEl('srs-due-count').innerText = dueCount;
     

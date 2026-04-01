@@ -1,5 +1,4 @@
-// 🌟 缓存版本号升级到 v19，强制拉取最新的安全修复与特性
-const CACHE_NAME = 'pendulum-v19';  
+const CACHE_NAME = 'pendulum-v17';
 const ASSETS = [
   './',
   './index.html',
@@ -10,70 +9,11 @@ const ASSETS = [
   './app.js'
 ];
 
-// 离线时显示的简单 HTML 页面（作为 fallback）
-const OFFLINE_PAGE = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>钟摆日语 - 离线提示</title>
-<style>
-  body {
-    font-family: system-ui, -apple-system, "PingFang SC", sans-serif;
-    background: #faf9f7;
-    color: #1e1b18;
-    text-align: center;
-    padding: 2rem;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 100vh;
-  }
-  .icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-  }
-  h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
-  p {
-    opacity: 0.7;
-    margin-bottom: 2rem;
-  }
-  button {
-    background: #8b7967;
-    color: white;
-    border: none;
-    border-radius: 28px;
-    padding: 12px 24px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
-  }
-  button:active {
-    transform: scale(0.96);
-  }
-</style>
-</head>
-<body>
-<div class="icon">📴</div>
-<h1>当前无网络连接</h1>
-<p>请检查网络后刷新页面，或尝试重新打开应用。</p>
-<button onclick="location.reload()">重新加载</button>
-</body>
-</html>`;
-
-// 安装并强制缓存核心资源
+// 安装并强制缓存
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch(err => {
-        console.warn('缓存部分资源失败', err);
-      });
+      return cache.addAll(ASSETS);
     })
   );
   self.skipWaiting(); // 强制跳过等待，立即激活
@@ -91,49 +31,36 @@ self.addEventListener('activate', (event) => {
   self.clients.claim(); // 立即接管页面
 });
 
-// 核心：拦截请求并动态缓存外部资源，支持离线回退
+// 核心：拦截请求并动态缓存外部 CDN 资源
 self.addEventListener('fetch', (event) => {
-  // 仅处理 GET 请求，忽略非 GET 方法（如 POST）
-  if (event.request.method !== 'GET') {
-    return;
-  }
-
-  // 对于浏览器扩展或非 HTTP 请求，直接放行
-  const url = new URL(event.request.url);
-  if (url.protocol === 'chrome-extension:' || url.protocol === 'moz-extension:') {
-    return;
-  }
-
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // 如果缓存中有响应，直接返回（快速响应）
-      if (cachedResponse) {
-        return cachedResponse;
+    caches.match(event.request).then((response) => {
+      // 1. 如果缓存里有，直接秒开返回（包括断网时）
+      if (response) {
+        return response;
       }
-
-      // 否则发起网络请求
-      return fetch(event.request).then((networkResponse) => {
-        // 确保响应有效且状态为 200（成功）
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          }).catch(err => console.warn('缓存写入失败', err));
+      
+      // 2. 如果缓存没有，就走网络请求
+      let fetchRequest = event.request.clone();
+      return fetch(fetchRequest).then((networkResponse) => {
+        // 确保请求成功，并且是我们需要的资源（排除浏览器插件等请求）
+        if (!networkResponse || networkResponse.status !== 200 || (networkResponse.type !== 'basic' && networkResponse.type !== 'cors')) {
+          return networkResponse;
         }
-        return networkResponse;
-      }).catch(() => {
-        // 网络请求失败（无网络），返回离线页面作为 fallback
-        return caches.match('./index.html').then(cachedIndex => {
-          if (cachedIndex) {
-            return cachedIndex;
+
+        // 3. 把新请求到的外部字体、JS 存入缓存，下次断网就能用了
+        let responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          // 注意：不要缓存 POST 请求或 Chrome 扩展程序的请求
+          if (event.request.method === 'GET' && !event.request.url.startsWith('chrome-extension')) {
+            cache.put(event.request, responseToCache);
           }
-          // 如果没有缓存 index.html，返回一个简单的离线提示页面
-          return new Response(OFFLINE_PAGE, {
-            status: 200,
-            headers: { 'Content-Type': 'text/html; charset=utf-8' }
-          });
         });
+
+        return networkResponse;
       });
+    }).catch(() => {
+      console.log('网络断开，且未找到缓存资源');
     })
   );
 });

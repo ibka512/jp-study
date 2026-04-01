@@ -408,14 +408,30 @@ const View = {
         mode = 'all';
     }
 
-    if (isMemTest) {
-        this.getEl('progress-text').innerText = `剩余: ${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
+    // 🌟 核心修改: 方案一进度显示逻辑
+    if (Model.state.mode === 'srs') {
+        this.getEl('pixel-matrix').style.display = 'none';
+        this.getEl('srs-progress-container').classList.remove('hidden');
+        
+        let remaining = Model.state.studyQueue.length - Model.state.currentIndex;
+        this.getEl('progress-text').innerHTML = `<span style="color: var(--tertiary); font-weight: 800;">剩余: ${remaining}</span>`;
+        
+        let progressPercent = (Model.state.currentIndex / Math.max(1, Model.state.studyQueue.length)) * 100;
+        this.getEl('srs-progress-bar').style.width = `${progressPercent}%`;
     } else {
-        this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
-    }
-    
-    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || Model.state.mode === 'srs' || isMemTest || isRote) {
-        this.updatePixelMatrix(); 
+        this.getEl('pixel-matrix').style.display = 'flex';
+        let srsContainer = this.getEl('srs-progress-container');
+        if(srsContainer) srsContainer.classList.add('hidden');
+
+        if (isMemTest) {
+            this.getEl('progress-text').innerText = `剩余: ${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
+        } else {
+            this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
+        }
+        
+        if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || isMemTest || isRote) {
+            this.updatePixelMatrix(); 
+        }
     }
 
     let card = this.getEl('flash-card');
@@ -881,6 +897,7 @@ const Controller = {
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
+  // 🌟 核心修改：增加流光动画触发逻辑
   handleSRSRating(rating) {
     if (Model.state.isAnimating) return;
     Model.state.isAnimating = true; Hardware.playSound('click'); Hardware.vibrate(30); 
@@ -889,6 +906,15 @@ const Controller = {
         btn.classList.remove('btn-active-feedback'); let realIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.calculateSRS(realIdx, rating); 
         if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
         Model.state.currentIndex++; Model.state.isAnimating = false;
+        
+        // 触发流光动画
+        let glow = View.getEl('srs-progress-glow');
+        if (glow) {
+            glow.classList.remove('srs-glow-active');
+            void glow.offsetWidth; // 触发重绘
+            glow.classList.add('srs-glow-active');
+        }
+
         if (Model.state.currentIndex >= Model.state.studyQueue.length) { Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); } else { View.renderStudyCard('next'); }
     }, 300);
   },

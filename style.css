@@ -81,8 +81,14 @@
     --accent-red-bg: #93000A; 
     --accent-green-bg: #0F5223; 
 
-    --bg-verb: #113B4D; --bg-noun: #4D280B; --bg-adj: #47152A;        
-    --bg-adj-na: #4A401A; --bg-adv: #163E23; --bg-pronoun: #14404A; --bg-other: #292B2B;      
+    /* 词卡背景色：改用 8% 透明度的亮色叠加，告别深色模式下的浑浊感 */
+    --bg-verb: rgba(208, 239, 255, 0.08); 
+    --bg-noun: rgba(255, 229, 204, 0.08); 
+    --bg-adj: rgba(255, 221, 228, 0.08);        
+    --bg-adj-na: rgba(255, 242, 194, 0.08); 
+    --bg-adv: rgba(199, 246, 214, 0.08); 
+    --bg-pronoun: rgba(204, 240, 240, 0.08); 
+    --bg-other: rgba(236, 238, 237, 0.08);      
 
     --elevation-1: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
     --elevation-2: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 2px 6px 2px rgba(0,0,0,0.15);
@@ -132,7 +138,7 @@
   .nav-item.active .nav-icon { font-variation-settings: 'FILL' 1; color: var(--on-secondary-container);}
   .nav-label { font-size: 0.75rem; font-weight: 700; pointer-events: none;}
 
-  /* 🌟 悬浮操作按钮 FAB (Floating Action Button) */
+  /* 🌟 悬浮操作按钮 FAB (Floating Action Button) - 维持高亮主色 */
   .fab-btn { 
       position: fixed; right: var(--space-md); bottom: calc(96px + env(safe-area-inset-bottom)); 
       width: auto; height: 64px; border-radius: var(--radius-lg); 
@@ -188,9 +194,11 @@
   
   h3 { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid var(--outline-variant); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;}
   
-  /* 按钮统一规范 */
+  /* 按钮统一规范 - 降级为柔和的 Container 色 */
   button { 
-      background: var(--primary); color: var(--on-primary); border: none; font-family: var(--font-ui); 
+      background: var(--primary-container); 
+      color: var(--on-primary-container); 
+      border: none; font-family: var(--font-ui); 
       border-radius: var(--radius-full); padding: var(--space-sm) var(--space-md); 
       font-weight: 700; font-size: 1.05rem; cursor: pointer; 
       transition: transform 0.2s var(--spring), background-color 0.3s, opacity 0.3s; width: 100%; 
@@ -289,7 +297,8 @@
   
   #capsule-pendulum .btn-action { flex-direction: row; gap: 8px; padding: 20px 16px;}
   #btn-prev { background: transparent; border-color: var(--outline); opacity: 0.8; }
-  #btn-next { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent;}
+  /* 下一个按钮：保持高亮的 Primary 色 */
+  #btn-next { background: var(--primary); color: var(--on-primary); border-color: transparent;}
   #btn-finish { background: var(--tertiary); color: var(--on-tertiary); border-color: transparent;}
   
   #capsule-srs .btn-action { padding: 14px 8px; font-weight: 700; border: none; }
@@ -298,10 +307,11 @@
   #capsule-srs .btn-srs-good { color: var(--on-tertiary-container); background: var(--tertiary-container); }
   #capsule-srs .btn-srs-easy { color: #0F5223; background: var(--accent-green-bg); }
   
-  [data-theme="dark"] #capsule-srs .btn-srs-hard { background: #4F2514; color: #FFDCC5; }
-  [data-theme="dark"] #capsule-srs .btn-srs-easy { background: #083816; color: #C4EED0; }
-  [data-theme="dark"] #capsule-srs .btn-srs-good { background: #23352A; color: #B4CCBF; }
-  [data-theme="dark"] #capsule-srs .btn-srs-again { background: #410002; color: #FFB4AB; }
+  /* SRS 按钮深色模式：使用 12% 的亮色叠加背景，消除浑浊感 */
+  [data-theme="dark"] #capsule-srs .btn-srs-again { background: rgba(255, 180, 171, 0.12); color: #FFB4AB; }
+  [data-theme="dark"] #capsule-srs .btn-srs-hard { background: rgba(255, 184, 120, 0.12); color: #FFB878; }
+  [data-theme="dark"] #capsule-srs .btn-srs-good { background: rgba(180, 204, 191, 0.12); color: #B4CCBF; }
+  [data-theme="dark"] #capsule-srs .btn-srs-easy { background: rgba(168, 234, 185, 0.12); color: #A8EAB9; }
   
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 

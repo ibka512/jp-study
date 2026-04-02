@@ -614,3 +614,24 @@
     border-radius: var(--radius-sm) !important;
     box-shadow: 0 4px 12px var(--paper-shadow) !important;
 }
+/* ==========================================
+   🌙 终极视觉：View Transitions 水波纹动画专属配置
+   ========================================== */
+
+/* 1. 禁用系统默认的交叉淡化动画 */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+    display: block;
+}
+
+/* 2. 确保新状态的截图永远盖在旧状态上面，准备向外扩散 */
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* 3. 🚨 极其关键：强行关闭背景色和文字颜色的 CSS 缓动！
+      把变色的工作全部交给 View Transition 瞬间截图完成，防止出现残影。*/
+body, .card-panel, .global-header, .bottom-nav, .type-capsule, .wb-card {
+    transition-property: transform, box-shadow, filter, opacity, top, bottom, left, right !important;
+}

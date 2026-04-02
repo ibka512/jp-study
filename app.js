@@ -353,16 +353,57 @@ const View = {
       }
   },
   
-  toggleTheme() {
-    let dark = document.body.getAttribute('data-theme') === 'dark';
-    if (dark) { 
-        document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
-        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
-    } else { 
-        document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
-        document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
+  toggleTheme(e) {
+    let isDark = document.body.getAttribute('data-theme') === 'dark';
+    
+    // 这是核心的属性切换逻辑
+    let toggleAction = () => {
+        if (isDark) { 
+            document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
+            document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
+        } else { 
+            document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
+            document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
+        }
+    };
+
+    // 如果浏览器版本太老不支持 View Transitions API，直接无缝秒切
+    if (!document.startViewTransition) {
+        toggleAction();
+        return;
     }
+
+    // 🌟 获取手指点击的精确坐标作为水波纹圆心。如果没有事件（比如代码触发），就取屏幕正中心
+    const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
+    const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
+
+    // 📐 使用勾股定理，计算圆心到屏幕最远角落的距离，确保水波纹能覆盖全屏
+    const endRadius = Math.hypot(
+        Math.max(x, window.innerWidth - x),
+        Math.max(y, window.innerHeight - y)
+    );
+
+    // 🚀 启动现代视图过渡魔法！
+    const transition = document.startViewTransition(toggleAction);
+
+    // 当系统截好图，准备开始动画时，注入我们的圆形扩散路径
+    transition.ready.then(() => {
+        const clipPath = [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${endRadius}px at ${x}px ${y}px)`
+        ];
+        
+        document.documentElement.animate(
+            { clipPath: clipPath },
+            {
+                duration: 500, // 波纹扩散时长 0.5 秒
+                easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', // 配合我们整体 UI 的弹簧缓动曲线
+                pseudoElement: '::view-transition-new(root)', // 让新截图像水波一样展开
+            }
+        );
+    });
   },
+
   
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
@@ -779,7 +820,13 @@ const Controller = {
 
   bindEvents() {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
-    document.querySelectorAll('.theme-toggle-btn').forEach(btn => { btn.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(); }); });
+    document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
+        btn.addEventListener('click', (e) => { // 接收点击事件 e
+            Hardware.playSound('click'); 
+            Hardware.vibrate(20); 
+            View.toggleTheme(e); // 把 e 传给控制函数，以获取手指坐标
+        }); 
+    });
     
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('tab-home'); View.renderDashboard(); });
 

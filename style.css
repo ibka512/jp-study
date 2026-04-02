@@ -1,7 +1,7 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   
   :root {
-    /* 核心色彩 */
+    /* 核心色彩 (极度护眼的象牙米白与大地色系) */
     --primary: #8b7967; --primary-container: #f4f0ea; --on-primary: #ffffff;
     --surface: #fbfaf5; --surface-container: #ffffff; --on-surface: #3a352f;
     --outline: #ddd5cc; --tertiary: #6b847b;        
@@ -11,7 +11,7 @@
     --bg-verb: #D0EFFF; --bg-noun: #FFE5CC; --bg-adj: #FFDDE4;        
     --bg-adj-na: #FFF2C2; --bg-adv: #C7F6D6; --bg-pronoun: #CCF0F0; --bg-other: #ECEEED;      
 
-    /* 特种纸厚度与油墨视觉变量 (触觉排版风 & 轻拟物) */
+    /* 特种纸厚度与油墨视觉变量 */
     --paper-highlight: rgba(255, 255, 255, 0.8);
     --paper-shadow: rgba(139, 121, 103, 0.15);
     --ink-emboss: rgba(255, 255, 255, 0.6);
@@ -28,6 +28,7 @@
   }
 
   [data-theme="dark"] {
+    /* 醇厚黑巧夜间模式 */
     --primary: #d6c3b0; --primary-container: #503f2f; --on-primary: #3b2e21;      
     --surface: #1a1816; --surface-container: #24211e; --on-surface: #e8e2d9;      
     --outline: #79726a; --tertiary: #a4c7b6;        
@@ -47,7 +48,7 @@
 
   body { 
     font-family: var(--font-ui); background-color: var(--surface); color: var(--on-surface); 
-    margin: 0; transition: background-color 0.4s, color 0.4s; overflow-x: hidden;
+    margin: 0; overflow-x: hidden;
   }
   
   /* 全局和纸噪点纹理 */
@@ -75,7 +76,6 @@
     display: flex; justify-content: space-between; align-items: center;
     padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
     border-bottom: 1px solid rgba(139, 121, 103, 0.1);
-    transition: background 0.4s;
   }
   [data-theme="dark"] .global-header { background: rgba(26, 24, 22, 0.85); border-color: rgba(255,255,255,0.05); }
 
@@ -91,7 +91,7 @@
     padding-top: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 20px rgba(0,0,0,0.04);
     border-top: 1px solid rgba(139, 121, 103, 0.1);
-    transition: background 0.4s, transform 0.4s var(--spring);
+    transition: transform 0.4s var(--spring);
   }
   [data-theme="dark"] .bottom-nav { border-top-color: rgba(255,255,255,0.05); }
 
@@ -127,18 +127,15 @@
       box-shadow: inset 0 1px 1px var(--paper-highlight), 0 8px 24px var(--paper-shadow);
       border: 1px solid var(--paper-highlight);
       border-bottom-color: transparent;
-      transition: background-color 0.4s, box-shadow 0.4s; 
   }
 
   h3 { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-top: 0; padding-bottom: 12px; border-bottom: 2px solid var(--outline); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;}
   
-  /* 🎯 全新轻拟物图标按键 (树脂镶嵌感) */
   .glass-icon-btn {
       width: 44px; height: 44px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       background: transparent; color: var(--primary); flex-shrink: 0;
       cursor: pointer; transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-      /* 树脂高光边缘与弥散阴影 */
       border: 1px solid var(--paper-highlight);
       border-bottom-color: transparent;
       box-shadow: inset 0 1px 1px var(--paper-highlight), 0 4px 10px var(--paper-shadow);
@@ -146,21 +143,18 @@
   .glass-icon-btn .material-symbols-rounded { font-size: 1.3rem; opacity: 0.85; transition: transform 0.2s; }
   .glass-icon-btn:active {
       transform: scale(0.92);
-      /* 按压陷入纸面的物理阻尼 */
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow);
   }
 
-  /* 统一大按钮特种纸厚度交互 */
   button:not(.glass-icon-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn {
       background: var(--primary); color: var(--on-primary); font-family: var(--font-ui); 
       border-radius: var(--radius-sm); font-weight: 700; font-size: 1.05rem; cursor: pointer; 
       display: flex; align-items: center; justify-content: center; gap: var(--space-xs);
       padding: var(--space-sm) var(--space-md); width: 100%;
-      
       box-shadow: inset 0 1px 1px var(--paper-highlight), 0 4px 12px var(--paper-shadow);
       border: 1px solid var(--paper-highlight);
       border-bottom-color: transparent;
-      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s, background-color 0.4s;
+      transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s;
   }
   button:not(.glass-icon-btn):active, .btn-action:active:not(:disabled), .bs-facade:active, .vs-btn:active, .dt-spell-key:active, .dt-choice-btn:active {
       transform: scale(0.96); 
@@ -186,13 +180,11 @@
 
   /* 数据面板 */
   .stats-grid { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 8px;}
-  .stat-item { background: var(--primary-container); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xs); flex: 1; text-align: center; min-width: 70px; transition: background 0.4s; }
+  .stat-item { background: var(--primary-container); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xs); flex: 1; text-align: center; min-width: 70px; }
   .stat-number { font-size: 1.6rem; font-weight: 800; color: var(--primary); line-height: 1.2; font-family: var(--font-jp-sans);}
   .stat-label { font-size: 0.75rem; opacity: 0.8; margin-top: 6px; font-weight: 700;}
 
-  /* ==========================================
-     ⚙️ 物理阻尼推钮 (设置区原生重构)
-     ========================================== */
+  /* ⚙️ 物理阻尼推钮 */
   .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--outline); }
   [data-theme="dark"] .setting-item { border-bottom-color: rgba(255,255,255,0.05); }
   .setting-item:last-child { border-bottom: none; }
@@ -201,7 +193,6 @@
   .setting-desc { font-size: 0.8rem; opacity: 0.7; color: var(--on-surface); line-height: 1.4; }
   .danger-zone { background: var(--accent-red-bg); padding: 16px; border-radius: var(--radius-sm); border: 1px dashed var(--accent-red); margin-top: 12px;}
 
-  /* 手写 CSS 胶囊阻尼开关 */
   .tactile-switch-wrap { position: relative; display: inline-block; width: 52px; height: 30px; flex-shrink: 0; }
   .tactile-switch { opacity: 0; width: 0; height: 0; position: absolute; pointer-events: none; }
   .tactile-slider { 
@@ -214,7 +205,6 @@
       position: absolute; content: ""; height: 22px; width: 22px; left: 4px; bottom: 4px;
       background-color: var(--surface-container); border-radius: 50%;
       transition: 0.4s var(--spring);
-      /* 滑块本身的微拟物高光与投影 */
       box-shadow: 0 2px 6px rgba(0,0,0,0.15), inset 0 1px 1px var(--paper-highlight);
       border: 1px solid rgba(255,255,255,0.5);
   }
@@ -248,7 +238,6 @@
   }
   @keyframes slideUpFullscreen { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
 
-  /* 👑 学习界面顶部导航栏专属排版 (1fr : auto : 1fr) */
   .study-header {
       display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; 
       margin-bottom: 24px; padding: 0 8px; width: 100%;
@@ -257,7 +246,6 @@
   .sh-center { display: flex; justify-content: center; }
   .sh-right { display: flex; justify-content: flex-end; gap: 12px; }
 
-  /* 纯净版返回按钮 */
   .sh-btn {
       background: transparent !important; color: var(--on-surface) !important; 
       box-shadow: none !important; border: none !important; padding: 8px 12px 8px 0 !important; 
@@ -265,7 +253,6 @@
   }
   .sh-btn:active { transform: scale(0.95) !important; opacity: 1; filter: none !important; }
   
-  /* 进度标题（绝对禁止换行） */
   .sh-progress {
       font-size: 1.1rem; font-weight: 800; font-family: var(--font-ui); 
       color: var(--primary); letter-spacing: 1px; white-space: nowrap; 
@@ -282,7 +269,7 @@
   .flash-card::after { bottom: -20px; left: 24px; right: 24px; opacity: 0.5; z-index: -2; box-shadow: 0 4px 12px var(--paper-shadow); }
   
   .watermark-layer { 
-      position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; transition: background 0.4s ease; 
+      position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; 
       box-shadow: inset 0 1px 2px var(--paper-highlight), inset 0 -2px 6px rgba(0,0,0,0.05);
       border: 1px solid var(--paper-highlight); border-bottom-color: transparent;
   }
@@ -310,7 +297,7 @@
   .kana-row { font-size: 1.2rem; font-weight: 600; font-family: var(--font-jp-sans); color: var(--primary); cursor: pointer; margin: 0; }
   
   .type-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; cursor: pointer; }
-  .type-capsule { font-size: 0.85rem; padding: 6px 14px; border-radius: var(--radius-sm); color: var(--on-surface); font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: inline-block; transition: background 0.4s;}
+  .type-capsule { font-size: 0.85rem; padding: 6px 14px; border-radius: var(--radius-sm); color: var(--on-surface); font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: inline-block; }
   [data-theme="dark"] .type-capsule { border: 1px solid rgba(255,255,255,0.06); color: #fff;}
   .dt-type { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; }
 
@@ -349,7 +336,7 @@
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 
   /* ==========================================
-     📦 全景词库网格体系
+     📦 全景词库网格体系 - MD3 & 纸面压纹触觉优化
      ========================================== */
   
   #wb-grid-container { width: 100%; position: relative; }
@@ -363,22 +350,53 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  .wb-card { min-width: 0; border-radius: var(--radius-md); padding: 28px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.2s var(--spring), background 0.4s ease, opacity 0.2s; user-select: none; -webkit-user-select: none; box-shadow: 0 4px 12px rgba(0,0,0,0.03); overflow: hidden; cursor: pointer; opacity: 0;}
-  .wb-card.pressing { transform: scale(0.95); opacity: 0.95; }
-  .wb-card::after { content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background 0.4s ease; pointer-events: none; z-index: 2;}
-  .wb-card.pressing::after { background: rgba(0,0,0,0.08); }
-  [data-theme="dark"] .wb-card.pressing::after { background: rgba(255,255,255,0.1); }
+  .wb-card { 
+      min-width: 0; border-radius: var(--radius-md); padding: 28px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      transition: transform 0.2s var(--spring), opacity 0.2s, box-shadow 0.2s ease; 
+      user-select: none; -webkit-user-select: none; overflow: hidden; cursor: pointer; opacity: 0;
+      /* 内阴影代替外阴影，营造“嵌入压纹”感 */
+      box-shadow: inset 0 2px 2px rgba(255,255,255,0.7), inset 0 -1px 1px rgba(139,121,103,0.08), 0 2px 4px rgba(139,121,103,0.02);
+  }
   
-  .wb-card .watermark { font-size: 5.5rem; opacity: 0.06; right: -5px; bottom: -10px;}
+  /* 注入轻微特种纸噪点，覆盖在JS色块之上融合 */
+  .wb-card::after {
+      content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.545 0 0 0 0 0.475 0 0 0 0 0.404 0 0 0 0.1 0'/%3E%3CfeBlend mode='multiply' in2='SourceGraphic'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      opacity: 0.5; mix-blend-mode: multiply; transition: background-color 0.2s;
+  }
+  
+  /* 按压陷入纸面的物理阻尼 */
+  .wb-card.pressing { 
+      transform: scale(0.96); opacity: 0.95; 
+      box-shadow: inset 0 3px 6px rgba(139, 121, 103, 0.12), inset 0 1px 1px rgba(255,255,255,0.8), 0 1px 2px rgba(139, 121, 103, 0.01); 
+  }
+  .wb-card.pressing::after { background-color: rgba(0,0,0,0.04); }
+  
+  [data-theme="dark"] .wb-card { 
+      box-shadow: inset 0 2px 2px rgba(255,255,255,0.08), inset 0 -1px 1px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.05);
+  }
+  [data-theme="dark"] .wb-card::after {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.906 0 0 0 0 0.886 0 0 0 0 0.851 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      opacity: 0.6; mix-blend-mode: overlay;
+  }
+  [data-theme="dark"] .wb-card.pressing { 
+      box-shadow: inset 0 4px 10px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.03);
+  }
+  [data-theme="dark"] .wb-card.pressing::after { background-color: rgba(0,0,0,0.2); }
+
+  .wb-card .watermark { font-size: 5.5rem; opacity: 0.06; right: -5px; bottom: -10px; pointer-events: none; z-index: 2;}
   [data-theme="dark"] .wb-card .watermark { opacity: 0.09; }
   
-  .wb-c-word, .wb-c-kana, .wb-c-mean { pointer-events: none; }
+  .wb-c-word, .wb-c-kana, .wb-c-mean { pointer-events: none; position: relative; z-index: 3;}
   .wb-blur-trigger { pointer-events: auto; }
   
-  .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: var(--on-surface); line-height: 1.2; word-break: break-word; text-align: center; width: 100%; z-index: 3;}
-  .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: var(--on-surface); text-align: center; word-break: break-word; width: 100%; font-weight: 600; z-index: 3;}
-  .wb-c-mean { font-size: 0.85rem; font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; color: var(--on-surface); opacity: 0.9; z-index: 3;}
+  .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-word; text-align: center; width: 100%;}
+  .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: rgba(45, 40, 35, 0.9); text-align: center; word-break: break-word; width: 100%; font-weight: 600;}
+  .wb-c-mean { font-size: 0.85rem; font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; color: rgba(45, 40, 35, 0.85); opacity: 0.9;}
   
+  [data-theme="dark"] .wb-c-word { color: rgba(240, 235, 230, 0.95); }
+  [data-theme="dark"] .wb-c-kana, [data-theme="dark"] .wb-c-mean { color: #b5afa6; }
+
   #wb-grid[data-cols="3"] .wb-card { padding: 24px 8px 12px; border-radius: var(--radius-md);}
   #wb-grid[data-cols="3"] .wb-c-word { font-size: 1.1rem; margin-bottom: 4px; }
   #wb-grid[data-cols="3"] .wb-c-kana { font-size: 0.8rem; margin-bottom: 8px; }
@@ -392,23 +410,18 @@
   #wb-grid[data-cols="4"] .wb-c-speaker { display: none; }
   #wb-grid[data-cols="4"] .wb-card .watermark { font-size: 3.5rem; right: -5px; bottom: -5px;}
 
+  /* 喇叭图标 & 多选框 - 去掉硬塑料感 */
+  .wb-c-speaker { position: absolute; top: 12px; left: 12px; font-size: 1.2rem; cursor: pointer; color: var(--primary); z-index: 10; padding: 8px; margin: -8px; background: transparent; pointer-events: auto; transition: transform 0.2s;}
+  .wb-c-speaker:active { transform: scale(0.85); }
+
   .wb-checkbox { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); z-index: 10; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; transition: all 0.2s; pointer-events: none;}
   .wb-checkbox.checked { background: var(--primary); }
   
   .batch-bar { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.85); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 100; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
   [data-theme="dark"] .batch-bar { background: rgba(30,28,26,0.85); border-color: rgba(255,255,255,0.1); }
   
-  .wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);}
+  .wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: inherit;}
   .wb-manage-overlay.active { opacity: 1; pointer-events: auto;}
-  .wb-btn-move, .wb-btn-edit, .wb-btn-del { border: none; font-size: 1.2rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-  .wb-btn-move { background: var(--tertiary) !important; color: white !important; }
-  [data-theme="dark"] .wb-btn-move { color: #1a2a22 !important; }
-  .wb-btn-edit { background: var(--surface-container) !important; color: var(--on-surface) !important; }
-  .wb-btn-del { background: var(--accent-red) !important; color: white !important; }
-  [data-theme="dark"] .wb-btn-del { color: #3b0002 !important; }
-
-  #wb-grid[data-cols="3"] .wb-manage-overlay { gap: 8px; }
-  #wb-grid[data-cols="4"] .wb-manage-overlay { flex-direction: column; gap: 6px; }
 
   /* ==========================================
      🧩 模态框与弹窗体系
@@ -514,7 +527,7 @@
       position: relative; width: 100%; height: 72px; border-radius: var(--radius-full); 
       background: var(--primary) !important; color: var(--on-primary) !important; font-size: 1.2rem; font-weight: 800; 
       border: none; overflow: hidden; outline: none; user-select: none; -webkit-user-select: none; 
-      box-shadow: 0 4px 16px var(--paper-shadow) !important; transition: transform 0.2s, background 0.4s, color 0.4s, box-shadow 0.2s; 
+      box-shadow: 0 4px 16px var(--paper-shadow) !important; transition: transform 0.2s, color 0.4s, box-shadow 0.2s; 
       display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 32px; 
       touch-action: none; 
   }
@@ -555,10 +568,9 @@
   }
 
 /* ==========================================
-   🚨 紧急修复：防误伤独立组件模块
+   🚨 紧急修复与细节补充组件
    ========================================== */
 
-/* 1. 修复键盘按键 (防挤压、恢复方块) */
 .dt-spell-key { 
     width: auto !important; 
     min-width: 60px; 
@@ -570,7 +582,6 @@
     font-weight: 700; 
 }
 
-/* 2. 修复详情页左右翻页箭头 */
 .detail-nav-btn { 
     position: absolute; top: 50%; transform: translateY(-50%);
     background: var(--surface-container) !important; 
@@ -587,7 +598,6 @@
 .detail-nav-btn:active { transform: translateY(calc(-50% + 4px)) !important; box-shadow: none !important; filter: none !important; }
 #detail-prev { left: -28px; } #detail-next { right: -28px; }
 
-/* 3. 修复词库管理模式的悬浮小圆按钮 */
 .wb-btn-move, .wb-btn-edit, .wb-btn-del { 
     width: 44px !important; 
     height: 44px !important; 
@@ -595,43 +605,39 @@
     border-radius: 50% !important; 
     border: none !important;
     box-shadow: 0 4px 12px var(--paper-shadow) !important;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
 }
 .wb-btn-move:active, .wb-btn-edit:active, .wb-btn-del:active { transform: translateY(4px) !important; box-shadow: none !important; filter: none !important; }
+.wb-btn-move { background: var(--tertiary) !important; color: white !important; }
+[data-theme="dark"] .wb-btn-move { color: #1a2a22 !important; }
+.wb-btn-edit { background: var(--surface-container) !important; color: var(--on-surface) !important; }
+.wb-btn-del { background: var(--accent-red) !important; color: white !important; }
+[data-theme="dark"] .wb-btn-del { color: #3b0002 !important; }
 
 #wb-grid[data-cols="3"] .wb-btn-move, #wb-grid[data-cols="3"] .wb-btn-edit, #wb-grid[data-cols="3"] .wb-btn-del { 
-    width: 36px !important; 
-    height: 36px !important; 
+    width: 36px !important; height: 36px !important; 
 }
 #wb-grid[data-cols="4"] .wb-btn-move, #wb-grid[data-cols="4"] .wb-btn-edit, #wb-grid[data-cols="4"] .wb-btn-del { 
-    width: 30px !important; 
-    height: 30px !important; 
+    width: 30px !important; height: 30px !important; 
 }
 
-/* 4. 修复底部多选操作悬浮栏里的按钮 */
 .batch-bar button { 
     width: auto !important; 
     padding: 10px 16px !important; 
     border-radius: var(--radius-sm) !important;
     box-shadow: 0 4px 12px var(--paper-shadow) !important;
 }
+
 /* ==========================================
    🌙 终极视觉：View Transitions 水波纹动画专属配置
    ========================================== */
 
-/* 1. 禁用系统默认的交叉淡化动画 */
-::view-transition-old(root),
-::view-transition-new(root) {
-    animation: none;
-    mix-blend-mode: normal;
-    display: block;
-}
-
-/* 2. 确保新状态的截图永远盖在旧状态上面，准备向外扩散 */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; display: block; }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2; }
 
-/* 3. 🚨 极其关键：强行关闭背景色和文字颜色的 CSS 缓动！
-      把变色的工作全部交给 View Transition 瞬间截图完成，防止出现残影。*/
+/* 彻底关闭背景色、边框的 CSS 缓动，防止 MD3 截图时抓到过渡残影 */
 body, .card-panel, .global-header, .bottom-nav, .type-capsule, .wb-card {
     transition-property: transform, box-shadow, filter, opacity, top, bottom, left, right !important;
 }

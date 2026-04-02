@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 全面进化版 (支持本地备份 + 实时搜索 + SRS时光机 + 原生分享修复)
+ * 全面进化版 (MD3 涟漪动画 + 本地备份 + 实时搜索 + SRS时光机 + 原生分享)
  */
 
 const escapeHTML = (str) => {
@@ -68,7 +68,7 @@ const Nav = {
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                Hardware.playSound('click'); Hardware.vibrate(50);
+                Hardware.playSound('click'); Hardware.vibrate(10);
                 let targetId = e.currentTarget.getAttribute('data-target');
                 let titleData = e.currentTarget.getAttribute('data-title');
                 this.switchTab(targetId, titleData, e.currentTarget);
@@ -353,10 +353,10 @@ const View = {
       }
   },
   
+  // 🌟 全新 MD3 涟漪动画主题切换
   toggleTheme(e) {
     let isDark = document.body.getAttribute('data-theme') === 'dark';
     
-    // 这是核心的属性切换逻辑
     let toggleAction = () => {
         if (isDark) { 
             document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
@@ -367,26 +367,21 @@ const View = {
         }
     };
 
-    // 如果浏览器版本太老不支持 View Transitions API，直接无缝秒切
     if (!document.startViewTransition) {
         toggleAction();
         return;
     }
 
-    // 🌟 获取手指点击的精确坐标作为水波纹圆心。如果没有事件（比如代码触发），就取屏幕正中心
     const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
     const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
 
-    // 📐 使用勾股定理，计算圆心到屏幕最远角落的距离，确保水波纹能覆盖全屏
     const endRadius = Math.hypot(
         Math.max(x, window.innerWidth - x),
         Math.max(y, window.innerHeight - y)
     );
 
-    // 🚀 启动现代视图过渡魔法！
     const transition = document.startViewTransition(toggleAction);
 
-    // 当系统截好图，准备开始动画时，注入我们的圆形扩散路径
     transition.ready.then(() => {
         const clipPath = [
             `circle(0px at ${x}px ${y}px)`,
@@ -394,16 +389,29 @@ const View = {
         ];
         
         document.documentElement.animate(
-            { clipPath: clipPath },
+            { 
+                clipPath: clipPath,
+                opacity: [0.5, 1] 
+            },
             {
-                duration: 500, // 波纹扩散时长 0.5 秒
-                easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', // 配合我们整体 UI 的弹簧缓动曲线
-                pseudoElement: '::view-transition-new(root)', // 让新截图像水波一样展开
+                duration: 400, 
+                easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', 
+                pseudoElement: '::view-transition-new(root)',
+            }
+        );
+
+        document.documentElement.animate(
+            { 
+                filter: ['brightness(1) blur(0px)', 'brightness(0.6) blur(4px)']
+            },
+            {
+                duration: 400,
+                easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)',
+                pseudoElement: '::view-transition-old(root)',
             }
         );
     });
   },
-
   
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
@@ -580,7 +588,7 @@ const View = {
     let displayTrigger = this.getEl('btn-display-mode-trigger');
     if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
-    // 🌟 控制撤销按钮显示状态
+    // 控制撤销按钮显示状态
     let undoBtn = this.getEl('btn-srs-undo');
     if (undoBtn) {
         if (Model.state.mode === 'srs' && Model.state.srsHistory && Model.state.srsHistory.length > 0) {
@@ -731,7 +739,7 @@ const View = {
     const grid = this.getEl('wb-grid'); const cols = this.getEl('wb-col-select').value; const blurMode = this.getEl('wb-blur-select').value; const currentFilter = this.getEl('wb-folder-filter').value;
     grid.setAttribute('data-cols', cols);
     
-    // 🌟 获取全局搜索关键字并进行过滤
+    // 获取全局搜索关键字并进行过滤
     let searchInputEl = this.getEl('wb-search-input');
     let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
 
@@ -820,11 +828,13 @@ const Controller = {
 
   bindEvents() {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
+    
+    // 🌟 绑定带有 MD3 涟漪坐标的夜间模式切换事件
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
-        btn.addEventListener('click', (e) => { // 接收点击事件 e
+        btn.addEventListener('click', (e) => { 
             Hardware.playSound('click'); 
             Hardware.vibrate(20); 
-            View.toggleTheme(e); // 把 e 传给控制函数，以获取手指坐标
+            View.toggleTheme(e); 
         }); 
     });
     
@@ -866,7 +876,7 @@ const Controller = {
         });
     }
 
-    // 🌟 绑定搜索框实时事件
+    // 绑定搜索框实时事件
     let searchInput = View.getEl('wb-search-input');
     if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -874,7 +884,7 @@ const Controller = {
         });
     }
 
-    // 🌟 绑定导入导出与备份事件
+    // 绑定导入导出与备份事件
     let btnExport = View.getEl('btn-export-backup');
     if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
     
@@ -884,12 +894,11 @@ const Controller = {
         btnImport.addEventListener('click', () => fileImport.click());
         fileImport.addEventListener('change', (e) => {
             if(e.target.files.length > 0) this.importBackup(e.target.files[0]);
-            // 清空 value 使得再次选中同一个文件依然可以触发 change
             e.target.value = '';
         });
     }
 
-    // 🌟 绑定 SRS 撤销时光机事件
+    // 绑定 SRS 撤销时光机事件
     let undoBtn = View.getEl('btn-srs-undo');
     if (undoBtn) {
         undoBtn.addEventListener('click', () => this.undoSRS());
@@ -970,7 +979,7 @@ const Controller = {
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
   },
 
-  // 🌟 修复后的：导出数据备份逻辑 (原生分享面板 + 安全挂载兜底)
+  // 🌟 导出数据备份逻辑 (原生分享面板 + 安全挂载兜底)
   exportBackup() {
       Hardware.playSound('success');
       Hardware.vibrate(50);
@@ -986,7 +995,7 @@ const Controller = {
       let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
 
-      // 方案 A：针对手机端 PWA（尤其是 iOS 和安卓），调用系统原生分享/存储面板
+      // 方案 A：针对手机端 PWA，调用系统原生分享/存储面板
       if (navigator.share && navigator.canShare) {
           let file = new File([blob], fileName, { type: "application/json" });
           if (navigator.canShare({ files: [file] })) {
@@ -1003,18 +1012,16 @@ const Controller = {
           }
       }
       
-      // 方案 B：针对电脑端或不支持原生分享的浏览器（修正后的传统下载）
+      // 方案 B：针对电脑端或不支持原生分享的浏览器
       this.fallbackDownload(blob, fileName);
   },
 
-  // 传统下载降级方案
   fallbackDownload(blob, fileName) {
       let url = URL.createObjectURL(blob);
       let a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
       a.download = fileName;
-      // ⚠️ 关键修复：必须把 a 标签真正挂载到页面 DOM 上，浏览器才会允许触发下载
       document.body.appendChild(a); 
       a.click();
       document.body.removeChild(a);
@@ -1022,7 +1029,7 @@ const Controller = {
       showToast("尝试唤起本地下载...");
   },
 
-  // 🌟 新增：导入数据恢复逻辑
+  // 🌟 导入数据恢复逻辑
   importBackup(file) {
       if (!file) return;
       let reader = new FileReader();
@@ -1037,7 +1044,7 @@ const Controller = {
                   Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords();
                   Hardware.playSound('success'); Hardware.vibrate(100);
                   showToast("数据恢复成功！");
-                  setTimeout(() => location.reload(), 1000); // 强行刷新页面加载新数据
+                  setTimeout(() => location.reload(), 1000); 
               } else {
                   Hardware.playSound('error'); Hardware.vibrate(50);
                   showToast("备份文件格式不正确");
@@ -1164,7 +1171,7 @@ const Controller = {
     Hardware.playSound('click'); let queue = Model.getSRSDueQueue();
     if(queue.length === 0) return showToast("今天没有需要复习的单词");
     Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0; 
-    Model.state.srsHistory = []; // 清空时光机记录
+    Model.state.srsHistory = []; 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -1177,17 +1184,15 @@ const Controller = {
         btn.classList.remove('btn-active-feedback'); 
         let realIdx = Model.state.studyQueue[Model.state.currentIndex]; 
 
-        // 🌟 核心逻辑：记录操作发生前的旧状态压入时光机栈
+        // 🌟 记录操作发生前的旧状态压入时光机栈
         Model.state.srsHistory.push({
             idx: realIdx,
-            oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)), // 深度克隆旧状态
+            oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)),
             rating: rating
         });
 
-        // 执行新状态计算
         Model.calculateSRS(realIdx, rating); 
 
-        // 如果点了忘记，原逻辑会把它强行塞到队尾
         if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
         
         Model.state.currentIndex++; Model.state.isAnimating = false;
@@ -1200,24 +1205,19 @@ const Controller = {
     }, 300);
   },
 
-  // 🌟 新增：SRS 时光机撤销逻辑
+  // 🌟 SRS 时光机撤销逻辑
   undoSRS() {
       if (Model.state.isAnimating || Model.state.srsHistory.length === 0) return;
       Hardware.playSound('click'); Hardware.vibrate(40);
 
-      // 从栈顶弹出上一步操作记录
       let lastAction = Model.state.srsHistory.pop();
-
-      // 1. 将单词的 SRS 状态强行覆盖回旧版本
       Model.db[lastAction.idx].srs = lastAction.oldSrs;
       Model.saveDB();
 
-      // 2. 如果上一步手滑点了「忘记」，我们需要把塞到队尾的那个分身给强行拔掉
       if (lastAction.rating === 'again') {
           Model.state.studyQueue.pop();
       }
 
-      // 3. 游标倒退，画面倒退
       Model.state.currentIndex--;
       View.renderStudyCard('prev');
       showToast("已撤销上一步评级");

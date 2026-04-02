@@ -68,7 +68,7 @@ const Nav = {
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                Hardware.playSound('click'); Hardware.vibrate(10);
+                Hardware.playSound('click'); Hardware.vibrate(50);
                 let targetId = e.currentTarget.getAttribute('data-target');
                 let titleData = e.currentTarget.getAttribute('data-title');
                 this.switchTab(targetId, titleData, e.currentTarget);

@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 轻拟物 + 对称导航 + 紧凑看板 终极版
+ * 全面进化版 (支持本地备份 + 实时搜索 + SRS时光机 + 原生分享修复)
  */
 
 const escapeHTML = (str) => {
@@ -105,7 +105,7 @@ const Nav = {
             if(titleEl) titleEl.innerHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem; margin-right: 6px;">${icon}</span> ${text}`;
         }
 
-        // 🌟 新增：数据同步拦截器。每次切回主页，强制重新渲染看板和下拉框
+        // 保证返回主页时数据实时刷新
         if (targetId === 'tab-home') {
             View.renderDashboard();
         }
@@ -166,7 +166,8 @@ const Model = {
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtStep: 1, currentWordFailed: false, totalTestWords: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
-    isAnimating: false 
+    isAnimating: false,
+    srsHistory: [] // 🌟 用于存放 SRS 历史状态的回溯栈
   },
   init() { this.loadData(); this.migrateSRSData(); },
   loadData() {
@@ -419,7 +420,6 @@ const View = {
   },
 
   renderDashboard() {
-    // 渲染词库总词汇量
     let dbTotalEl = this.getEl('db-total-count');
     if (dbTotalEl) dbTotalEl.innerText = Model.db.length;
     
@@ -538,6 +538,16 @@ const View = {
     
     let displayTrigger = this.getEl('btn-display-mode-trigger');
     if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
+
+    // 🌟 控制撤销按钮显示状态
+    let undoBtn = this.getEl('btn-srs-undo');
+    if (undoBtn) {
+        if (Model.state.mode === 'srs' && Model.state.srsHistory && Model.state.srsHistory.length > 0) {
+            undoBtn.classList.remove('hidden');
+        } else {
+            undoBtn.classList.add('hidden');
+        }
+    }
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
@@ -679,10 +689,22 @@ const View = {
   renderMoreWordbank() {
     const grid = this.getEl('wb-grid'); const cols = this.getEl('wb-col-select').value; const blurMode = this.getEl('wb-blur-select').value; const currentFilter = this.getEl('wb-folder-filter').value;
     grid.setAttribute('data-cols', cols);
-    let filteredData = Model.db.map((w, i) => ({w, idx: i})).filter(item => currentFilter === 'all' || item.w.folder === currentFilter);
+    
+    // 🌟 获取全局搜索关键字并进行过滤
+    let searchInputEl = this.getEl('wb-search-input');
+    let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
+
+    let filteredData = Model.db.map((w, i) => ({w, idx: i})).filter(item => {
+        let matchFolder = (currentFilter === 'all' || item.w.folder === currentFilter);
+        let matchSearch = !searchQuery || 
+                          item.w.word.toLowerCase().includes(searchQuery) ||
+                          item.w.kana.toLowerCase().includes(searchQuery) ||
+                          item.w.meaning.toLowerCase().includes(searchQuery);
+        return matchFolder && matchSearch;
+    });
     
     if (filteredData.length === 0 && Model.state.wbCurrentRendered === 0) {
-        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">inbox</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">当前文件夹空空如也</div></div>`;
+        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">search_off</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">没有找到匹配的词汇</div></div>`;
         this.getEl('wb-scroll-sentinel').style.display = 'none';
         return;
     }
@@ -771,7 +793,6 @@ const Controller = {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
-    // 绑定新的眼睛图标呼出显示模式菜单
     let displayTrigger = View.getEl('btn-display-mode-trigger');
     if (displayTrigger) {
         displayTrigger.addEventListener('click', () => {
@@ -796,6 +817,35 @@ const Controller = {
             localStorage.setItem('volNav', e.target.checked);
             showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页");
         });
+    }
+
+    // 🌟 绑定搜索框实时事件
+    let searchInput = View.getEl('wb-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            View.resetWordbankRenderer();
+        });
+    }
+
+    // 🌟 绑定导入导出与备份事件
+    let btnExport = View.getEl('btn-export-backup');
+    if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
+    
+    let btnImport = View.getEl('btn-import-backup');
+    let fileImport = View.getEl('file-import-backup');
+    if (btnImport && fileImport) {
+        btnImport.addEventListener('click', () => fileImport.click());
+        fileImport.addEventListener('change', (e) => {
+            if(e.target.files.length > 0) this.importBackup(e.target.files[0]);
+            // 清空 value 使得再次选中同一个文件依然可以触发 change
+            e.target.value = '';
+        });
+    }
+
+    // 🌟 绑定 SRS 撤销时光机事件
+    let undoBtn = View.getEl('btn-srs-undo');
+    if (undoBtn) {
+        undoBtn.addEventListener('click', () => this.undoSRS());
     }
 
     window.addEventListener('keydown', (e) => {
@@ -871,6 +921,86 @@ const Controller = {
     View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
+  },
+
+  // 🌟 修复后的：导出数据备份逻辑 (原生分享面板 + 安全挂载兜底)
+  exportBackup() {
+      Hardware.playSound('success');
+      Hardware.vibrate(50);
+      let data = {
+          db: Model.db,
+          folders: Model.folders,
+          stars: Model.stars,
+          records: Model.records,
+          version: "v3",
+          exportDate: new Date().toISOString()
+      };
+      
+      let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
+      let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+
+      // 方案 A：针对手机端 PWA（尤其是 iOS 和安卓），调用系统原生分享/存储面板
+      if (navigator.share && navigator.canShare) {
+          let file = new File([blob], fileName, { type: "application/json" });
+          if (navigator.canShare({ files: [file] })) {
+              navigator.share({
+                  files: [file],
+                  title: '钟摆日语数据备份',
+              }).then(() => {
+                  showToast("已成功调起保存面板");
+              }).catch((e) => {
+                  console.log('分享取消或失败', e);
+                  this.fallbackDownload(blob, fileName);
+              });
+              return;
+          }
+      }
+      
+      // 方案 B：针对电脑端或不支持原生分享的浏览器（修正后的传统下载）
+      this.fallbackDownload(blob, fileName);
+  },
+
+  // 传统下载降级方案
+  fallbackDownload(blob, fileName) {
+      let url = URL.createObjectURL(blob);
+      let a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = fileName;
+      // ⚠️ 关键修复：必须把 a 标签真正挂载到页面 DOM 上，浏览器才会允许触发下载
+      document.body.appendChild(a); 
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("尝试唤起本地下载...");
+  },
+
+  // 🌟 新增：导入数据恢复逻辑
+  importBackup(file) {
+      if (!file) return;
+      let reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              let data = JSON.parse(e.target.result);
+              if (data && data.db && data.folders) {
+                  Model.db = data.db;
+                  Model.folders = data.folders;
+                  Model.stars = data.stars || [];
+                  Model.records = data.records || [];
+                  Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords();
+                  Hardware.playSound('success'); Hardware.vibrate(100);
+                  showToast("数据恢复成功！");
+                  setTimeout(() => location.reload(), 1000); // 强行刷新页面加载新数据
+              } else {
+                  Hardware.playSound('error'); Hardware.vibrate(50);
+                  showToast("备份文件格式不正确");
+              }
+          } catch(err) {
+              Hardware.playSound('error'); Hardware.vibrate(50);
+              showToast("解析文件失败");
+          }
+      };
+      reader.readAsText(file);
   },
 
   startPendulum(launchMode = 'pendulum') {
@@ -986,7 +1116,8 @@ const Controller = {
   startSRS() {
     Hardware.playSound('click'); let queue = Model.getSRSDueQueue();
     if(queue.length === 0) return showToast("今天没有需要复习的单词");
-    Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0;
+    Model.state.studyQueue = queue; Model.state.mode = 'srs'; Model.state.currentIndex = 0; 
+    Model.state.srsHistory = []; // 清空时光机记录
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -996,11 +1127,53 @@ const Controller = {
     Model.state.isAnimating = true; Hardware.playSound('click'); Hardware.vibrate(30); 
     let btn = View.getEl(`srs-${rating}`); btn.classList.add('btn-active-feedback');
     setTimeout(() => {
-        btn.classList.remove('btn-active-feedback'); let realIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.calculateSRS(realIdx, rating); 
+        btn.classList.remove('btn-active-feedback'); 
+        let realIdx = Model.state.studyQueue[Model.state.currentIndex]; 
+
+        // 🌟 核心逻辑：记录操作发生前的旧状态压入时光机栈
+        Model.state.srsHistory.push({
+            idx: realIdx,
+            oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)), // 深度克隆旧状态
+            rating: rating
+        });
+
+        // 执行新状态计算
+        Model.calculateSRS(realIdx, rating); 
+
+        // 如果点了忘记，原逻辑会把它强行塞到队尾
         if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
+        
         Model.state.currentIndex++; Model.state.isAnimating = false;
-        if (Model.state.currentIndex >= Model.state.studyQueue.length) { Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); } else { View.renderStudyCard('next'); }
+        
+        if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
+            Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); 
+        } else { 
+            View.renderStudyCard('next'); 
+        }
     }, 300);
+  },
+
+  // 🌟 新增：SRS 时光机撤销逻辑
+  undoSRS() {
+      if (Model.state.isAnimating || Model.state.srsHistory.length === 0) return;
+      Hardware.playSound('click'); Hardware.vibrate(40);
+
+      // 从栈顶弹出上一步操作记录
+      let lastAction = Model.state.srsHistory.pop();
+
+      // 1. 将单词的 SRS 状态强行覆盖回旧版本
+      Model.db[lastAction.idx].srs = lastAction.oldSrs;
+      Model.saveDB();
+
+      // 2. 如果上一步手滑点了「忘记」，我们需要把塞到队尾的那个分身给强行拔掉
+      if (lastAction.rating === 'again') {
+          Model.state.studyQueue.pop();
+      }
+
+      // 3. 游标倒退，画面倒退
+      Model.state.currentIndex--;
+      View.renderStudyCard('prev');
+      showToast("已撤销上一步评级");
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },

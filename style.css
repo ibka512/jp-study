@@ -3,7 +3,7 @@
   :root {
     /* 核心色彩 */
     --primary: #8b7967; --primary-container: #f4f0ea; --on-primary: #ffffff;
-    --surface: #faf9f7; --surface-container: #ffffff; --on-surface: #3a352f;
+    --surface: #fbfaf5; --surface-container: #ffffff; --on-surface: #3a352f;
     --outline: #ddd5cc; --tertiary: #6b847b;        
     --accent-red: #ba6b68; --accent-red-bg: #fdf3f3; --accent-green-bg: #f0f7f3;
 
@@ -29,7 +29,7 @@
 
   [data-theme="dark"] {
     --primary: #d6c3b0; --primary-container: #503f2f; --on-primary: #3b2e21;      
-    --surface: #181614; --surface-container: #23201d; --on-surface: #e8e2d9;      
+    --surface: #1a1816; --surface-container: #24211e; --on-surface: #e8e2d9;      
     --outline: #79726a; --tertiary: #a4c7b6;        
     --accent-red: #ffb4a9; --accent-red-bg: #690005; --accent-green-bg: #1c3829; 
 
@@ -71,13 +71,13 @@
 
   .global-header {
     position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-    background: rgba(250, 249, 247, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    background: rgba(251, 250, 245, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     display: flex; justify-content: space-between; align-items: center;
     padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
     border-bottom: 1px solid rgba(139, 121, 103, 0.1);
     transition: background 0.4s;
   }
-  [data-theme="dark"] .global-header { background: rgba(24, 22, 20, 0.85); border-color: rgba(255,255,255,0.05); }
+  [data-theme="dark"] .global-header { background: rgba(26, 24, 22, 0.85); border-color: rgba(255,255,255,0.05); }
 
   .global-header h2 { 
     color: var(--primary); font-weight: 800; margin: 0; font-size: 1.3rem; 

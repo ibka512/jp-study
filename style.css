@@ -162,7 +162,6 @@
       filter: brightness(0.92);
   }
 
-  /* 🌟 强力镇压：三分天下一体化按钮绝对防御 */
   .filter-test-btn-group {
       display: flex !important;
       flex-direction: row !important; 
@@ -232,7 +231,7 @@
   .vs-btn { display:flex !important; flex-direction:column !important; background: var(--surface) !important; color: var(--on-surface) !important; padding: 14px 0 !important; font-size: 0.95rem !important;}
   .vs-btn.selected { background: var(--tertiary) !important; border-color: transparent !important; color: var(--on-primary) !important; }
 
-  /* 学习进度方块 (🌟 修复：新增当前方块发光感) */
+  /* 学习进度方块 */
   #pixel-matrix { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 100%; margin: 10px auto var(--space-md); padding: 0 var(--space-sm);}
   .pixel { height: 6px; flex: 1 1 8%; max-width: 32px; background-color: var(--outline); border-radius: 8px; transition: all 0.4s var(--spring); }
   .pixel.filled { background-color: var(--fill-color, #8b7967); opacity: 0.95; }
@@ -288,7 +287,6 @@
   .flash-card::before { bottom: -10px; left: 12px; right: 12px; opacity: 0.8; z-index: -1; box-shadow: 0 8px 24px var(--paper-shadow); }
   .flash-card::after { bottom: -20px; left: 24px; right: 24px; opacity: 0.5; z-index: -2; box-shadow: 0 4px 12px var(--paper-shadow); }
   
-  /* 🌟 全新连击悬浮徽章 (Combo Badge) */
   .combo-badge {
       position: absolute; top: -16px; left: 50%; transform: translateX(-50%) scale(0.9);
       background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -303,7 +301,6 @@
   
   .combo-badge.active { opacity: 1; transform: translateX(-50%) scale(1); }
   
-  /* Combo 进阶状态特效 */
   .combo-badge.tier-2 { 
       color: #d4af37; border-color: rgba(212,175,55,0.4); 
       text-shadow: 0 1px 4px rgba(212,175,55,0.3); 
@@ -314,12 +311,10 @@
       animation: combo-pulse 1.5s infinite;
   }
   
-  /* 暗黑模式适配 */
   [data-theme="dark"] .combo-badge { background: rgba(36, 33, 30, 0.85); border-color: rgba(255,255,255,0.1); }
   [data-theme="dark"] .combo-badge.tier-2 { color: #f1c40f; border-color: rgba(241,196,15,0.3); }
   [data-theme="dark"] .combo-badge.tier-3 { background: #1c2e22; color: #87c7a5; border-color: rgba(135,199,165,0.3); }
 
-  /* 呼吸与爆点动画 */
   @keyframes combo-pulse {
       0% { box-shadow: 0 0 0 0 rgba(107,132,123,0.4); }
       70% { box-shadow: 0 0 0 10px rgba(107,132,123,0); }
@@ -363,7 +358,6 @@
   
   .type-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; cursor: pointer; }
   
-  /* 🌟 修复：增强词性胶囊玻璃层级与边缘高光对比度 */
   .type-capsule { 
       font-size: 0.85rem; padding: 6px 14px; border-radius: var(--radius-sm); 
       color: var(--on-surface); font-weight: 700; 
@@ -383,7 +377,6 @@
   /* 🎛️ 底部操作网格 */
   .action-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); width: 100%; margin-bottom: var(--space-md); margin-top: auto; }
   
-  /* 🌟 检验模式：纯 Flex 弹性居中操作台 */
   .action-flex { display: flex; gap: var(--space-sm); width: 100%; }
   .action-flex .btn-action { flex: 1; padding: 18px 4px; font-size: 1.15rem; flex-direction: row;}
   
@@ -418,7 +411,6 @@
 
   .wb-card { 
       min-width: 0; border-radius: var(--radius-md); 
-      /* 🌟 核心防御：顶部强制留白40px，底部强制留白36px，给图标腾出巨大防空洞！ */
       padding: 40px 8px 36px; 
       position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; 
@@ -472,7 +464,6 @@
   .wb-c-word, .wb-c-kana, .wb-c-mean { pointer-events: none; position: relative; z-index: 3;}
   .wb-blur-trigger { pointer-events: auto; }
   
-  /* 🌟 防越界保护：文字遇到边界自动换行，缩小行高 */
   .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-all; text-align: center; width: 100%;}
   .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: rgba(45, 40, 35, 0.9); text-align: center; word-break: break-all; width: 100%; font-weight: 600; line-height: 1.15;}
   .wb-c-mean { font-size: 0.85rem; font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; color: rgba(45, 40, 35, 0.85); opacity: 0.9;}
@@ -497,10 +488,9 @@
      🎖️ 左右双子星：樱花与星标的【绝对像素级对齐】
      ========================================== */
 
-  /* 左上角：樱花 */
   .card-hanko {
       position: absolute; top: 12px; left: 12px; z-index: 15; 
-      width: 24px; height: 24px; /* 强制死锁宽高 */
+      width: 24px; height: 24px;
       color: transparent !important; font-size: 0; 
       background-color: var(--badge-color, #e74c3c);
       -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C13.5 5 17 6 19 4C18 7.5 20 10 23 11C19.5 12 18 15 20 18C16.5 17 14 19 12 22C10 19 7.5 17 4 18C6 15 4.5 12 1 11C4 10 6 7.5 5 4C7 6 10.5 5 12 2Z'/%3E%3C/svg%3E");
@@ -508,7 +498,6 @@
       border: none !important; transform: none !important; opacity: 0.9; pointer-events: none;
   }
   
-  /* 右上角：星标 (彻底抹除Padding，字号精准调配，绝对对称) */
   .wb-c-star { 
       position: absolute; top: 12px; right: 12px; z-index: 10;
       width: 24px; height: 24px; padding: 0; margin: 0;
@@ -516,14 +505,10 @@
       background: transparent; border: none; cursor: pointer; pointer-events: auto;
       color: var(--outline); transition: transform 0.3s var(--spring), color 0.3s; 
   }
-  .wb-c-star .material-symbols-rounded { 
-      font-size: 22px; /* 视觉上抵消樱花 SVG 的内留白，达到完美等大 */
-      line-height: 1;  /* 消除一切额外行高 */
-  }
+  .wb-c-star .material-symbols-rounded { font-size: 22px; line-height: 1; }
   .wb-c-star.active { color: #fbbc04; transform: scale(1.15); opacity: 1; }
   .wb-c-star:active { transform: scale(0.8); }
 
-  /* 左下角：喇叭 */
   .wb-c-speaker { 
       position: absolute; bottom: 10px; left: 10px; z-index: 10;
       width: 24px; height: 24px; padding: 0; margin: 0;
@@ -534,7 +519,6 @@
   .wb-c-speaker .material-symbols-rounded { font-size: 18px; line-height: 1;}
   .wb-c-speaker:active { transform: scale(0.85); }
 
-  /* 右上角：多选复选框 */
   .wb-checkbox { 
       position: absolute; top: 12px; right: 12px; 
       width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); 
@@ -543,14 +527,12 @@
   }
   .wb-checkbox.checked { background: var(--primary); }
 
-  /* 4列极窄视图的同比例对称缩小 */
   #wb-grid[data-cols="4"] .card-hanko { width: 16px; height: 16px; top: 8px; left: 8px; }
   #wb-grid[data-cols="4"] .wb-c-star { width: 16px; height: 16px; top: 8px; right: 8px; }
   #wb-grid[data-cols="4"] .wb-c-star .material-symbols-rounded { font-size: 16px; }
   
   [data-theme="dark"] .card-hanko { opacity: 0.95; }
   
-  /* 统一悬浮胶囊内的按钮圆角为 full */
   .batch-bar { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.85); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 100; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
   [data-theme="dark"] .batch-bar { background: rgba(30,28,26,0.85); border-color: rgba(255,255,255,0.1); }
   
@@ -569,7 +551,6 @@
   [data-theme="dark"] .hanko-bronze { --badge-color: #e74c3c; }
   [data-theme="dark"] .hanko-silver { --badge-color: #bdc3c7; }
 
-  /* 底部弹窗列表中的樱花 */
   .hanko-badge {
       display: inline-block; width: 1.1rem; height: 1.1rem; 
       background-color: var(--badge-color, #c0392b);
@@ -599,7 +580,6 @@
   .bs-option:active { transform: scale(0.96); }
   .bs-option.selected { background: var(--tertiary); color: var(--on-primary); box-shadow: 0 4px 12px rgba(107,132,123,0.3);}
 
-  /* 🌟 全新 Tab 分类切换器 (用于分组弹窗) */
   .group-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--outline); margin-bottom: 16px; padding: 0 12px; }
   .group-tabs::-webkit-scrollbar { display: none; }
   .g-tab { padding: 14px 16px; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.5; white-space: nowrap; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s; }
@@ -643,7 +623,22 @@
   .ex-item { padding-bottom: var(--space-sm); margin-bottom: var(--space-sm); border-bottom: 2px solid rgba(0,0,0,0.04); }
   [data-theme="dark"] .ex-item { border-bottom: 2px solid rgba(255,255,255,0.04); }
   .ex-item:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
-  .dt-ex-jp { font-family: var(--font-jp-sans); font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; color: var(--on-surface); line-height: 2.2; transition: opacity 0.2s ease;}
+  
+  /* 🌟 修复：给日文例句部分加上点击响应样式与动画 */
+  .dt-ex-jp { 
+      font-family: var(--font-jp-sans); 
+      font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; 
+      color: var(--on-surface); line-height: 2.2; 
+      transition: all 0.2s ease; cursor: pointer; 
+      border-radius: 4px;
+  }
+  .dt-ex-jp:active { opacity: 0.6; transform: scale(0.99); }
+  
+  /* 🌟 修复：新增迷你朗读喇叭样式 */
+  .ex-speaker { 
+      font-size: 1.15rem; opacity: 0.5; color: var(--primary); 
+      vertical-align: sub; margin-right: 6px; 
+  }
   
   .dt-ex-cn { display: inline-flex; align-items: center; gap: 8px; transform-origin: center; transition: transform 0.3s var(--spring), opacity 0.3s ease; }
   .dt-ex-cn.revealed-translation { font-size: 0.95rem; opacity: 0.8; color: var(--on-surface); line-height: 1.6; }

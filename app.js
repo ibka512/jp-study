@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 全局状态重置防污染)
+ * 终极进化版 (动态进度条 + 纯净脱壳TTS发音 + 全局防污染)
  */
 
 const escapeHTML = (str) => {
@@ -672,7 +672,6 @@ const View = {
   },
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
-    // 🌟 核心修复：全局 UI 强制重置，彻底根除跨模式状态污染
     this.getEl('mt-blind-audio-ui').classList.add('hidden');
     this.getEl('w-word').style.display = 'block';
     this.getEl('w-kana').style.display = 'block';
@@ -687,7 +686,7 @@ const View = {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
         let st = Model.state.ftState; 
         let hint = Model.state.ftHint;
-        let showKanaHint = Model.state.ftShowKanaHint; // 🌟 修复：获取假名提示状态
+        let showKanaHint = Model.state.ftShowKanaHint; 
 
         let isVisible = (field) => {
             if (st === 'C') return true;
@@ -697,7 +696,7 @@ const View = {
         };
 
         let showW = isVisible('word');
-        let showK = isVisible('kana') || showKanaHint; // 🌟 修复：如果开启了显示假名提示，则原文显示
+        let showK = isVisible('kana') || showKanaHint; 
         let showM = isVisible('meaning');
         let showA = isVisible('audio');
 
@@ -712,7 +711,6 @@ const View = {
              el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
 
-        // 🌟 修复：精准的听力 UI 控制，判决阶段强制隐藏盲听 UI 并显示汉字
         let blindAudioUi = this.getEl('mt-blind-audio-ui');
         if (st === 'C') {
             blindAudioUi.classList.add('hidden');
@@ -852,9 +850,17 @@ const View = {
     }
 
     let htmlStr = processedStr.split('||').map(blk => {
-        let parts = blk.split('/'); let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; let cnPart = parts[1] ? parts[1].trim() : "";
-        if (mode === 'choice' && cnPart) { return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; }
-        return `<div class="ex-item"><div class="dt-ex-jp" style="opacity: 0;">${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
+        let parts = blk.split('/'); 
+        let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; 
+        let cnPart = parts[1] ? parts[1].trim() : "";
+        
+        // 🌟 修复：提取纯净发音文本，并剔除 LaTeX 标签 ($符号 和 \overset)
+        let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
+        
+        if (mode === 'choice' && cnPart) { 
+            return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
+        }
+        return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
     }).join('');
     
     exBox.innerHTML = htmlStr;
@@ -1271,7 +1277,6 @@ const Controller = {
         });
     }
 
-    // 🌟 修复：修正“查看提示”的点击事件逻辑
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
     if (btnMtShowHint) {
         btnMtShowHint.addEventListener('click', () => {
@@ -1395,7 +1400,25 @@ const Controller = {
         });
     }
 
-    document.addEventListener('click', (e) => { let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } });
+    document.addEventListener('click', (e) => { 
+        // 模糊解锁点击
+        let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
+        if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
+            let el = target.classList.contains('blur-text') ? target : target.parentElement; 
+            el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); 
+        } 
+
+        // 🌟 修复：新增事件委托，例句点击朗读功能接入
+        let exJp = e.target.closest('.dt-ex-jp');
+        if (exJp) {
+            let textToSpeak = exJp.getAttribute('data-speak');
+            if (textToSpeak) {
+                Hardware.unlockSpeech();
+                Hardware.speakText(textToSpeak);
+                Hardware.vibrate(10);
+            }
+        }
+    });
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
@@ -1594,7 +1617,7 @@ const Controller = {
       Model.state.currentIndex++;
       Model.state.ftState = 'A';
       Model.state.ftHint = null;
-      Model.state.ftShowKanaHint = false; // 🌟 修复：跳转下一题前重置提示状态
+      Model.state.ftShowKanaHint = false;
 
       if (Model.state.currentIndex >= Model.state.studyQueue.length) {
            Hardware.playSound('success'); Hardware.vibrate(1000); 

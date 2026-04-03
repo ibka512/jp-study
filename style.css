@@ -352,14 +352,11 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* 🔪 恢复浮起质感，使用 4 层阴影结构确立动画骨架 */
   .wb-card { 
       min-width: 0; border-radius: var(--radius-md); padding: 28px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-      /* 延长动画时间，使用与小按钮同款的弹簧曲线，增加肉感 */
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; 
       user-select: none; -webkit-user-select: none; overflow: hidden; cursor: pointer; opacity: 0;
       
-      /* 🌟 核心：2层内阴影(透明占位) + 2层外阴影(显示) */
       box-shadow: 
           inset 0 0 0 rgba(139, 121, 103, 0),
           inset 0 0 0 rgba(255, 255, 255, 0),
@@ -369,7 +366,6 @@
       mix-blend-mode: normal; 
   }
   
-  /* 🌟 按压反馈：加入 :active 确保轻触也有瞬时物理反馈，缩放调大至 0.94 */
   .wb-card:active, .wb-card.pressing { 
       transform: scale(0.94); 
       box-shadow: 
@@ -380,7 +376,6 @@
       border-color: transparent;
   }
   
-  /* 🌙 夜间模式：同理，确立 4 层阴影骨架 */
   [data-theme="dark"] .wb-card { 
       box-shadow: 
           inset 0 0 0 rgba(0, 0, 0, 0),
@@ -401,7 +396,6 @@
       border-color: transparent;
   }
 
-  /* 水印：恢复适当的透明度 */
   .wb-card .watermark { 
       font-size: 5.5rem; opacity: 0.08; right: -5px; bottom: -10px; 
       pointer-events: none; z-index: 2; mix-blend-mode: normal;
@@ -431,7 +425,6 @@
   #wb-grid[data-cols="4"] .wb-c-speaker { display: none; }
   #wb-grid[data-cols="4"] .wb-card .watermark { font-size: 3.5rem; right: -5px; bottom: -5px;}
 
-  /* 取消小喇叭和复选框的底板光影，融入新背景 */
   .wb-c-speaker { position: absolute; top: 12px; left: 12px; font-size: 1.2rem; cursor: pointer; color: var(--primary); z-index: 10; padding: 8px; margin: -8px; background: transparent; pointer-events: auto; transition: transform 0.2s; box-shadow: none; border: none;}
   .wb-c-speaker:active { transform: scale(0.85); }
 
@@ -517,7 +510,15 @@
   .dt-spell-key.used { opacity: 0; pointer-events: none; transform: scale(0.5); }
   
   #dt-choice-buttons, #mt-choice-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
-  .dt-choice-btn { text-align: center; padding: 20px var(--space-sm); font-size: 1.05rem; color: var(--on-surface) !important; background: var(--surface-container) !important; word-break: break-word; line-height: 1.4;}
+  
+  /* 🌟 防抖选项按钮，固定了最小高度和居中方式 */
+  .dt-choice-btn { 
+      text-align: center; padding: 16px var(--space-sm); font-size: 1.05rem; 
+      color: var(--on-surface) !important; background: var(--surface-container) !important; 
+      word-break: break-word; line-height: 1.4;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 72px; /* 强制锁定最小高度，防止切换长短文本时跳动 */
+  }
   .dt-choice-btn.wrong { border-color: var(--accent-red) !important; background: var(--accent-red-bg) !important; color: var(--accent-red) !important; }
   .dt-choice-btn.correct { border-color: var(--tertiary) !important; background: var(--accent-green-bg) !important; color: var(--tertiary) !important; }
   [data-theme="dark"] .dt-choice-btn.correct { color: #87c7a5 !important; } 
@@ -654,13 +655,53 @@
    🌙 终极视觉：View Transitions 水波纹动画专属配置
    ========================================== */
 
-/* 🚀 性能终极杀器：动画期间冻结一切原生 CSS 缓动，避免与截图抢夺 GPU 算力 */
 .theme-switching * {
     transition: none !important;
 }
 
 ::view-transition-old(root), ::view-transition-new(root) { 
     animation: none; mix-blend-mode: normal; display: block; 
-    /* 强制开启 GPU 硬件加速 */
     will-change: transform, opacity, filter, clip-path;
+}
+
+/* ==========================================
+   🎧 盲听记忆检测专属动画与样式 (新增)
+   ========================================== */
+
+#mt-blind-audio-ui {
+    animation: fadeIn 0.4s ease;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* 播放按钮呼吸灯光晕 */
+#btn-mt-replay {
+    animation: pulse-glow 2s infinite;
+}
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 0 0 rgba(139, 121, 103, 0.4); }
+    70% { box-shadow: 0 0 0 20px rgba(139, 121, 103, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(139, 121, 103, 0); }
+}
+
+[data-theme="dark"] #btn-mt-replay {
+    animation: pulse-glow-dark 2s infinite;
+}
+@keyframes pulse-glow-dark {
+    0% { box-shadow: 0 0 0 0 rgba(214, 195, 176, 0.2); }
+    70% { box-shadow: 0 0 0 20px rgba(214, 195, 176, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(214, 195, 176, 0); }
+}
+
+#btn-mt-show-hint:active { opacity: 0.5; }
+
+/* 选项内容切换时的 3D 翻转动画 */
+.choice-flip-anim {
+    animation: flipInX 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes flipInX {
+    0% { transform: perspective(400px) rotateX(90deg); opacity: 0; }
+    100% { transform: perspective(400px) rotateX(0deg); opacity: 1; }
 }

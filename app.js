@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机 + 防弹TTS + 虚拟滚动)
+ * 终极进化版 (MD3涟漪 + 虚拟滚动 + 7步10词算法 + 本地范围记忆 + 硬核盲听三轮检测)
  */
 
 const escapeHTML = (str) => {
@@ -152,6 +152,12 @@ const BottomSheet = {
             btn.innerText = opt.text;
             btn.onclick = () => {
                 selectEl.value = opt.value;
+                
+                // 🌟 方案 B 核心：下拉列表选项持久化记忆！
+                if (selectEl.id === 'group-select') {
+                    localStorage.setItem('lastSelectedGroup', opt.value);
+                }
+
                 selectEl.dispatchEvent(new Event('facade-update'));
                 selectEl.dispatchEvent(new Event('change')); 
                 window.toggleModal('bs-overlay', false);
@@ -167,11 +173,13 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    mtStep: 1, currentWordFailed: false, totalTestWords: 0,
+    
+    // 🌟 硬核记忆检测专用状态
+    mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
+
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false,
     srsHistory: [],
-    // 🌟 虚拟滚动的状态管理
     filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
   },
   init() { this.loadData(); this.migrateSRSData(); },
@@ -188,7 +196,6 @@ const Model = {
   saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
   saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
   
-  // 🌟 单独处理数据过滤与缓存
   updateFilteredDb(searchQuery, currentFilter) {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
           let matchFolder = (currentFilter === 'all' || item.w.folder === currentFilter);
@@ -495,7 +502,8 @@ const View = {
     let isMemTest = Model.state.mode === 'memory-test';
     let isSRS = Model.state.mode === 'srs';
     
-    let total = isMemTest ? Model.state.totalTestWords : Model.state.studyQueue.length;
+    // 内存检测的进度计算
+    let total = isMemTest ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     let current = isMemTest ? (total - Model.state.studyQueue.length) : Model.state.currentIndex;
     
     let displayTotal = total;
@@ -530,8 +538,23 @@ const View = {
     let select = this.getEl('group-select'); select.innerHTML = '';
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
-      let i = 0; while (i * 10 < total) { let startIdx = i * 10; let endIdx = Math.min(startIdx + 10, total); select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); i++; }
+      
+      // 🌟 核心算法变更：步长从 10 改为 7，实现每组最后 3 个词成为下一组前 3 个词的完美交叠！
+      let i = 0; while (i * 7 < total) { 
+          let startIdx = i * 7; 
+          let endIdx = Math.min(startIdx + 10, total); 
+          select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); 
+          i++; 
+      }
     });
+
+    // 🌟 提取记忆，自动定位到上次学习的词组
+    let lastGroup = localStorage.getItem('lastSelectedGroup');
+    if (lastGroup) {
+        let exists = Array.from(select.options).some(opt => opt.value === lastGroup);
+        if (exists) select.value = lastGroup;
+    }
+
     select.dispatchEvent(new Event('facade-update'));
     
     let t = new Date().toLocaleDateString('zh-CN');
@@ -572,8 +595,11 @@ const View = {
         mode = 'all';
     }
 
+    // 🌟 记忆检测模式顶部显示专属轮次与进度
     if (isMemTest) {
-        this.getEl('progress-text').innerText = `${Model.state.studyQueue.length} / ${Model.state.totalTestWords}`;
+        let remain = Model.state.studyQueue.length;
+        let total = Model.state.mtBaseQueue.length;
+        this.getEl('progress-text').innerText = `Round ${Model.state.mtRound} : ${total - remain + 1} / ${total}`;
     } else {
         this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
     }
@@ -608,15 +634,16 @@ const View = {
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let showWord = true, showKana = true, showMeaning = true;
     
-    if ((isMemTest || isRote) && mode !== 'all' && !forceRoteFull) {
+    // 只处理死记硬背的隐藏逻辑，硬核检测模式由自己的方法全权接管
+    if (isRote && mode !== 'all' && !forceRoteFull) {
         if (mode === 'word') { showKana = Model.state.mtStep > 1; showMeaning = false; } 
         else if (mode === 'kana') { showWord = Model.state.mtStep > 1; showMeaning = false; } 
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
-    this.getEl('w-word').innerText = (!showWord) ? mask(w.word) : w.word; 
-    this.getEl('w-kana').innerText = (!showKana) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
-    this.getEl('w-meaning').innerText = (!showMeaning) ? mask(w.meaning) : w.meaning;
+    this.getEl('w-word').innerText = (!showWord && !isMemTest) ? mask(w.word) : w.word; 
+    this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
+    this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
     
     let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
@@ -628,16 +655,18 @@ const View = {
     if (!isMemTest && !isRote) {
         this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
         this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
-    } else {
+    } else if (!isMemTest) {
         this.getEl('w-kana').style.display = 'block';
         this.getEl('w-meaning').style.display = 'block';
     }
     
-    let hideSpeaker = isDtSpell || ((isMemTest || isRote) && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
+    // 隐藏小喇叭
+    let hideSpeaker = isDtSpell || isMemTest || (isRote && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     
+    // 🌟 在记忆检测模式下，彻底隐藏右上角的小眼睛
     let displayTrigger = this.getEl('btn-display-mode-trigger');
-    if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
+    if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track' || isMemTest) ? 'none' : 'inline-flex';
 
     let undoBtn = this.getEl('btn-srs-undo');
     if (undoBtn) {
@@ -650,7 +679,7 @@ const View = {
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
 
-    if (Model.state.mode !== 'dual-track' && !isMemTest && !isRote) {
+    if (!isMemTest && !isRote && Model.state.mode !== 'dual-track') {
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
@@ -658,13 +687,17 @@ const View = {
         });
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
+    } else if (isMemTest) {
+        // 记忆检测拥有独立排版控制
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
+        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'none';
     } else if (forceRoteFull) {
         ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
         this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; 
     } else {
         ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if ((isMemTest || isRote) && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
+        if (isRote && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
     }
 
     this.getEl('capsule-pendulum').classList.add('hidden');
@@ -679,7 +712,6 @@ const View = {
       this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'flex' : 'none';
     } else if (Model.state.mode === 'srs') {
       this.getEl('capsule-srs').classList.remove('hidden');
-      let idx = Model.state.studyQueue[Model.state.currentIndex];
       let times = Model.previewSRSTimes(idx);
       this.getEl('time-hard').innerText = times.hard; this.getEl('time-good').innerText = times.good; this.getEl('time-easy').innerText = times.easy;
     } else if (Model.state.mode === 'dual-track') {
@@ -690,8 +722,13 @@ const View = {
       this.renderMemoryTestUI(w, mode);
     }
     
-    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-    if (autoSpeak && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+    // 🌟 在记忆检测模式的第一轮和第二轮，强制发音
+    if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
+        setTimeout(() => Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')), 300);
+    } else {
+        let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
+        if (autoSpeak && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+    }
   },
 
   renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
@@ -747,14 +784,73 @@ const View = {
       }
   },
   
+  // 🌟 记忆检测核心渲染器（彻底支持三轮独立打法）
   renderMemoryTestUI(wObj, displayMode) {
-      this.getEl('mt-warning').classList.add('hidden'); this.getEl('mt-spell-area').classList.add('hidden'); this.getEl('mt-choice-area').classList.add('hidden');
-      if (displayMode === 'all') { this.getEl('mt-warning').classList.remove('hidden'); return; }
+      let mtWarning = this.getEl('mt-warning'); if(mtWarning) mtWarning.classList.add('hidden'); 
+      this.getEl('mt-spell-area').classList.add('hidden'); 
+      this.getEl('mt-choice-area').classList.add('hidden');
+      
+      let blindAudioUi = this.getEl('mt-blind-audio-ui');
+      if (blindAudioUi) blindAudioUi.classList.add('hidden');
 
+      let isMemTest = Model.state.mode === 'memory-test';
       let currentTestType = '';
-      if (displayMode === 'word') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning'; } 
-      else if (displayMode === 'kana') { currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning'; } 
-      else if (displayMode === 'meaning') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word'; }
+      let isMeaning = false;
+      let targetText = '';
+
+      if (isMemTest) {
+          // 硬核盲测：默认全部隐藏文字
+          this.getEl('w-word').style.display = 'none';
+          this.getEl('w-kana').style.display = 'none';
+          this.getEl('w-meaning').style.display = 'none';
+          this.getEl('w-type').style.display = 'none';
+          
+          let round = Model.state.mtRound;
+          let step = Model.state.mtStep;
+          
+          if (round === 1) { 
+              // 第一轮：盲听 -> 选释义
+              if(blindAudioUi) blindAudioUi.classList.remove('hidden');
+              currentTestType = 'choice';
+              isMeaning = true;
+              targetText = wObj.meaning;
+          } else if (round === 2) {
+              if (step === 1) { 
+                  // 第二轮.1：盲听 -> 选汉字
+                  if(blindAudioUi) blindAudioUi.classList.remove('hidden');
+                  currentTestType = 'choice';
+                  isMeaning = false;
+                  targetText = wObj.word;
+              } else if (step === 2) { 
+                  // 第二轮.2：见汉字 -> 拼假名
+                  this.getEl('w-word').style.display = 'block';
+                  currentTestType = 'spell';
+              }
+          } else if (round === 3) {
+              if (step === 1) { 
+                  // 第三轮.1：见假名 -> 选释义
+                  this.getEl('w-kana').style.display = 'block';
+                  currentTestType = 'choice';
+                  isMeaning = true;
+                  targetText = wObj.meaning;
+              } else if (step === 2) { 
+                  // 第三轮.2：见假名+释义 -> 选汉字
+                  this.getEl('w-kana').style.display = 'block';
+                  this.getEl('w-meaning').style.display = 'block';
+                  currentTestType = 'choice';
+                  isMeaning = false;
+                  targetText = wObj.word;
+              }
+          }
+      } else {
+          // 保留给老版本「死记硬背」的适配逻辑
+          if (displayMode === 'all') { if(mtWarning) mtWarning.classList.remove('hidden'); return; }
+          if (displayMode === 'word') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning'; } 
+          else if (displayMode === 'kana') { currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning'; } 
+          else if (displayMode === 'meaning') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word'; }
+          isMeaning = currentTestType === 'choice-meaning'; 
+          targetText = isMeaning ? wObj.meaning : wObj.word;
+      }
 
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
@@ -770,37 +866,41 @@ const View = {
           let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
           
           let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
-          allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); kb.appendChild(btn); });
-      } else if (currentTestType.startsWith('choice')) {
+          allTokens.forEach((token) => { 
+              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
+              btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); 
+              kb.appendChild(btn); 
+          });
+      } else if (currentTestType === 'choice') {
           this.getEl('mt-choice-area').classList.remove('hidden');
-          let isMeaning = currentTestType === 'choice-meaning'; let targetText = isMeaning ? wObj.meaning : wObj.word;
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
           if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
           pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
           let choices = [{text: targetText, correct: true}];
           pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false})); choices.sort(() => Math.random() - 0.5); 
+          
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => { let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); cb.appendChild(btn); });
+          choices.forEach(c => { 
+              // 🌟 加入 choice-flip-anim 确保切换时发生 3D 翻转动画
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; btn.innerText = c.text; 
+              btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); 
+              cb.appendChild(btn); 
+          });
       }
   },
 
-  // 🌟 新的重置词库渲染器方法
   resetWordbankRenderer() { 
       let searchInputEl = this.getEl('wb-search-input');
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
-      // 更新缓存的过滤后数据
       Model.updateFilteredDb(searchQuery, currentFilter);
-      
-      // 重置滚动条位置和渲染指针，强制触发重新渲染
       window.scrollTo({ top: 0, behavior: 'instant' }); 
       Model.state.renderedStartIndex = -1; 
       
       this.renderVirtualGrid(); 
   },
 
-  // 🌟 核心虚拟化网格渲染
   renderVirtualGrid() {
     const grid = this.getEl('wb-grid'); 
     const container = this.getEl('wb-grid-container');
@@ -920,10 +1020,8 @@ const Controller = {
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
 
-  // 🌟 使用 requestAnimationFrame 优化的高频滚动监听
   setupVirtualScroll() {
     let ticking = false;
-    
     window.addEventListener('scroll', () => {
         if (document.getElementById('tab-wordbank').classList.contains('active')) {
             if (!ticking) {
@@ -974,6 +1072,26 @@ const Controller = {
         });
     }
 
+    // 🌟 盲听模式的重新播放和作弊暗门事件
+    let btnMtReplay = View.getEl('btn-mt-replay');
+    if (btnMtReplay) {
+        btnMtReplay.addEventListener('click', () => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
+            if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
+        });
+    }
+    let btnMtShowHint = View.getEl('btn-mt-show-hint');
+    if (btnMtShowHint) {
+        btnMtShowHint.addEventListener('click', () => {
+            let wKana = View.getEl('w-kana');
+            if(wKana) {
+                wKana.style.display = 'block'; wKana.classList.remove('blur-text');
+                Hardware.vibrate(10);
+            }
+        });
+    }
+
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if (autoSpeakCheck) {
         autoSpeakCheck.addEventListener('change', (e) => {
@@ -994,9 +1112,7 @@ const Controller = {
 
     let searchInput = View.getEl('wb-search-input');
     if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            View.resetWordbankRenderer();
-        });
+        searchInput.addEventListener('input', () => { View.resetWordbankRenderer(); });
     }
 
     let btnExport = View.getEl('btn-export-backup');
@@ -1095,48 +1211,25 @@ const Controller = {
   exportBackup() {
       Hardware.playSound('success');
       Hardware.vibrate(50);
-      let data = {
-          db: Model.db,
-          folders: Model.folders,
-          stars: Model.stars,
-          records: Model.records,
-          version: "v3",
-          exportDate: new Date().toISOString()
-      };
-      
+      let data = { db: Model.db, folders: Model.folders, stars: Model.stars, records: Model.records, version: "v3", exportDate: new Date().toISOString() };
       let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
 
       if (navigator.share && navigator.canShare) {
           let file = new File([blob], fileName, { type: "application/json" });
           if (navigator.canShare({ files: [file] })) {
-              navigator.share({
-                  files: [file],
-                  title: '钟摆日语数据备份',
-              }).then(() => {
-                  showToast("已成功调起保存面板");
-              }).catch((e) => {
-                  console.log('分享取消或失败', e);
-                  this.fallbackDownload(blob, fileName);
-              });
+              navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName));
               return;
           }
       }
-      
       this.fallbackDownload(blob, fileName);
   },
 
   fallbackDownload(blob, fileName) {
-      let url = URL.createObjectURL(blob);
-      let a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a); 
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast("尝试唤起本地下载...");
+      let url = URL.createObjectURL(blob); let a = document.createElement('a');
+      a.style.display = 'none'; a.href = url; a.download = fileName;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url); showToast("尝试唤起本地下载...");
   },
 
   importBackup(file) {
@@ -1146,22 +1239,11 @@ const Controller = {
           try {
               let data = JSON.parse(e.target.result);
               if (data && data.db && data.folders) {
-                  Model.db = data.db;
-                  Model.folders = data.folders;
-                  Model.stars = data.stars || [];
-                  Model.records = data.records || [];
+                  Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || [];
                   Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords();
-                  Hardware.playSound('success'); Hardware.vibrate(100);
-                  showToast("数据恢复成功！");
-                  setTimeout(() => location.reload(), 1000); 
-              } else {
-                  Hardware.playSound('error'); Hardware.vibrate(50);
-                  showToast("备份文件格式不正确");
-              }
-          } catch(err) {
-              Hardware.playSound('error'); Hardware.vibrate(50);
-              showToast("解析文件失败");
-          }
+                  Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
+              } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
+          } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
       };
       reader.readAsText(file);
   },
@@ -1172,7 +1254,9 @@ const Controller = {
     Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
     
     let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
-    let startIdx = idx * 10; let endIdx = startIdx + 10;
+    
+    // 🌟 算法更新：7步10词！读取时使用 7 倍数为起点截取 10 个词
+    let startIdx = idx * 7; let endIdx = startIdx + 10;
     
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
     if(sourceWords.length === 0) return;
@@ -1181,7 +1265,10 @@ const Controller = {
     Model.state.currentWordFailed = false;
 
     if (launchMode === 'memory-test') {
-        Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
+        // 🌟 记忆检测初始化，建立独立的三轮队列
+        Model.state.mtRound = 1;
+        Model.state.mtBaseQueue = sourceWords.map(x => x.i);
+        Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
         Model.state.totalTestWords = Model.state.studyQueue.length;
     } else {
         Model.state.studyQueue = []; let len = sourceWords.length;
@@ -1220,16 +1307,28 @@ const Controller = {
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
   },
 
+  // 🌟 记忆检测 & 传统检测 共享拼写处理逻辑
   handleMtSpellClick(btn, token, wObj, displayMode) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
+      
       if (token === targetChar) {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
           View.getEl('mt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
+          
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
               Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
-              if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); }
-              setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); 
+              
+              if (Model.state.mode === 'memory-test') {
+                  // 纯硬核检测模式下（只有第二轮第二步会走到这里拼写）
+                  View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block';
+                  View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300);
+                  setTimeout(() => this.mtAdvanceNext(), 800);
+              } else {
+                  // 老的死记硬背模式
+                  if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); }
+                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); 
+              }
           }
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
@@ -1238,16 +1337,53 @@ const Controller = {
       }
   },
 
+  // 🌟 记忆检测 & 传统检测 共享选择反馈逻辑
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
+      
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          if (Model.state.mtStep === 1) {
-              View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
-              setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
+          
+          if (Model.state.mode === 'memory-test') {
+              let round = Model.state.mtRound;
+              let step = Model.state.mtStep;
+              
+              if (round === 1) {
+                  // 第一轮：选对释义后，展示一下释义，然后进入下一个词
+                  View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
+                  View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
+                  document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); 
+                  setTimeout(() => this.mtAdvanceNext(), 800);
+              } else if (round === 2) {
+                  if (step === 1) {
+                      // 第二轮：选对汉字后，进入这道题的 step 2 (考拼写)
+                      View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
+                      View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
+                      setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
+                  }
+              } else if (round === 3) {
+                  if (step === 1) {
+                      // 第三轮.1：选对释义，进入 step 2 (考汉字)
+                      View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
+                      View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
+                      setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
+                  } else if (step === 2) {
+                      // 第三轮.2：选对汉字，全词考查结束，进入下一个
+                      View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
+                      View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
+                      document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
+                      setTimeout(() => this.mtAdvanceNext(), 800);
+                  }
+              }
           } else {
-              if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; }
-              View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800);
+              // 传统死记硬背检测逻辑保持不变
+              if (Model.state.mtStep === 1) {
+                  View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
+                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
+              } else {
+                  if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; }
+                  View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800);
+              }
           }
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
@@ -1258,12 +1394,37 @@ const Controller = {
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
   
+  // 🌟 控制多轮流转与错误推迟的核心方法
   mtAdvanceNext() { 
       if (Model.state.mode === 'memory-test') {
-          if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue.shift(); Model.state.studyQueue.push(failedIdx); } else { Model.state.studyQueue.shift(); }
-          Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
-          if (Model.state.studyQueue.length === 0) this.finishPendulum(); else View.renderStudyCard('next');
+          // 无论对错，当前词从队首移除。若错，压入队尾重考。
+          if (Model.state.currentWordFailed) { 
+              let failedIdx = Model.state.studyQueue.shift(); 
+              Model.state.studyQueue.push(failedIdx); 
+          } else { 
+              Model.state.studyQueue.shift(); 
+          }
+          
+          Model.state.currentWordFailed = false; 
+          Model.state.mtStep = 1; 
+          Model.state.currentIndex = 0; 
+          
+          if (Model.state.studyQueue.length === 0) {
+              if (Model.state.mtRound < 3) {
+                  // 🌟 一轮通过，自动重置满队列，推进到下一轮
+                  Model.state.mtRound++;
+                  Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
+                  Hardware.playSound('success'); Hardware.vibrate(200);
+                  showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`);
+                  setTimeout(() => View.renderStudyCard('next'), 500); 
+              } else {
+                  this.finishPendulum();
+              }
+          } else {
+              View.renderStudyCard('next');
+          }
       } else {
+          // 传统检测模式
           Model.state.currentIndex++; Model.state.mtStep = 1; 
           if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); 
       }

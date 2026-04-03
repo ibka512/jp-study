@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 全面进化版 (MD3 涟漪动画 + 本地备份 + 实时搜索 + SRS时光机 + 原生分享)
+ * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机)
  */
 
 const escapeHTML = (str) => {
@@ -353,7 +353,7 @@ const View = {
       }
   },
   
-  // 🌟 全新 MD3 涟漪动画主题切换
+  // 🌟 性能完全版：冻结 CSS 动画避免 GPU 撕扯的 MD3 涟漪动画
   toggleTheme(e) {
     let isDark = document.body.getAttribute('data-theme') === 'dark';
     
@@ -380,17 +380,18 @@ const View = {
         Math.max(y, window.innerHeight - y)
     );
 
+    // 🚀 性能大招 1：加入专用的冻结类名，瞬间切断所有原生 CSS 缓动
+    document.documentElement.classList.add('theme-switching');
+
     const transition = document.startViewTransition(toggleAction);
 
     transition.ready.then(() => {
-        const clipPath = [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`
-        ];
-        
         document.documentElement.animate(
             { 
-                clipPath: clipPath,
+                clipPath: [
+                    `circle(0px at ${x}px ${y}px)`,
+                    `circle(${endRadius}px at ${x}px ${y}px)`
+                ],
                 opacity: [0.5, 1] 
             },
             {
@@ -410,6 +411,11 @@ const View = {
                 pseudoElement: '::view-transition-old(root)',
             }
         );
+    });
+
+    // 🚀 性能大招 2：水波纹结束后，立刻恢复日常的按钮点击阻尼动画
+    transition.finished.then(() => {
+        document.documentElement.classList.remove('theme-switching');
     });
   },
   

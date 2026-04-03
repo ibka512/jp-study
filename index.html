@@ -58,17 +58,36 @@
     <div id="total-words" style="display:none;"></div>
 
     <div class="card-panel">
-      <div class="custom-select-wrapper" style="margin-bottom: 24px;">
-        <select id="group-select" style="display:none;"></select>
-      </div>
-
-      <h3 style="margin-bottom: 20px;">
+      <h3 style="margin-bottom: 16px; margin-top: 0;">
         <span class="material-symbols-rounded">rocket_launch</span> 学习模式
       </h3>
       
-      <button id="btn-start-srs" class="btn-srs icon-text-gap" style="margin-bottom: 16px; font-size: 1.1rem; padding: 18px; white-space: nowrap;">
-        <span class="material-symbols-rounded">psychology</span> 智能复习 (SRS)
+      <div class="filter-test-btn-group">
+        <button id="btn-start-filter-test" class="ft-main icon-text-gap">
+          <span class="material-symbols-rounded">psychology_alt</span> 筛选检验词汇
+        </button>
+        <div class="ft-divider"></div>
+        <button id="btn-test-range-trigger" class="ft-sub">
+          <span class="material-symbols-rounded">keyboard_arrow_down</span>
+        </button>
+        <div class="ft-divider"></div>
+        <button id="btn-test-display-trigger" class="ft-sub">
+          <span class="material-symbols-rounded">visibility</span>
+        </button>
+      </div>
+
+      <button id="btn-custom-group-select" class="bs-facade" style="width: 100%; margin-bottom: 16px;">
+          <span class="bs-facade-text" id="custom-group-text">默认词库 (第 1-10 词)</span>
+          <span class="material-symbols-rounded" style="opacity:0.5;">keyboard_arrow_down</span>
       </button>
+
+      <select id="test-range-select" style="display:none;" class="no-bs"></select>
+      <select id="test-display-select" style="display:none;" class="no-bs">
+          <option value="kana">默认显示假名</option>
+          <option value="word">默认显示汉字</option>
+          <option value="meaning">默认显示释义</option>
+          <option value="audio">默认播放读音</option>
+      </select>
       
       <div class="flex-row" style="margin-bottom: 8px; flex-wrap: wrap; gap: 12px;">
         <button id="btn-start-pendulum" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px;" class="icon-text-gap">
@@ -91,7 +110,6 @@
       </button>
     </div>
   </div>
-
 
   <div id="tab-wordbank" class="tab-content hidden">
     
@@ -201,8 +219,6 @@
       <span id="progress-text" class="sh-progress">0 / 0</span>
     </div>
     <div class="sh-right">
-      <button id="btn-srs-undo" class="glass-icon-btn hidden" title="撤销上一步" style="color: var(--accent-red); margin-right: -4px;"><span class="material-symbols-rounded">history</span></button>
-
       <select id="next-display-mode" class="no-bs" style="display:none;">
         <option value="all">全显</option><option value="word">汉字</option><option value="kana">假名</option><option value="meaning">释义</option>
       </select>
@@ -246,14 +262,18 @@
     <button id="btn-finish" class="btn-action" style="display: none;"><span class="material-symbols-rounded">task_alt</span><span>完成打卡</span></button>
   </div>
 
-  <div id="capsule-srs" class="action-grid-2 hidden">
-    <button id="srs-again" class="btn-action btn-srs-again">忘记<div class="srs-time">1分钟</div></button>
-    <button id="srs-hard" class="btn-action btn-srs-hard">模糊<div class="srs-time" id="time-hard">1天</div></button>
-    <button id="srs-good" class="btn-action btn-srs-good">认识<div class="srs-time" id="time-good">3天</div></button>
-    <button id="srs-easy" class="btn-action btn-srs-easy">熟练<div class="srs-time" id="time-easy">5天</div></button>
+  <div id="capsule-filter-test" class="action-flex hidden" style="margin-bottom: var(--space-md); margin-top: auto;">
+    <button id="ft-forget" class="btn-action btn-ft-red">忘记</button>
+    <button id="ft-blur" class="btn-action btn-ft-orange">模糊</button>
+    <button id="ft-know" class="btn-action btn-ft-green">认识</button>
   </div>
-</div>
 
+  <div id="capsule-filter-judge" class="action-flex hidden" style="margin-bottom: var(--space-md); margin-top: auto;">
+    <button id="ft-wrong" class="btn-action btn-ft-red"><span class="material-symbols-rounded">close</span> 错误</button>
+    <button id="ft-correct" class="btn-action btn-ft-green"><span class="material-symbols-rounded">check</span> 正确</button>
+  </div>
+
+</div>
 
 <nav id="bottom-nav" class="bottom-nav">
   <div class="nav-item active" data-target="tab-home" data-title="local_florist|钟摆日语">
@@ -270,13 +290,30 @@
   </div>
 </nav>
 
-
 <div id="bs-overlay" class="modal-overlay">
     <div class="bottom-sheet">
         <div class="bs-handle"></div>
         <div class="bs-scrollable-content">
             <h3 id="bs-title">请选择</h3>
             <div id="bs-options" class="bs-options"></div>
+        </div>
+    </div>
+</div>
+
+<div id="group-select-overlay" class="modal-overlay">
+    <div class="bottom-sheet group-bs" style="padding: 0;">
+        <div class="bs-handle" style="margin-top: 20px; margin-bottom: 12px;"></div>
+        
+        <h3 style="text-align:center; margin-bottom: 16px; border:none; justify-content:center; color: var(--on-surface);">学习/复习范围</h3>
+        
+        <div class="group-tabs" id="gs-tabs">
+            <div class="g-tab active" data-cat="default">默认词库</div>
+            <div class="g-tab" data-cat="virtual_cleared">已通关</div>
+            <div class="g-tab" data-cat="virtual_uncleared">未通关</div>
+            <div class="g-tab" data-cat="virtual_starred">收藏</div>
+        </div>
+        
+        <div id="group-list-container" class="bs-scrollable-content" style="padding: 16px 20px 40px; max-height: 50vh;">
         </div>
     </div>
 </div>

@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机 + 防弹 TTS)
+ * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机 + 防弹TTS + 虚拟滚动)
  */
 
 const escapeHTML = (str) => {
@@ -105,13 +105,16 @@ const Nav = {
             if(titleEl) titleEl.innerHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem; margin-right: 6px;">${icon}</span> ${text}`;
         }
 
-        // 保证返回主页时数据实时刷新
         if (targetId === 'tab-home') {
             View.renderDashboard();
         }
 
-        if(targetId === 'tab-wordbank' && Model.state.wbCurrentRendered === 0) {
-            View.resetWordbankRenderer();
+        if (targetId === 'tab-wordbank') {
+            if(Model.state.renderedStartIndex === -1) {
+                View.resetWordbankRenderer();
+            } else {
+                View.renderVirtualGrid();
+            }
         }
     }
 };
@@ -165,9 +168,11 @@ const Model = {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtStep: 1, currentWordFailed: false, totalTestWords: 0,
-    batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, wbRenderLimit: 30, wbCurrentRendered: 0,
+    batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false,
-    srsHistory: [] // 🌟 用于存放 SRS 历史状态的回溯栈
+    srsHistory: [],
+    // 🌟 虚拟滚动的状态管理
+    filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
   },
   init() { this.loadData(); this.migrateSRSData(); },
   loadData() {
@@ -182,6 +187,19 @@ const Model = {
   saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
   saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
   saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
+  
+  // 🌟 单独处理数据过滤与缓存
+  updateFilteredDb(searchQuery, currentFilter) {
+      this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
+          let matchFolder = (currentFilter === 'all' || item.w.folder === currentFilter);
+          let matchSearch = !searchQuery || 
+                            item.w.word.toLowerCase().includes(searchQuery) ||
+                            item.w.kana.toLowerCase().includes(searchQuery) ||
+                            item.w.meaning.toLowerCase().includes(searchQuery);
+          return matchFolder && matchSearch;
+      });
+  },
+
   migrateSRSData() {
     let modified = false;
     this.db.forEach(w => { if (!w.srs) { w.srs = { ease: 2.5, interval: 0, nextReview: Date.now() }; modified = true; } });
@@ -233,20 +251,17 @@ const Hardware = {
   audioCtx: null, chargeOsc: null, chargeGain: null,
   init() {
     try {
-        // 1. 初始化语音引擎
         if (window.speechSynthesis) {
             window.speechSynthesis.getVoices();
             if (speechSynthesis.onvoiceschanged !== undefined) {
                 speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
             }
         }
-
-        // 2. 页面可见性监听 (核心修复：解决切后台/息屏导致的引擎死亡)
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                if (window.speechSynthesis) window.speechSynthesis.cancel(); // 息屏主动释放，防止内存泄漏卡死
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
             } else {
-                this.unlockSpeech(); // 唤醒时重新打通发音管道
+                this.unlockSpeech();
             }
         });
     } catch(e) {
@@ -339,26 +354,20 @@ const Hardware = {
     try {
         if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
         
-        // 核心修复 A：无论当前是否 speaking，每次发音前都强制重置引擎
         window.speechSynthesis.cancel();
 
-        // 核心修复 B：给 iOS 引擎一点喘息时间。cancel() 后立刻 speak() 是导致 Safari 哑火的罪魁祸首
         setTimeout(() => {
             let utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'ja-JP'; 
             utterance.rate = 0.85; 
             utterance.volume = 1; 
 
-            // 核心修复 C：动态获取 Voice 对象。
-            // 不要把 Voice 对象缓存在全局！iOS 会在垃圾回收时清理掉底层绑定，导致缓存的对象失效。
             let voices = window.speechSynthesis.getVoices();
             let jaVoice = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
             if (jaVoice) utterance.voice = jaVoice;
 
-            // 核心修复 D：监听错误，避免静默失败
             utterance.onerror = (e) => {
                 console.warn('TTS 引擎发生中断或错误:', e);
-                // 极端情况下尝试自救重置
                 if (e.error === 'not-allowed' || e.error === 'interrupted') {
                     window.speechSynthesis.cancel();
                 }
@@ -392,7 +401,6 @@ const View = {
       }
   },
   
-  // 🌟 性能完全版：冻结 CSS 动画避免 GPU 撕扯的 MD3 涟漪动画
   toggleTheme(e) {
     let isDark = document.body.getAttribute('data-theme') === 'dark';
     
@@ -419,7 +427,6 @@ const View = {
         Math.max(y, window.innerHeight - y)
     );
 
-    // 🚀 性能大招 1：加入专用的冻结类名，瞬间切断所有原生 CSS 缓动
     document.documentElement.classList.add('theme-switching');
 
     const transition = document.startViewTransition(toggleAction);
@@ -452,7 +459,6 @@ const View = {
         );
     });
 
-    // 🚀 性能大招 2：水波纹结束后，立刻恢复日常的按钮点击阻尼动画
     transition.finished.then(() => {
         document.documentElement.classList.remove('theme-switching');
     });
@@ -633,7 +639,6 @@ const View = {
     let displayTrigger = this.getEl('btn-display-mode-trigger');
     if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track') ? 'none' : 'inline-flex';
 
-    // 控制撤销按钮显示状态
     let undoBtn = this.getEl('btn-srs-undo');
     if (undoBtn) {
         if (Model.state.mode === 'srs' && Model.state.srsHistory && Model.state.srsHistory.length > 0) {
@@ -779,47 +784,95 @@ const View = {
       }
   },
 
-  resetWordbankRenderer() { Model.state.wbCurrentRendered = 0; this.getEl('wb-grid').innerHTML = ''; this.renderMoreWordbank(); },
-  renderMoreWordbank() {
-    const grid = this.getEl('wb-grid'); const cols = this.getEl('wb-col-select').value; const blurMode = this.getEl('wb-blur-select').value; const currentFilter = this.getEl('wb-folder-filter').value;
-    grid.setAttribute('data-cols', cols);
-    
-    // 获取全局搜索关键字并进行过滤
-    let searchInputEl = this.getEl('wb-search-input');
-    let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
+  // 🌟 新的重置词库渲染器方法
+  resetWordbankRenderer() { 
+      let searchInputEl = this.getEl('wb-search-input');
+      let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
+      let currentFilter = this.getEl('wb-folder-filter').value;
+      
+      // 更新缓存的过滤后数据
+      Model.updateFilteredDb(searchQuery, currentFilter);
+      
+      // 重置滚动条位置和渲染指针，强制触发重新渲染
+      window.scrollTo({ top: 0, behavior: 'instant' }); 
+      Model.state.renderedStartIndex = -1; 
+      
+      this.renderVirtualGrid(); 
+  },
 
-    let filteredData = Model.db.map((w, i) => ({w, idx: i})).filter(item => {
-        let matchFolder = (currentFilter === 'all' || item.w.folder === currentFilter);
-        let matchSearch = !searchQuery || 
-                          item.w.word.toLowerCase().includes(searchQuery) ||
-                          item.w.kana.toLowerCase().includes(searchQuery) ||
-                          item.w.meaning.toLowerCase().includes(searchQuery);
-        return matchFolder && matchSearch;
-    });
+  // 🌟 核心虚拟化网格渲染
+  renderVirtualGrid() {
+    const grid = this.getEl('wb-grid'); 
+    const container = this.getEl('wb-grid-container');
+    if(!grid || !container) return;
+
+    const colsStr = this.getEl('wb-col-select').value;
+    const cols = parseInt(colsStr) || 3; 
+    const blurMode = this.getEl('wb-blur-select').value; 
     
-    if (filteredData.length === 0 && Model.state.wbCurrentRendered === 0) {
+    const filteredData = Model.state.filteredDb;
+
+    if (filteredData.length === 0) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">search_off</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">没有找到匹配的词汇</div></div>`;
-        this.getEl('wb-scroll-sentinel').style.display = 'none';
+        grid.style.paddingTop = '0px'; grid.style.paddingBottom = '0px';
         return;
     }
 
-    let slice = filteredData.slice(Model.state.wbCurrentRendered, Model.state.wbCurrentRendered + Model.state.wbRenderLimit);
-    if (slice.length === 0) return;
+    const rowHeights = { 2: 155, 3: 125, 4: 100 }; 
+    const rowHeight = rowHeights[cols];
+    const totalRows = Math.ceil(filteredData.length / cols);
+    
+    const rect = container.getBoundingClientRect();
+    const gridTop = window.scrollY + rect.top; 
+    let relativeScrollY = Math.max(0, window.scrollY - gridTop + 20);
+
+    const viewportHeight = window.innerHeight;
+    const bufferRows = 4; 
+    let startRow = Math.floor(relativeScrollY / rowHeight) - bufferRows;
+    startRow = Math.max(0, startRow);
+    
+    let visibleRows = Math.ceil(viewportHeight / rowHeight) + (bufferRows * 2);
+    let endRow = startRow + visibleRows;
+    endRow = Math.min(totalRows, endRow);
+
+    let startIndex = startRow * cols;
+    let endIndex = endRow * cols;
+
+    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) {
+        return; 
+    }
+    Model.state.renderedStartIndex = startIndex;
+    Model.state.renderedEndIndex = endIndex;
+
+    const paddingTop = startRow * rowHeight;
+    const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
+    grid.style.paddingTop = `${paddingTop}px`;
+    grid.style.paddingBottom = `${paddingBottom}px`;
+    grid.setAttribute('data-cols', cols);
+
+    let slice = filteredData.slice(startIndex, endIndex);
     let fragment = document.createDocumentFragment();
-    slice.forEach((item, innerIdx) => {
+    slice.forEach((item) => {
       let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);
       let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
       let isChecked = Model.state.selectedSet.has(idx);
-      let card = document.createElement('div'); card.className = 'wb-card'; card.style.background = visuals.bg; card.dataset.idx = idx; 
-      card.style.animation = `fadeUpStagger 0.4s cubic-bezier(0.2, 0.8, 0.2, 1.1) ${innerIdx * 0.04}s forwards`;
+      
+      let card = document.createElement('div'); card.className = 'wb-card'; 
+      card.style.background = visuals.bg; card.dataset.idx = idx; 
+      card.style.opacity = '1'; 
+
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
       card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
       fragment.appendChild(card);
     });
-    grid.appendChild(fragment); Model.state.wbCurrentRendered += slice.length;
+    
+    grid.innerHTML = '';
+    grid.appendChild(fragment);
+
     let sentinel = this.getEl('wb-scroll-sentinel');
-    if (Model.state.wbCurrentRendered >= filteredData.length) { sentinel.style.display = 'none'; } else { sentinel.style.display = 'flex'; }
+    if (sentinel) sentinel.style.display = 'none';
   },
+
   updateWordbankUI() {
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
     
@@ -852,7 +905,7 @@ const Controller = {
     View.renderDashboard(); 
     View.updateWordbankUI(); 
     this.bindEvents(); 
-    this.setupIntersectionObserver();
+    this.setupVirtualScroll(); 
     
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
@@ -866,15 +919,33 @@ const Controller = {
 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
-  setupIntersectionObserver() {
-    let observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && document.getElementById('tab-wordbank').classList.contains('active')) View.renderMoreWordbank(); }, { rootMargin: '200px' });
-    observer.observe(document.getElementById('wb-scroll-sentinel'));
+
+  // 🌟 使用 requestAnimationFrame 优化的高频滚动监听
+  setupVirtualScroll() {
+    let ticking = false;
+    
+    window.addEventListener('scroll', () => {
+        if (document.getElementById('tab-wordbank').classList.contains('active')) {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    View.renderVirtualGrid();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        }
+    }, { passive: true }); 
+
+    window.addEventListener('resize', () => {
+         if (document.getElementById('tab-wordbank').classList.contains('active')) {
+             View.resetWordbankRenderer();
+         }
+    });
   },
 
   bindEvents() {
     document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
     
-    // 🌟 绑定带有 MD3 涟漪坐标的夜间模式切换事件
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
         btn.addEventListener('click', (e) => { 
             Hardware.playSound('click'); 
@@ -921,7 +992,6 @@ const Controller = {
         });
     }
 
-    // 绑定搜索框实时事件
     let searchInput = View.getEl('wb-search-input');
     if (searchInput) {
         searchInput.addEventListener('input', () => {
@@ -929,7 +999,6 @@ const Controller = {
         });
     }
 
-    // 绑定导入导出与备份事件
     let btnExport = View.getEl('btn-export-backup');
     if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
     
@@ -943,7 +1012,6 @@ const Controller = {
         });
     }
 
-    // 绑定 SRS 撤销时光机事件
     let undoBtn = View.getEl('btn-srs-undo');
     if (undoBtn) {
         undoBtn.addEventListener('click', () => this.undoSRS());
@@ -1024,7 +1092,6 @@ const Controller = {
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
   },
 
-  // 🌟 导出数据备份逻辑 (原生分享面板 + 安全挂载兜底)
   exportBackup() {
       Hardware.playSound('success');
       Hardware.vibrate(50);
@@ -1040,7 +1107,6 @@ const Controller = {
       let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
 
-      // 方案 A：针对手机端 PWA，调用系统原生分享/存储面板
       if (navigator.share && navigator.canShare) {
           let file = new File([blob], fileName, { type: "application/json" });
           if (navigator.canShare({ files: [file] })) {
@@ -1057,7 +1123,6 @@ const Controller = {
           }
       }
       
-      // 方案 B：针对电脑端或不支持原生分享的浏览器
       this.fallbackDownload(blob, fileName);
   },
 
@@ -1074,7 +1139,6 @@ const Controller = {
       showToast("尝试唤起本地下载...");
   },
 
-  // 🌟 导入数据恢复逻辑
   importBackup(file) {
       if (!file) return;
       let reader = new FileReader();
@@ -1229,7 +1293,6 @@ const Controller = {
         btn.classList.remove('btn-active-feedback'); 
         let realIdx = Model.state.studyQueue[Model.state.currentIndex]; 
 
-        // 🌟 记录操作发生前的旧状态压入时光机栈
         Model.state.srsHistory.push({
             idx: realIdx,
             oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)),
@@ -1250,7 +1313,6 @@ const Controller = {
     }, 300);
   },
 
-  // 🌟 SRS 时光机撤销逻辑
   undoSRS() {
       if (Model.state.isAnimating || Model.state.srsHistory.length === 0) return;
       Hardware.playSound('click'); Hardware.vibrate(40);

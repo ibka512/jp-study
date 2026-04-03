@@ -16143,7 +16143,7 @@ const DefaultWords = [
   kana: "はい",
   type: "感叹词",
   meaning: "是的，对。",
-  example: 「はい」と$\\overset{こた}{答}$えて、$\\overset{ほお}{頬}$を$\\overset{あか}{赤}$くする。/回答了一句“是的”，然后脸颊红了。"
+  example: "「はい」と$\\overset{こた}{答}$えて、$\\overset{ほお}{頬}$を$\\overset{あか}{赤}$くする。/回答了一句“是的”，然后脸颊红了。"
 },
 {
   word: "頬",

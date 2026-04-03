@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (Tab联动选单 + 三段式硬核检验机 + 樱花段位惩戒系统 + 全面对齐)
+ * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开)
  */
 
 const escapeHTML = (str) => {
@@ -125,6 +125,7 @@ const BottomSheet = {
             if(sel.style.marginBottom) facade.style.marginBottom = sel.style.marginBottom;
             if(sel.style.flex) facade.style.flex = sel.style.flex;
             if(sel.style.width) facade.style.width = sel.style.width;
+            if(sel.style.marginTop) facade.style.marginTop = sel.style.marginTop;
             
             let textSpan = document.createElement('span');
             textSpan.className = 'bs-facade-text';
@@ -154,7 +155,6 @@ const BottomSheet = {
             let btn = document.createElement('div');
             btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
             
-            // 虚拟状态分类专用图标注入
             if (selectEl.id === 'test-range-select' || selectEl.id === 'wb-folder-filter') {
                 let iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">folder</span>`;
                 if (opt.value === 'all') iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">grid_view</span>`;
@@ -189,12 +189,16 @@ const Model = {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     
-    // 原记忆检测专用
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     
-    // 🌟 全新三分天下检验模式 (Filter Test 体系B) 专用状态机
-    ftState: 'A', // A:盲答 B:提示 C:判决
+    ftState: 'A', 
     ftHint: null,
+
+    // 双轨制反馈核心状态变量
+    comboCount: 0,
+    maxProgressSeen: 0,
+    uniqueWordCount: 0,
+    initialQueueLength: 0,
 
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false,
@@ -373,7 +377,6 @@ const View = {
 
       if (pageId === 'study-area') {
           studyArea.classList.remove('hidden');
-          // 沉浸式隐藏导航栏
           if(bottomNav) bottomNav.style.transform = 'translateY(150%)';
           if(globalHeader) globalHeader.style.transform = 'translateY(-150%)';
       } else {
@@ -427,26 +430,86 @@ const View = {
     if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
     return { bg, wm, tagsHTML };
   },
+
+  updateComboBadge() {
+      let badge = this.getEl('combo-badge');
+      if (!badge) return;
+
+      // Combo 仅限硬核检验模式使用
+      if (Model.state.mode !== 'rote-learning' && Model.state.mode !== 'dual-track') {
+          badge.classList.remove('active', 'tier-2', 'tier-3');
+          return;
+      }
+      
+      let count = Model.state.comboCount;
+      if (count > 0) {
+          badge.innerText = `Combo x${count}`;
+          badge.className = 'combo-badge active';
+          void badge.offsetWidth; 
+          badge.classList.add('combo-pop');
+
+          if (count >= 10) badge.classList.add('tier-3');
+          else if (count >= 5) badge.classList.add('tier-2');
+      } else {
+          badge.className = 'combo-badge';
+      }
+  },
   
+  // 🌟 修复：精细化的多模式动态进度条映射分发机制
   updatePixelMatrix() {
     let c = this.getEl('pixel-matrix');
-    let isMemTest = Model.state.mode === 'memory-test';
+    let mode = Model.state.mode;
     
-    let total = isMemTest ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
-    let current = isMemTest ? (total - Model.state.studyQueue.length) : Model.state.currentIndex;
+    let totalPixels = 10;
+    let displayCurrent = 0;
     
-    let displayTotal = total; let displayCurrent = current;
+    // 1. 记忆检测模式：根据队列缩减计算
+    if (mode === 'memory-test') {
+        let total = Model.state.mtBaseQueue.length;
+        totalPixels = total;
+        displayCurrent = total - Model.state.studyQueue.length;
+    } 
+    // 2. 筛选检验模式：动态分水岭
+    else if (mode === 'filter-test') {
+        let totalWords = Model.state.studyQueue.length;
+        if (totalWords <= 100) {
+            // 不超过 100 词：原汁原味，1词1块
+            totalPixels = totalWords;
+            displayCurrent = Model.state.currentIndex;
+        } else {
+            // 超过 100 词：降维映射，固定 10 块防压迫
+            totalPixels = 10;
+            displayCurrent = Math.floor((Model.state.currentIndex / totalWords) * 10);
+        }
+    } 
+    // 3. 死记硬背模式：降维映射 + 单向锁死防倒退
+    else if (mode === 'rote-learning') {
+        totalPixels = 10;
+        let ratio = Model.state.initialQueueLength ? (Model.state.currentIndex / Model.state.initialQueueLength) : 0;
+        let currentProgress = Math.floor(ratio * 10);
+        
+        if (currentProgress > Model.state.maxProgressSeen) {
+            Model.state.maxProgressSeen = currentProgress;
+        }
+        displayCurrent = Model.state.maxProgressSeen;
+    } 
+    // 4. 经典突击 & 闯关模式：原汁原味，1步1块
+    else if (mode === 'pendulum' || mode === 'dual-track') {
+        totalPixels = Model.state.studyQueue.length;
+        displayCurrent = Model.state.currentIndex;
+    }
     
-    while (c.children.length < displayTotal) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
-    while (c.children.length > displayTotal) { c.removeChild(c.lastChild); }
+    if (displayCurrent > totalPixels) displayCurrent = totalPixels;
+
+    while (c.children.length < totalPixels) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
+    while (c.children.length > totalPixels) { c.removeChild(c.lastChild); }
     
     Array.from(c.children).forEach((p, i) => {
       p.className = (i < displayCurrent) ? 'pixel filled' : (i === displayCurrent ? 'pixel current' : 'pixel');
-      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/displayTotal)*10))]);
+      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/totalPixels)*10))]);
     });
   },
 
-  // 🌟 全新机制：专属的选项卡弹窗渲染逻辑
   renderGroupBottomSheet(cat) {
       let container = this.getEl('group-list-container');
       container.innerHTML = '';
@@ -458,7 +521,6 @@ const View = {
           return item.w.folder === (cat === 'default' ? '默认词库' : cat);
       });
 
-      // 智能空集兜底
       if (words.length === 0) {
           let emptyText = "暂无词汇";
           if(cat === 'virtual_starred') emptyText = "暂无收藏词汇";
@@ -475,19 +537,19 @@ const View = {
           let btn = document.createElement('div');
           btn.className = 'bs-option';
           
-          // 渲染这 10 词组专属的樱花印记
           let clears = Model.mtGroupClears[`group|${cat}|${i}`] || 0;
           let badgeHTML = '';
-          if (clears > 0) {
-              let badgeClass = 'hanko-bronze';
-              if (clears >= 10) badgeClass = 'hanko-diamond';
+          
+          if (clears > 0 || cat === 'virtual_cleared') {
+              let badgeClass = 'hanko-bronze'; 
+              if (clears >= 10 || cat === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
               else if (clears >= 5) badgeClass = 'hanko-gold';
               else if (clears >= 3) badgeClass = 'hanko-silver';
               badgeHTML = `<span class="hanko-badge ${badgeClass}"></span>`;
           }
+          
           btn.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span>第 ${startIdx + 1}-${endIdx} 词</span>${badgeHTML}</div>`;
 
-          // 获取分类名称用于显示
           let catLabel = document.querySelector(`#gs-tabs .g-tab[data-cat="${cat}"]`).innerText;
           let groupVal = `group|${cat}|${i}`;
           let displayTxt = `${catLabel} (第 ${startIdx + 1}-${endIdx} 词)`;
@@ -539,7 +601,6 @@ const View = {
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
-    // 恢复学习范围按钮文本
     let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
     this.getEl('custom-group-text').innerText = lastTxt;
 
@@ -623,11 +684,8 @@ const View = {
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
-    let maskFixed = "■■■"; // 🌟 防作弊固定遮盖
+    let maskFixed = "■■■"; 
 
-    // =====================================
-    // 🌟 全新硬核筛选检验模式 (三段式状态机)
-    // =====================================
     if (isFilterTest) {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
         let st = Model.state.ftState; 
@@ -673,7 +731,6 @@ const View = {
         this.getEl('star-btn').style.display = st === 'C' ? 'block' : 'none'; 
         this.getEl('star-icon').style.fontVariationSettings = Model.stars.includes(w.word) ? "'FILL' 1" : "'FILL' 0";
 
-        // 控制台切换与弹性伸缩
         if (st === 'C') {
             this.getEl('capsule-filter-test').classList.add('hidden');
             this.getEl('capsule-filter-judge').classList.remove('hidden');
@@ -681,16 +738,12 @@ const View = {
             this.getEl('capsule-filter-judge').classList.add('hidden');
             this.getEl('capsule-filter-test').classList.remove('hidden');
             let blurBtn = this.getEl('ft-blur');
-            if (st === 'B') blurBtn.style.display = 'none'; // 提示后隐藏模糊按钮，左右自动合拢
+            if (st === 'B') blurBtn.style.display = 'none'; 
             else blurBtn.style.display = 'flex';
         }
         
-        return; // 提前退出
+        return; 
     }
-
-    // =====================================
-    // 经典模式保留逻辑
-    // =====================================
 
     let showWord = true, showKana = true, showMeaning = true;
     
@@ -755,15 +808,15 @@ const View = {
     this.getEl('dual-track-ui').classList.add('hidden');
     this.getEl('memory-test-ui').classList.add('hidden');
     
-    if (Model.state.mode === 'pendulum' || forceRoteFull) {
+    if (Model.state.mode === 'pendulum' || (isRote && (forceRoteFull || mode === 'all'))) {
       this.getEl('capsule-pendulum').classList.remove('hidden');
       this.getEl('btn-prev').disabled = Model.state.currentIndex === 0;
-      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'none' : 'flex';
-      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1 && !isMemTest && !isRote) ? 'flex' : 'none';
+      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1) ? 'none' : 'flex';
+      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1) ? 'flex' : 'none';
     } else if (Model.state.mode === 'dual-track') {
       this.getEl('dual-track-ui').classList.remove('hidden');
       this.renderDualTrackUI(w);
-    } else if (isMemTest || isRote) {
+    } else if (isMemTest || (isRote && !forceRoteFull)) {
       this.getEl('memory-test-ui').classList.remove('hidden');
       this.renderMemoryTestUI(w, mode);
     }
@@ -908,7 +961,7 @@ const View = {
               btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); 
               kb.appendChild(btn); 
           });
-      } else if (currentTestType === 'choice') {
+      } else if (currentTestType.startsWith('choice')) {
           this.getEl('mt-choice-area').classList.remove('hidden');
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
           if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
@@ -1008,7 +1061,6 @@ const View = {
 
       let topRightHTML = '';
       if (Model.state.batchMode || Model.state.manageMode) {
-          // 🌟 修复误杀：多选时仅仅把右上角的星星替换为复选框，左上角的樱花正常保留！
           topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
       } else {
           topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
@@ -1137,7 +1189,6 @@ const Controller = {
     
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('tab-home'); View.renderDashboard(); });
 
-    // 🌟 全新 Tab 联动选项卡事件
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
         window.toggleModal('group-select-overlay', true);
@@ -1159,12 +1210,10 @@ const Controller = {
     View.getEl('btn-start-rote-learning').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('rote-learning'); });
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
     
-    // 🌟 全新筛选检验模式
     View.getEl('btn-start-filter-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startFilterTest(); });
     View.getEl('btn-test-range-trigger').addEventListener('click', () => { BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
-    // 🌟 全新硬核操作台判定事件
     View.getEl('ft-forget').addEventListener('click', () => {
          Hardware.playSound('error'); Hardware.vibrate(30);
          this.processFilterTestResult(false);
@@ -1434,10 +1483,13 @@ const Controller = {
       reader.readAsText(file);
   },
 
-  // 🌟 十词突击启动器
   startPendulum(launchMode = 'pendulum') {
-    let groupKey = Model.state.currentGroupKey;
-    if(!groupKey) return showToast("请先选择复习范围哦");
+    // 🌟 修复：懒加载回退判定，直接提取本地缓存，实现一键开背
+    let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || 'group|default|0';
+    Model.state.currentGroupKey = groupKey;
+    if (!Model.state.currentGroupLabel) {
+        Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
+    }
     
     let [prefix, catName, idxStr] = groupKey.split('|'); 
     let idx = parseInt(idxStr);
@@ -1453,8 +1505,16 @@ const Controller = {
     if(sourceWords.length === 0) return showToast("所选范围内暂无词汇哦");
 
     Hardware.playSound('click'); 
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; 
+    
+    // 核心状态初始化
+    Model.state.mode = launchMode; 
+    Model.state.currentIndex = 0; 
+    Model.state.dtWordAppearanceMap = {}; 
+    Model.state.mtStep = 1; 
     Model.state.currentWordFailed = false;
+    Model.state.comboCount = 0;
+    Model.state.maxProgressSeen = 0;
+    Model.state.uniqueWordCount = sourceWords.length;
 
     if (launchMode === 'memory-test') {
         Model.state.mtRound = 1;
@@ -1470,11 +1530,13 @@ const Controller = {
         }
     }
     
+    Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
+    View.updateComboBadge();
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
-  // 🌟 硬核筛选检验启动器
   startFilterTest() {
       let sel = View.getEl('test-range-select');
       let cat = sel.value;
@@ -1496,15 +1558,16 @@ const Controller = {
       Model.state.currentIndex = 0; 
       Model.state.ftState = 'A';
       Model.state.ftHint = null;
+      Model.state.maxProgressSeen = 0;
 
       Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
       
+      View.updateComboBadge();
       View.showPage('study-area'); 
       let c = View.getEl('pixel-matrix'); c.innerHTML=''; 
       View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
-  // 🌟 硬核筛选惩罚判定
   processFilterTestResult(isCorrect) {
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
       if (isCorrect) {
@@ -1534,21 +1597,30 @@ const Controller = {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
           View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
-              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); setTimeout(() => this.dtAdvanceNext(), 300); 
+              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
+              Model.state.comboCount++; View.updateComboBadge();
+              setTimeout(() => this.dtAdvanceNext(), 300); 
           }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+      } else { 
+          Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
+      }
   },
 
   handleDtChoiceClick(btn, isCorrect) {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
+          Model.state.comboCount++; View.updateComboBadge();
           document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
               el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0';
               setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150);
           });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
+      } else { 
+          Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
+      }
   },
 
   handleMtSpellClick(btn, token, wObj, displayMode) {
@@ -1561,6 +1633,7 @@ const Controller = {
           
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
               Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
+              Model.state.comboCount++; View.updateComboBadge();
               
               if (Model.state.mode === 'memory-test') {
                   View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block';
@@ -1574,6 +1647,7 @@ const Controller = {
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong');
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
           Model.state.currentWordFailed = true;
       }
   },
@@ -1583,7 +1657,8 @@ const Controller = {
       
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          
+          Model.state.comboCount++; View.updateComboBadge();
+
           if (Model.state.mode === 'memory-test') {
               let round = Model.state.mtRound;
               let step = Model.state.mtStep;
@@ -1623,6 +1698,7 @@ const Controller = {
       } else { 
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
           Model.state.currentWordFailed = true;
       }
   },
@@ -1664,6 +1740,11 @@ const Controller = {
               View.renderStudyCard('next');
           }
       } else {
+          if (Model.state.currentWordFailed) {
+              let failedIdx = Model.state.studyQueue[Model.state.currentIndex];
+              Model.state.studyQueue.push(failedIdx);
+              Model.state.currentWordFailed = false;
+          }
           Model.state.currentIndex++; Model.state.mtStep = 1; 
           if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); 
       }

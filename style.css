@@ -282,6 +282,51 @@
   .flash-card::before { bottom: -10px; left: 12px; right: 12px; opacity: 0.8; z-index: -1; box-shadow: 0 8px 24px var(--paper-shadow); }
   .flash-card::after { bottom: -20px; left: 24px; right: 24px; opacity: 0.5; z-index: -2; box-shadow: 0 4px 12px var(--paper-shadow); }
   
+  /* 🌟 全新连击悬浮徽章 (Combo Badge) */
+  .combo-badge {
+      position: absolute; top: -16px; left: 50%; transform: translateX(-50%) scale(0.9);
+      background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      padding: 6px 18px; border-radius: 999px;
+      font-size: 0.95rem; font-weight: 900; font-family: var(--font-ui);
+      color: var(--primary);
+      box-shadow: 0 4px 16px var(--paper-shadow);
+      z-index: 20; opacity: 0; pointer-events: none;
+      transition: all 0.4s var(--spring);
+  }
+  
+  .combo-badge.active { opacity: 1; transform: translateX(-50%) scale(1); }
+  
+  /* Combo 进阶状态特效 */
+  .combo-badge.tier-2 { 
+      color: #d4af37; border-color: rgba(212,175,55,0.4); 
+      text-shadow: 0 1px 4px rgba(212,175,55,0.3); 
+  }
+  .combo-badge.tier-3 { 
+      background: var(--tertiary); color: var(--on-primary); border-color: transparent; 
+      box-shadow: 0 4px 16px rgba(107,132,123,0.4);
+      animation: combo-pulse 1.5s infinite;
+  }
+  
+  /* 暗黑模式适配 */
+  [data-theme="dark"] .combo-badge { background: rgba(36, 33, 30, 0.85); border-color: rgba(255,255,255,0.1); }
+  [data-theme="dark"] .combo-badge.tier-2 { color: #f1c40f; border-color: rgba(241,196,15,0.3); }
+  [data-theme="dark"] .combo-badge.tier-3 { background: #1c2e22; color: #87c7a5; border-color: rgba(135,199,165,0.3); }
+
+  /* 呼吸与爆点动画 */
+  @keyframes combo-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(107,132,123,0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(107,132,123,0); }
+      100% { box-shadow: 0 0 0 0 rgba(107,132,123,0); }
+  }
+  
+  .combo-pop { animation: combo-pop-anim 0.4s var(--spring); }
+  @keyframes combo-pop-anim {
+      0% { transform: translateX(-50%) scale(1); }
+      50% { transform: translateX(-50%) scale(1.15); }
+      100% { transform: translateX(-50%) scale(1); }
+  }
+
   .watermark-layer { 
       position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; transition: background 0.4s ease; 
       box-shadow: inset 0 1px 2px var(--paper-highlight), inset 0 -2px 6px rgba(0,0,0,0.05);
@@ -490,6 +535,7 @@
   
   [data-theme="dark"] .card-hanko { opacity: 0.95; }
   
+  /* 🌟 修改点：统一悬浮胶囊内的按钮圆角为 full */
   .batch-bar { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.85); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 100; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
   [data-theme="dark"] .batch-bar { background: rgba(30,28,26,0.85); border-color: rgba(255,255,255,0.1); }
   
@@ -595,8 +641,22 @@
   @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
   .shake-anim { animation: shake 0.3s forwards; }
   
+  /* 🌟 修复假名键盘宽度畸变问题 */
   .dt-spell-input-box { font-size: 2rem; text-align: center; margin-bottom: var(--space-md); min-height: 56px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 10px;}
   .dt-spell-keyboard, #mt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: var(--space-md);}
+  
+  .dt-spell-key { 
+      width: auto !important; 
+      min-width: 64px; 
+      background: var(--surface-container) !important; 
+      color: var(--on-surface) !important; 
+      font-size: 1.4rem; 
+      padding: 14px 16px; 
+      font-family: var(--font-jp-sans); 
+      font-weight: 700; 
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 12px var(--paper-shadow);
+  }
   .dt-spell-key.wrong { border-color: var(--accent-red) !important; background: var(--accent-red-bg) !important; color: var(--accent-red) !important; }
   .dt-spell-key.used { opacity: 0; pointer-events: none; transform: scale(0.5); }
   
@@ -668,6 +728,19 @@
   #wb-grid[data-cols="3"] .wb-btn-move, #wb-grid[data-cols="3"] .wb-btn-edit, #wb-grid[data-cols="3"] .wb-btn-del { width: 36px !important; height: 36px !important; }
   #wb-grid[data-cols="4"] .wb-btn-move, #wb-grid[data-cols="4"] .wb-btn-edit, #wb-grid[data-cols="4"] .wb-btn-del { width: 30px !important; height: 30px !important; }
 
-  .batch-bar button { width: auto !important; padding: 10px 16px !important; border-radius: var(--radius-sm) !important; box-shadow: 0 4px 12px var(--paper-shadow) !important;}
+  /* 🌟 核心修改点：将 .batch-bar button 的 border-radius 统一为 var(--radius-full) */
+  .batch-bar button { width: auto !important; padding: 10px 16px !important; border-radius: var(--radius-full) !important; box-shadow: 0 4px 12px var(--paper-shadow) !important;}
+  
   .theme-switching * { transition: none !important; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; display: block; will-change: transform, opacity, filter, clip-path; }
+
+  /* 🌟 恢复长按打卡的鬼畜摇晃动画 */
+  @keyframes shake-punch {
+      0%, 100% { transform: scale(0.95) translateX(0); }
+      25% { transform: scale(0.95) translateX(-4px) rotate(-1deg); }
+      75% { transform: scale(0.95) translateX(4px) rotate(1deg); }
+  }
+  .btn-long-press.pressing { 
+      animation: shake-punch 0.2s infinite; 
+      box-shadow: 0 0 0 transparent !important; 
+  }

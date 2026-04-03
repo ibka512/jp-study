@@ -16284,7 +16284,7669 @@ const DefaultWords = [
   type: "名词",
   meaning: "窗边。",
   example: "$\\overset{まどべ}{窓辺}$に$\\overset{た}{立}$って、$\\overset{そと}{外}$の$\\overset{けしき}{景色}$を$\\overset{なが}{眺}$める。/站在窗边，眺望外面的景色。"
-}
+},
+{
+  word: "憧れる",
+  kana: "あこがれる",
+  type: "一段自动词",
+  meaning: "憧憬，向往。",
+  example: "$\\overset{いもうと}{妹}$は$\\overset{あさって}{明後日}$$\\overset{あ}{会}$うあなたに$\\overset{つよ}{強}$く$\\overset{あこが}{憧}$れている。/妹妹非常向往后天将要见到的你。"
+},
+{
+  word: "明後日",
+  kana: "あさって",
+  type: "名词",
+  meaning: "后天。",
+  example: "$\\overset{あさって}{明後日}$、$\\overset{かれ}{彼}$に$\\overset{あつ}{厚}$い$\\overset{ほん}{本}$を$\\overset{あた}{与}$える$\\overset{よてい}{予定}$だ。/打算后天给他一本厚厚的书。"
+},
+{
+  word: "与える",
+  kana: "あたえる",
+  type: "一段他动词",
+  meaning: "给予，提供。",
+  example: "$\\overset{おとうと}{弟}$にいくらかのお$\\overset{かね}{金}$を$\\overset{あた}{与}$える。/给弟弟一些钱。"
+},
+{
+  word: "厚い",
+  kana: "あつい",
+  type: "形容词",
+  meaning: "厚的；深厚的。",
+  example: "この$\\overset{あつ}{厚}$い$\\overset{じしょ}{辞書}$の$\\overset{うら}{裏}$に$\\overset{なまえ}{名前}$が$\\overset{か}{書}$いてある。/这本厚字典的背面写着名字。"
+},
+{
+  word: "あなた",
+  kana: "あなた",
+  type: "代词",
+  meaning: "你。",
+  example: "あなたの$\\overset{こころ}{心}$は$\\overset{やさ}{優}$しさで$\\overset{あふ}{溢}$れている。/你的内心充满了温柔。"
+},
+{
+  word: "溢れる",
+  kana: "あふれる",
+  type: "一段自动词",
+  meaning: "溢出，充满。",
+  example: "$\\overset{みず}{水}$がコップから$\\overset{あふ}{溢}$れて、$\\overset{つくえ}{机}$の$\\overset{うら}{裏}$にこぼれた。/水从杯子里溢出来，洒到了桌子背面。"
+},
+{
+  word: "いくら",
+  kana: "いくら",
+  type: "副词・名词",
+  meaning: "多少（钱）；无论怎么（也）。",
+  example: "この$\\overset{いつ}{五}$つのリンゴは$\\overset{ぜんぶ}{全部}$でいくらですか。/这五个苹果一共多少钱？ || いくら$\\overset{むずか}{難}$しくても、$\\overset{ぜったい}{絶対}$に$\\overset{あきら}{諦}$めない。/无论多么困难，也绝对不放弃。"
+},
+{
+  word: "五つ",
+  kana: "いつつ",
+  type: "名词",
+  meaning: "五个；五岁。",
+  example: "$\\overset{いもうと}{妹}$と$\\overset{おとうと}{弟}$に$\\overset{いつ}{五}$つのお$\\overset{かし}{菓子}$を$\\overset{わ}{分}$ける。/把五个点心分给妹妹和弟弟。"
+},
+{
+  word: "妹",
+  kana: "いもうと",
+  type: "名词",
+  meaning: "妹妹。",
+  example: "$\\overset{いもうと}{妹}$が$\\overset{うら}{裏}$の$\\overset{にわ}{庭}$に$\\overset{じてんしゃ}{自転車}$を$\\overset{お}{置}$く。/妹妹把自行车放在后院里。"
+},
+{
+  word: "裏",
+  kana: "うら",
+  type: "名词",
+  meaning: "背面，后面。",
+  example: "$\\overset{いえ}{家}$の$\\overset{うら}{裏}$で$\\overset{おとうと}{弟}$が$\\overset{かぜ}{風}$を$\\overset{かん}{感}$じている。/弟弟在房子后面感受着风。"
+},
+{
+  word: "置く",
+  kana: "おく",
+  type: "五段他动词",
+  meaning: "放置，搁；预先做好。",
+  example: "これを$\\overset{つくえ}{机}$の$\\overset{うえ}{上}$に$\\overset{お}{置}$いてください。/请把这个放在桌子上。"
+},
+{
+  word: "弟",
+  kana: "おとうと",
+  type: "名词",
+  meaning: "弟弟。",
+  example: "$\\overset{おとうと}{弟}$が$\\overset{かみなり}{雷}$の$\\overset{おと}{音}$を$\\overset{き}{聞}$いて$\\overset{かな}{悲}$しい$\\overset{かお}{顔}$をする。/弟弟听到雷声，露出了悲伤的表情。"
+},
+{
+  word: "風",
+  kana: "かぜ",
+  type: "名词",
+  meaning: "风。",
+  example: "$\\overset{つよ}{強}$い$\\overset{かぜ}{風}$が$\\overset{き}{木}$の$\\overset{は}{葉}$を$\\overset{ゆ}{揺}$らす。/强风吹动着树叶。"
+},
+{
+  word: "悲しい",
+  kana: "かなしい",
+  type: "形容词",
+  meaning: "悲伤的。",
+  example: "$\\overset{かれ}{彼}$が$\\overset{とお}{遠}$くへ$\\overset{い}{行}$くのはとても$\\overset{かな}{悲}$しい。/他要去远方，这让人很难过。"
+},
+{
+  word: "雷",
+  kana: "かみなり",
+  type: "名词",
+  meaning: "雷。",
+  example: "$\\overset{かみなり}{雷}$が$\\overset{な}{鳴}$って、きっと$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$るだろう。/打雷了，肯定会下雨的吧。"
+},
+{
+  word: "木",
+  kana: "き",
+  type: "名词",
+  meaning: "树木，木头。",
+  example: "こうして$\\overset{き}{木}$の$\\overset{した}{下}$にいると$\\overset{しあわ}{幸}$せだ。/像这样待在树下，感觉很幸福。"
+},
+{
+  word: "きっと",
+  kana: "きっと",
+  type: "副词",
+  meaning: "一定，必定。",
+  example: "$\\overset{かれ}{彼}$はきっとこれをくれるだろう。/他肯定会把这个给我的吧。"
+},
+{
+  word: "くれる",
+  kana: "くれる",
+  type: "一段他动词",
+  meaning: "给（我或我一方的人）。",
+  example: "$\\overset{こま}{困}$っている$\\overset{とき}{時}$、$\\overset{ともだち}{友達}$がアドバイスをくれる。/遇到困难时，朋友给了我建议。"
+},
+{
+  word: "こう",
+  kana: "こう",
+  type: "副词",
+  meaning: "这样，如此。",
+  example: "こうすれば、$\\overset{せま}{狭}$い$\\overset{へや}{部屋}$でも$\\overset{こま}{困}$らない。/这样做的话，即使在狭窄的房间里也不会觉得麻烦。"
+},
+{
+  word: "困る",
+  kana: "こまる",
+  type: "五段自动词",
+  meaning: "为难，困扰。",
+  example: "これがなくて、みんなきっと$\\overset{こま}{困}$る。/没有这个，大家肯定会很困扰。"
+},
+{
+  word: "これ",
+  kana: "これ",
+  type: "代词",
+  meaning: "这个。",
+  example: "これを$\\overset{す}{吸}$うと、$\\overset{しあわ}{幸}$せな$\\overset{きぶん}{気分}$になる。/吸了这个，就会有种幸福的感觉。"
+},
+{
+  word: "幸せ",
+  kana: "しあわせ",
+  type: "名・形动",
+  meaning: "幸福。",
+  example: "$\\overset{かぞく}{家族}$の$\\overset{しあわ}{幸}$せを$\\overset{いの}{祈}$る。/祈求家人的幸福。 || $\\overset{せま}{狭}$い$\\overset{いえ}{家}$でも$\\overset{かぞく}{家族}$がいれば$\\overset{しあわ}{幸}$せだ。/即使房子很小，只要有家人在就很幸福。"
+},
+{
+  word: "吸う",
+  kana: "すう",
+  type: "五段他动词",
+  meaning: "吸，呼吸；抽（烟）。",
+  example: "$\\overset{き}{木}$の$\\overset{おお}{多}$い$\\overset{もり}{森}$で$\\overset{しんせん}{新鮮}$な$\\overset{くうき}{空気}$を$\\overset{す}{吸}$う。/在树木繁茂的森林里呼吸新鲜空气。"
+},
+{
+  word: "狭い",
+  kana: "せまい",
+  type: "形容词",
+  meaning: "狭窄的。",
+  example: "$\\overset{せま}{狭}$い$\\overset{みせ}{店}$で$\\overset{そば}{蕎麦}$を$\\overset{た}{食}$べる。/在狭窄的店里吃荞麦面。"
+},
+{
+  word: "蕎麦",
+  kana: "そば",
+  type: "名词",
+  meaning: "荞麦面。",
+  example: "$\\overset{つくえ}{机}$で$\\overset{そば}{蕎麦}$を$\\overset{た}{食}$べながら、つい$\\overset{こきょう}{故郷}$を$\\overset{おも}{思}$う。/在桌子旁吃着荞麦面，不由得想起了故乡。"
+},
+{
+  word: "つい",
+  kana: "つい",
+  type: "副词",
+  meaning: "不知不觉地，无意中；刚刚。",
+  example: "$\\overset{とお}{遠}$くの$\\overset{まち}{町}$で、つい$\\overset{なみだ}{涙}$が$\\overset{で}{出}$る。/在遥远的城市里，不知不觉流下了眼泪。"
+},
+{
+  word: "机",
+  kana: "つくえ",
+  type: "名词",
+  meaning: "桌子，书桌。",
+  example: "$\\overset{つくえ}{机}$の$\\overset{うえ}{上}$に$\\overset{なな}{七}$つの$\\overset{はし}{箸}$がない。/桌子上没有七双筷子。"
+},
+{
+  word: "遠く",
+  kana: "とおく",
+  type: "名词・副词",
+  meaning: "远处，远方。",
+  example: "$\\overset{とお}{遠}$くの$\\overset{こきょう}{故郷}$で$\\overset{そふ}{祖父}$が$\\overset{な}{亡}$くなった。/在远方的故乡，祖父去世了。"
+},
+{
+  word: "ない",
+  kana: "ない",
+  type: "形容词・助动词",
+  meaning: "没有，无。",
+  example: "$\\overset{ほか}{他}$の$\\overset{まち}{町}$にはこんなに$\\overset{おい}{美味}$しい$\\overset{そば}{蕎麦}$はない。/其他城市没有这么好吃的荞麦面。 || $\\overset{かれ}{彼}$は$\\overset{い}{行}$かないと$\\overset{い}{言}$った。/他说他不去。"
+},
+{
+  word: "亡くなる",
+  kana: "なくなる",
+  type: "五段自动词",
+  meaning: "去世，死亡。",
+  example: "$\\overset{かれ}{彼}$が$\\overset{な}{亡}$くなって、$\\overset{なな}{七}$つの$\\overset{とし}{年}$が$\\overset{す}{過}$ぎた。/他去世后，已经过去了七年。"
+},
+{
+  word: "七つ",
+  kana: "ななつ",
+  type: "名词",
+  meaning: "七个；七岁。",
+  example: "$\\overset{なな}{七}$つの$\\overset{とき}{時}$、$\\overset{ひ}{火}$の$\\overset{つか}{使}$い$\\overset{かた}{方}$を$\\overset{おぼ}{覚}$えた。/七岁的时候学会了用火。"
+},
+{
+  word: "喉",
+  kana: "のど",
+  type: "名词",
+  meaning: "喉咙，嗓子。",
+  example: "$\\overset{のど}{喉}$が$\\overset{かわ}{渇}$いたので、$\\overset{ほか}{他}$の$\\overset{みせ}{店}$で$\\overset{みず}{水}$を$\\overset{の}{飲}$む。/因为口渴了，所以在别家店喝水。"
+},
+{
+  word: "箸",
+  kana: "はし",
+  type: "名词",
+  meaning: "筷子。",
+  example: "$\\overset{はし}{箸}$を$\\overset{つか}{使}$って$\\overset{そば}{蕎麦}$を$\\overset{た}{食}$べる。/用筷子吃荞麦面。"
+},
+{
+  word: "火",
+  kana: "ひ",
+  type: "名词",
+  meaning: "火。",
+  example: "$\\overset{こきょう}{故郷}$の$\\overset{まち}{町}$を$\\overset{ひ}{火}$から$\\overset{まも}{守}$る。/保护故乡的城市免受火灾。"
+},
+{
+  word: "故郷",
+  kana: "こきょう",
+  type: "名词",
+  meaning: "故乡。",
+  example: "$\\overset{こきょう}{故郷}$の$\\overset{ほか}{他}$、$\\overset{い}{行}$きたい$\\overset{まち}{町}$はない。/除了故乡，没有别的想去的城市了。"
+},
+{
+  word: "他",
+  kana: "ほか",
+  type: "名词",
+  meaning: "其他，另外。",
+  example: "$\\overset{ほか}{他}$の$\\overset{まち}{町}$へ$\\overset{い}{行}$って、$\\overset{しぜん}{自然}$の$\\overset{もり}{森}$を$\\overset{まも}{守}$る。/去其他城市，保护自然的森林。"
+},
+{
+  word: "町・街",
+  kana: "まち",
+  type: "名词",
+  meaning: "城镇，街道。",
+  example: "$\\overset{みず}{水}$の$\\overset{ゆた}{豊}$かな$\\overset{まち}{町}$で$\\overset{ゆうがた}{夕方}$を$\\overset{むか}{迎}$える。/在水资源丰富的城镇里迎来傍晚。"
+},
+{
+  word: "守る",
+  kana: "まもる",
+  type: "五段他动词",
+  meaning: "保护；遵守。",
+  example: "$\\overset{よわ}{弱}$い$\\overset{もり}{森}$の$\\overset{どうぶつ}{動物}$を$\\overset{まも}{守}$る。/保护森林里弱小的动物。"
+},
+{
+  word: "水",
+  kana: "みず",
+  type: "名词",
+  meaning: "水。",
+  example: "$\\overset{もり}{森}$で$\\overset{みず}{水}$を$\\overset{の}{飲}$んで、$\\overset{ゆうがた}{夕方}$を$\\overset{むか}{迎}$える。/在森林里喝了水，迎来了傍晚。"
+},
+{
+  word: "迎える",
+  kana: "むかえる",
+  type: "一段他动词",
+  meaning: "迎接，迎来。",
+  example: "$\\overset{よわ}{弱}$い$\\overset{どうぶつ}{動物}$を$\\overset{かぞく}{家族}$として$\\overset{むか}{迎}$える。/把弱小的动物作为家人迎接回来。"
+},
+{
+  word: "森",
+  kana: "もり",
+  type: "名词",
+  meaning: "森林。",
+  example: "$\\overset{ゆうがた}{夕方}$の$\\overset{もり}{森}$で、$\\overset{わす}{忘}$れられない$\\overset{かげ}{影}$を$\\overset{み}{見}$た。/在傍晚的森林里，看到了令人难忘的影子。"
+},
+{
+  word: "夕方",
+  kana: "ゆうがた",
+  type: "名词",
+  meaning: "傍晚。",
+  example: "$\\overset{ゆうがた}{夕方}$、$\\overset{おもちゃ}{玩具}$をめぐって$\\overset{あらそ}{争}$う。/傍晚时分，围绕着玩具争抢。"
+},
+{
+  word: "弱い",
+  kana: "よわい",
+  type: "形容词",
+  meaning: "弱的，脆弱的。",
+  example: "$\\overset{よわ}{弱}$い$\\overset{もの}{者}$をいじめるのは$\\overset{お}{惜}$しいことだ。/欺负弱者是一件令人惋惜（不该）的事。"
+},
+{
+  word: "忘れる",
+  kana: "わすれる",
+  type: "一段他动词",
+  meaning: "忘记。",
+  example: "いただいた$\\overset{おもちゃ}{玩具}$を$\\overset{けっ}{決}$して$\\overset{わす}{忘}$れない。/绝不会忘记获赠的玩具。"
+},
+{
+  word: "争う",
+  kana: "あらそう",
+  type: "五段自动词",
+  meaning: "争夺，竞争；争论。",
+  example: "$\\overset{か}{飼}$っている$\\overset{いぬ}{犬}$が$\\overset{かげ}{影}$と$\\overset{あらそ}{争}$う。/养的狗和影子打架。"
+},
+{
+  word: "いただく",
+  kana: "いただく",
+  type: "五段他动词",
+  meaning: "得到，收到（「もらう」的谦让语）；吃，喝（「食べる・飲む」的谦让语）。",
+  example: "$\\overset{せんせい}{先生}$から$\\overset{お}{惜}$しい$\\overset{ほん}{本}$をいただく。/从老师那里得到了一本珍贵的书。"
+},
+{
+  word: "惜しい",
+  kana: "おしい",
+  type: "形容词",
+  meaning: "可惜的，遗憾的；舍不得的。",
+  example: "$\\overset{か}{枯}$れた$\\overset{はな}{花}$を$\\overset{す}{捨}$てるのは$\\overset{お}{惜}$しい。/把枯萎的花扔掉很舍不得。"
+},
+{
+  word: "玩具",
+  kana: "おもちゃ",
+  type: "名词",
+  meaning: "玩具。",
+  example: "$\\overset{おもちゃ}{玩具}$で$\\overset{あそ}{遊}$ぶ$\\overset{いぬ}{犬}$を$\\overset{か}{飼}$う。/养了一只会玩玩具的狗。"
+},
+{
+  word: "飼う",
+  kana: "かう",
+  type: "五段他动词",
+  meaning: "饲养。",
+  example: "$\\overset{くさ}{臭}$い$\\overset{にお}{匂}$いを$\\overset{さ}{避}$けて$\\overset{どうぶつ}{動物}$を$\\overset{か}{飼}$う。/避开难闻的气味饲养动物。"
+},
+{
+  word: "影",
+  kana: "かげ",
+  type: "名词",
+  meaning: "影子。",
+  example: "$\\overset{か}{枯}$れた$\\overset{き}{木}$の$\\overset{かげ}{影}$が$\\overset{なが}{長}$く$\\overset{の}{伸}$びる。/枯树的影子拉得很长。"
+},
+{
+  word: "枯れる",
+  kana: "かれる",
+  type: "一段自动词",
+  meaning: "枯萎，凋零。",
+  example: "$\\overset{もり}{森}$の$\\overset{き}{木}$が$\\overset{か}{枯}$れて、$\\overset{すべ}{全}$て$\\overset{しま}{仕舞}$う。/森林里的树都枯萎了，一切都结束了。"
+},
+{
+  word: "臭い",
+  kana: "くさい",
+  type: "形容词",
+  meaning: "臭的。",
+  example: "$\\overset{くさ}{臭}$い$\\overset{ばしょ}{場所}$を$\\overset{さ}{避}$けて、$\\overset{すべ}{全}$て$\\overset{たの}{楽}$しむ。/避开臭的地方，尽情享受一切。"
+},
+{
+  word: "避ける",
+  kana: "さける",
+  type: "一段他动词",
+  meaning: "避开，躲避。",
+  example: "$\\overset{つら}{辛}$い$\\overset{しごと}{仕事}$を$\\overset{さ}{避}$けて、$\\overset{きそく}{規則}$に$\\overset{したが}{従}$う。/避开辛苦的工作，遵守规则。"
+},
+{
+  word: "従う",
+  kana: "したがう",
+  type: "五段自动词",
+  meaning: "跟随，服从。",
+  example: "$\\overset{おや}{親}$の$\\overset{いけん}{意見}$に$\\overset{したが}{従}$って、$\\overset{すべ}{全}$て$\\overset{しま}{仕舞}$う。/服从父母的意见，把一切都收拾好。"
+},
+{
+  word: "仕舞う",
+  kana: "しまう",
+  type: "五段他动词",
+  meaning: "收拾，存放；结束。",
+  example: "$\\overset{たま}{偶}$に$\\overset{つら}{辛}$い$\\overset{きも}{気持}$ちを$\\overset{こころ}{心}$に$\\overset{しま}{仕舞}$う。/偶尔把痛苦的心情藏在心里。"
+},
+{
+  word: "全て",
+  kana: "すべて",
+  type: "名词・副词",
+  meaning: "全部，一切。",
+  example: "$\\overset{すべて}{全て}$がとうとう$\\overset{かいけつ}{解決}$した。/一切终于都解决了。 || $\\overset{かれ}{彼}$の$\\overset{い}{言}$うことは$\\overset{すべ}{全}$て$\\overset{ただ}{正}$しい。/他说的全是对的。"
+},
+{
+  word: "楽しむ",
+  kana: "たのしむ",
+  type: "五段他动词",
+  meaning: "享受，欣赏。",
+  example: "$\\overset{なま}{生}$の$\\overset{おんがく}{音楽}$をなるべく$\\overset{たの}{楽}$しむ。/尽量享受现场的音乐。"
+},
+{
+  word: "偶に",
+  kana: "たまに",
+  type: "副词",
+  meaning: "偶尔。",
+  example: "$\\overset{たま}{偶}$に$\\overset{に}{似}$ている$\\overset{ふたり}{二人}$がとうとう$\\overset{であ}{出会}$った。/偶尔相像的两人终于相遇了。"
+},
+{
+  word: "辛い",
+  kana: "つらい",
+  type: "形容词",
+  meaning: "辛苦的，痛苦的。",
+  example: "$\\overset{つら}{辛}$い$\\overset{とき}{時}$はなるべく$\\overset{なま}{生}$の$\\overset{やさい}{野菜}$を$\\overset{た}{食}$べる。/痛苦的时候尽量吃生蔬菜。"
+},
+{
+  word: "とうとう",
+  kana: "とうとう",
+  type: "副词",
+  meaning: "终于，到底。",
+  example: "とうとう$\\overset{き}{木}$の$\\overset{ね}{根}$が$\\overset{はやし}{林}$に$\\overset{ひろ}{広}$がった。/树根终于蔓延到了树林里。"
+},
+{
+  word: "生",
+  kana: "なま",
+  type: "名词",
+  meaning: "生，未加工的；现场。",
+  example: "$\\overset{なま}{生}$の$\\overset{さかな}{魚}$を$\\overset{た}{食}$べるのが$\\overset{ひど}{酷}$く$\\overset{す}{好}$きだ。/我非常喜欢吃生鱼。"
+},
+{
+  word: "なるべく",
+  kana: "なるべく",
+  type: "副词",
+  meaning: "尽量，尽可能。",
+  example: "なるべく$\\overset{やさい}{野菜}$を$\\overset{おお}{多}$く$\\overset{ふく}{含}$む$\\overset{しょくじ}{食事}$にする。/尽量吃包含很多蔬菜的饭菜。"
+},
+{
+  word: "似る",
+  kana: "にる",
+  type: "一段自动词",
+  meaning: "相似，像。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{ちちおや}{父親}$に$\\overset{ひど}{酷}$く$\\overset{に}{似}$ている。/他长得非常像父亲。"
+},
+{
+  word: "根",
+  kana: "ね",
+  type: "名词",
+  meaning: "根，根源。",
+  example: "$\\overset{き}{木}$の$\\overset{ね}{根}$が$\\overset{ふか}{深}$く$\\overset{はやし}{林}$の$\\overset{つち}{土}$に$\\overset{は}{張}$る。/树根深深地扎在树林的泥土里。"
+},
+{
+  word: "果たす",
+  kana: "はたす",
+  type: "五段他动词",
+  meaning: "完成，实现；起（作用）。",
+  example: "$\\overset{はやし}{林}$の$\\overset{なか}{中}$で$\\overset{ひど}{酷}$い$\\overset{にんむ}{任務}$を$\\overset{は}{果}$たす。/在树林里完成严酷的任务。"
+},
+{
+  word: "林",
+  kana: "はやし",
+  type: "名词",
+  meaning: "树林。",
+  example: "$\\overset{はやし}{林}$の$\\overset{なか}{中}$で$\\overset{て}{手}$を$\\overset{ふ}{振}$る。/在树林里挥手。"
+},
+{
+  word: "酷い",
+  kana: "ひどい",
+  type: "形容词",
+  meaning: "残酷的；严重的，糟糕的。",
+  example: "$\\overset{ひど}{酷}$い$\\overset{かぜ}{風邪}$で$\\overset{ほね}{骨}$まで$\\overset{いた}{痛}$く、$\\overset{や}{痩}$せる。/因为严重的感冒连骨头都痛，人都瘦了。"
+},
+{
+  word: "含む",
+  kana: "ふくむ",
+  type: "五段他动词",
+  meaning: "包含，含有。",
+  example: "$\\overset{ぎゅうにゅう}{牛乳}$は$\\overset{ほね}{骨}$に$\\overset{よ}{良}$い$\\overset{せいぶん}{成分}$を$\\overset{おお}{多}$く$\\overset{ふく}{含}$む。/牛奶中含有许多对骨骼有益的成分。"
+},
+{
+  word: "振る",
+  kana: "ふる",
+  type: "五段他动词",
+  meaning: "挥动，摇；撒（盐等）；拒绝。",
+  example: "$\\overset{うち}{内}$から$\\overset{そと}{外}$へ$\\overset{て}{手}$を$\\overset{ふ}{振}$る。/从里向外挥手。"
+},
+{
+  word: "骨（其一）",
+  kana: "ほね",
+  type: "名词",
+  meaning: "骨头。",
+  example: "$\\overset{や}{痩}$せて$\\overset{ほね}{骨}$が$\\overset{めだ}{目立}$つ。/瘦得骨头都显露出来了。"
+},
+{
+  word: "痩せる",
+  kana: "やせる",
+  type: "一段自动词",
+  meaning: "瘦。",
+  example: "$\\overset{や}{痩}$せたので、$\\overset{ふく}{服}$が$\\overset{ゆる}{緩}$くなった。/因为变瘦了，所以衣服变松了。"
+},
+{
+  word: "緩い",
+  kana: "ゆるい",
+  type: "形容词",
+  meaning: "松的，宽松的；缓慢的。",
+  example: "$\\overset{ゆる}{緩}$い$\\overset{くつ}{靴}$を$\\overset{は}{履}$いて$\\overset{いえ}{家}$の$\\overset{うち}{内}$を$\\overset{ある}{歩}$く。/穿着宽松的鞋在家里走动。"
+},
+{
+  word: "内",
+  kana: "うち",
+  type: "名词",
+  meaning: "内部，里面。",
+  example: "$\\overset{いえ}{家}$の$\\overset{うち}{内}$で$\\overset{うで}{腕}$を$\\overset{く}{組}$む。/在房子里面双手交叉抱臂。"
+},
+{
+  word: "えっ",
+  kana: "えっ",
+  type: "感叹词",
+  meaning: "哎，什么（表惊讶或疑问）。",
+  example: "えっ、こうして$\\overset{め}{目}$をこするの？/哎？是像这样揉眼睛吗？"
+},
+{
+  word: "組む",
+  kana: "くむ",
+  type: "五段他动词",
+  meaning: "交叉，盘腿；组建。",
+  example: "ご$\\overset{かぞく}{家族}$と$\\overset{いっしょ}{一緒}$に$\\overset{うで}{腕}$を$\\overset{く}{組}$む。/和家人一起挽着胳膊。"
+},
+{
+  word: "ご～",
+  kana: "ご",
+  type: "接头词",
+  meaning: "（接在汉字词前，表尊敬或礼貌）。",
+  example: "ご$\\overset{かぞく}{家族}$の$\\overset{みなさま}{皆様}$、さて$\\overset{しゅっぱつ}{出発}$しましょう。/各位家属，那么我们出发吧。"
+},
+{
+  word: "こうして",
+  kana: "こうして",
+  type: "副词",
+  meaning: "就这样，像这样。",
+  example: "こうして$\\overset{て}{手}$をこすると$\\overset{あたた}{暖}$かくなる。/像这样搓手就会变暖和。"
+},
+{
+  word: "こする",
+  kana: "こする",
+  type: "五段他动词",
+  meaning: "摩擦，揉。",
+  example: "$\\overset{め}{目}$をこすって$\\overset{むら}{村}$の$\\overset{さかい}{境}$を$\\overset{み}{見}$る。/揉了揉眼睛看向村子的交界处。"
+},
+{
+  word: "境",
+  kana: "さかい",
+  type: "名词",
+  meaning: "交界，边界。",
+  example: "$\\overset{むら}{村}$の$\\overset{さかい}{境}$に$\\overset{たけ}{竹}$が$\\overset{は}{生}$えている。/村子的交界处长着竹子。"
+},
+{
+  word: "さて",
+  kana: "さて",
+  type: "接续词・感叹词",
+  meaning: "那么，且说（用于转换话题）。",
+  example: "さて、$\\overset{じかん}{時間}$が$\\overset{た}{経}$つのは$\\overset{はや}{早}$い。したがって$\\overset{かえ}{帰}$ろう。/那么，时间过得真快。所以回家吧。"
+},
+{
+  word: "したがって",
+  kana: "したがって",
+  type: "接续词",
+  meaning: "因此，所以。",
+  example: "したがって、$\\overset{たんぼ}{田んぼ}$で$\\overset{すじ}{筋}$トレをする。/因此，在田里做肌肉训练。"
+},
+{
+  word: "筋",
+  kana: "すじ",
+  type: "名词",
+  meaning: "肌肉，筋脉；条理，逻辑。",
+  example: "$\\overset{あし}{足}$の$\\overset{すじ}{筋}$が$\\overset{いた}{痛}$いと$\\overset{ちちおや}{父親}$が$\\overset{つぶや}{呟}$く。/父亲小声嘟囔着说脚上的筋痛。"
+},
+{
+  word: "竹",
+  kana: "たけ",
+  type: "名词",
+  meaning: "竹子。",
+  example: "$\\overset{たけ}{竹}$の$\\overset{ぼう}{棒}$で$\\overset{ちい}{小}$さな$\\overset{とだな}{戸棚}$を$\\overset{つく}{作}$る。/用竹棍做个小柜子。"
+},
+{
+  word: "経つ",
+  kana: "たつ",
+  type: "五段自动词",
+  meaning: "流逝，经过（时间）。",
+  example: "$\\overset{じかん}{時間}$が$\\overset{た}{経}$ち、$\\overset{かれ}{彼}$は$\\overset{ちちおや}{父親}$になった。/时间流逝，他成为了父亲。"
+},
+{
+  word: "田んぼ",
+  kana: "たんぼ",
+  type: "名词",
+  meaning: "水田，稻田。",
+  example: "$\\overset{たんぼ}{田んぼ}$で$\\overset{なわと}{縄跳}$びをして$\\overset{あそ}{遊}$ぶ。/在水田里跳绳玩。"
+},
+{
+  word: "小さな",
+  kana: "ちいさな",
+  type: "连体词",
+  meaning: "小的（只能接名词）。",
+  example: "$\\overset{ちい}{小}$さな$\\overset{はがき}{葉書}$を$\\overset{ちちおや}{父親}$に$\\overset{おく}{送}$る。/把小小的明信片寄给父亲。"
+},
+{
+  word: "父親",
+  kana: "ちちおや",
+  type: "名词",
+  meaning: "父亲。",
+  example: "$\\overset{ちちおや}{父親}$が$\\overset{まこと}{誠}$に$\\overset{ざんねん}{残念}$だと$\\overset{つぶや}{呟}$く。/父亲嘟囔着说真是遗憾。"
+},
+{
+  word: "呟く",
+  kana: "つぶやく",
+  type: "五段自他动词",
+  meaning: "嘟囔，发牢骚。",
+  example: "$\\overset{むらさき}{紫}$の$\\overset{はな}{花}$を$\\overset{み}{見}$て、$\\overset{きれい}{綺麗}$だと$\\overset{つぶや}{呟}$く。/看着紫色的花，小声嘟囔着说真漂亮。"
+},
+{
+  word: "戸棚",
+  kana: "とだな",
+  type: "名词",
+  meaning: "橱柜。",
+  example: "$\\overset{とだな}{戸棚}$から$\\overset{なわと}{縄跳}$びと$\\overset{はがき}{葉書}$を$\\overset{だ}{出}$す。/从柜子里拿出跳绳和明信片。"
+},
+{
+  word: "縄跳び",
+  kana: "なわとび",
+  type: "名・サ变动词する自",
+  meaning: "跳绳。",
+  example: "$\\overset{なわと}{縄跳}$びの$\\overset{れんしゅう}{練習}$をする。/做跳绳的练习。 || $\\overset{むらさき}{紫}$の$\\overset{ふく}{服}$で$\\overset{なわと}{縄跳}$びする。/穿着紫色的衣服跳绳。"
+},
+{
+  word: "葉書",
+  kana: "はがき",
+  type: "名词",
+  meaning: "明信片。",
+  example: "$\\overset{まこと}{誠}$に$\\overset{うつく}{美}$しい$\\overset{むらさき}{紫}$の$\\overset{はがき}{葉書}$だ。/这真是一张美丽的紫色明信片。"
+},
+{
+  word: "誠に",
+  kana: "まことに",
+  type: "副词",
+  meaning: "实在，非常，真诚地。",
+  example: "もしもし、$\\overset{まこと}{誠}$に$\\overset{きょうしゅく}{恐縮}$ですが.../喂喂，实在是不好意思..."
+},
+{
+  word: "紫",
+  kana: "むらさき",
+  type: "名词",
+  meaning: "紫色。",
+  example: "$\\overset{むらさき}{紫}$の$\\overset{たけ}{竹}$を$\\overset{あやつ}{操}$る。/操纵紫色的竹子。"
+},
+{
+  word: "もしもし",
+  kana: "もしもし",
+  type: "感叹词",
+  meaning: "喂，喂喂（打电话时）。",
+  example: "もしもし、その$\\overset{うわさ}{噂}$を$\\overset{き}{聞}$きましたか。/喂，你听到那个传闻了吗？"
+},
+{
+  word: "操る",
+  kana: "あやつる",
+  type: "五段他动词",
+  meaning: "操纵，控制。",
+  example: "$\\overset{きかい}{機械}$を$\\overset{じょうず}{上手}$に$\\overset{あやつ}{操}$って$\\overset{あやまち}{過ち}$を$\\overset{おか}{犯}$さないようにする。/熟练地操纵机器以免犯错。"
+},
+{
+  word: "噂",
+  kana: "うわさ",
+  type: "名・サ变动词する自他",
+  meaning: "传闻，谣言；议论。",
+  example: "$\\overset{うわさ}{噂}$のレストランで$\\overset{がいしょく}{外食}$する。/在传闻中的餐厅里外出就餐。 || $\\overset{たにん}{他人}$の$\\overset{ひみつ}{秘密}$を$\\overset{うわさ}{噂}$する。/议论别人的秘密。"
+},
+{
+  word: "犯す",
+  kana: "おかす",
+  type: "五段他动词",
+  meaning: "犯（错、罪）；侵犯。",
+  example: "$\\overset{つみ}{罪}$を$\\overset{おか}{犯}$した$\\overset{こうむいん}{公務員}$の$\\overset{うわさ}{噂}$が$\\overset{ひろ}{広}$がる。/关于犯了罪的公务员的传闻传开了。"
+},
+{
+  word: "外食",
+  kana: "がいしょく",
+  type: "名・サ变动词する自",
+  meaning: "在外就餐。",
+  example: "$\\overset{きょう}{今日}$の$\\overset{ゆうはん}{夕飯}$は$\\overset{がいしょく}{外食}$にしよう。/今天的晚饭出去吃吧。 || $\\overset{きゅうか}{休暇}$$\\overset{ちゅう}{中}$は$\\overset{かなら}{必}$ずしも$\\overset{がいしょく}{外食}$しない。/休假期间不一定都在外面吃。"
+},
+{
+  word: "必ずしも",
+  kana: "かならずしも",
+  type: "副词",
+  meaning: "（后接否定）未必，不一定。",
+  example: "$\\overset{たか}{高}$いものが$\\overset{かなら}{必}$ずしも$\\overset{よ}{良}$いとは$\\overset{かぎ}{限}$らない。/贵的东西不一定就是好的。"
+},
+{
+  word: "休暇",
+  kana: "きゅうか",
+  type: "名词",
+  meaning: "休假。",
+  example: "$\\overset{げし}{夏至}$の$\\overset{ころ}{頃}$、$\\overset{たぼう}{多忙}$な$\\overset{こうむいん}{公務員}$が$\\overset{きゅうか}{休暇}$を$\\overset{と}{取}$る。/夏至前后，繁忙的公务员请假。"
+},
+{
+  word: "恐縮",
+  kana: "きょうしゅく",
+  type: "名・形动・サ变动词する自",
+  meaning: "惶恐，惭愧，不好意思。",
+  example: "$\\overset{きょうしゅく}{恐縮}$な$\\overset{きも}{気持}$ちで$\\overset{しょう}{賞}$を$\\overset{う}{受}$け$\\overset{と}{取}$る。/怀着惶恐的心情领取奖项。 || お$\\overset{いそが}{忙}$しいところ、$\\overset{まこと}{誠}$に$\\overset{きょうしゅく}{恐縮}$です。/百忙之中打扰您，实在不好意思。"
+},
+{
+  word: "夏至",
+  kana: "げし",
+  type: "名词",
+  meaning: "夏至。",
+  example: "$\\overset{げし}{夏至}$の$\\overset{ひ}{日}$に、$\\overset{そら}{空}$を$\\overset{つ}{突}$き$\\overset{ぬ}{抜}$ける$\\overset{こえ}{声}$を$\\overset{だ}{出}$す。/在夏至这一天，发出穿透天空的声音。"
+},
+{
+  word: "公務員",
+  kana: "こうむいん",
+  type: "名词",
+  meaning: "公务员。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{こうむいん}{公務員}$として$\\overset{たぼう}{多忙}$な$\\overset{ひび}{日々}$を$\\overset{す}{過}$ごす。/他作为一名公务员过着繁忙的日子。"
+},
+{
+  word: "賞",
+  kana: "しょう",
+  type: "名词",
+  meaning: "奖，奖赏。",
+  example: "あの$\\overset{せいゆう}{声優}$は$\\overset{すば}{素晴}$らしい$\\overset{しょう}{賞}$を$\\overset{う}{受}$けた。/那位声优获得了很棒的奖。"
+},
+{
+  word: "声優",
+  kana: "せいゆう",
+  type: "名词",
+  meaning: "配音演员，声优。",
+  example: "$\\overset{にんき}{人気}$の$\\overset{せいゆう}{声優}$が$\\overset{ほんだい}{本題}$を$\\overset{つ}{告}$げる。/人气的声优宣告切入正题。"
+},
+{
+  word: "多忙",
+  kana: "たぼう",
+  type: "名・形动",
+  meaning: "繁忙。",
+  example: "$\\overset{たぼう}{多忙}$を$\\overset{きわ}{極}$める。/忙到了极点。 || $\\overset{たぼう}{多忙}$な$\\overset{なか}{中}$、$\\overset{ひたい}{額}$の$\\overset{あせ}{汗}$を$\\overset{ふ}{拭}$く。/在百忙之中，擦去额头的汗水。"
+},
+{
+  word: "突き抜ける",
+  kana: "つきぬける",
+  type: "一段自动词",
+  meaning: "穿透，穿过。",
+  example: "$\\overset{くも}{雲}$を$\\overset{つ}{突}$き$\\overset{ぬ}{抜}$けるような$\\overset{たか}{高}$いビルが$\\overset{た}{建}$った。/建起了一座仿佛穿透云层的高楼。"
+},
+{
+  word: "告げる",
+  kana: "つげる",
+  type: "一段他动词",
+  meaning: "宣告，告诉。",
+  example: "$\\overset{ゆうじょう}{友情}$の$\\overset{お}{終}$わりを$\\overset{つ}{告}$げる。/宣告友情的终结。"
+},
+{
+  word: "挟む",
+  kana: "はさむ",
+  type: "五段他动词",
+  meaning: "夹，隔着。",
+  example: "パンに$\\overset{にく}{肉}$を$\\overset{はさ}{挟}$んで、$\\overset{ほんだい}{本題}$に$\\overset{はい}{入}$る。/把肉夹在面包里，然后切入正题。"
+},
+{
+  word: "額（ひたい）",
+  kana: "ひたい",
+  type: "名词",
+  meaning: "额头。",
+  example: "$\\overset{ひたい}{額}$に$\\overset{ほね}{骨}$が$\\overset{あ}{当}$たって$\\overset{いた}{痛}$い。/额头撞到了骨头很痛。"
+},
+{
+  word: "骨（其二）",
+  kana: "こつ",
+  type: "名词",
+  meaning: "诀窍，要领。",
+  example: "この$\\overset{しごと}{仕事}$の$\\overset{こつ}{骨}$を$\\overset{つか}{掴}$むと、$\\overset{やるき}{やる気}$が$\\overset{で}{出}$る。/掌握了这份工作的诀窍，就有干劲了。"
+},
+{
+  word: "本題",
+  kana: "ほんだい",
+  type: "名词",
+  meaning: "正题，主题。",
+  example: "さて、$\\overset{ほんだい}{本題}$に$\\overset{はい}{入}$って$\\overset{やるき}{やる気}$を$\\overset{だ}{出}$そう。/那么，进入正题拿出干劲吧。"
+},
+{
+  word: "やる気",
+  kana: "やるき",
+  type: "名词",
+  meaning: "干劲，积极性。",
+  example: "$\\overset{やるき}{やる気}$を$\\overset{だ}{出}$して、$\\overset{ゆうじょう}{友情}$を$\\overset{ふか}{深}$める。/拿出干劲，加深友谊。"
+},
+{
+  word: "友情",
+  kana: "ゆうじょう",
+  type: "名词",
+  meaning: "友情，友谊。",
+  example: "$\\overset{かれ}{彼}$らは$\\overset{かた}{固}$い$\\overset{ゆうじょう}{友情}$で$\\overset{むす}{結}$ばれている。/他们被坚固的友谊联系在一起。"
+},
+{
+  word: "遭う",
+  kana: "あう",
+  type: "五段自动词",
+  meaning: "遭遇，碰上（多指不好的事）。",
+  example: "$\\overset{あたた}{暖}$かい$\\overset{ひ}{日}$に$\\overset{いけ}{池}$のそばで$\\overset{じこ}{事故}$に$\\overset{あ}{遭}$う。/在温暖的日子里，在池塘边遭遇了事故。"
+},
+{
+  word: "暖かい",
+  kana: "あたたかい",
+  type: "形容词",
+  meaning: "温暖的（指天气、气候）。",
+  example: "$\\overset{あたた}{暖}$かい$\\overset{ひ}{日}$に$\\overset{いけ}{池}$の$\\overset{まわ}{周}$りで$\\overset{あそ}{遊}$ぶ。/在温暖的日子里，在池塘周围玩耍。"
+},
+{
+  word: "温かい",
+  kana: "あたたかい",
+  type: "形容词",
+  meaning: "温暖的，热乎的（指温度、感情）。",
+  example: "$\\overset{あたた}{温}$かくて$\\overset{あま}{甘}$い$\\overset{りょうり}{料理}$を$\\overset{いた}{炒}$める。/炒一道热乎乎又甜甜的菜。"
+},
+{
+  word: "甘い",
+  kana: "あまい",
+  type: "形容词",
+  meaning: "甜的；天真的，宽松的。",
+  example: "$\\overset{うし}{牛}$の$\\overset{にく}{肉}$を$\\overset{あま}{甘}$く$\\overset{いた}{炒}$めるのは$\\overset{いや}{嫌}$だ。/我很讨厌把牛肉炒得甜甜的。"
+},
+{
+  word: "池",
+  kana: "いけ",
+  type: "名词",
+  meaning: "池塘。",
+  example: "$\\overset{いけ}{池}$のそばで$\\overset{うし}{牛}$の$\\overset{せわ}{世話}$を$\\overset{おし}{教}$える。/在池塘边教怎么照顾牛。"
+},
+{
+  word: "炒める",
+  kana: "いためる",
+  type: "一段他动词",
+  meaning: "炒。",
+  example: "$\\overset{いや}{嫌}$な$\\overset{かお}{顔}$をせず、$\\overset{うし}{牛}$の$\\overset{にく}{肉}$を$\\overset{いた}{炒}$める。/不露出讨厌的表情，把牛肉炒了。"
+},
+{
+  word: "嫌",
+  kana: "いや",
+  type: "名・形动",
+  meaning: "讨厌，不愿意。",
+  example: "$\\overset{うそ}{嘘}$をつかれるのは$\\overset{いや}{嫌}$だ。/我讨厌别人对我撒谎。 || $\\overset{いや}{嫌}$がる$\\overset{おとこ}{男}$に$\\overset{うし}{牛}$の$\\overset{せわ}{世話}$を$\\overset{おし}{教}$える。/教那个极不情愿的男人怎么照顾牛。"
+},
+{
+  word: "牛",
+  kana: "うし",
+  type: "名词",
+  meaning: "牛。",
+  example: "$\\overset{おもて}{表}$の$\\overset{はたけ}{畑}$で$\\overset{うし}{牛}$を$\\overset{う}{打}$つ$\\overset{おとこ}{男}$を$\\overset{み}{見}$る。/看着在前面的田里打牛的男人。"
+},
+{
+  word: "打つ",
+  kana: "うつ",
+  type: "五段他动词",
+  meaning: "打，敲击；发（电报），打（针）。",
+  example: "$\\overset{おとこ}{男}$が$\\overset{かお}{顔}$を$\\overset{う}{打}$たれて、$\\overset{おもて}{表}$に$\\overset{と}{飛}$び$\\overset{だ}{出}$す。/男人被打中了脸，飞奔到了外面。"
+},
+{
+  word: "教える",
+  kana: "おしえる",
+  type: "一段他动词",
+  meaning: "教，告诉。",
+  example: "$\\overset{おとこ}{男}$に$\\overset{みち}{道}$を$\\overset{おし}{教}$えると、$\\overset{かれ}{彼}$は$\\overset{か}{駆}$けていった。/给那个男人指了路（告诉了路）之后，他就跑开了。"
+},
+{
+  word: "男",
+  kana: "おとこ",
+  type: "名词",
+  meaning: "男人，男子。",
+  example: "$\\overset{おとこ}{男}$が$\\overset{おもて}{表}$で$\\overset{かお}{顔}$の$\\overset{かず}{数}$を$\\overset{かぞ}{数}$える。/男人在外面数脸的数量。"
+},
+{
+  word: "表",
+  kana: "おもて",
+  type: "名词",
+  meaning: "表面，正面，外面。",
+  example: "$\\overset{おもて}{表}$に$\\overset{か}{駆}$け$\\overset{だ}{出}$して、$\\overset{そら}{空}$の$\\overset{くも}{雲}$を$\\overset{かぞ}{数}$える。/跑出外面，数着天空中的云。"
+},
+{
+  word: "顔",
+  kana: "かお",
+  type: "名词",
+  meaning: "脸。",
+  example: "$\\overset{くも}{曇}$りの$\\overset{ひ}{日}$、$\\overset{かお}{顔}$を$\\overset{あ}{上}$げて$\\overset{くも}{雲}$を$\\overset{み}{見}$る。/阴天，抬起脸看云。"
+},
+{
+  word: "駆ける",
+  kana: "かける",
+  type: "一段自动词",
+  meaning: "快跑，奔跑。",
+  example: "$\\overset{くも}{曇}$り$\\overset{ぞら}{空}$の$\\overset{した}{下}$で、$\\overset{おお}{大}$きな$\\overset{こえ}{声}$を$\\overset{だ}{出}$して$\\overset{か}{駆}$ける。/在阴云密布的天空下，大声喊叫着奔跑。"
+},
+{
+  word: "数える",
+  kana: "かぞえる",
+  type: "一段他动词",
+  meaning: "数，计算。",
+  example: "$\\overset{くも}{雲}$を$\\overset{かぞ}{数}$えながら、$\\overset{おお}{大}$きな$\\overset{こえ}{声}$で$\\overset{こた}{答}$える。/一边数着云，一边大声地回答。"
+},
+{
+  word: "雲",
+  kana: "くも",
+  type: "名词",
+  meaning: "云。",
+  example: "$\\overset{そら}{空}$の$\\overset{くも}{雲}$を$\\overset{み}{見}$て、$\\overset{あした}{明日}$は$\\overset{くも}{曇}$りだと$\\overset{こた}{答}$える。/看着天空中的云，回答说明天是阴天。"
+},
+{
+  word: "曇り",
+  kana: "くもり",
+  type: "名词",
+  meaning: "阴天。",
+  example: "$\\overset{くも}{曇}$りの$\\overset{ひ}{日}$に、$\\overset{こえ}{声}$を$\\overset{だ}{出}$してごみを$\\overset{ひろ}{拾}$う。/在阴天，大声喊着捡垃圾。"
+},
+{
+  word: "声",
+  kana: "こえ",
+  type: "名词",
+  meaning: "声音。",
+  example: "$\\overset{した}{親}$しい$\\overset{こえ}{声}$で「ごみを$\\overset{す}{捨}$てる」と$\\overset{こた}{答}$える。/用亲切的声音回答说“去扔垃圾”。"
+},
+{
+  word: "答える",
+  kana: "こたえる",
+  type: "一段自动词",
+  meaning: "回答，答复。",
+  example: "$\\overset{した}{親}$しい$\\overset{ひと}{人}$の$\\overset{しつもん}{質問}$に$\\overset{すず}{涼}$しい$\\overset{かお}{顔}$で$\\overset{こた}{答}$える。/用淡然（凉爽）的表情回答亲近之人的提问。"
+},
+{
+  word: "ごみ",
+  kana: "ごみ",
+  type: "名词",
+  meaning: "垃圾。",
+  example: "ごみと$\\overset{しお}{塩}$をそちらの$\\overset{はこ}{箱}$に$\\overset{お}{置}$く。/把垃圾和盐放在那边的箱子里。"
+},
+{
+  word: "塩",
+  kana: "しお",
+  type: "名词",
+  meaning: "盐。",
+  example: "$\\overset{しお}{塩}$を$\\overset{い}{入}$れた$\\overset{すず}{涼}$しい$\\overset{の}{飲}$み$\\overset{もの}{物}$を$\\overset{した}{親}$しい$\\overset{ひと}{人}$に$\\overset{たの}{頼}$む。/向亲近的人讨要加了盐的凉饮料。"
+},
+{
+  word: "親しい",
+  kana: "したしい",
+  type: "形容词",
+  meaning: "亲密的，亲近的。",
+  example: "そちらの$\\overset{した}{親}$しい$\\overset{ゆうじん}{友人}$に$\\overset{たいせつ}{大切}$な$\\overset{しごと}{仕事}$を$\\overset{たの}{頼}$む。/把重要的工作拜托给那边那个亲密的朋友。"
+},
+{
+  word: "涼しい",
+  kana: "すずしい",
+  type: "形容词",
+  meaning: "凉爽的。",
+  example: "$\\overset{すず}{涼}$しい$\\overset{そら}{空}$の$\\overset{した}{下}$で、$\\overset{だま}{黙}$って$\\overset{しごと}{仕事}$を$\\overset{たの}{頼}$む。/在凉爽的天空下，默默地拜托工作。"
+},
+{
+  word: "そちら",
+  kana: "そちら",
+  type: "代词",
+  meaning: "那边，您那边。",
+  example: "そちらの$\\overset{そら}{空}$を$\\overset{だま}{黙}$って$\\overset{み}{見}$て、$\\overset{りょうり}{料理}$を$\\overset{つく}{作}$る。/默默地看着那边的天空，然后做饭。"
+},
+{
+  word: "空",
+  kana: "そら",
+  type: "名词",
+  meaning: "天空。",
+  example: "$\\overset{そら}{空}$が$\\overset{はれ}{晴}$れるように$\\overset{だま}{黙}$って$\\overset{ねが}{願}$う$\\overset{つま}{妻}$。/默默祈祷天空放晴的妻子。"
+},
+{
+  word: "頼む",
+  kana: "たのむ",
+  type: "五段他动词",
+  meaning: "拜托，请求。",
+  example: "$\\overset{つま}{妻}$に$\\overset{たの}{頼}$まれて、とても$\\overset{おい}{美味}$しい$\\overset{りょうり}{料理}$を$\\overset{つく}{作}$る。/受妻子之托，做了非常美味的菜。"
+},
+{
+  word: "黙る",
+  kana: "だまる",
+  type: "五段自动词",
+  meaning: "沉默，不说话。",
+  example: "$\\overset{つま}{妻}$はとても$\\overset{おこ}{怒}$って、$\\overset{だま}{黙}$って$\\overset{りょうり}{料理}$を$\\overset{つく}{作}$る。/妻子非常生气，默默地做饭。"
+},
+{
+  word: "作る",
+  kana: "つくる",
+  type: "五段他动词",
+  meaning: "制作，制造。",
+  example: "$\\overset{つま}{妻}$がとても$\\overset{かわい}{可愛}$い$\\overset{なまえ}{名前}$の$\\overset{にんぎょう}{人形}$を$\\overset{つく}{作}$る。/妻子制作了一个名字非常可爱的人偶。"
+},
+{
+  word: "妻",
+  kana: "つま",
+  type: "名词",
+  meaning: "妻子。",
+  example: "$\\overset{つま}{妻}$の$\\overset{なまえ}{名前}$を$\\overset{よ}{呼}$んで、$\\overset{やおや}{八百屋}$で$\\overset{はたら}{働}$くように$\\overset{ねが}{願}$う。/呼唤妻子的名字，希望她能在蔬菜店工作。"
+},
+{
+  word: "とても",
+  kana: "とても",
+  type: "副词",
+  meaning: "非常，很。",
+  example: "$\\overset{やおや}{八百屋}$で$\\overset{はたら}{働}$く$\\overset{かれ}{彼}$は、とても$\\overset{よ}{良}$い$\\overset{なまえ}{名前}$だ。/在蔬菜店工作的他，名字非常好听。"
+},
+{
+  word: "名前",
+  kana: "なまえ",
+  type: "名词",
+  meaning: "名字。",
+  example: "$\\overset{ひがし}{東}$の$\\overset{やおや}{八百屋}$で$\\overset{はたら}{働}$く$\\overset{ひと}{人}$の$\\overset{なまえ}{名前}$を$\\overset{き}{聞}$く。/打听在东边蔬菜店工作的人的名字。"
+},
+{
+  word: "願う",
+  kana: "ねがう",
+  type: "五段他动词",
+  meaning: "希望，祈愿，恳求。",
+  example: "$\\overset{やおや}{八百屋}$で$\\overset{はたら}{働}$く$\\overset{かれ}{彼}$が、$\\overset{ひがし}{東}$から$\\overset{く}{来}$る$\\overset{ふくろ}{袋}$を$\\overset{ねが}{願}$う。/在蔬菜店工作的他，期盼着从东边送来的袋子。"
+},
+{
+  word: "八百屋",
+  kana: "やおや",
+  type: "名词",
+  meaning: "蔬菜店，卖菜的人。",
+  example: "$\\overset{ひがし}{東}$の$\\overset{やおや}{八百屋}$で$\\overset{はたら}{働}$きながら、$\\overset{おも}{重}$い$\\overset{ふくろ}{袋}$を$\\overset{も}{持}$つ。/一边在东边的蔬菜店工作，一边拿着重重的袋子。"
+},
+{
+  word: "働く",
+  kana: "はたらく",
+  type: "五段自动词",
+  meaning: "劳动，工作。",
+  example: "$\\overset{ひがし}{東}$で$\\overset{はたら}{働}$いていると、まさか$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$るとは$\\overset{おも}{思}$わなかった。/在东边工作的时候，没想到竟然会下雪。"
+},
+{
+  word: "東",
+  kana: "ひがし",
+  type: "名词",
+  meaning: "东方，东边。",
+  example: "$\\overset{ひがし}{東}$の$\\overset{そら}{空}$から$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$るのをじっと$\\overset{ま}{待}$つ。/静静地等待从东边天空降下雨来。"
+},
+{
+  word: "袋",
+  kana: "ふくろ",
+  type: "名词",
+  meaning: "袋子。",
+  example: "$\\overset{みずうみ}{湖}$のそばで$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$り、まさか$\\overset{ふくろ}{袋}$が$\\overset{ぬれ}{濡}$れるのを$\\overset{ま}{待}$つ。/在湖边下起了雨，难道只能等着袋子被淋湿吗。"
+},
+{
+  word: "降る",
+  kana: "ふる",
+  type: "五段自动词",
+  meaning: "降下（雨、雪等）。",
+  example: "まさか$\\overset{みっ}{三}$つの$\\overset{みずうみ}{湖}$に$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$るとは$\\overset{おも}{思}$わなかった。/没想到三个湖泊竟然都下起了雪。"
+},
+{
+  word: "まさか",
+  kana: "まさか",
+  type: "副词",
+  meaning: "难道，怎么可能（多与否定形式连用）。",
+  example: "まさか$\\overset{むかし}{昔}$の$\\overset{みずうみ}{湖}$で$\\overset{みっ}{三}$つの$\\overset{ふね}{船}$を$\\overset{ま}{待}$つとは$\\overset{おも}{思}$わなかった。/没想到竟然要在古老的湖边等待三艘船。"
+},
+{
+  word: "待つ",
+  kana: "まつ",
+  type: "五段他动词",
+  meaning: "等待。",
+  example: "$\\overset{ゆう}{夕}$べから$\\overset{みずうみ}{湖}$で$\\overset{みっ}{三}$つの$\\overset{ほし}{星}$を$\\overset{ま}{待}$つ。/从昨晚开始就在湖边等待三颗星星的出现。"
+},
+{
+  word: "湖",
+  kana: "みずうみ",
+  type: "名词",
+  meaning: "湖，湖泊。",
+  example: "$\\overset{むかし}{昔}$から$\\overset{ゆう}{夕}$べの$\\overset{みずうみ}{湖}$には$\\overset{よっ}{四}$つの$\\overset{でんせつ}{伝説}$がある。/从过去起，关于傍晚的湖泊就有四个传说。"
+},
+{
+  word: "三つ",
+  kana: "みっつ",
+  type: "名词",
+  meaning: "三个；三岁。",
+  example: "$\\overset{わか}{若}$い$\\overset{かれ}{彼}$が$\\overset{ゆう}{夕}$べに$\\overset{みっ}{三}$つ、$\\overset{きょう}{今日}$$\\overset{よっ}{四}$つの$\\overset{しつもん}{質問}$に$\\overset{こた}{答}$える。/年轻的他昨晚回答了三个，今天回答了四个问题。"
+},
+{
+  word: "昔",
+  kana: "むかし",
+  type: "名词",
+  meaning: "以前，过去。",
+  example: "$\\overset{むかし}{昔}$の$\\overset{わか}{若}$い$\\overset{ころ}{頃}$を$\\overset{おも}{思}$い$\\overset{だ}{出}$して$\\overset{ゆう}{夕}$べ$\\overset{わら}{笑}$う。/回想起过去年轻的时候，昨晚不禁笑了。"
+},
+{
+  word: "夕べ",
+  kana: "ゆうべ",
+  type: "名词",
+  meaning: "昨晚，傍晚。",
+  example: "$\\overset{ゆう}{夕}$べ、$\\overset{わか}{若}$い$\\overset{ひと}{人}$が$\\overset{よっ}{四}$つの$\\overset{きかい}{機械}$を$\\overset{あつか}{扱}$って$\\overset{わら}{笑}$う。/昨晚，年轻人操作着四台机器笑了。"
+},
+{
+  word: "四つ",
+  kana: "よっつ",
+  type: "名词",
+  meaning: "四个；四岁。",
+  example: "$\\overset{わか}{若}$い$\\overset{てんいん}{店員}$が$\\overset{よっ}{四}$つの$\\overset{あら}{新}$たな$\\overset{しょうひん}{商品}$を$\\overset{あつか}{扱}$う。/年轻的店员处理（经营）着四种新商品。"
+},
+{
+  word: "若い",
+  kana: "わかい",
+  type: "形容词",
+  meaning: "年轻的。",
+  example: "$\\overset{わか}{若}$い$\\overset{かれ}{彼}$は$\\overset{あわ}{慌}$てて$\\overset{あら}{新}$たな$\\overset{もんだい}{問題}$を$\\overset{あつか}{扱}$う。/年轻的他慌慌张张地处理新问题。"
+},
+{
+  word: "笑う",
+  kana: "わらう",
+  type: "五段自他动词",
+  meaning: "笑；嘲笑。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{じょうだん}{冗談}$を$\\overset{き}{聞}$いて$\\overset{おおごえ}{大声}$で$\\overset{わら}{笑}$う。/听了他的玩笑大声地笑了。 || $\\overset{あわ}{慌}$てる$\\overset{かれ}{彼}$を$\\overset{み}{見}$て$\\overset{わら}{笑}$い、$\\overset{あら}{新}$たな$\\overset{さいのう}{才能}$を$\\overset{うらやま}{羨}$ましいと$\\overset{おも}{思}$う。/嘲笑慌张的他，又羡慕他的新才能。"
+},
+{
+  word: "扱う",
+  kana: "あつかう",
+  type: "五段他动词",
+  meaning: "对待，处理，经营。",
+  example: "$\\overset{あら}{新}$たな$\\overset{しょうひん}{商品}$を$\\overset{ていねい}{丁寧}$に$\\overset{あつか}{扱}$って、$\\overset{うらやま}{羨}$ましい$\\overset{ゆうじん}{友人}$に$\\overset{おく}{贈}$る。/认真地处理新商品，然后赠送给令人羡慕的友人。"
+},
+{
+  word: "新た",
+  kana: "あらた",
+  type: "形动",
+  meaning: "新，重新。",
+  example: "$\\overset{あら}{新}$たなプレゼントを$\\overset{おく}{贈}$る$\\overset{とき}{時}$は$\\overset{かなら}{必}$ず$\\overset{あわ}{慌}$てる。/赠送新礼物的时候总是会慌张。"
+},
+{
+  word: "慌てる",
+  kana: "あわてる",
+  type: "一段自动词",
+  meaning: "慌张，急忙。",
+  example: "$\\overset{あわ}{慌}$てて$\\overset{た}{食}$べ$\\overset{もの}{物}$を$\\overset{か}{噛}$む$\\overset{かれ}{彼}$が$\\overset{かなら}{必}$ず$\\overset{うらやま}{羨}$ましい。/慌慌张张地咀嚼食物的他总是让人羡慕。"
+},
+{
+  word: "羨ましい",
+  kana: "うらやましい",
+  type: "形容词",
+  meaning: "羡慕的。",
+  example: "$\\overset{かれ}{彼}$が$\\overset{かなら}{必}$ず$\\overset{おく}{贈}$ってくれる$\\overset{かわ}{皮}$のバッグが$\\overset{うらやま}{羨}$ましい。/很羡慕他必定会送的皮包。"
+},
+{
+  word: "贈る",
+  kana: "おくる",
+  type: "五段他动词",
+  meaning: "赠送。",
+  example: "$\\overset{かなら}{必}$ず$\\overset{かわ}{皮}$の$\\overset{くさ}{腐}$らない$\\overset{くだもの}{果物}$を$\\overset{おく}{贈}$る。/一定要赠送果皮不会腐烂的水果。"
+},
+{
+  word: "必ず",
+  kana: "かならず",
+  type: "副词",
+  meaning: "一定，必定。",
+  example: "$\\overset{かわ}{皮}$が$\\overset{くさ}{腐}$る$\\overset{まえ}{前}$に$\\overset{かなら}{必}$ず$\\overset{か}{噛}$んで$\\overset{た}{食}$べる。/在皮腐烂之前一定要嚼着吃掉。"
+},
+{
+  word: "噛む",
+  kana: "かむ",
+  type: "五段他动词",
+  meaning: "咬，嚼。",
+  example: "$\\overset{さび}{寂}$しい$\\overset{とき}{時}$、$\\overset{くちびる}{唇}$を$\\overset{か}{噛}$んで$\\overset{きも}{気持}$ちを$\\overset{ささ}{支}$える。/寂寞的时候，咬着嘴唇支撑自己的情绪。"
+},
+{
+  word: "皮",
+  kana: "かわ",
+  type: "名词",
+  meaning: "皮，表皮。",
+  example: "$\\overset{くさ}{腐}$った$\\overset{かわ}{皮}$を$\\overset{しめ}{示}$して、$\\overset{さび}{寂}$しさを$\\overset{ささ}{支}$える。/展示腐烂的皮，支撑着寂寞感。"
+},
+{
+  word: "腐る",
+  kana: "くさる",
+  type: "五段自动词",
+  meaning: "腐烂，腐败；堕落。",
+  example: "$\\overset{くさ}{腐}$った$\\overset{すがた}{姿}$を$\\overset{しめ}{示}$すのは$\\overset{さび}{寂}$しいことだ。/展示出腐朽的姿态是一件令人寂寞的事。"
+},
+{
+  word: "支える",
+  kana: "ささえる",
+  type: "一段他动词",
+  meaning: "支撑，维持，支持。",
+  example: "$\\overset{さび}{寂}$しい$\\overset{すがた}{姿}$を$\\overset{しめ}{示}$す$\\overset{かれ}{彼}$を$\\overset{ささ}{支}$える。/支持着展示出寂寞身姿的他。"
+},
+{
+  word: "寂しい",
+  kana: "さびしい",
+  type: "形容词",
+  meaning: "寂寞的，孤单的。",
+  example: "$\\overset{たし}{確}$かに$\\overset{さび}{寂}$しい$\\overset{すがた}{姿}$を$\\overset{しめ}{示}$して、$\\overset{みち}{道}$で$\\overset{すべ}{滑}$る。/确实展现出寂寞的身姿，然后在路上滑倒了。"
+},
+{
+  word: "示す",
+  kana: "しめす",
+  type: "五段他动词",
+  meaning: "展现，出示，表示。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{たし}{確}$かに$\\overset{すべ}{滑}$る$\\overset{すがた}{姿}$を$\\overset{みな}{皆}$に$\\overset{しめ}{示}$した。/他确实向大家展现了滑倒的姿态。"
+},
+{
+  word: "姿",
+  kana: "すがた",
+  type: "名词",
+  meaning: "身姿，姿态，身影。",
+  example: "$\\overset{すべ}{滑}$って$\\overset{ち}{血}$が$\\overset{で}{出}$た$\\overset{すがた}{姿}$は$\\overset{たし}{確}$かに$\\overset{いた}{痛}$そうだ。/滑倒流血的身姿确实看起来很痛。"
+},
+{
+  word: "滑る",
+  kana: "すべる",
+  type: "五段自动词",
+  meaning: "滑，滑动；滑倒。",
+  example: "$\\overset{こおり}{氷}$の$\\overset{うえ}{上}$で$\\overset{すべ}{滑}$って、$\\overset{たし}{確}$かに$\\overset{ち}{血}$が$\\overset{で}{出}$た。/在冰上滑倒了，确实流血了。"
+},
+{
+  word: "確か",
+  kana: "たしか",
+  type: "名・形动・副词",
+  meaning: "确实，可靠；大概，或许。",
+  example: "$\\overset{たし}{確}$かな$\\overset{ち}{血}$の$\\overset{あと}{跡}$を$\\overset{み}{見}$て、ついでに$\\overset{しょうこ}{証拠}$を$\\overset{つく}{作}$り$\\overset{だ}{出}$す。/看着确实的血迹，顺便伪造了证据。 || $\\overset{かれ}{彼}$は$\\overset{たし}{確}$か$\\overset{きのう}{昨日}$$\\overset{き}{来}$たはずだ。/他大概昨天来过了。"
+},
+{
+  word: "確かに",
+  kana: "たしかに",
+  type: "副词",
+  meaning: "确实地，的确。",
+  example: "$\\overset{たし}{確}$かに$\\overset{ち}{血}$が$\\overset{で}{出}$たので、なおさらついでに$\\overset{やす}{休}$む。/确实流血了，所以顺便就更加要休息了。"
+},
+{
+  word: "血",
+  kana: "ち",
+  type: "名词",
+  meaning: "血。",
+  example: "$\\overset{ち}{血}$が$\\overset{で}{出}$たので、ついでに$\\overset{なまごみ}{生ごみ}$を$\\overset{す}{捨}$てて$\\overset{つく}{作}$り$\\overset{だ}{出}$す。/因为流血了，所以顺便去扔厨余垃圾并创造价值。"
+},
+{
+  word: "ついでに",
+  kana: "ついでに",
+  type: "副词・词组",
+  meaning: "顺便。",
+  example: "なるほど、$\\overset{なまごみ}{生ごみ}$を$\\overset{す}{捨}$てるついでになお$\\overset{あたら}{新}$しい$\\overset{かち}{価値}$を$\\overset{つく}{作}$り$\\overset{だ}{出}$す。/原来如此，在扔厨余垃圾的顺便，还能创造出新的价值。"
+},
+{
+  word: "作り出す",
+  kana: "つくりだす",
+  type: "五段他动词",
+  meaning: "创造出，制造出。",
+  example: "$\\overset{なまごみ}{生ごみ}$を$\\overset{つく}{作}$り$\\overset{だ}{出}$さず、なるほどなおよく$\\overset{に}{煮}$る。/不制造出厨余垃圾，原来如此，还要煮得更好。"
+},
+{
+  word: "なお",
+  kana: "なお",
+  type: "副词・接续词",
+  meaning: "更加，还要；再者。",
+  example: "$\\overset{なまごみ}{生ごみ}$の$\\overset{りょう}{量}$を$\\overset{はか}{計}$ると、なるほどなお$\\overset{おお}{多}$い。/称了厨余垃圾的量，原来如此，还是很多啊。"
+},
+{
+  word: "生ごみ",
+  kana: "なまごみ",
+  type: "名词",
+  meaning: "厨余垃圾，湿垃圾。",
+  example: "なるほど、$\\overset{なまごみ}{生ごみ}$を$\\overset{す}{捨}$てるのを$\\overset{はじ}{恥}$と$\\overset{おも}{思}$いながら$\\overset{に}{煮}$る。/原来如此，一边觉得扔厨余垃圾是耻辱一边煮饭。"
+},
+{
+  word: "なるほど",
+  kana: "なるほど",
+  type: "副词",
+  meaning: "原来如此，的确。",
+  example: "なるほど、$\\overset{はや}{流行}$る$\\overset{りょうり}{料理}$を$\\overset{に}{煮}$る$\\overset{じかん}{時間}$を$\\overset{はか}{計}$る。/原来如此，要计算煮流行菜肴的时间。"
+},
+{
+  word: "煮る",
+  kana: "にる",
+  type: "一段他动词",
+  meaning: "煮，炖。",
+  example: "$\\overset{はや}{流行}$る$\\overset{やさい}{野菜}$を$\\overset{に}{煮}$て、$\\overset{おも}{重}$さを$\\overset{はか}{計}$って$\\overset{ほ}{褒}$められる。/煮了很受欢迎的蔬菜，称了重量后得到了表扬。"
+},
+{
+  word: "計る",
+  kana: "はかる",
+  type: "五段他动词",
+  meaning: "测量（时间、重量、温度等）。",
+  example: "$\\overset{じかん}{時間}$を$\\overset{はか}{計}$って$\\overset{まよ}{迷}$わずに$\\overset{はや}{流行}$る$\\overset{みせ}{店}$へ$\\overset{い}{行}$く。/计算着时间，毫不犹豫地去那家受欢迎的店。"
+},
+{
+  word: "恥",
+  kana: "はじ",
+  type: "名词",
+  meaning: "耻辱，丢脸。",
+  example: "$\\overset{ほ}{褒}$められても$\\overset{はじ}{恥}$を$\\overset{し}{知}$り、$\\overset{まよ}{迷}$わずに$\\overset{め}{芽}$を$\\overset{だ}{出}$す。/即使被表扬也知道羞耻，毫不犹豫地发芽。"
+},
+{
+  word: "流行る",
+  kana: "はやる",
+  type: "五段自动词",
+  meaning: "流行，受欢迎，繁荣。",
+  example: "$\\overset{はや}{流行}$る$\\overset{ふく}{服}$を$\\overset{ほ}{褒}$められて、$\\overset{おお}{大}$きな$\\overset{りえき}{利益}$をもたらす。/因为受欢迎的衣服被表扬，从而带来了巨大的利润。"
+},
+{
+  word: "褒める",
+  kana: "ほめる",
+  type: "一段他动词",
+  meaning: "表扬，称赞。",
+  example: "やっと$\\overset{め}{芽}$が$\\overset{で}{出}$た$\\overset{しょくぶつ}{植物}$を$\\overset{ほ}{褒}$めると、$\\overset{よろこ}{喜}$びをもたらす。/表扬好不容易发芽的植物，会带来喜悦。"
+},
+{
+  word: "迷う",
+  kana: "まよう",
+  type: "五段自动词",
+  meaning: "迷路；犹豫，迷茫。",
+  example: "やっと$\\overset{みち}{道}$に$\\overset{まよ}{迷}$うのを$\\overset{ゆる}{許}$して、$\\overset{あたら}{新}$しい$\\overset{め}{芽}$をもたらす。/终于原谅了迷路这件事，带来了新的生机（芽）。"
+},
+{
+  word: "芽",
+  kana: "め",
+  type: "名词",
+  meaning: "芽，嫩芽。",
+  example: "$\\overset{あざ}{鮮}$やかな$\\overset{め}{芽}$がやっと$\\overset{はる}{春}$をもたらす。/鲜艳的嫩芽终于带来了春天。"
+},
+{
+  word: "もたらす",
+  kana: "もたらす",
+  type: "五段他动词",
+  meaning: "带来，招致。",
+  example: "$\\overset{あざ}{鮮}$やかな$\\overset{けっか}{結果}$をもたらし、やっと$\\overset{ふあん}{不安}$を$\\overset{う}{打}$ち$\\overset{け}{消}$す。/带来了漂亮的结果，终于消除了不安。"
+},
+{
+  word: "やっと",
+  kana: "やっと",
+  type: "副词",
+  meaning: "终于，好不容易。",
+  example: "やっと$\\overset{ゆる}{許}$してもらえて、$\\overset{あざ}{鮮}$やかな$\\overset{えび}{海老}$を$\\overset{た}{食}$べる。/终于得到了原谅，吃起了色泽鲜艳的虾。"
+},
+{
+  word: "許す",
+  kana: "ゆるす",
+  type: "五段他动词",
+  meaning: "原谅，允许。",
+  example: "$\\overset{えび}{海老}$を$\\overset{た}{食}$べるのを$\\overset{ゆる}{許}$し、$\\overset{う}{打}$ち$\\overset{け}{消}$す$\\overset{ことば}{言葉}$が$\\overset{き}{利}$く。/允许吃虾，消除顾虑的话语起了作用。"
+},
+{
+  word: "鮮やか",
+  kana: "あざやか",
+  type: "形动",
+  meaning: "鲜艳，巧妙。",
+  example: "$\\overset{あざ}{鮮}$やかな$\\overset{きぬ}{絹}$の$\\overset{ふく}{服}$を$\\overset{き}{着}$て、$\\overset{えび}{海老}$を$\\overset{た}{食}$べる。/穿着色彩鲜艳的丝绸衣服吃虾。"
+},
+{
+  word: "打ち消す",
+  kana: "うちけす",
+  type: "五段他动词",
+  meaning: "否定，消除，打消。",
+  example: "$\\overset{さかさま}{逆様}$の$\\overset{ず}{図}$で$\\overset{ふあん}{不安}$を$\\overset{う}{打}$ち$\\overset{け}{消}$す$\\overset{こうか}{効果}$が$\\overset{き}{利}$く。/倒过来的图表起到了消除不安的作用（效果）。"
+},
+{
+  word: "海老",
+  kana: "えび",
+  type: "名词",
+  meaning: "虾。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{えび}{海老}$の$\\overset{りょうり}{料理}$は$\\overset{くすり}{薬}$が$\\overset{き}{利}$く。/黑色的虾料理像药一样有效。"
+},
+{
+  word: "利く",
+  kana: "きく",
+  type: "五段自动词",
+  meaning: "有效，发挥作用。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{きぬ}{絹}$の$\\overset{ふく}{服}$は$\\overset{ぼうかん}{防寒}$に$\\overset{き}{利}$く。/黑色的丝绸衣服能有效防寒。"
+},
+{
+  word: "絹",
+  kana: "きぬ",
+  type: "名词",
+  meaning: "丝绸，丝。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{きぬ}{絹}$の$\\overset{ふく}{服}$を$\\overset{さかさま}{逆様}$に$\\overset{き}{着}$て$\\overset{しちじ}{七時}$$\\overset{す}{過}$ぎに$\\overset{で}{出}$る。/把黑色的丝绸衣服穿反了，七点多出门。"
+},
+{
+  word: "逆様",
+  kana: "さかさま",
+  type: "名・形动",
+  meaning: "颠倒，倒过来。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{ず}{図}$を$\\overset{さかさま}{逆様}$に$\\overset{み}{見}$て、$\\overset{そこ}{底}$を$\\overset{しら}{調}$べる。/把黑色的图表倒过来看，调查底部。 || $\\overset{さかさま}{逆様}$な$\\overset{じょうたい}{状態}$で$\\overset{とだな}{棚}$の$\\overset{そこ}{底}$を$\\overset{ふ}{拭}$く。/在颠倒的状态下擦拭柜子底部。"
+},
+{
+  word: "黒",
+  kana: "くろ",
+  type: "名词",
+  meaning: "黑色。",
+  example: "たった$\\overset{ひと}{一}$つの$\\overset{くろ}{黒}$い$\\overset{ず}{図}$が$\\overset{そこ}{底}$に$\\overset{おち}{落}$ちる。/仅有的一个黑色图表掉到了底部。"
+},
+{
+  word: "図",
+  kana: "ず",
+  type: "名词",
+  meaning: "图，图表。",
+  example: "$\\overset{さんじ}{三時}$$\\overset{す}{過}$ぎにたった$\\overset{いちまい}{一枚}$の$\\overset{ず}{図}$を$\\overset{み}{見}$るのが$\\overset{たの}{楽}$しみだ。/三点多仅仅看一张图表也是一种乐趣。"
+},
+{
+  word: "過ぎ",
+  kana: "すぎ",
+  type: "接尾词",
+  meaning: "过了……（时间）。",
+  example: "$\\overset{はちじ}{八時}$$\\overset{す}{過}$ぎでは、たった$\\overset{ひと}{一}$つの$\\overset{たの}{楽}$しみもない。/过了八点，就仅仅连一个乐趣都没有了。"
+},
+{
+  word: "底",
+  kana: "そこ",
+  type: "名词",
+  meaning: "底部，底。",
+  example: "どうも、$\\overset{かわ}{川}$の$\\overset{そこ}{底}$にはたった$\\overset{ひと}{一}$つの$\\overset{たの}{楽}$しみがあるようだ。/总觉得，河底似乎仅有一个乐趣。"
+},
+{
+  word: "たった",
+  kana: "たった",
+  type: "副词",
+  meaning: "仅仅，只。",
+  example: "どうも、たった$\\overset{いっかい}{一回}$$\\overset{なぐ}{殴}$られただけでは$\\overset{たの}{楽}$しみだ。/总觉得，仅仅被打了一次反而是种乐趣。"
+},
+{
+  word: "楽しみ",
+  kana: "たのしみ",
+  type: "名・形动",
+  meaning: "期待，乐趣。",
+  example: "$\\overset{やま}{山}$に$\\overset{のぼ}{上}$るのはどうも$\\overset{たの}{楽}$しみだ。/去爬山总觉得很让人期待。 || これは$\\overset{たの}{楽}$しみなお$\\overset{まつ}{祭}$りだ。/这是一个令人期待的节日。"
+},
+{
+  word: "では",
+  kana: "では",
+  type: "接续词",
+  meaning: "那么（用于转换话题或得出结论）。",
+  example: "では、どうも$\\overset{かれ}{彼}$を$\\overset{なぐ}{殴}$るのは$\\overset{ひと}{等}$しい$\\overset{つみ}{罪}$だ。/那么，打他实在也是同等的罪过。"
+},
+{
+  word: "どうも",
+  kana: "どうも",
+  type: "副词",
+  meaning: "总觉得；实在；谢谢/对不起。",
+  example: "どうも$\\overset{かれ}{彼}$は$\\overset{ほがら}{朗}$らかに$\\overset{やま}{山}$へ$\\overset{のぼ}{上}$る。/总觉得他开朗地爬上了山。"
+},
+{
+  word: "殴る",
+  kana: "なぐる",
+  type: "五段他动词",
+  meaning: "打，揍。",
+  example: "$\\overset{ほがら}{朗}$らかに$\\overset{や}{屋}$$\\overset{ね}{根}$に$\\overset{のぼ}{上}$って$\\overset{ひと}{人}$を$\\overset{なぐ}{殴}$る。/开朗地爬上屋顶去打人。"
+},
+{
+  word: "上る",
+  kana: "のぼる",
+  type: "五段自动词",
+  meaning: "登，上；上升。",
+  example: "あいつは$\\overset{ほがら}{朗}$らかに$\\overset{ほんや}{本屋}$の$\\overset{にかい}{二階}$へ$\\overset{のぼ}{上}$る。/这家伙开朗地登上了书店的二楼。"
+},
+{
+  word: "等しい",
+  kana: "ひとしい",
+  type: "形容词",
+  meaning: "相等的，相同的。",
+  example: "あいつと$\\overset{ひと}{等}$しい$\\overset{たいど}{態度}$で$\\overset{ほがら}{朗}$らかに$\\overset{あいづち}{相槌}$を$\\overset{う}{打}$つ。/用和那家伙一样（相等）的态度开朗地随声附和。"
+},
+{
+  word: "朗らか",
+  kana: "ほがらか",
+  type: "形动",
+  meaning: "开朗的，爽朗的。",
+  example: "あいつは$\\overset{ほがら}{朗}$らかに$\\overset{あいづち}{相槌}$を$\\overset{う}{打}$ち、$\\overset{あか}{明}$るい$\\overset{いろあ}{色合}$いの$\\overset{ふく}{服}$を$\\overset{き}{着}$る。/这家伙开朗地随声附和，穿着色彩明亮的衣服。"
+},
+{
+  word: "屋",
+  kana: "や",
+  type: "名・接尾词",
+  meaning: "卖……的店，做……的人；房屋。",
+  example: "パン$\\overset{や}{屋}$のあいつは$\\overset{えみ}{笑み}$を$\\overset{う}{浮}$かべて$\\overset{あいづち}{相槌}$を$\\overset{う}{打}$つ。/面包店的那家伙面带笑容地随声附和。"
+},
+{
+  word: "あいつ",
+  kana: "あいつ",
+  type: "代词",
+  meaning: "这家伙，那家伙。",
+  example: "あいつは$\\overset{えみ}{笑み}$を$\\overset{う}{浮}$かべて、$\\overset{かぎ}{限}$りなく$\\overset{あいづち}{相槌}$を$\\overset{う}{打}$つ。/那家伙面带笑容，无止境地随声附和。"
+},
+{
+  word: "相槌",
+  kana: "あいづち",
+  type: "名词",
+  meaning: "随声附和。",
+  example: "$\\overset{かに}{蟹}$を$\\overset{た}{食}$べながら、$\\overset{えみ}{笑み}$を$\\overset{う}{浮}$かべて$\\overset{あいづち}{相槌}$を$\\overset{う}{打}$つ。/一边吃螃蟹，一边面带笑容地随声附和。"
+},
+{
+  word: "色合い",
+  kana: "いろあい",
+  type: "名词",
+  meaning: "色调，色彩。",
+  example: "$\\overset{そつぎょうせい}{卒業生}$が$\\overset{かぎ}{限}$りなく$\\overset{うつく}{美}$しい$\\overset{いろあ}{色合}$いの$\\overset{ふく}{服}$を$\\overset{き}{着}$る。/毕业生穿着色调极其美丽的衣服。"
+},
+{
+  word: "笑み",
+  kana: "えみ",
+  type: "名词",
+  meaning: "笑容。",
+  example: "$\\overset{そつぎょうせい}{卒業生}$が$\\overset{えみ}{笑み}$を$\\overset{う}{浮}$かべ、$\\overset{たいおん}{体温}$を$\\overset{かぎ}{限}$りなく$\\overset{かん}{感}$じる。/毕业生面带笑容，无限地感受着体温。"
+},
+{
+  word: "限り",
+  kana: "かぎり",
+  type: "名・接尾词",
+  meaning: "极限；只要……就。",
+  example: "$\\overset{ちから}{力}$の$\\overset{かぎ}{限}$り$\\overset{がんば}{頑張}$る。/拼尽全力（极限）努力。 || $\\overset{たいおん}{体温}$が$\\overset{とぎ}{途切}$れない$\\overset{かぎ}{限}$り、$\\overset{そつぎょうせい}{卒業生}$は$\\overset{かに}{蟹}$を$\\overset{た}{食}$べる。/只要体温不中断，毕业生就吃螃蟹。"
+},
+{
+  word: "蟹",
+  kana: "かに",
+  type: "名词",
+  meaning: "螃蟹。",
+  example: "$\\overset{のち}{後}$ほど、$\\overset{そつぎょうせい}{卒業生}$と$\\overset{いっしょ}{一緒}$に$\\overset{かに}{蟹}$を$\\overset{た}{食}$べる。/稍后，和毕业生一起吃螃蟹。"
+},
+{
+  word: "卒業生",
+  kana: "そつぎょうせい",
+  type: "名词",
+  meaning: "毕业生。",
+  example: "$\\overset{のち}{後}$ほど、$\\overset{そつぎょうせい}{卒業生}$の$\\overset{はいけい}{背景}$について$\\overset{はな}{話}$す。/稍后，谈谈毕业生的背景。"
+},
+{
+  word: "体温",
+  kana: "たいおん",
+  type: "名词",
+  meaning: "体温。",
+  example: "$\\overset{たいおん}{体温}$を$\\overset{はか}{測}$って、$\\overset{のち}{後}$ほど$\\overset{はなたば}{花束}$を$\\overset{わた}{渡}$す。/量完体温，稍后递上花束。"
+},
+{
+  word: "途切れる",
+  kana: "とぎれる",
+  type: "一段自动词",
+  meaning: "中断，间断。",
+  example: "$\\overset{のち}{後}$ほど$\\overset{はなたば}{花束}$を$\\overset{み}{見}$て、$\\overset{とぎ}{途切}$れない$\\overset{おも}{思}$い$\\overset{で}{出}$を$\\overset{なつ}{懐}$かしむ。/稍后看着花束，怀念起那未曾中断的回忆。"
+},
+{
+  word: "後ほど",
+  kana: "のちほど",
+  type: "副词",
+  meaning: "稍后，过一会儿。",
+  example: "$\\overset{のち}{後}$ほど$\\overset{はなたば}{花束}$を$\\overset{おく}{贈}$り、$\\overset{かこ}{過去}$を$\\overset{なつ}{懐}$かしむ。/稍后赠送花束，怀念过去。"
+},
+{
+  word: "背景",
+  kana: "はいけい",
+  type: "名词",
+  meaning: "背景。",
+  example: "$\\overset{はなたば}{花束}$の$\\overset{はいけい}{背景}$にある$\\overset{ものがたり}{物語}$を$\\overset{なつ}{懐}$かしむ。/怀念花束背景里的故事。"
+},
+{
+  word: "花束",
+  kana: "はなたば",
+  type: "名词",
+  meaning: "花束。",
+  example: "$\\overset{はなたば}{花束}$を$\\overset{み}{見}$て、$\\overset{むかし}{昔}$を$\\overset{なつ}{懐}$かしむ。/看着花束，怀念过去。"
+},
+{
+  word: "懐かしむ",
+  kana: "なつかしむ",
+  type: "五段他动词",
+  meaning: "怀念，思念。",
+  example: "$\\overset{はなたば}{花束}$の$\\overset{かお}{香}$りで$\\overset{むかし}{昔}$を$\\overset{なつ}{懐}$かしむ。/伴着花束的香气怀念过去。"
+},
+{
+  word: "秋",
+  kana: "あき",
+  type: "名词",
+  meaning: "秋天。",
+  example: "$\\overset{あき}{秋}$になって、$\\overset{あたま}{頭}$でサンマの$\\overset{あじ}{味}$を$\\overset{そうぞう}{想像}$する。/到了秋天，脑海中就开始想象秋刀鱼的味道。"
+},
+{
+  word: "味",
+  kana: "あじ",
+  type: "名词",
+  meaning: "味道，滋味。",
+  example: "このスープはあまりいい$\\overset{あじ}{味}$ではない。/这个汤的味道不怎么好。"
+},
+{
+  word: "頭",
+  kana: "あたま",
+  type: "名词",
+  meaning: "头，头脑。",
+  example: "いよいよ$\\overset{しけん}{試験}$が$\\overset{せま}{迫}$り、$\\overset{あたま}{頭}$が$\\overset{いた}{痛}$くなる。/考试终于逼近了，头疼起来。"
+},
+{
+  word: "あまり",
+  kana: "あまり",
+  type: "副词・名词",
+  meaning: "不太，不怎么（副）；剩余，过度（名）。",
+  example: "$\\overset{きょう}{今日}$の$\\overset{てんき}{天気}$はあまりいい$\\overset{じょうたい}{状態}$ではない。/今天的天气状况不太好。 || $\\overset{じかん}{時間}$の$\\overset{あま}{余}$りを$\\overset{つか}{使}$って$\\overset{うつく}{美}$しい$\\overset{ほん}{本}$を$\\overset{よ}{読}$む。/利用剩余的时间读一本优美的书。"
+},
+{
+  word: "いい",
+  kana: "いい",
+  type: "形容词",
+  meaning: "好的。",
+  example: "いよいよ$\\overset{あき}{秋}$だが、あまりいい$\\overset{てんき}{天気}$ではない。/终于到了秋天，但天气并不怎么好。"
+},
+{
+  word: "いよいよ",
+  kana: "いよいよ",
+  type: "副词",
+  meaning: "终于，到底；越发，更加。",
+  example: "いよいよ$\\overset{うつく}{美}$しい$\\overset{あき}{秋}$の$\\overset{けしき}{景色}$が$\\overset{ひろ}{広}$がる。/美丽的秋天景色终于展现开来。"
+},
+{
+  word: "美しい",
+  kana: "うつくしい",
+  type: "形容词",
+  meaning: "美丽的，优美的。",
+  example: "うるさい$\\overset{とかい}{都会}$を$\\overset{はな}{離}$れ、$\\overset{うつく}{美}$しい$\\overset{しゃしん}{写真}$を$\\overset{おく}{送}$る。/离开喧嚣的大城市，发送美丽的照片。"
+},
+{
+  word: "うるさい",
+  kana: "うるさい",
+  type: "形容词",
+  meaning: "吵闹的，烦人的；挑剔的。",
+  example: "$\\overset{となり}{隣}$の$\\overset{こうじ}{工事}$の$\\overset{おと}{音}$がうるさい。/隔壁施工的声音很吵。"
+},
+{
+  word: "送る",
+  kana: "おくる",
+  type: "五段他动词",
+  meaning: "送，寄；度过（时光）；送行。",
+  example: "$\\overset{かわ}{川}$の$\\overset{ぬし}{主}$に$\\overset{きび}{厳}$しい$\\overset{てがみ}{手紙}$を$\\overset{おく}{送}$る。/给河里的主人（河神）寄去一封严厉的信。"
+},
+{
+  word: "主",
+  kana: "ぬし",
+  type: "名词・形动",
+  meaning: "主人，神灵；主要。",
+  example: "この$\\overset{かわ}{川}$には$\\overset{おお}{大}$きな$\\overset{ぬし}{主}$がいる。/这条河里有一条大河神（大鱼）。 || $\\overset{こめ}{米}$を$\\overset{おも}{主}$な$\\overset{た}{食}$べ$\\overset{もの}{物}$とする。/把大米作为主要的食物。"
+},
+{
+  word: "川",
+  kana: "かわ",
+  type: "名词",
+  meaning: "河，河流。",
+  example: "$\\overset{かわ}{川}$の$\\overset{ちか}{近}$くで$\\overset{くろ}{黒}$い$\\overset{くすり}{薬}$を$\\overset{さが}{探}$す。/在河边寻找黑色的药。"
+},
+{
+  word: "厳しい",
+  kana: "きびしい",
+  type: "形容词",
+  meaning: "严厉的，严峻的。",
+  example: "$\\overset{きび}{厳}$しい$\\overset{じょうけん}{条件}$で$\\overset{くろ}{黒}$い$\\overset{こめ}{米}$を$\\overset{さが}{探}$す。/在严苛的条件下寻找黑米。"
+},
+{
+  word: "薬",
+  kana: "くすり",
+  type: "名词",
+  meaning: "药。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{こめ}{米}$で$\\overset{つく}{作}$った$\\overset{くすり}{薬}$を$\\overset{の}{飲}$む。/喝用黑米做的药。"
+},
+{
+  word: "黒い",
+  kana: "くろい",
+  type: "形容词",
+  meaning: "黑色的。",
+  example: "$\\overset{くろ}{黒}$い$\\overset{こめ}{米}$の$\\overset{わりあい}{割合}$が$\\overset{おお}{多}$くを$\\overset{しめ}{占}$める。/黑米的比例占了大多数。"
+},
+{
+  word: "米",
+  kana: "こめ",
+  type: "名词",
+  meaning: "大米，米。",
+  example: "さまざまなお$\\overset{こめ}{米}$の$\\overset{あじ}{味}$に$\\overset{した}{親}$しむ。/熟悉（品尝）各种各样大米的味道。"
+},
+{
+  word: "探す",
+  kana: "さがす",
+  type: "五段他动词",
+  meaning: "寻找。",
+  example: "$\\overset{こんしゅう}{今週}$は$\\overset{す}{好}$きな$\\overset{ちい}{小}$さい$\\overset{いぬ}{犬}$を$\\overset{さが}{探}$す。/这周寻找我喜欢的小狗。"
+},
+{
+  word: "さまざま",
+  kana: "さまざま",
+  type: "形动",
+  meaning: "各种各样。",
+  example: "さまざまなお$\\overset{ちゃ}{茶}$に$\\overset{した}{親}$しむ$\\overset{ひと}{人}$が$\\overset{おお}{大}$きな$\\overset{わりあい}{割合}$を$\\overset{しめ}{占}$める。/喜欢（亲近）各种各样茶的人占了很大的比例。"
+},
+{
+  word: "親しむ",
+  kana: "したしむ",
+  type: "五段自动词",
+  meaning: "亲近，喜好。",
+  example: "$\\overset{しぜん}{自然}$に$\\overset{した}{親}$しむ$\\overset{しゅうまつ}{週末}$を$\\overset{す}{過}$ごす。/度过亲近自然的周末。"
+},
+{
+  word: "占める",
+  kana: "しめる",
+  type: "一段他动词",
+  meaning: "占，占据（比例、位置等）。",
+  example: "この$\\overset{しゅう}{週}$は$\\overset{す}{好}$きな$\\overset{かもく}{科目}$が$\\overset{おお}{多}$くの$\\overset{わりあい}{割合}$を$\\overset{しめ}{占}$める。/这一周喜欢的科目占了很大比例。"
+},
+{
+  word: "週",
+  kana: "しゅう",
+  type: "名词",
+  meaning: "周，星期。",
+  example: "この$\\overset{しゅう}{週}$は、$\\overset{す}{好}$きな$\\overset{ちい}{小}$さいカバンを$\\overset{か}{買}$った。/这一周，买了我喜欢的小包。"
+},
+{
+  word: "好き",
+  kana: "すき",
+  type: "名・形动",
+  meaning: "喜欢，爱好。",
+  example: "つまらないテレビより、$\\overset{どくしょ}{読書}$が$\\overset{す}{好}$きだ。/比起无聊的电视，我更喜欢读书。 || $\\overset{す}{好}$きな$\\overset{ひと}{人}$と$\\overset{とお}{遠}$い$\\overset{となり}{隣}$の$\\overset{まち}{町}$へ$\\overset{い}{行}$く。/和喜欢的人去远方隔壁的城镇。"
+},
+{
+  word: "小さい",
+  kana: "ちいさい",
+  type: "形容词",
+  meaning: "小的。",
+  example: "つまらない$\\overset{ちい}{小}$さい$\\overset{こと}{事}$に$\\overset{こだわ}{拘}$る。/拘泥于无聊的小事。"
+},
+{
+  word: "つまらない",
+  kana: "つまらない",
+  type: "形容词",
+  meaning: "无聊的，无价值的。",
+  example: "$\\overset{とお}{遠}$くの$\\overset{となり}{隣}$の$\\overset{まち}{町}$はつまらない。/远处隔壁的城镇很无聊。"
+},
+{
+  word: "遠い",
+  kana: "とおい",
+  type: "形容词",
+  meaning: "远的。",
+  example: "$\\overset{とお}{遠}$い$\\overset{となり}{隣}$の$\\overset{くに}{国}$の$\\overset{なか}{中}$で$\\overset{せいかつ}{生活}$する。/在遥远的邻国中生活。"
+},
+{
+  word: "隣",
+  kana: "となり",
+  type: "名词",
+  meaning: "隔壁，旁边。",
+  example: "$\\overset{となり}{隣}$の$\\overset{にわ}{庭}$の$\\overset{せいかつ}{生活}$の$\\overset{なか}{中}$に$\\overset{な}{慣}$れる。/习惯了在隔壁院子中的生活。"
+},
+{
+  word: "中",
+  kana: "なか",
+  type: "名词",
+  meaning: "里面，中间。",
+  example: "$\\overset{ひろ}{広}$い$\\overset{にわ}{庭}$の$\\overset{なか}{中}$で$\\overset{いぬ}{犬}$と$\\overset{あそ}{遊}$ぶことに$\\overset{な}{慣}$れる。/习惯了在宽阔的院子里面和狗玩耍。"
+},
+{
+  word: "慣れる",
+  kana: "なれる",
+  type: "一段自动词",
+  meaning: "习惯，适应。",
+  example: "$\\overset{にわ}{庭}$の$\\overset{き}{木}$に$\\overset{のぼ}{登}$ることにすっかり$\\overset{な}{慣}$れた。/已经完全习惯了爬院子里的树。"
+},
+{
+  word: "庭",
+  kana: "にわ",
+  type: "名词",
+  meaning: "庭院，院子。",
+  example: "$\\overset{にわ}{庭}$の$\\overset{き}{木}$に$\\overset{のぼ}{登}$り、はっきりと$\\overset{ひかり}{光}$を$\\overset{み}{見}$る。/爬上院子里的树，清楚地看着光芒。"
+},
+{
+  word: "登る",
+  kana: "のぼる",
+  type: "五段自动词",
+  meaning: "攀登，爬。",
+  example: "$\\overset{くつ}{靴}$をはっきり$\\overset{は}{履}$いて$\\overset{やま}{山}$に$\\overset{のぼ}{登}$る。/把鞋子穿好（穿利索）去爬山。"
+},
+{
+  word: "履く",
+  kana: "はく",
+  type: "五段他动词",
+  meaning: "穿（鞋、裤子等穿在下半身的衣物）。",
+  example: "$\\overset{あたら}{新}$しい$\\overset{くつ}{靴}$を$\\overset{は}{履}$いて、はっきりと$\\overset{みち}{道}$を$\\overset{ある}{歩}$く。/穿上新鞋，清清楚楚地走在路上。"
+},
+{
+  word: "はっきり",
+  kana: "はっきり",
+  type: "副词・サ变动词する自",
+  meaning: "清楚地，明确地。",
+  example: "$\\overset{ひま}{暇}$な$\\overset{とき}{時}$に、$\\overset{ふる}{古}$い$\\overset{しゃしん}{写真}$がはっきりと$\\overset{み}{見}$える。/空闲时，能清楚地看到旧照片。 || $\\overset{たいど}{態度}$をはっきりして$\\overset{まじめ}{真面目}$に$\\overset{こた}{答}$える。/端正（明确）态度认真回答。"
+},
+{
+  word: "光",
+  kana: "ひかり",
+  type: "名词",
+  meaning: "光，光线。",
+  example: "$\\overset{ひま}{暇}$な$\\overset{ひ}{日}$、$\\overset{ふる}{古}$い$\\overset{へや}{部屋}$に$\\overset{さ}{差}$し$\\overset{こ}{込}$む$\\overset{ひかり}{光}$を$\\overset{み}{見}$る。/空闲的日子，看着射入旧房间的光线。"
+},
+{
+  word: "暇",
+  kana: "ひま",
+  type: "名・形动",
+  meaning: "空闲，时间。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{いそが}{忙}$しくて$\\overset{ひま}{暇}$がない。/他很忙，没有空闲时间。 || $\\overset{ひま}{暇}$な$\\overset{とき}{時}$は$\\overset{まじめ}{真面目}$に$\\overset{ふる}{古}$い$\\overset{ほん}{本}$を$\\overset{よ}{読}$む。/闲着的时候会认真读旧书。"
+},
+{
+  word: "古い",
+  kana: "ふるい",
+  type: "形容词",
+  meaning: "旧的，古老的。",
+  example: "$\\overset{ふる}{古}$い$\\overset{みせ}{店}$で$\\overset{まる}{丸}$い$\\overset{めがね}{眼鏡}$を$\\overset{か}{買}$う。/在老店里买圆框眼镜。"
+},
+{
+  word: "真面目",
+  kana: "まじめ",
+  type: "名・形动",
+  meaning: "认真，踏实。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{まじめ}{真面目}$さを$\\overset{ほ}{褒}$める。/表扬他的认真。 || $\\overset{まじめ}{真面目}$な$\\overset{てんいん}{店員}$が$\\overset{まる}{丸}$いケーキを$\\overset{う}{売}$る。/认真的店员在卖圆蛋糕。"
+},
+{
+  word: "丸い",
+  kana: "まるい",
+  type: "形容词",
+  meaning: "圆的。",
+  example: "$\\overset{め}{目}$が$\\overset{わる}{悪}$いので、$\\overset{みせ}{店}$で$\\overset{まる}{丸}$い$\\overset{めがね}{眼鏡}$を$\\overset{か}{買}$う。/因为视力不好，在店里买圆框眼镜。"
+},
+{
+  word: "店",
+  kana: "みせ",
+  type: "名词",
+  meaning: "店，商店。",
+  example: "$\\overset{わる}{悪}$い$\\overset{めがね}{眼鏡}$をあっさりと$\\overset{す}{捨}$てて、$\\overset{あたら}{新}$しい$\\overset{みせ}{店}$に$\\overset{はい}{入}$る。/很干脆地扔掉不好的眼镜，走进一家新店。"
+},
+{
+  word: "眼鏡",
+  kana: "めがね",
+  type: "名词",
+  meaning: "眼镜。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{め}{目}$が$\\overset{わる}{悪}$いので、$\\overset{めがね}{眼鏡}$をあっさり$\\overset{か}{買}$った。/他因为眼睛不好，很干脆地买了眼镜。"
+},
+{
+  word: "悪い",
+  kana: "わるい",
+  type: "形容词",
+  meaning: "坏的，不好的。",
+  example: "$\\overset{わる}{悪}$い$\\overset{たいど}{態度}$をあっさりと$\\overset{あらた}{改}$め、$\\overset{えら}{偉}$い$\\overset{ひと}{人}$になる。/干脆地改正坏态度，成为一个伟大的人。"
+},
+{
+  word: "あっさり",
+  kana: "あっさり",
+  type: "副词・サ变动词する自",
+  meaning: "清淡地；轻易地，干脆地。",
+  example: "$\\overset{ちい}{地位}$を$\\overset{うしな}{失}$っても、あっさりと$\\overset{あきら}{諦}$める。/即使失去了地位，也干脆地放弃了。 || $\\overset{なつ}{夏}$はあっさりした$\\overset{りょうり}{料理}$が$\\overset{た}{食}$べたい。/夏天想吃清淡的菜肴。"
+},
+{
+  word: "失う",
+  kana: "うしなう",
+  type: "五段他动词",
+  meaning: "失去，丧失。",
+  example: "$\\overset{えら}{偉}$い$\\overset{ひと}{人}$が$\\overset{まちが}{間違}$ってボタンを$\\overset{お}{押}$し、$\\overset{ちい}{地位}$を$\\overset{うしな}{失}$う。/伟大的人误按了按钮，失去了地位。"
+},
+{
+  word: "偉い",
+  kana: "えらい",
+  type: "形容词",
+  meaning: "伟大的，了不起的；严重的。",
+  example: "$\\overset{えら}{偉}$い$\\overset{ひと}{人}$が$\\overset{かた}{肩}$を$\\overset{お}{押}$して、$\\overset{はげ}{励}$ましてくれる。/大人物拍着我的肩膀鼓励我。"
+},
+{
+  word: "押す",
+  kana: "おす",
+  type: "五段他动词",
+  meaning: "推，按，压。",
+  example: "$\\overset{かた}{肩}$がかなり$\\overset{いた}{痛}$いが、$\\overset{がまん}{我慢}$してドアを$\\overset{お}{押}$す。/虽然肩膀相当痛，但还是忍着推开了门。"
+},
+{
+  word: "訪れる",
+  kana: "おとずれる",
+  type: "一段自他动词",
+  meaning: "访问，到来。",
+  example: "$\\overset{かた}{肩}$が$\\overset{いた}{痛}$いので、かなり$\\overset{ゆうめい}{有名}$な$\\overset{びょういん}{病院}$を$\\overset{おとず}{訪}$れる。/因为肩膀痛，拜访（去）了相当有名的医院。 || $\\overset{はる}{春}$が$\\overset{おとず}{訪}$れて、$\\overset{きし}{岸}$の$\\overset{ゆき}{雪}$が$\\overset{と}{溶}$ける。/春天到来了，岸边的雪融化了。"
+},
+{
+  word: "肩",
+  kana: "かた",
+  type: "名词",
+  meaning: "肩膀。",
+  example: "$\\overset{かた}{肩}$の$\\overset{いた}{痛}$みがかなり$\\overset{こ}{超}$えて、$\\overset{がまん}{我慢}$できない。/肩膀的疼痛相当地超出了极限，无法忍受。"
+},
+{
+  word: "かなり",
+  kana: "かなり",
+  type: "副词・形动",
+  meaning: "相当，很。",
+  example: "$\\overset{きし}{岸}$を$\\overset{こ}{超}$えるのはかなり$\\overset{むずか}{難}$しい。/越过岸边是相当困难的。 || $\\overset{かれ}{彼}$の$\\overset{せいせき}{成績}$はかなりなものだ。/他的成绩相当不错。"
+},
+{
+  word: "岸",
+  kana: "きし",
+  type: "名词",
+  meaning: "岸，岸边。",
+  example: "ルールに$\\overset{こだわ}{拘}$らず、$\\overset{かわ}{川}$の$\\overset{きし}{岸}$を$\\overset{こ}{超}$えて$\\overset{すす}{進}$む。/不拘泥于规则，越过河岸前进。"
+},
+{
+  word: "超える",
+  kana: "こえる",
+  type: "一段自动词",
+  meaning: "越过，超过（空间、时间、限度等）。",
+  example: "$\\overset{じかん}{時間}$を$\\overset{こ}{超}$えて、$\\overset{むかし}{昔}$のやり$\\overset{かた}{方}$に$\\overset{こだわ}{拘}$る。/跨越时间，拘泥于过去的做法。"
+},
+{
+  word: "拘る",
+  kana: "こだわる",
+  type: "五段自动词",
+  meaning: "拘泥于，执着于。",
+  example: "$\\overset{ちい}{小}$さいことに$\\overset{こだわ}{拘}$らず、そろそろ$\\overset{へや}{部屋}$の$\\overset{すみ}{隅}$を$\\overset{すす}{勧}$める。/不拘泥于小事，是时候推荐房间角落的位子了。"
+},
+{
+  word: "勧める",
+  kana: "すすめる",
+  type: "一段他动词",
+  meaning: "劝，推荐。",
+  example: "お$\\overset{きゃく}{客}$に$\\overset{すみ}{隅}$の$\\overset{せき}{席}$を$\\overset{すす}{勧}$める。/向客人推荐角落的座位。"
+},
+{
+  word: "隅",
+  kana: "すみ",
+  type: "名词",
+  meaning: "角落。",
+  example: "そろそろ$\\overset{へや}{部屋}$の$\\overset{すみ}{隅}$を$\\overset{そうじ}{掃除}$して、$\\overset{みち}{道}$を$\\overset{たず}{尋}$ねる。/差不多该打扫房间的角落，然后去问路了。"
+},
+{
+  word: "そろそろ",
+  kana: "そろそろ",
+  type: "副词",
+  meaning: "就要，快要；慢慢地。",
+  example: "そろそろ$\\overset{で}{出}$かけて、$\\overset{たて}{縦}$の$\\overset{みち}{道}$を$\\overset{たず}{尋}$ねる。/差不多该出门去问那条竖着的道路了。"
+},
+{
+  word: "尋ねる",
+  kana: "たずねる",
+  type: "一段他动词",
+  meaning: "询问；寻找。",
+  example: "ついに$\\overset{たて}{縦}$に$\\overset{なが}{長}$い$\\overset{みち}{道}$を$\\overset{たず}{尋}$ねた。/终于询问了那条长长的纵向道路。"
+},
+{
+  word: "縦",
+  kana: "たて",
+  type: "名词",
+  meaning: "纵，竖。",
+  example: "ついに$\\overset{たて}{縦}$と$\\overset{よこ}{横}$の$\\overset{せん}{線}$が$\\overset{こうさ}{交差}$した。/纵横的线条终于交叉了。"
+},
+{
+  word: "ついに",
+  kana: "ついに",
+  type: "副词",
+  meaning: "终于，到底。",
+  example: "ついに$\\overset{なまけ}{怠け}$者$\\overset{もの}{が}$が$\\overset{つち}{土}$を$\\overset{とお}{遠}$くへ$\\overset{な}{投}$げた。/懒汉终于把泥土扔向了远方。"
+},
+{
+  word: "土",
+  kana: "つち",
+  type: "名词",
+  meaning: "土，泥土。",
+  example: "$\\overset{なまけ}{怠}$けている$\\overset{こ}{子}$が$\\overset{つち}{土}$を$\\overset{な}{投}$げる。/偷懒的孩子在扔泥土。"
+},
+{
+  word: "投げる",
+  kana: "なげる",
+  type: "一段他动词",
+  meaning: "投，扔；放弃。",
+  example: "$\\overset{なま}{怠}$けずにボールを$\\overset{な}{投}$げて、$\\overset{はしら}{柱}$の$\\overset{まわ}{周}$りを$\\overset{は}{掃}$く。/不偷懒地扔完球后，打扫柱子周围。"
+},
+{
+  word: "怠ける",
+  kana: "なまける",
+  type: "一段自他动词",
+  meaning: "偷懒，怠惰。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{さいきん}{最近}$$\\overset{なま}{怠}$けてばかりいる。/他最近光是偷懒。 || $\\overset{しごと}{仕事}$を$\\overset{なま}{怠}$けて$\\overset{はら}{腹}$が$\\overset{た}{立}$つ。/怠慢了工作，让人很生气。"
+},
+{
+  word: "掃く",
+  kana: "はく",
+  type: "五段他动词",
+  meaning: "扫，打扫。",
+  example: "$\\overset{はら}{腹}$が$\\overset{へ}{減}$るが、$\\overset{はしら}{柱}$の$\\overset{まわ}{周}$りを$\\overset{きれい}{綺麗}$に$\\overset{は}{掃}$く。/虽然肚子饿了，但还是把柱子周围扫干净了。"
+},
+{
+  word: "柱",
+  kana: "はしら",
+  type: "名词",
+  meaning: "柱子，支柱。",
+  example: "$\\overset{ふと}{太}$い$\\overset{はしら}{柱}$を$\\overset{み}{見}$て、$\\overset{はら}{腹}$の$\\overset{そこ}{底}$から$\\overset{ほこ}{誇}$りを$\\overset{も}{持}$つ。/看着粗壮的柱子，打心底里感到自豪。"
+},
+{
+  word: "腹",
+  kana: "はら",
+  type: "名词",
+  meaning: "肚子，腹部。",
+  example: "$\\overset{はら}{腹}$が$\\overset{た}{立}$つが、$\\overset{ほこ}{誇}$りを$\\overset{も}{持}$って$\\overset{さいがい}{災害}$を$\\overset{ふせ}{防}$ぐ。/虽然很生气，但还是带着自豪感去防灾。"
+},
+{
+  word: "防ぐ",
+  kana: "ふせぐ",
+  type: "五段他动词",
+  meaning: "防御，防止。",
+  example: "$\\overset{ほこ}{誇}$りを$\\overset{も}{持}$って$\\overset{つち}{土}$を$\\overset{ほ}{掘}$り、$\\overset{すいがい}{水害}$を$\\overset{ふせ}{防}$ぐ。/怀着自豪感挖掘泥土，防止水灾。"
+},
+{
+  word: "誇り",
+  kana: "ほこり",
+  type: "名词",
+  meaning: "自豪，骄傲。",
+  example: "$\\overset{じぶん}{自分}$の$\\overset{しごと}{仕事}$に$\\overset{ほこ}{誇}$りを$\\overset{も}{持}$って$\\overset{つち}{土}$を$\\overset{ほ}{掘}$る。/对自己的工作怀着自豪感去挖掘泥土。"
+},
+{
+  word: "掘る",
+  kana: "ほる",
+  type: "五段他动词",
+  meaning: "挖，掘。",
+  example: "やがて$\\overset{ゆか}{床}$の$\\overset{した}{下}$を$\\overset{ほ}{掘}$って$\\overset{あたら}{新}$しい$\\overset{ざいりょう}{材料}$を$\\overset{もち}{用}$いる。/不久之后，会挖开地板下面使用新的材料。"
+},
+{
+  word: "用いる",
+  kana: "もちいる",
+  type: "一段他动词",
+  meaning: "使用，采用。",
+  example: "やがて$\\overset{ゆか}{床}$に$\\overset{あたら}{新}$しい$\\overset{もくざい}{木材}$を$\\overset{もち}{用}$いるだろう。/不久之后，可能会在地板上采用新的木材吧。"
+},
+{
+  word: "やがて",
+  kana: "やがて",
+  type: "副词",
+  meaning: "不久，马上；大约。",
+  example: "やがて$\\overset{わかもの}{若者}$がようやく$\\overset{ゆか}{床}$の$\\overset{しゅうり}{修理}$を$\\overset{お}{終}$わらせる。/不久，年轻人终于完成了地板的修理。"
+},
+{
+  word: "床",
+  kana: "ゆか",
+  type: "名词",
+  meaning: "地板。",
+  example: "$\\overset{わかもの}{若者}$がようやく$\\overset{ゆか}{床}$を$\\overset{きれい}{綺麗}$に$\\overset{みが}{磨}$き$\\overset{あ}{上}$げた。/年轻人终于把地板擦得干干净净。"
+},
+{
+  word: "ようやく",
+  kana: "ようやく",
+  type: "副词",
+  meaning: "终于，好不容易；渐渐。",
+  example: "$\\overset{わかもの}{若者}$がようやくあらゆる$\\overset{こんなん}{困難}$を$\\overset{の}{乗}$り$\\overset{こ}{越}$えた。/年轻人终于克服了所有的困难。"
+},
+{
+  word: "若者",
+  kana: "わかもの",
+  type: "名词",
+  meaning: "年轻人。",
+  example: "あらゆる$\\overset{わかもの}{若者}$が$\\overset{しっぱい}{失敗}$してはいけないと$\\overset{かんが}{考}$える。/所有的年轻人都认为绝对不能失败。"
+},
+{
+  word: "あらゆる",
+  kana: "あらゆる",
+  type: "连体词",
+  meaning: "所有的，一切的（后必接名词）。",
+  example: "あらゆる$\\overset{りゆう}{理由}$をつけても、$\\overset{やくそく}{約束}$を$\\overset{やぶ}{破}$ってはいけない。/不管找尽所有什么理由，也不能违背诺言。"
+},
+{
+  word: "いけない",
+  kana: "いけない",
+  type: "连语/形容词",
+  meaning: "不行，不可以。",
+  example: "$\\overset{かがみ}{鏡}$の$\\overset{まえ}{前}$で$\\overset{いと}{糸}$を$\\overset{ひ}{引}$っ$\\overset{ぱ}{張}$ってはいけない。/绝不能在镜子前面拉扯线。"
+},
+{
+  word: "糸",
+  kana: "いと",
+  type: "名词",
+  meaning: "线。",
+  example: "$\\overset{かがみ}{鏡}$を$\\overset{み}{見}$ながら、$\\overset{ふく}{服}$の$\\overset{いと}{糸}$を$\\overset{き}{切}$る。/一边照着镜子，一边剪断衣服上的线头。"
+},
+{
+  word: "鏡",
+  kana: "かがみ",
+  type: "名词",
+  meaning: "镜子。",
+  example: "$\\overset{くも}{曇}$る$\\overset{ひ}{日}$に、$\\overset{かがみ}{鏡}$の$\\overset{まえ}{前}$で$\\overset{かご}{籠}$を$\\overset{も}{持}$つ。/在阴天，拿着篮子站在镜子前。"
+},
+{
+  word: "籠",
+  kana: "かご",
+  type: "名词",
+  meaning: "篮子，筐。",
+  example: "$\\overset{くも}{曇}$る$\\overset{ひ}{日}$に、$\\overset{かご}{籠}$に$\\overset{い}{入}$れたお$\\overset{かゆ}{粥}$を$\\overset{はこ}{運}$ぶ。/在阴天里，搬运装在篮子里的粥。"
+},
+{
+  word: "粥",
+  kana: "かゆ",
+  type: "名词",
+  meaning: "粥。",
+  example: "$\\overset{びょうき}{病気}$の$\\overset{はは}{母}$にお$\\overset{かゆ}{粥}$を$\\overset{つく}{作}$って$\\overset{さ}{差}$し$\\overset{あ}{上}$げる。/给生病的母亲熬粥并奉上。"
+},
+{
+  word: "曇る",
+  kana: "くもる",
+  type: "五段自动词",
+  meaning: "阴天；变得模糊。",
+  example: "$\\overset{そら}{空}$が$\\overset{くも}{曇}$ってきた。しかし、$\\overset{きも}{気持}$ちは$\\overset{した}{親}$しみでいっぱいだ。/天阴下来了。但是，心情却充满了亲切感。"
+},
+{
+  word: "差し上げる",
+  kana: "さしあげる",
+  type: "一段他动词",
+  meaning: "给，赠送（「あげる」的谦让语）；举起。",
+  example: "$\\overset{した}{親}$しみを$\\overset{こ}{込}$めて$\\overset{さ}{差}$し$\\overset{あ}{上}$げる。しかし、$\\overset{かれ}{彼}$は$\\overset{う}{受}$け$\\overset{と}{取}$らない。/充满着亲切感奉送给他。但是，他没有收下。"
+},
+{
+  word: "しかし",
+  kana: "しかし",
+  type: "接续词",
+  meaning: "但是，可是。",
+  example: "$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$った。しかし、$\\overset{した}{親}$しみを$\\overset{も}{持}$ってそこで$\\overset{ま}{待}$った。/下雨了。但是，还是带着亲切感在那里等了。"
+},
+{
+  word: "親しみ",
+  kana: "したしみ",
+  type: "名词",
+  meaning: "亲密，亲切感。",
+  example: "そこで、$\\overset{かれ}{彼}$のために$\\overset{した}{親}$しみを$\\overset{こ}{込}$めた$\\overset{たば}{束}$を$\\overset{つく}{作}$る。/于是，为了他制作了饱含亲切感的一束（花等）。"
+},
+{
+  word: "そこで",
+  kana: "そこで",
+  type: "接续词",
+  meaning: "因此，于是；那么（转换话题）。",
+  example: "そこで、$\\overset{ははおや}{母親}$のために$\\overset{はな}{花}$の$\\overset{たば}{束}$を$\\overset{か}{買}$う。/于是，为了母亲买了一束花。"
+},
+{
+  word: "ため",
+  kana: "ため",
+  type: "名词",
+  meaning: "为了；因为（原因）。",
+  example: "$\\overset{ははおや}{母親}$の$\\overset{けんこう}{健康}$のために、$\\overset{まいにち}{毎日}$$\\overset{ねぎ}{葱}$を$\\overset{た}{食}$べる。/为了母亲的健康，每天吃大葱。"
+},
+{
+  word: "束",
+  kana: "たば",
+  type: "名词",
+  meaning: "束，把，捆。",
+  example: "でも、$\\overset{ははおや}{母親}$は$\\overset{ねぎ}{葱}$の$\\overset{たば}{束}$が$\\overset{す}{好}$きだ。/但是，母亲喜欢一捆一捆的大葱。"
+},
+{
+  word: "でも",
+  kana: "でも",
+  type: "接续词・助词",
+  meaning: "但是（接续）；即使，连（助词）。",
+  example: "$\\overset{あめ}{雨}$だ。でも、$\\overset{まいしゅう}{毎週}$$\\overset{い}{行}$く。/下雨了。但是，每周还是要去。 || そんなことは$\\overset{こども}{子供}$でも$\\overset{し}{知}$っている。/那种事情连小孩子都知道。"
+},
+{
+  word: "葱",
+  kana: "ねぎ",
+  type: "名词",
+  meaning: "葱，大葱。",
+  example: "$\\overset{ははおや}{母親}$は$\\overset{まいしゅう}{毎週}$、$\\overset{まつ}{松}$の$\\overset{き}{木}$の$\\overset{した}{下}$で$\\overset{ねぎ}{葱}$を$\\overset{きざ}{刻}$む。/母亲每周都在松树下切葱。"
+},
+{
+  word: "母親",
+  kana: "ははおや",
+  type: "名词",
+  meaning: "母亲。",
+  example: "$\\overset{まいしゅう}{毎週}$、$\\overset{ははおや}{母親}$は$\\overset{むぎ}{麦}$$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$みやすいように$\\overset{つく}{作}$る。/母亲每周都会把大麦茶做得容易入口（好喝）。"
+},
+{
+  word: "毎",
+  kana: "まい",
+  type: "接头词",
+  meaning: "每。",
+  example: "$\\overset{まいにち}{毎日}$、$\\overset{まつ}{松}$の$\\overset{き}{木}$の$\\overset{した}{下}$で$\\overset{むぎ}{麦}$の$\\overset{せいちょう}{成長}$を$\\overset{み}{見}$る。/每天都在松树下看着麦子生长。"
+},
+{
+  word: "松",
+  kana: "まつ",
+  type: "名词",
+  meaning: "松树。",
+  example: "$\\overset{まつ}{松}$の$\\overset{き}{木}$と$\\overset{むぎ}{麦}$の$\\overset{はたけ}{畑}$は、$\\overset{のうか}{農家}$が$\\overset{やと}{雇}$いやすい。/种松树和麦子的田地，农户很容易雇佣到人。"
+},
+{
+  word: "麦",
+  kana: "むぎ",
+  type: "名词",
+  meaning: "麦子。",
+  example: "$\\overset{ゆる}{緩}$やかな$\\overset{かぜ}{風}$の$\\overset{なか}{中}$で$\\overset{むぎ}{麦}$が$\\overset{ゆ}{揺}$れ、$\\overset{ひと}{人}$を$\\overset{やと}{雇}$う。/在和缓的风中麦子摇曳着，（农户）雇佣了人手。"
+},
+{
+  word: "やすい",
+  kana: "やすい",
+  type: "接尾词・形容词",
+  meaning: "容易……，好……；便宜的。",
+  example: "$\\overset{ゆる}{緩}$やかな$\\overset{きそく}{規則}$の$\\overset{かいしゃ}{会社}$は$\\overset{ひと}{人}$を$\\overset{やと}{雇}$いやすい。/规定宽松的公司很容易雇佣到人。 || この$\\overset{ほん}{本}$は$\\overset{ねだん}{値段}$が$\\overset{やす}{安}$い。/这本书价格便宜。"
+},
+{
+  word: "雇う",
+  kana: "やとう",
+  type: "五段他动词",
+  meaning: "雇佣。",
+  example: "わが$\\overset{くに}{国}$では、$\\overset{ゆる}{緩}$やかな$\\overset{じょうけん}{条件}$で$\\overset{ひと}{人}$を$\\overset{やと}{雇}$う。/在我国，用宽松的条件雇佣人。"
+},
+{
+  word: "緩やか",
+  kana: "ゆるやか",
+  type: "形动",
+  meaning: "缓慢，和缓；宽松。",
+  example: "わが$\\overset{くに}{国}$の$\\overset{けいざい}{経済}$は$\\overset{ゆる}{緩}$やかに$\\overset{かいふく}{回復}$している。/我国的经济正在缓慢复苏。"
+},
+{
+  word: "わが国",
+  kana: "わがくに",
+  type: "名词",
+  meaning: "我国。",
+  example: "わが$\\overset{くに}{国}$は$\\overset{おうせつ}{応接}$に$\\overset{かん}{関}$する$\\overset{おお}{多}$くの$\\overset{かだい}{課題}$を$\\overset{かか}{抱}$える。/我国面临着许多关于接待方面的课题。"
+},
+{
+  word: "応接",
+  kana: "おうせつ",
+  type: "名・サ变动词する他",
+  meaning: "接待，应接。",
+  example: "$\\overset{しゃちょう}{社長}$は$\\overset{おうせつ}{応接}$$\\overset{しつ}{室}$で$\\overset{きゃく}{客}$と$\\overset{はな}{話}$す。/总经理在接待室和客人交谈。 || $\\overset{おお}{多}$くの$\\overset{きゃく}{客}$を$\\overset{おうせつ}{応接}$する$\\overset{かだい}{課題}$を$\\overset{かか}{抱}$える。/面临着接待许多客人的问题。"
+},
+{
+  word: "抱える",
+  kana: "かかえる",
+  type: "一段他动词",
+  meaning: "抱，夹；承担（债务，责任等）。",
+  example: "たくさんの$\\overset{ちゅうこひん}{中古品}$を$\\overset{かか}{抱}$えて、$\\overset{ねが}{願}$いが$\\overset{かな}{叶}$うのを$\\overset{ま}{待}$つ。/抱着许多二手商品，等待愿望实现。"
+},
+{
+  word: "叶う",
+  kana: "かなう",
+  type: "五段自动词",
+  meaning: "实现，如愿以偿。",
+  example: "$\\overset{たんとう}{担当}$$\\overset{しゃ}{者}$の$\\overset{はたら}{働}$きぶりで、$\\overset{くさ}{草}$を$\\overset{か}{刈}$る$\\overset{ゆめ}{夢}$が$\\overset{かな}{叶}$う。/凭借负责人的努力工作方式，割草的梦想实现了。"
+},
+{
+  word: "刈る",
+  kana: "かる",
+  type: "五段他动词",
+  meaning: "割，剪。",
+  example: "$\\overset{たんとう}{担当}$$\\overset{しゃ}{者}$が$\\overset{にわ}{庭}$の$\\overset{くさ}{草}$を$\\overset{きれい}{綺麗}$に$\\overset{か}{刈}$る。/负责人把院子里的草割得干干净净。"
+},
+{
+  word: "担当",
+  kana: "たんとう",
+  type: "名・サ变动词する他",
+  meaning: "担当，负责。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{えいぎょう}{営業}$の$\\overset{たんとう}{担当}$だ。/他是负责营业的。 || $\\overset{かれ}{彼}$の$\\overset{しごと}{仕事}$を$\\overset{たんとう}{担当}$するぶりを$\\overset{ほ}{褒}$める。/表扬他负责工作的样子。"
+},
+{
+  word: "ぶり",
+  kana: "ぶり",
+  type: "接尾词",
+  meaning: "状态，方式；时隔……（时间）。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{ねっしん}{熱心}$な$\\overset{はたら}{働}$きぶりに$\\overset{かんしん}{感心}$する。/对他热心的工作态度（方式）感到钦佩。"
+},{
+  word: "明日",
+  kana: "あした",
+  type: "名词",
+  meaning: "明天。",
+  example: "$\\overset{あした}{明日}$の$\\overset{よてい}{予定}$が$\\overset{お}{終}$わった$\\overset{あと}{後}$で、$\\overset{あたら}{新}$しい$\\overset{ほん}{本}$を$\\overset{よ}{読}$む。/明天的计划结束之后，读一本新书。"
+},
+{
+  word: "余る",
+  kana: "あまる",
+  type: "五段自动词",
+  meaning: "剩余，剩下；超过。",
+  example: "$\\overset{あたら}{新}$しい$\\overset{しごと}{仕事}$が$\\overset{お}{終}$わり、$\\overset{じかん}{時間}$が$\\overset{あま}{余}$るのはありがたい。/新工作结束了，有剩余的时间真是难得（让人感激）。"
+},
+{
+  word: "新しい",
+  kana: "あたらしい",
+  type: "形容词",
+  meaning: "新的。",
+  example: "$\\overset{あたら}{新}$しい$\\overset{いし}{石}$を$\\overset{えら}{選}$んで、$\\overset{うし}{後}$ろに$\\overset{な}{投}$げる。/挑选一块新石头，向后扔去。"
+},
+{
+  word: "後",
+  kana: "あと",
+  type: "名词",
+  meaning: "后面，之后。",
+  example: "$\\overset{しけん}{試験}$の$\\overset{あと}{後}$で$\\overset{うれ}{嬉}$しい$\\overset{けっか}{結果}$が$\\overset{わ}{分}$かる。/考试之后知道了令人高兴的结果。"
+},
+{
+  word: "ありがたい",
+  kana: "ありがたい",
+  type: "形容词",
+  meaning: "难得的，值得感谢的。",
+  example: "$\\overset{でんしゃ}{電車}$が$\\overset{おく}{遅}$れたが、$\\overset{ま}{待}$ってくれたのはありがたい$\\overset{こと}{事}$だ。/电车虽然晚点了，但大家等我，真是让人感激的事情。"
+},
+{
+  word: "石",
+  kana: "いし",
+  type: "名词",
+  meaning: "石头。",
+  example: "$\\overset{うし}{後}$ろの$\\overset{いし}{石}$を$\\overset{えら}{選}$んで、$\\overset{うれ}{嬉}$しそうに$\\overset{な}{投}$げる。/挑选后面的石头，高兴地扔了出去。"
+},
+{
+  word: "後ろ",
+  kana: "うしろ",
+  type: "名词",
+  meaning: "后面，后方。",
+  example: "$\\overset{うし}{後}$ろに$\\overset{おそ}{遅}$い$\\overset{くるま}{車}$が$\\overset{はし}{走}$っている。/后面有一辆很慢的车在行驶。"
+},
+{
+  word: "嬉しい",
+  kana: "うれしい",
+  type: "形容词",
+  meaning: "高兴的，欢喜的。",
+  example: "$\\overset{おや}{親}$が$\\overset{うれ}{嬉}$しい$\\overset{ことば}{言葉}$をおっしゃる。/父母说了让人高兴的话。"
+},
+{
+  word: "選ぶ",
+  kana: "えらぶ",
+  type: "五段他动词",
+  meaning: "选择，挑选。",
+  example: "$\\overset{おく}{遅}$れないように、$\\overset{はや}{早}$い$\\overset{みち}{道}$を$\\overset{えら}{選}$んで$\\overset{はし}{走}$る。/为了不迟到，选择一条快路奔跑。"
+},
+{
+  word: "遅れる",
+  kana: "おくれる",
+  type: "一段自动词",
+  meaning: "迟到，晚点；落后。",
+  example: "$\\overset{でんしゃ}{電車}$に$\\overset{おく}{遅}$れると、$\\overset{おや}{親}$に$\\overset{おこ}{怒}$られる。/如果没赶上电车，会被父母骂。"
+},
+{
+  word: "遅い",
+  kana: "おそい",
+  type: "形容词",
+  meaning: "晚的，迟的；慢的。",
+  example: "$\\overset{よる}{夜}$$\\overset{おそ}{遅}$く$\\overset{かえ}{帰}$ると、$\\overset{おや}{親}$に$\\overset{だめ}{駄目}$だと$\\overset{い}{言}$われる。/晚上很晚回家的话，会被父母说不行。"
+},
+{
+  word: "おっしゃる",
+  kana: "おっしゃる",
+  type: "五段他动词",
+  meaning: "说，讲（「言う」的尊敬语）。",
+  example: "$\\overset{せんせい}{先生}$がおっしゃる$\\overset{とお}{通}$りに、かばんを$\\overset{も}{持}$って$\\overset{はし}{走}$る。/按照老师说的那样，拿着包奔跑。"
+},
+{
+  word: "親",
+  kana: "おや",
+  type: "名词",
+  meaning: "父母，双亲。",
+  example: "$\\overset{おや}{親}$の$\\overset{い}{言}$う$\\overset{こと}{事}$をよく$\\overset{き}{聞}$いて、これからの$\\overset{みち}{道}$を$\\overset{えら}{選}$ぶ。/好好听父母的话，选择今后的道路。"
+},
+{
+  word: "方",
+  kana: "かた",
+  type: "名词",
+  meaning: "人，位（尊称/かた）；方向，方面（ほう）。",
+  example: "あの$\\overset{かた}{方}$が、これからの$\\overset{こと}{事}$について$\\overset{くわ}{詳}$しくおっしゃる。/那位先生详细地讲述了今后的事情。"
+},
+{
+  word: "かばん",
+  kana: "かばん",
+  type: "名词",
+  meaning: "包，皮包。",
+  example: "かばんの$\\overset{なか}{中}$に$\\overset{さかな}{魚}$と$\\overset{さしみ}{刺身}$を$\\overset{い}{入}$れる。/把鱼和生鱼片放进包里。"
+},
+{
+  word: "傷",
+  kana: "きず",
+  type: "名词",
+  meaning: "伤，伤口；瑕疵。",
+  example: "$\\overset{さかな}{魚}$の$\\overset{きず}{傷}$について$\\overset{くわ}{詳}$しく$\\overset{しら}{調}$べる。/详细调查鱼身上的伤痕。"
+},
+{
+  word: "詳しい",
+  kana: "くわしい",
+  type: "形容词",
+  meaning: "详细的，精通的。",
+  example: "これからの$\\overset{こと}{事}$について$\\overset{くわ}{詳}$しくしゃべる。/详细地谈论今后的事情。"
+},
+{
+  word: "事",
+  kana: "こと",
+  type: "名词",
+  meaning: "事情。",
+  example: "$\\overset{さむ}{寒}$い$\\overset{ひ}{日}$に$\\overset{そと}{外}$でしゃべる$\\overset{こと}{事}$は$\\overset{さ}{避}$けたい。/我想避免在寒冷的日子里在外面聊天。"
+},
+{
+  word: "これから",
+  kana: "これから",
+  type: "名词・副词",
+  meaning: "今后，从此以后。",
+  example: "これから、すっかり$\\overset{す}{空}$いた$\\overset{みせ}{店}$で$\\overset{さしみ}{刺身}$を$\\overset{た}{食}$べる。/接下来，在完全空下来的店里吃生鱼片。"
+},
+{
+  word: "魚",
+  kana: "さかな",
+  type: "名词",
+  meaning: "鱼。",
+  example: "$\\overset{さむ}{寒}$い$\\overset{ひ}{日}$に、$\\overset{あたら}{新}$しい$\\overset{さかな}{魚}$の$\\overset{さしみ}{刺身}$を$\\overset{た}{食}$べる。/在寒冷的日子里，吃新鲜的生鱼片。"
+},
+{
+  word: "刺身",
+  kana: "さしみ",
+  type: "名词",
+  meaning: "生鱼片。",
+  example: "$\\overset{さしみ}{刺身}$を$\\overset{た}{食}$べてお$\\overset{なか}{腹}$が$\\overset{す}{空}$くのを$\\overset{ふせ}{防}$ぐ。/吃生鱼片来防止肚子饿。"
+},
+{
+  word: "寒い",
+  kana: "さむい",
+  type: "形容词",
+  meaning: "寒冷的。",
+  example: "$\\overset{さむ}{寒}$いので、$\\overset{あたた}{暖}$かい$\\overset{いえ}{家}$に$\\overset{す}{住}$むのはありがたい。/因为很冷，能住在温暖的房子里真是值得感激。"
+},
+{
+  word: "しゃべる",
+  kana: "しゃべる",
+  type: "五段自他动词",
+  meaning: "说，聊天。",
+  example: "$\\overset{ともだち}{友達}$としゃべりながら、すっかり$\\overset{くら}{暗}$い$\\overset{とお}{通}$りを$\\overset{ある}{歩}$く。/一边和朋友聊天，一边走在完全黑下来的街道上。"
+},
+{
+  word: "空く",
+  kana: "すく",
+  type: "五段自动词",
+  meaning: "空，（肚子）饿；不拥挤。",
+  example: "$\\overset{でんしゃ}{電車}$がすっかり$\\overset{す}{空}$いて、$\\overset{すわ}{座}$る$\\overset{こと}{事}$ができた。/电车完全空下来了，能够坐下了。"
+},
+{
+  word: "すっかり",
+  kana: "すっかり",
+  type: "副词",
+  meaning: "完全，全部。",
+  example: "すっかり$\\overset{さむ}{寒}$くなり、そう$\\overset{かんたん}{簡単}$には$\\overset{そと}{外}$へ$\\overset{で}{出}$られない。/完全变冷了，所以不能那么轻易地出门。"
+},
+{
+  word: "住む",
+  kana: "すむ",
+  type: "五段自动词",
+  meaning: "居住。",
+  example: "$\\overset{とかい}{都会}$に$\\overset{す}{住}$むのは$\\overset{だめ}{駄目}$だそうだから、$\\overset{ほか}{他}$を$\\overset{えら}{選}$ぶ。/听说住在大城市不行，所以选择其他地方。"
+},
+{
+  word: "そう",
+  kana: "そう",
+  type: "副词・感叹词",
+  meaning: "那样；是的。",
+  example: "そう、この$\\overset{とお}{通}$りを$\\overset{はし}{走}$るのは$\\overset{だめ}{駄目}$だ。/是的，在这条马路上奔跑是不行的。"
+},
+{
+  word: "駄目",
+  kana: "だめ",
+  type: "名・形动",
+  meaning: "不行，无用，白费。",
+  example: "もう$\\overset{だめ}{駄目}$だと$\\overset{あきら}{諦}$める。/认为已经不行了而放弃。 || $\\overset{ねこ}{猫}$をここで$\\overset{か}{飼}$うのは$\\overset{だめ}{駄目}$な$\\overset{こと}{事}$だ。/在这里养猫是不行的事。"
+},
+{
+  word: "使う",
+  kana: "つかう",
+  type: "五段他动词",
+  meaning: "使用。",
+  example: "お$\\overset{かね}{金}$を$\\overset{つか}{使}$って、$\\overset{あたら}{新}$しいズボンを$\\overset{は}{穿}$く。/花钱穿上新裤子。"
+},
+{
+  word: "通り",
+  kana: "とおり",
+  type: "名词・接尾词",
+  meaning: "马路，街道；和……一样。",
+  example: "$\\overset{とお}{通}$りの$\\overset{ま}{真}$ん$\\overset{なか}{中}$で$\\overset{ねこ}{猫}$が$\\overset{と}{跳}$ぶのを$\\overset{み}{見}$る。/看着猫在马路正中间跳跃。"
+},
+{
+  word: "跳ぶ",
+  kana: "とぶ",
+  type: "五段自动词",
+  meaning: "跳跃，跳。",
+  example: "$\\overset{なかよ}{仲良}$しの$\\overset{ねこ}{猫}$が$\\overset{げんき}{元気}$に$\\overset{やね}{屋根}$へ$\\overset{と}{跳}$ぶ。/关系好的猫精神满满地跳上屋顶。"
+},
+{
+  word: "仲",
+  kana: "なか",
+  type: "名词",
+  meaning: "关系，交情。",
+  example: "$\\overset{ねこ}{猫}$と$\\overset{いぬ}{犬}$の$\\overset{なか}{仲}$が$\\overset{よ}{良}$いのは$\\overset{めずら}{珍}$しい$\\overset{こと}{事}$だ。/猫和狗关系好是件稀奇的事。"
+},
+{
+  word: "猫",
+  kana: "ねこ",
+  type: "名词",
+  meaning: "猫。",
+  example: "$\\overset{ねこ}{猫}$が$\\overset{き}{木}$に$\\overset{のぼ}{昇}$り、もっと$\\overset{たか}{高}$い$\\overset{ところ}{所}$へ$\\overset{い}{行}$く。/猫爬上树，去更高的地方。"
+},
+{
+  word: "昇る",
+  kana: "のぼる",
+  type: "五段自动词",
+  meaning: "升起；攀登。",
+  example: "$\\overset{たいよう}{太陽}$が$\\overset{のぼ}{昇}$るのを$\\overset{み}{見}$て、$\\overset{あたら}{新}$しい$\\overset{くつ}{靴}$を$\\overset{は}{穿}$く。/看着太阳升起，穿上新鞋。"
+},
+{
+  word: "穿く",
+  kana: "はく",
+  type: "五段他动词",
+  meaning: "穿（鞋、裤子等穿在下半身的衣物）。",
+  example: "ズボンを$\\overset{は}{穿}$いてから、$\\overset{いそ}{急}$いで$\\overset{みち}{道}$を$\\overset{はし}{走}$る。/穿上裤子后，急急忙忙在路上跑。"
+},
+{
+  word: "走る",
+  kana: "はしる",
+  type: "五段自动词",
+  meaning: "跑，行驶。",
+  example: "$\\overset{みち}{道}$を$\\overset{はし}{走}$って、$\\overset{いき}{息}$が$\\overset{あら}{荒}$くなり$\\overset{はな}{鼻}$$\\overset{みず}{水}$が出る。/在路上跑，呼吸变得急促，流出了鼻涕。"
+},
+{
+  word: "鼻",
+  kana: "はな",
+  type: "名词",
+  meaning: "鼻子。",
+  example: "$\\overset{はな}{鼻}$を$\\overset{ふ}{拭}$いてから、まずお$\\overset{かね}{金}$を$\\overset{はら}{払}$う。/擦了鼻子之后，首先付钱。"
+},
+{
+  word: "払う",
+  kana: "はらう",
+  type: "五段他动词",
+  meaning: "支付；拂去。",
+  example: "まず$\\overset{みせ}{店}$でお$\\overset{かね}{金}$を$\\overset{はら}{払}$い、もっと$\\overset{か}{買}$い$\\overset{もの}{物}$をする。/首先在店里付钱，然后再买更多的东西。"
+},
+{
+  word: "まず",
+  kana: "まず",
+  type: "副词",
+  meaning: "首先，最初。",
+  example: "まず$\\overset{みち}{道}$を$\\overset{かくにん}{確認}$すれば、もっと$\\overset{はや}{早}$く$\\overset{わ}{分}$かる。/首先确认好路线的话，就能更快明白。"
+},
+{
+  word: "道",
+  kana: "みち",
+  type: "名词",
+  meaning: "道路。",
+  example: "$\\overset{みち}{道}$が$\\overset{わ}{分}$からず、とうとう$\\overset{い}{行}$くのを$\\overset{あきら}{諦}$める。/不知道路，最终放弃了前往。"
+},
+{
+  word: "もっと",
+  kana: "もっと",
+  type: "副词",
+  meaning: "更，更加。",
+  example: "もっと$\\overset{べんきょう}{勉強}$しないと、$\\overset{ほか}{他}$の$\\overset{ひと}{人}$に$\\overset{おと}{劣}$ると$\\overset{わ}{分}$かる。/如果不更加努力学习，就会明白自己比别人差。"
+},
+{
+  word: "分かる",
+  kana: "わかる",
+  type: "五段自动词",
+  meaning: "明白，懂；知道。",
+  example: "いとこの$\\overset{きも}{気持}$ちが$\\overset{わ}{分}$かるので、$\\overset{あきら}{諦}$めるように$\\overset{せっとく}{説得}$する。/明白表哥的心情，所以说服他放弃。"
+},
+{
+  word: "諦める",
+  kana: "あきらめる",
+  type: "一段他动词",
+  meaning: "放弃，死心。",
+  example: "いとこが$\\overset{うで}{腕}$の$\\overset{けが}{怪我}$で$\\overset{しあい}{試合}$を$\\overset{あきら}{諦}$める。/表哥因为手臂受伤而放弃了比赛。"
+},
+{
+  word: "いとこ",
+  kana: "いとこ",
+  type: "名词",
+  meaning: "堂（表）兄弟姐妹。",
+  example: "いとこの$\\overset{うで}{腕}$の$\\overset{ちから}{力}$は$\\overset{だれ}{誰}$にも$\\overset{おと}{劣}$らない。/表哥手臂的力量不亚于任何人。"
+},
+{
+  word: "腕",
+  kana: "うで",
+  type: "名词",
+  meaning: "手腕，手臂；本事，技能。",
+  example: "$\\overset{うで}{腕}$の$\\overset{ちから}{力}$が$\\overset{おと}{劣}$るので、みんなで$\\overset{かれ}{彼}$を$\\overset{かこ}{囲}$む。/因为手臂力量较弱，大家把他围在中间。"
+},
+{
+  word: "劣る",
+  kana: "おとる",
+  type: "五段自动词",
+  meaning: "劣，次，不及。",
+  example: "$\\overset{しつ}{質}$が$\\overset{おと}{劣}$る$\\overset{しょうひん}{商品}$を$\\overset{す}{捨}$てて、$\\overset{きよ}{清}$らかな$\\overset{みず}{水}$で$\\overset{あら}{洗}$う。/扔掉质量差的商品，用清澈的水清洗。"
+},
+{
+  word: "囲む",
+  kana: "かこむ",
+  type: "五段他动词",
+  meaning: "包围，围绕。",
+  example: "$\\overset{か}{蚊}$に$\\overset{さ}{刺}$されて$\\overset{かゆ}{痒}$い$\\overset{うで}{腕}$を、みんなで$\\overset{かこ}{囲}$んで$\\overset{み}{見}$る。/大家围着看被蚊子叮得发痒的手臂。"
+},
+{
+  word: "痒い",
+  kana: "かゆい",
+  type: "形容词",
+  meaning: "痒的。",
+  example: "$\\overset{かゆ}{痒}$い$\\overset{ところ}{所}$を$\\overset{か}{掻}$く$\\overset{くせ}{癖}$がある。/有抓挠痒处的习惯。"
+},
+{
+  word: "清らか",
+  kana: "きよらか",
+  type: "形动",
+  meaning: "清澈，纯洁。",
+  example: "$\\overset{きよ}{清}$らかな$\\overset{みず}{水}$で$\\overset{あら}{洗}$うのが$\\overset{かれ}{彼}$の$\\overset{くせ}{癖}$だ。/用清澈的水清洗是他的习惯。"
+},
+{
+  word: "癖",
+  kana: "くせ",
+  type: "名词",
+  meaning: "习惯，毛病。",
+  example: "$\\overset{つめ}{爪}$を$\\overset{か}{噛}$む$\\overset{くせ}{癖}$が$\\overset{なお}{直}$らなくて$\\overset{くや}{悔}$しい。/咬指甲的习惯改不掉，很不甘心。"
+},
+{
+  word: "悔しい",
+  kana: "くやしい",
+  type: "形容词",
+  meaning: "懊悔的，不甘心的。",
+  example: "$\\overset{ま}{負}$けて$\\overset{くや}{悔}$しい。しかも、しっかり$\\overset{じゅんび}{準備}$したのに。/输了很不甘心。而且，明明好好准备了。"
+},
+{
+  word: "しかも",
+  kana: "しかも",
+  type: "接续词",
+  meaning: "而且，并且。",
+  example: "この$\\overset{みせ}{店}$は$\\overset{やす}{安}$い。しかも、しっかりした$\\overset{あじ}{味}$だ。/这家店很便宜。而且味道很地道（扎实）。"
+},
+{
+  word: "しっかり",
+  kana: "しっかり",
+  type: "副词・サ变动词する自",
+  meaning: "结实地，好好地；可靠，坚强。",
+  example: "$\\overset{ひも}{紐}$をしっかり$\\overset{むす}{結}$んで$\\overset{ふた}{蓋}$をする。/把绳子紧紧系好并盖上盖子。 || $\\overset{かれ}{彼}$は$\\overset{わか}{若}$いが、しっかりしている。/他虽然年轻，但很稳重（坚强可靠）。"
+},
+{
+  word: "ただ",
+  kana: "ただ",
+  type: "副词・接续词",
+  meaning: "仅仅，只（副）；只是，不过（接续）。",
+  example: "$\\overset{ただ}{ただ}$一つ($\\overset{ひと}{ひと}$つ)の$\\overset{ちが}{違}$いが$\\overset{おお}{大}$きな$\\overset{けっか}{結果}$を$\\overset{う}{生}$む。/仅仅一个不同就会产生巨大的结果。 || $\\overset{おい}{美味}$しい。ただ、$\\overset{ねだん}{値段}$が$\\overset{たか}{高}$い。/很好吃。只是价格很高。"
+},
+{
+  word: "たとえ",
+  kana: "たとえ",
+  type: "副词",
+  meaning: "即使，哪怕。",
+  example: "たとえ$\\overset{しっぱい}{失敗}$しても、ただ$\\overset{どりょく}{努力}$を$\\overset{つづ}{続}$ける。/即使失败，也只是继续努力。"
+},
+{
+  word: "たばこ",
+  kana: "たばこ",
+  type: "名词",
+  meaning: "香烟。",
+  example: "$\\overset{てら}{寺}$でたばこを$\\overset{す}{吸}$うのは、ルール$\\overset{ちが}{違}$いだ。/在寺庙里吸烟是违背规则的。"
+},
+{
+  word: "違い",
+  kana: "ちがい",
+  type: "名词",
+  meaning: "不同，区别，差异。",
+  example: "$\\overset{ふた}{二}$つの$\\overset{ちが}{違}$いを$\\overset{かみ}{紙}$に$\\overset{つつ}{包}$んで$\\overset{かく}{隠}$す。/把两个的区别用纸包起来藏好。"
+},
+{
+  word: "包む",
+  kana: "つつむ",
+  type: "五段他动词",
+  meaning: "包，裹。",
+  example: "プレゼントを$\\overset{つつ}{包}$む。つまり、$\\overset{かれ}{彼}$の$\\overset{たんじょうび}{誕生日}$だ。/把礼物包起来。也就是说，今天是他的生日。"
+},
+{
+  word: "つまり",
+  kana: "つまり",
+  type: "副词・接续词",
+  meaning: "总之，也就是说。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{こ}{来}$ない。つまり、$\\overset{われわれ}{我々}$は$\\overset{てら}{寺}$へ$\\overset{い}{行}$くしかない。/他不来了。总之，我们只能去寺庙了。"
+},
+{
+  word: "寺",
+  kana: "てら",
+  type: "名词",
+  meaning: "寺庙。",
+  example: "$\\overset{てら}{寺}$の$\\overset{ちか}{近}$くの$\\overset{うみ}{海}$で$\\overset{なみ}{波}$を$\\overset{み}{見}$る。/在寺庙附近的海边看波浪。"
+},
+{
+  word: "波",
+  kana: "なみ",
+  type: "名词",
+  meaning: "波浪，波纹。",
+  example: "$\\overset{なみ}{波}$の$\\overset{おと}{音}$を$\\overset{き}{聞}$きながら、$\\overset{にわとり}{鶏}$に$\\overset{えさ}{餌}$をやる。/一边听着海浪声，一边喂鸡。"
+},
+{
+  word: "鶏",
+  kana: "にわとり",
+  type: "名词",
+  meaning: "鸡。",
+  example: "$\\overset{にわとり}{鶏}$の$\\overset{こや}{小屋}$の$\\overset{ふた}{蓋}$を$\\overset{ひも}{紐}$でしっかり$\\overset{し}{閉}$める。/用绳子把鸡舍的盖子紧紧关上。"
+},
+{
+  word: "光る",
+  kana: "ひかる",
+  type: "五段自动词",
+  meaning: "发光，闪亮。",
+  example: "$\\overset{よぞら}{夜空}$で$\\overset{ほし}{星}$が$\\overset{ひか}{光}$るのを$\\overset{み}{見}$て、まったく$\\overset{おどろ}{驚}$く。/看着夜空中闪烁的星星，感到完全惊讶。"
+},
+{
+  word: "紐",
+  kana: "ひも",
+  type: "名词",
+  meaning: "带子，细绳。",
+  example: "$\\overset{はこ}{箱}$の$\\overset{ふた}{蓋}$を$\\overset{ひも}{紐}$で$\\overset{むす}{結}$ぶ。/用绳子把箱子的盖子系上。"
+},
+{
+  word: "蓋",
+  kana: "ふた",
+  type: "名词",
+  meaning: "盖子。",
+  example: "$\\overset{なべ}{鍋}$の$\\overset{ふた}{蓋}$を$\\overset{あ}{開}$けると、まるで$\\overset{ゆめ}{夢}$のようないい$\\overset{にお}{匂}$いがした。/打开锅盖，闻到了宛如梦境般的香味。"
+},
+{
+  word: "まったく",
+  kana: "まったく",
+  type: "副词",
+  meaning: "完全，全然。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{い}{言}$う$\\overset{こと}{事}$はまったくまるで$\\overset{うそ}{嘘}$のようだ。/他说的话完全就好像是谎言一样。"
+},
+{
+  word: "まるで",
+  kana: "まるで",
+  type: "副词",
+  meaning: "宛如，好像；完全。",
+  example: "$\\overset{ゆかた}{浴衣}$を$\\overset{き}{着}$た$\\overset{かのじょ}{彼女}$は、まるで$\\overset{てんにょ}{天女}$のように$\\overset{めぐ}{恵}$まれている。/穿上浴衣的她，宛如天仙一般备受眷顾。"
+},
+{
+  word: "恵まれる",
+  kana: "めぐまれる",
+  type: "一段自动词",
+  meaning: "富有，受惠，蒙赐。",
+  example: "$\\overset{かれ}{彼}$は$\\overset{よ}{良}$い$\\overset{かんきょう}{環境}$に$\\overset{めぐ}{恵}$まれ、よく$\\overset{べんきょう}{勉強}$する。/他身处优越（受惠）的环境，经常学习。"
+},
+{
+  word: "浴衣",
+  kana: "ゆかた",
+  type: "名词",
+  meaning: "浴衣（夏季单层和服）。",
+  example: "$\\overset{ゆかた}{浴衣}$を$\\overset{き}{着}$て$\\overset{なつ}{夏}$まつりによく$\\overset{い}{行}$く。/经常穿着浴衣去参加夏日祭。"
+},
+{
+  word: "よく",
+  kana: "よく",
+  type: "副词",
+  meaning: "经常；好好地，充分地。",
+  example: "$\\overset{かれ}{彼}$はよく$\\overset{べんきょう}{勉強}$するので、よほど$\\overset{せいせき}{成績}$がいいだろう。/他经常学习，所以成绩肯定相当好吧。"
+},
+{
+  word: "よほど",
+  kana: "よほど",
+  type: "副词",
+  meaning: "相当，很。",
+  example: "よほど$\\overset{つか}{疲}$れたのか、「いいえ」と$\\overset{こた}{答}$える$\\overset{きりょく}{気力}$もない。/大概是相当累了吧，连回答“不”的力气都没有。"
+},
+{
+  word: "いいえ",
+  kana: "いいえ",
+  type: "感叹词",
+  meaning: "不，不是。",
+  example: "「いいえ、$\\overset{わたし}{私}$は$\\overset{なんかい}{何回}$もその$\\overset{かがや}{輝}$かしい$\\overset{しょう}{賞}$を$\\overset{み}{見}$ました。」/“不，我好几次看到了那个辉煌的奖项。”"
+},
+{
+  word: "回",
+  kana: "かい",
+  type: "名词・量词",
+  meaning: "回，次。",
+  example: "$\\overset{かんごし}{看護士}$が$\\overset{びょうしつ}{病室}$を$\\overset{すう}{数}$回$\\overset{みまわ}{見回}$る。/护士在病房巡视了几次。"
+},
+{
+  word: "輝かしい",
+  kana: "かがやかしい",
+  type: "形容词",
+  meaning: "辉煌的，光辉的。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{かがや}{輝}$かしい$\\overset{ぜんと}{前途}$を$\\overset{いわ}{祝}$う。/祝贺他辉煌的前途。"
+},
+{
+  word: "側／～側",
+  kana: "そば",
+  type: "名词・接尾词",
+  meaning: "旁边（名词/そば）；……侧，……面（接尾/がわ）。",
+  example: "$\\overset{かれ}{彼}$の$\\overset{そば}{側}$で$\\overset{かがや}{輝}$かしい$\\overset{みらい}{未来}$を$\\overset{ゆめみ}{夢見}$る。/在他身边梦想着辉煌的未来。 || $\\overset{どうろ}{道路}$の$\\overset{みぎがわ}{右側}$を$\\overset{ある}{歩}$く$\\overset{かんごし}{看護士}$。/走在道路右侧的护士。"
+},
+{
+  word: "看護士",
+  kana: "かんごし",
+  type: "名词",
+  meaning: "护士（现多写为「看護師」）。",
+  example: "$\\overset{かんごし}{看護士}$が$\\overset{こんなん}{困難}$を$\\overset{こ}{越}$えて$\\overset{ひっし}{必死}$に$\\overset{はたら}{働}$く。/护士克服困难拼命工作。"
+},
+{
+  word: "越える",
+  kana: "こえる",
+  type: "一段自动词",
+  meaning: "越过，度过。",
+  example: "$\\overset{やま}{山}$を$\\overset{こ}{越}$えて、$\\overset{た}{田}$んぼへ$\\overset{い}{行}$く。/翻过山，去田里。"
+},
+{
+  word: "刷る",
+  kana: "する",
+  type: "五段他动词",
+  meaning: "印刷。",
+  example: "$\\overset{しんぶん}{新聞}$を$\\overset{す}{刷}$り、そしてとにかく$\\overset{くば}{配}$る。/印刷报纸，然后总之就是去分发。"
+},
+{
+  word: "そして",
+  kana: "そして",
+  type: "接续词",
+  meaning: "然后，于是。",
+  example: "$\\overset{た}{田}$んぼの$\\overset{しごと}{仕事}$が$\\overset{お}{終}$わり、そして$\\overset{なかよ}{仲良}$しと$\\overset{あそ}{遊}$ぶ。/田里的工作结束了，然后和好朋友玩耍。"
+},
+{
+  word: "田",
+  kana: "た",
+  type: "名词",
+  meaning: "水田。",
+  example: "$\\overset{た}{田}$の$\\overset{まわ}{周}$りで$\\overset{むし}{虫}$が$\\overset{やかま}{喧}$しく$\\overset{な}{鳴}$く。/水田周围虫子吵闹地叫着。"
+},
+{
+  word: "とにかく",
+  kana: "とにかく",
+  type: "副词",
+  meaning: "总之，无论如何。",
+  example: "$\\overset{なさけ}{情}$けないが、とにかく$\\overset{ぜんと}{前途}$に$\\overset{むか}{向}$かって$\\overset{すす}{進}$むしかない。/虽然很可悲，但总之只能朝着前途迈进。"
+},
+{
+  word: "仲良し",
+  kana: "なかよし",
+  type: "名词",
+  meaning: "好朋友，关系好。",
+  example: "$\\overset{なかよ}{仲良}$しの$\\overset{ともだち}{友達}$が$\\overset{なさけ}{情}$けない$\\overset{こえ}{声}$で$\\overset{な}{泣}$く。/好朋友用可悲（可怜）的声音哭泣。"
+},
+{
+  word: "情けない",
+  kana: "なさけない",
+  type: "形容词",
+  meaning: "可悲的，无情的，令人遗憾的。",
+  example: "$\\overset{なわ}{縄}$を$\\overset{わす}{忘}$れるなんて、$\\overset{なさけ}{情}$けない$\\overset{しっぱい}{失敗}$だ。/竟然忘了绳子，真是令人遗憾的失败。"
+},
+{
+  word: "縄",
+  kana: "なわ",
+  type: "名词",
+  meaning: "绳子。",
+  example: "ほこりだらけの$\\overset{なわ}{縄}$を$\\overset{て}{手}$にして$\\overset{ふる}{震}$える。/手里拿着满是灰尘的绳子发抖。"
+},
+{
+  word: "震える",
+  kana: "ふるえる",
+  type: "一段自动词",
+  meaning: "发抖，震动。",
+  example: "$\\overset{さむ}{寒}$さでぶるぶると$\\overset{ふる}{震}$える。/冻得浑身发抖。"
+},
+{
+  word: "ほこり",
+  kana: "ほこり",
+  type: "名词",
+  meaning: "灰尘。",
+  example: "まあ、ほこりが$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{むし}{虫}$が$\\overset{と}{飛}$んでいる。/哎呀，在飞舞的灰尘中虫子在飞。"
+},
+{
+  word: "まあ",
+  kana: "まあ",
+  type: "感叹词・副词",
+  meaning: "哎呀（惊讶等）；暂且，总之。",
+  example: "まあ、$\\overset{やかま}{喧}$しい$\\overset{おと}{音}$だこと。/哎呀，真是吵闹的声音。 || まあ、$\\overset{やなぎ}{柳}$の$\\overset{した}{下}$で$\\overset{やす}{休}$もう。/总之，在柳树下休息吧。"
+},
+{
+  word: "虫",
+  kana: "むし",
+  type: "名词",
+  meaning: "虫子。",
+  example: "$\\overset{やかま}{喧}$しい$\\overset{むし}{虫}$の$\\overset{おと}{音}$が$\\overset{やなぎ}{柳}$の$\\overset{き}{木}$から$\\overset{き}{聞}$こえる。/从柳树上听到吵闹的虫鸣声。"
+},
+{
+  word: "喧しい",
+  kana: "やかましい",
+  type: "形容词",
+  meaning: "吵闹的，喧嚣的。",
+  example: "$\\overset{われわれ}{我々}$の$\\overset{まわ}{周}$りで$\\overset{やかま}{喧}$しい$\\overset{ぎろん}{議論}$が$\\overset{しょう}{生}$じる。/在我们周围产生了喧闹的讨论。"
+},
+{
+  word: "柳",
+  kana: "やなぎ",
+  type: "名词",
+  meaning: "柳树。",
+  example: "$\\overset{やなぎ}{柳}$の$\\overset{えだ}{枝}$が$\\overset{かぜ}{風}$で$\\overset{あら}{荒}$く$\\overset{ゆ}{揺}$れる。/柳树枝被风吹得剧烈（粗暴）摇晃。"
+},
+{
+  word: "我々",
+  kana: "われわれ",
+  type: "代词",
+  meaning: "我们。",
+  example: "$\\overset{われわれ}{我々}$は$\\overset{じどう}{児童}$の$\\overset{しぼう}{志望}$を$\\overset{ひっし}{必死}$にサポートする。/我们拼命支持儿童的志愿。"
+},
+{
+  word: "荒い",
+  kana: "あらい",
+  type: "形容词",
+  meaning: "粗暴的，剧烈的。",
+  example: "$\\overset{あら}{荒}$い$\\overset{なみ}{波}$で$\\overset{きずぐち}{傷口}$が$\\overset{いた}{痛}$む。/海浪汹涌，伤口很痛。"
+},
+{
+  word: "傷口",
+  kana: "きずぐち",
+  type: "名词",
+  meaning: "伤口。",
+  example: "$\\overset{じどう}{児童}$の$\\overset{きずぐち}{傷口}$に$\\overset{いた}{痛}$みが$\\overset{しょう}{生}$じる。/儿童的伤口产生了疼痛。"
+},
+{
+  word: "児童",
+  kana: "じどう",
+  type: "名词",
+  meaning: "儿童。",
+  example: "$\\overset{じどう}{児童}$たちが$\\overset{しぼう}{志望}$$\\overset{こう}{校}$に$\\overset{むか}{向}$けて$\\overset{ひっし}{必死}$に$\\overset{べんきょう}{勉強}$する。/儿童们为了志愿学校拼命学习。"
+},
+{
+  word: "志望",
+  kana: "しぼう",
+  type: "名・サ变动词する他",
+  meaning: "志愿，志向。",
+  example: "$\\overset{だいがく}{大学}$の$\\overset{しぼう}{志望}$$\\overset{りゆう}{理由}$を$\\overset{かんが}{考}$える。/思考大学的志愿理由。 || $\\overset{いがく}{医学}$$\\overset{ぶ}{部}$を$\\overset{しぼう}{志望}$して$\\overset{べんきょう}{勉強}$する。/以医学部为志愿进行学习。"
+},
+{
+  word: "生じる",
+  kana: "しょうじる",
+  type: "一段自他动词",
+  meaning: "产生，发生（自）；使产生（他）。",
+  example: "$\\overset{われわれ}{我々}$の$\\overset{あいだ}{間}$に$\\overset{あたら}{新}$しい$\\overset{もんだい}{問題}$が$\\overset{しょう}{生}$じた。/我们之间产生了新的问题。 || $\\overset{かれ}{彼}$の$\\overset{ことば}{言葉}$が$\\overset{ごかい}{誤解}$を$\\overset{しょう}{生}$じた。/他的话引起了误解。"
+},
+{
+  word: "前途",
+  kana: "ぜんと",
+  type: "名词",
+  meaning: "前途。",
+  example: "$\\overset{むしょく}{無職}$になり、$\\overset{ぜんと}{前途}$に$\\overset{ふあん}{不安}$が$\\overset{ただよ}{漂}$う。/失业了，对前途的感到不安（不安漂浮着）。"
+},
+{
+  word: "漂う",
+  kana: "ただよう",
+  type: "五段自动词",
+  meaning: "漂浮，弥漫。",
+  example: "$\\overset{へや}{部屋}$にいい$\\overset{かお}{香}$りが$\\overset{ただよ}{漂}$う。/房间里弥漫着好闻的香气。"
+},
+{
+  word: "必死",
+  kana: "ひっし",
+  type: "名・形动",
+  meaning: "拼命，必死。",
+  example: "$\\overset{ひっし}{必死}$の$\\overset{かくご}{覚悟}$で$\\overset{いど}{挑}$む。/抱着必死的觉悟挑战。 || もしかしたら$\\overset{ごうかく}{合格}$できると$\\overset{しん}{信}$じて、$\\overset{ひっし}{必死}$に$\\overset{べんきょう}{勉強}$する。/相信说不定能及格，拼命地学习。"
+},
+{
+  word: "ぶるぶる",
+  kana: "ぶるぶる",
+  type: "副词・サ变动词する自",
+  meaning: "发抖，哆嗦。",
+  example: "$\\overset{さむ}{寒}$くてぶるぶると$\\overset{ふる}{震}$える。/冷得浑身发抖。 || $\\overset{きょうふ}{恐怖}$で$\\overset{あし}{足}$がぶるぶるする。/因为恐惧双脚发抖。"
+},
+{
+  word: "無職",
+  kana: "むしょく",
+  type: "名词",
+  meaning: "无业，失业。",
+  example: "$\\overset{むしょく}{無職}$になって、もしかしたら$\\overset{いえ}{家}$を$\\overset{うしな}{失}$うかもしれない。/失业了，说不定会失去房子。"
+},
+{
+  word: "もしかしたら",
+  kana: "もしかしたら",
+  type: "副词",
+  meaning: "也许，说不定。",
+  example: "もしかしたら、$\\overset{あした}{明日}$は$\\overset{あめ}{雨}$かもしれない。/也许，明天会下雨吧。"
+},
+  {
+    "word": "飽きる",
+    "kana": "あきる",
+    "type": "一段自动词",
+    "meaning": "厌烦，腻。",
+    "example": "$\\overset{あた}{辺}$りにある$\\overset{けしき}{景色}$を$\\overset{あ}{飽}$きずに$\\overset{あじ}{味}$わう。/百看不厌地欣赏（品味）周围的景色。"
+  },
+  {
+    "word": "味わう",
+    "kana": "あじわう",
+    "type": "五段他动词",
+    "meaning": "品尝，体验。",
+    "example": "$\\overset{あた}{辺}$りにある$\\overset{けしき}{景色}$を$\\overset{あ}{飽}$きずに$\\overset{あじ}{味}$わう。/百看不厌地欣赏（品味）周围的景色。"
+  },
+  {
+    "word": "辺り",
+    "kana": "あたり",
+    "type": "名词",
+    "meaning": "附近，周围。",
+    "example": "$\\overset{あた}{辺}$りにある$\\overset{けしき}{景色}$を$\\overset{あ}{飽}$きずに$\\overset{あじ}{味}$わう。/百看不厌地欣赏（品味）周围的景色。"
+  },
+  {
+    "word": "ある",
+    "kana": "ある",
+    "type": "五段自动词",
+    "meaning": "有，在。",
+    "example": "$\\overset{あた}{辺}$りにある$\\overset{けしき}{景色}$を$\\overset{あ}{飽}$きずに$\\overset{あじ}{味}$わう。/百看不厌地欣赏（品味）周围的景色。"
+  },
+  {
+    "word": "家",
+    "kana": "いえ",
+    "type": "名词",
+    "meaning": "家，房子。",
+    "example": "$\\overset{いなか}{田舎}$の$\\overset{いえ}{家}$に$\\overset{しんせき}{親戚}$がいる。/乡下的房子里有亲戚在。"
+  },
+  {
+    "word": "田舎",
+    "kana": "いなか",
+    "type": "名词",
+    "meaning": "乡下，农村。",
+    "example": "$\\overset{いなか}{田舎}$の$\\overset{いえ}{家}$に$\\overset{しんせき}{親戚}$がいる。/乡下的房子里有亲戚在。"
+  },
+  {
+    "word": "いる",
+    "kana": "いる",
+    "type": "一段自动词",
+    "meaning": "在，有（人或动物）。",
+    "example": "$\\overset{いなか}{田舎}$の$\\overset{いえ}{家}$に$\\overset{しんせき}{親戚}$がいる。/乡下的房子里有亲戚在。"
+  },
+  {
+    "word": "薄い",
+    "kana": "うすい",
+    "type": "形容词",
+    "meaning": "薄的，淡的。",
+    "example": "$\\overset{おそ}{恐}$らくこの$\\overset{うす}{薄}$い$\\overset{うわぎ}{上着}$では$\\overset{さむ}{寒}$いだろうとうなずく。/点点头，心想恐怕穿这件薄外套会冷吧。"
+  },
+  {
+    "word": "うなずく",
+    "kana": "うなずく",
+    "type": "五段自动词",
+    "meaning": "点头。",
+    "example": "$\\overset{おそ}{恐}$らくこの$\\overset{うす}{薄}$い$\\overset{うわぎ}{上着}$では$\\overset{さむ}{寒}$いだろうとうなずく。/点点头，心想恐怕穿这件薄外套会冷吧。"
+  },
+  {
+    "word": "上着",
+    "kana": "うわぎ",
+    "type": "名词",
+    "meaning": "上衣，外套。",
+    "example": "$\\overset{おそ}{恐}$らくこの$\\overset{うす}{薄}$い$\\overset{うわぎ}{上着}$では$\\overset{さむ}{寒}$いだろうとうなずく。/点点头，心想恐怕穿这件薄外套会冷吧。"
+  },
+  {
+    "word": "恐らく",
+    "kana": "おそらく",
+    "type": "副词",
+    "meaning": "恐怕，大概。",
+    "example": "$\\overset{おそ}{恐}$らくこの$\\overset{うす}{薄}$い$\\overset{うわぎ}{上着}$では$\\overset{さむ}{寒}$いだろうとうなずく。/点点头，心想恐怕穿这件薄外套会冷吧。"
+  },
+  {
+    "word": "踊る",
+    "kana": "おどる",
+    "type": "五段自动词",
+    "meaning": "跳舞。",
+    "example": "$\\overset{かた}{固}$い$\\overset{かさ}{傘}$を$\\overset{も}{持}$って$\\overset{おど}{踊}$り、$\\overset{うみ}{海}$で$\\overset{およ}{泳}$ぐ。/拿着坚硬的伞跳舞，然后在海里游泳。"
+  },
+  {
+    "word": "泳ぐ",
+    "kana": "およぐ",
+    "type": "五段自动词",
+    "meaning": "游泳。",
+    "example": "$\\overset{かた}{固}$い$\\overset{かさ}{傘}$を$\\overset{も}{持}$って$\\overset{おど}{踊}$り、$\\overset{うみ}{海}$で$\\overset{およ}{泳}$ぐ。/拿着坚硬的伞跳舞，然后在海里游泳。"
+  },
+  {
+    "word": "傘",
+    "kana": "かさ",
+    "type": "名词",
+    "meaning": "伞。",
+    "example": "$\\overset{かた}{固}$い$\\overset{かさ}{傘}$を$\\overset{も}{持}$って$\\overset{おど}{踊}$り、$\\overset{うみ}{海}$で$\\overset{およ}{泳}$ぐ。/拿着坚硬的伞跳舞，然后在海里游泳。"
+  },
+  {
+    "word": "固い",
+    "kana": "かたい",
+    "type": "形容词",
+    "meaning": "硬的，坚固的。",
+    "example": "$\\overset{かた}{固}$い$\\overset{かさ}{傘}$を$\\overset{も}{持}$って$\\overset{おど}{踊}$り、$\\overset{うみ}{海}$で$\\overset{およ}{泳}$ぐ。/拿着坚硬的伞跳舞，然后在海里游泳。"
+  },
+  {
+    "word": "被る",
+    "kana": "かぶる",
+    "type": "五段他动词",
+    "meaning": "戴（帽子等），蒙受。",
+    "example": "$\\overset{くら}{暗}$い$\\overset{へや}{部屋}$が$\\overset{きら}{嫌}$いなかわいい$\\overset{こ}{子}$が$\\overset{ぼうし}{帽子}$を$\\overset{かぶ}{被}$る。/讨厌暗房间的可爱孩子戴上了帽子。"
+  },
+  {
+    "word": "かわいい",
+    "kana": "かわいい",
+    "type": "形容词",
+    "meaning": "可爱的。",
+    "example": "$\\overset{くら}{暗}$い$\\overset{へや}{部屋}$が$\\overset{きら}{嫌}$いなかわいい$\\overset{こ}{子}$が$\\overset{ぼうし}{帽子}$を$\\overset{かぶ}{被}$る。/讨厌暗房间的可爱孩子戴上了帽子。"
+  },
+  {
+    "word": "嫌い",
+    "kana": "きらい",
+    "type": "名・形动",
+    "meaning": "讨厌。",
+    "example": "$\\overset{うそ}{嘘}$をつかれるのは$\\overset{きら}{嫌}$いだ。/讨厌别人对我撒谎。 || $\\overset{くら}{暗}$い$\\overset{へや}{部屋}$が$\\overset{きら}{嫌}$いなかわいい$\\overset{こ}{子}$が$\\overset{ぼうし}{帽子}$を$\\overset{かぶ}{被}$る。/讨厌暗房间的可爱孩子戴上了帽子。"
+  },
+  {
+    "word": "暗い",
+    "kana": "くらい",
+    "type": "形容词",
+    "meaning": "暗的，黑的。",
+    "example": "$\\overset{くら}{暗}$い$\\overset{へや}{部屋}$が$\\overset{きら}{嫌}$いなかわいい$\\overset{こ}{子}$が$\\overset{ぼうし}{帽子}$を$\\overset{かぶ}{被}$る。/讨厌暗房间的可爱孩子戴上了帽子。"
+  },
+  {
+    "word": "氷",
+    "kana": "こおり",
+    "type": "名词",
+    "meaning": "冰。",
+    "example": "$\\overset{さら}{皿}$の$\\overset{うえ}{上}$の$\\overset{こおり}{氷}$をすぐ$\\overset{しら}{調}$べる。/马上调查盘子上面的冰块。"
+  },
+  {
+    "word": "皿",
+    "kana": "さら",
+    "type": "名词",
+    "meaning": "盘子，碟子。",
+    "example": "$\\overset{さら}{皿}$の$\\overset{うえ}{上}$の$\\overset{こおり}{氷}$をすぐ$\\overset{しら}{調}$べる。/马上调查盘子上面的冰块。"
+  },
+  {
+    "word": "調べる",
+    "kana": "しらべる",
+    "type": "一段他动词",
+    "meaning": "调查，查阅。",
+    "example": "$\\overset{さら}{皿}$の$\\overset{うえ}{上}$の$\\overset{こおり}{氷}$をすぐ$\\overset{しら}{調}$べる。/马上调查盘子上面的冰块。"
+  },
+  {
+    "word": "すぐ",
+    "kana": "すぐ",
+    "type": "副词",
+    "meaning": "马上，立刻。",
+    "example": "$\\overset{さら}{皿}$の$\\overset{うえ}{上}$の$\\overset{こおり}{氷}$をすぐ$\\overset{しら}{調}$べる。/马上调查盘子上面的冰块。"
+  },
+  {
+    "word": "ずっと",
+    "kana": "ずっと",
+    "type": "副词",
+    "meaning": "一直，（比……）得多。",
+    "example": "$\\overset{たと}{例}$えば、ずっと$\\overset{ちが}{違}$う$\\overset{しごと}{仕事}$をする。/例如，一直做着不同的工作。"
+  },
+  {
+    "word": "する",
+    "kana": "する",
+    "type": "サ变动词する自他",
+    "meaning": "做，干；（引起某种状态或感觉）产生。",
+    "example": "$\\overset{たと}{例}$えば、ずっと$\\overset{ちが}{違}$う$\\overset{しごと}{仕事}$をする。/例如，一直做着不同的工作。 || $\\overset{そと}{外}$から$\\overset{おお}{大}$きな$\\overset{おと}{音}$がする。/外面传来了很大的声音。"
+  },
+  {
+    "word": "例えば",
+    "kana": "たとえば",
+    "type": "副词",
+    "meaning": "例如。",
+    "example": "$\\overset{たと}{例}$えば、ずっと$\\overset{ちが}{違}$う$\\overset{しごと}{仕事}$をする。/例如，一直做着不同的工作。"
+  },
+  {
+    "word": "違う",
+    "kana": "ちがう",
+    "type": "五段自动词",
+    "meaning": "不同，错误。",
+    "example": "$\\overset{たと}{例}$えば、ずっと$\\overset{ちが}{違}$う$\\overset{しごと}{仕事}$をする。/例如，一直做着不同的工作。"
+  },
+  {
+    "word": "疲れる",
+    "kana": "つかれる",
+    "type": "一段自动词",
+    "meaning": "疲劳，累。",
+    "example": "$\\overset{つか}{疲}$れた$\\overset{とき}{時}$、$\\overset{ときどき}{時々}$$\\overset{ともだち}{友達}$と$\\overset{あ}{会}$う。/累了的时候，时常会见见朋友。"
+  },
+  {
+    "word": "時",
+    "kana": "とき",
+    "type": "名词",
+    "meaning": "时候，时间。",
+    "example": "$\\overset{つか}{疲}$れた$\\overset{とき}{時}$、$\\overset{ときどき}{時々}$$\\overset{ともだち}{友達}$と$\\overset{あ}{会}$う。/累了的时候，时常会见见朋友。"
+  },
+  {
+    "word": "時々",
+    "kana": "ときどき",
+    "type": "副词",
+    "meaning": "有时，时常。",
+    "example": "$\\overset{つか}{疲}$れた$\\overset{とき}{時}$、$\\overset{ときどき}{時々}$$\\overset{ともだち}{友達}$と$\\overset{あ}{会}$う。/累了的时候，时常会见见朋友。"
+  },
+  {
+    "word": "友達",
+    "kana": "ともだち",
+    "type": "名词",
+    "meaning": "朋友。",
+    "example": "$\\overset{つか}{疲}$れた$\\overset{とき}{時}$、$\\overset{ときどき}{時々}$$\\overset{ともだち}{友達}$と$\\overset{あ}{会}$う。/累了的时候，时常会见见朋友。"
+  },
+  {
+    "word": "長い",
+    "kana": "ながい",
+    "type": "形容词",
+    "meaning": "长的。",
+    "example": "いい$\\overset{にお}{匂}$いのお$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$みながら、$\\overset{なが}{長}$い$\\overset{あいだ}{間}$$\\overset{はな}{花}$を$\\overset{み}{見}$る。/一边喝着散发好闻香味的茶，一边长时间看花。"
+  },
+  {
+    "word": "匂い",
+    "kana": "におい",
+    "type": "名词",
+    "meaning": "气味，香味。",
+    "example": "いい$\\overset{にお}{匂}$いのお$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$みながら、$\\overset{なが}{長}$い$\\overset{あいだ}{間}$$\\overset{はな}{花}$を$\\overset{み}{見}$る。/一边喝着散发好闻香味的茶，一边长时间看花。"
+  },
+  {
+    "word": "飲む",
+    "kana": "のむ",
+    "type": "五段他动词",
+    "meaning": "喝，饮；服（药）。",
+    "example": "いい$\\overset{にお}{匂}$いのお$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$みながら、$\\overset{なが}{長}$い$\\overset{あいだ}{間}$$\\overset{はな}{花}$を$\\overset{み}{見}$る。/一边喝着散发好闻香味的茶，一边长时间看花。"
+  },
+  {
+    "word": "花",
+    "kana": "はな",
+    "type": "名词",
+    "meaning": "花。",
+    "example": "いい$\\overset{にお}{匂}$いのお$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$みながら、$\\overset{なが}{長}$い$\\overset{あいだ}{間}$$\\overset{はな}{花}$を$\\overset{み}{見}$る。/一边喝着散发好闻香味的茶，一边长时间看花。"
+  },
+  {
+    "word": "弾く",
+    "kana": "ひく",
+    "type": "五段他动词",
+    "meaning": "弹（乐器）。",
+    "example": "$\\overset{ひろ}{広}$い$\\overset{へや}{部屋}$で$\\overset{ぶた}{豚}$を$\\overset{み}{見}$て、$\\overset{ふろ}{風呂}$$\\overset{あ}{上}$がりにピアノを$\\overset{ひ}{弾}$く。/在宽敞的房间里看着猪，洗完澡后弹钢琴。"
+  },
+  {
+    "word": "広い",
+    "kana": "ひろい",
+    "type": "形容词",
+    "meaning": "宽广的。",
+    "example": "$\\overset{ひろ}{広}$い$\\overset{へや}{部屋}$で$\\overset{ぶた}{豚}$を$\\overset{み}{見}$て、$\\overset{ふろ}{風呂}$$\\overset{あ}{上}$がりにピアノを$\\overset{ひ}{弾}$く。/在宽敞的房间里看着猪，洗完澡后弹钢琴。"
+  },
+  {
+    "word": "豚",
+    "kana": "ぶた",
+    "type": "名词",
+    "meaning": "猪。",
+    "example": "$\\overset{ひろ}{広}$い$\\overset{へや}{部屋}$で$\\overset{ぶた}{豚}$を$\\overset{み}{見}$て、$\\overset{ふろ}{風呂}$$\\overset{あ}{上}$がりにピアノを$\\overset{ひ}{弾}$く。/在宽敞的房间里看着猪，洗完澡后弹钢琴。"
+  },
+  {
+    "word": "風呂",
+    "kana": "ふろ",
+    "type": "名词",
+    "meaning": "澡盆，洗澡。",
+    "example": "$\\overset{ひろ}{広}$い$\\overset{へや}{部屋}$で$\\overset{ぶた}{豚}$を$\\overset{み}{見}$て、$\\overset{ふろ}{風呂}$$\\overset{あ}{上}$がりにピアノを$\\overset{ひ}{弾}$く。/在宽敞的房间里看着猪，洗完澡后弹钢琴。"
+  },
+  {
+    "word": "僕",
+    "kana": "ぼく",
+    "type": "代词",
+    "meaning": "我（男性自称）。",
+    "example": "$\\overset{む}{蒸}$し$\\overset{あつ}{暑}$い$\\overset{よる}{夜}$に、$\\overset{ぼく}{僕}$は$\\overset{めずら}{珍}$しい$\\overset{ほし}{星}$を$\\overset{み}{見}$つけた。/在闷热的夜晚，我发现了一颗罕见的星星。"
+  },
+  {
+    "word": "星",
+    "kana": "ほし",
+    "type": "名词",
+    "meaning": "星星。",
+    "example": "$\\overset{む}{蒸}$し$\\overset{あつ}{暑}$い$\\overset{よる}{夜}$に、$\\overset{ぼく}{僕}$は$\\overset{めずら}{珍}$しい$\\overset{ほし}{星}$を$\\overset{み}{見}$つけた。/在闷热的夜晚，我发现了一颗罕见的星星。"
+  },
+  {
+    "word": "蒸し暑い",
+    "kana": "むしあつい",
+    "type": "形容词",
+    "meaning": "闷热的。",
+    "example": "$\\overset{む}{蒸}$し$\\overset{あつ}{暑}$い$\\overset{よる}{夜}$に、$\\overset{ぼく}{僕}$は$\\overset{めずら}{珍}$しい$\\overset{ほし}{星}$を$\\overset{み}{見}$つけた。/在闷热的夜晚，我发现了一颗罕见的星星。"
+  },
+  {
+    "word": "珍しい",
+    "kana": "めずらしい",
+    "type": "形容词",
+    "meaning": "珍奇的，罕见的。",
+    "example": "$\\overset{む}{蒸}$し$\\overset{あつ}{暑}$い$\\overset{よる}{夜}$に、$\\overset{ぼく}{僕}$は$\\overset{めずら}{珍}$しい$\\overset{ほし}{星}$を$\\overset{み}{見}$つけた。/在闷热的夜晚，我发现了一颗罕见的星星。"
+  },
+  {
+    "word": "易しい",
+    "kana": "やさしい",
+    "type": "形容词",
+    "meaning": "容易的。",
+    "example": "$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$る$\\overset{よこ}{横}$で$\\overset{わか}{別}$れるのは、$\\overset{やさ}{易}$しいことではない。/在下着雪的旁边分别，这可不是一件容易的事。"
+  },
+  {
+    "word": "雪",
+    "kana": "ゆき",
+    "type": "名词",
+    "meaning": "雪。",
+    "example": "$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$る$\\overset{よこ}{横}$で$\\overset{わか}{別}$れるのは、$\\overset{やさ}{易}$しいことではない。/在下着雪的旁边分别，这可不是一件容易的事。"
+  },
+  {
+    "word": "横",
+    "kana": "よこ",
+    "type": "名词",
+    "meaning": "旁边，横向。",
+    "example": "$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$る$\\overset{よこ}{横}$で$\\overset{わか}{別}$れるのは、$\\overset{やさ}{易}$しいことではない。/在下着雪的旁边分别，这可不是一件容易的事。"
+  },
+  {
+    "word": "別れる",
+    "kana": "わかれる",
+    "type": "一段自动词",
+    "meaning": "分手，分别。",
+    "example": "$\\overset{ゆき}{雪}$が$\\overset{ふ}{降}$る$\\overset{よこ}{横}$で$\\overset{わか}{別}$れるのは、$\\overset{やさ}{易}$しいことではない。/在下着雪的旁边分别，这可不是一件容易的事。"
+  },
+  {
+    "word": "穴",
+    "kana": "あな",
+    "type": "名词",
+    "meaning": "洞，穴。",
+    "example": "$\\overset{かか}{係}$りの$\\overset{ひと}{人}$が$\\overset{あな}{穴}$を$\\overset{ほ}{掘}$る$\\overset{さぎょう}{作業}$を$\\overset{おこな}{行}$い、$\\overset{りえき}{利益}$を$\\overset{え}{得}$る。/负责人进行挖洞的作业，以此获得利益。"
+  },
+  {
+    "word": "得る",
+    "kana": "える",
+    "type": "一段他动词",
+    "meaning": "得到，获得。",
+    "example": "$\\overset{かか}{係}$りの$\\overset{ひと}{人}$が$\\overset{あな}{穴}$を$\\overset{ほ}{掘}$る$\\overset{さぎょう}{作業}$を$\\overset{おこな}{行}$い、$\\overset{りえき}{利益}$を$\\overset{え}{得}$る。/负责人进行挖洞的作业，以此获得利益。"
+  },
+  {
+    "word": "行う",
+    "kana": "おこなう",
+    "type": "五段他动词",
+    "meaning": "进行，举行。",
+    "example": "$\\overset{かか}{係}$りの$\\overset{ひと}{人}$が$\\overset{あな}{穴}$を$\\overset{ほ}{掘}$る$\\overset{さぎょう}{作業}$を$\\overset{おこな}{行}$い、$\\overset{りえき}{利益}$を$\\overset{え}{得}$る。/负责人进行挖洞的作业，以此获得利益。"
+  },
+  {
+    "word": "係り",
+    "kana": "かかり",
+    "type": "名词",
+    "meaning": "负责（人）。",
+    "example": "$\\overset{かか}{係}$りの$\\overset{ひと}{人}$が$\\overset{あな}{穴}$を$\\overset{ほ}{掘}$る$\\overset{さぎょう}{作業}$を$\\overset{おこな}{行}$い、$\\overset{りえき}{利益}$を$\\overset{え}{得}$る。/负责人进行挖洞的作业，以此获得利益。"
+  },
+  {
+    "word": "通う",
+    "kana": "かよう",
+    "type": "五段自动词",
+    "meaning": "往返，走读。",
+    "example": "$\\overset{こと}{異}$なる$\\overset{がっこう}{学校}$に$\\overset{かよ}{通}$う$\\overset{こ}{子}$に$\\overset{ふく}{服}$を$\\overset{き}{着}$せてくださる。/给去不同学校走读的孩子穿上衣服（蒙您恩惠）。"
+  },
+  {
+    "word": "着せる",
+    "kana": "きせる",
+    "type": "一段他动词",
+    "meaning": "给……穿（衣服）。",
+    "example": "$\\overset{こと}{異}$なる$\\overset{がっこう}{学校}$に$\\overset{かよ}{通}$う$\\overset{こ}{子}$に$\\overset{ふく}{服}$を$\\overset{き}{着}$せてくださる。/给去不同学校走读的孩子穿上衣服（蒙您恩惠）。"
+  },
+  {
+    "word": "くださる",
+    "kana": "くださる",
+    "type": "五段他动词",
+    "meaning": "给（我）（「くれる」的尊敬语）。",
+    "example": "$\\overset{こと}{異}$なる$\\overset{がっこう}{学校}$に$\\overset{かよ}{通}$う$\\overset{こ}{子}$に$\\overset{ふく}{服}$を$\\overset{き}{着}$せてくださる。/给去不同学校走读的孩子穿上衣服（蒙您恩惠）。"
+  },
+  {
+    "word": "異なる",
+    "kana": "ことなる",
+    "type": "五段自动词",
+    "meaning": "不同，不一样。",
+    "example": "$\\overset{こと}{異}$なる$\\overset{がっこう}{学校}$に$\\overset{かよ}{通}$う$\\overset{こ}{子}$に$\\overset{ふく}{服}$を$\\overset{き}{着}$せてくださる。/给去不同学校走读的孩子穿上衣服（蒙您恩惠）。"
+  },
+  {
+    "word": "殺す",
+    "kana": "ころす",
+    "type": "五段他动词",
+    "meaning": "杀，弄死。",
+    "example": "$\\overset{むし}{虫}$を$\\overset{ころ}{殺}$して$\\overset{さか}{盛}$んに$\\overset{しか}{叱}$られるのは、しつけのためだ。/弄死了虫子被严厉地批评，是为了管教。"
+  },
+  {
+    "word": "盛ん",
+    "kana": "さかん",
+    "type": "形动",
+    "meaning": "繁盛的，盛大的；热烈地。",
+    "example": "$\\overset{むし}{虫}$を$\\overset{ころ}{殺}$して$\\overset{さか}{盛}$んに$\\overset{しか}{叱}$られるのは、しつけのためだ。/弄死了虫子被严厉地（热烈地）批评，是为了管教。"
+  },
+  {
+    "word": "叱る",
+    "kana": "しかる",
+    "type": "五段他动词",
+    "meaning": "批评，责骂。",
+    "example": "$\\overset{むし}{虫}$を$\\overset{ころ}{殺}$して$\\overset{さか}{盛}$んに$\\overset{しか}{叱}$られるのは、しつけのためだ。/弄死了虫子被严厉地批评，是为了管教。"
+  },
+  {
+    "word": "しつけ",
+    "kana": "しつけ",
+    "type": "名词",
+    "meaning": "教养，管教。",
+    "example": "$\\overset{むし}{虫}$を$\\overset{ころ}{殺}$して$\\overset{さか}{盛}$んに$\\overset{しか}{叱}$られるのは、しつけのためだ。/弄死了虫子被严厉地批评，是为了管教。"
+  },
+  {
+    "word": "注ぐ",
+    "kana": "そそぐ",
+    "type": "五段自他动词",
+    "meaning": "注入，倒入。",
+    "example": "$\\overset{こんなん}{困難}$と$\\overset{たたか}{戦}$う$\\overset{たび}{度}$に、お$\\overset{ちゃ}{茶}$を$\\overset{そそ}{注}$いで$\\overset{あたら}{新}$しい$\\overset{ほうほう}{方法}$を$\\overset{ため}{試}$す。/每次与困难战斗时，就倒上茶，尝试新的方法。 || $\\overset{かわ}{川}$が$\\overset{うみ}{海}$に$\\overset{そそ}{注}$ぐ。/河流注入大海。"
+  },
+  {
+    "word": "戦う",
+    "kana": "たたかう",
+    "type": "五段自动词",
+    "meaning": "战斗，斗争。",
+    "example": "$\\overset{こんなん}{困難}$と$\\overset{たたか}{戦}$う$\\overset{たび}{度}$に、お$\\overset{ちゃ}{茶}$を$\\overset{そそ}{注}$いで$\\overset{あたら}{新}$しい$\\overset{ほうほう}{方法}$を$\\overset{ため}{試}$す。/每次与困难战斗时，就倒上茶，尝试新的方法。"
+  },
+  {
+    "word": "度",
+    "kana": "たび",
+    "type": "名词",
+    "meaning": "次，回，度。",
+    "example": "$\\overset{こんなん}{困難}$と$\\overset{たたか}{戦}$う$\\overset{たび}{度}$に、お$\\overset{ちゃ}{茶}$を$\\overset{そそ}{注}$いで$\\overset{あたら}{新}$しい$\\overset{ほうほう}{方法}$を$\\overset{ため}{試}$す。/每次与困难战斗时，就倒上茶，尝试新的方法。"
+  },
+  {
+    "word": "試す",
+    "kana": "ためす",
+    "type": "五段他动词",
+    "meaning": "尝试，试验。",
+    "example": "$\\overset{こんなん}{困難}$と$\\overset{たたか}{戦}$う$\\overset{たび}{度}$に、お$\\overset{ちゃ}{茶}$を$\\overset{そそ}{注}$いで$\\overset{あたら}{新}$しい$\\overset{ほうほう}{方法}$を$\\overset{ため}{試}$す。/每次与困难战斗时，就倒上茶，尝试新的方法。"
+  },
+  {
+    "word": "激しい",
+    "kana": "はげしい",
+    "type": "形容词",
+    "meaning": "激烈的。",
+    "example": "$\\overset{はげ}{激}$しい$\\overset{かぜ}{風}$でひな$\\overset{まつ}{祭}$りの$\\overset{かざ}{飾}$りがばらばらになり、まずい。/激烈的风把女孩节的装饰吹得散乱，这下糟了。"
+  },
+  {
+    "word": "ばらばら",
+    "kana": "ばらばら",
+    "type": "名・形动・副词",
+    "meaning": "散乱，分散。",
+    "example": "$\\overset{はげ}{激}$しい$\\overset{かぜ}{風}$でひな$\\overset{まつ}{祭}$りの$\\overset{かざ}{飾}$りがばらばらになり、まずい。/激烈的风把女孩节的装饰吹得散乱，这下糟了。 || $\\overset{いけん}{意見}$がばらばらに$\\overset{わか}{分}$れる。/意见产生了分歧（变得分散）。"
+  },
+  {
+    "word": "ひな祭り",
+    "kana": "ひなまつり",
+    "type": "名词",
+    "meaning": "女孩节，桃花节。",
+    "example": "$\\overset{はげ}{激}$しい$\\overset{かぜ}{風}$でひな$\\overset{まつ}{祭}$りの$\\overset{かざ}{飾}$りがばらばらになり、まずい。/激烈的风把女孩节的装饰吹得散乱，这下糟了。"
+  },
+  {
+    "word": "まずい",
+    "kana": "まずい",
+    "type": "形容词",
+    "meaning": "难吃的；糟糕的。",
+    "example": "$\\overset{はげ}{激}$しい$\\overset{かぜ}{風}$でひな$\\overset{まつ}{祭}$りの$\\overset{かざ}{飾}$りがばらばらになり、まずい。/激烈的风把女孩节的装饰吹得散乱，这下糟了。"
+  },
+  {
+    "word": "祭り",
+    "kana": "まつり",
+    "type": "名词",
+    "meaning": "节日，祭典。",
+    "example": "$\\overset{まつ}{祭}$りの$\\overset{まわ}{周}$りで、$\\overset{かれ}{彼}$が$\\overset{もっと}{最}$も$\\overset{つよ}{強}$いと$\\overset{みと}{認}$める。/在节日祭典周围，承认他是最强的。"
+  },
+  {
+    "word": "周り",
+    "kana": "まわり",
+    "type": "名词",
+    "meaning": "周围。",
+    "example": "$\\overset{まつ}{祭}$りの$\\overset{まわ}{周}$りで、$\\overset{かれ}{彼}$が$\\overset{もっと}{最}$も$\\overset{つよ}{強}$いと$\\overset{みと}{認}$める。/在节日祭典周围，承认他是最强的。"
+  },
+  {
+    "word": "認める",
+    "kana": "みとめる",
+    "type": "一段他动词",
+    "meaning": "承认，认可。",
+    "example": "$\\overset{まつ}{祭}$りの$\\overset{まわ}{周}$りで、$\\overset{かれ}{彼}$が$\\overset{もっと}{最}$も$\\overset{つよ}{強}$いと$\\overset{みと}{認}$める。/在节日祭典周围，承认他是最强的。"
+  },
+  {
+    "word": "最も",
+    "kana": "もっとも",
+    "type": "副词",
+    "meaning": "最。",
+    "example": "$\\overset{まつ}{祭}$りの$\\overset{まわ}{周}$りで、$\\overset{かれ}{彼}$が$\\overset{もっと}{最}$も$\\overset{つよ}{強}$いと$\\overset{みと}{認}$める。/在节日祭典周围，承认他是最强的。"
+  },
+  {
+    "word": "屋根",
+    "kana": "やね",
+    "type": "名词",
+    "meaning": "屋顶。",
+    "example": "$\\overset{おも}{主}$な$\\overset{はんにん}{犯人}$が$\\overset{やね}{屋根}$で$\\overset{あみ}{網}$を$\\overset{つか}{使}$い、$\\overset{いぬ}{犬}$を$\\overset{いじ}{苛}$める。/主要的犯人在屋顶上用网欺负狗。"
+  },
+  {
+    "word": "網",
+    "kana": "あみ",
+    "type": "名词",
+    "meaning": "网。",
+    "example": "$\\overset{おも}{主}$な$\\overset{はんにん}{犯人}$が$\\overset{やね}{屋根}$で$\\overset{あみ}{網}$を$\\overset{つか}{使}$い、$\\overset{いぬ}{犬}$を$\\overset{いじ}{苛}$める。/主要的犯人在屋顶上用网欺负狗。"
+  },
+  {
+    "word": "苛める",
+    "kana": "いじめる",
+    "type": "一段他动词",
+    "meaning": "欺负，折磨。",
+    "example": "$\\overset{おも}{主}$な$\\overset{はんにん}{犯人}$が$\\overset{やね}{屋根}$で$\\overset{あみ}{網}$を$\\overset{つか}{使}$い、$\\overset{いぬ}{犬}$を$\\overset{いじ}{苛}$める。/主要的犯人在屋顶上用网欺负狗。"
+  },
+  {
+    "word": "主な",
+    "kana": "おもな",
+    "type": "连体词",
+    "meaning": "主要的。",
+    "example": "$\\overset{おも}{主}$な$\\overset{はんにん}{犯人}$が$\\overset{やね}{屋根}$で$\\overset{あみ}{網}$を$\\overset{つか}{使}$い、$\\overset{いぬ}{犬}$を$\\overset{いじ}{苛}$める。/主要的犯人在屋顶上用网欺负狗。"
+  },
+  {
+    "word": "崖",
+    "kana": "がけ",
+    "type": "名词",
+    "meaning": "悬崖。",
+    "example": "$\\overset{たいら}{平}$な$\\overset{がけ}{崖}$の$\\overset{うえ}{上}$で$\\overset{かさ}{傘}$を$\\overset{さ}{差}$し、$\\overset{どうぶつ}{動物}$の$\\overset{け}{毛}$を$\\overset{み}{見}$つける。/在平坦的悬崖上打着伞，发现了动物的毛。"
+  },
+  {
+    "word": "毛",
+    "kana": "け",
+    "type": "名词",
+    "meaning": "毛，毛发。",
+    "example": "$\\overset{たいら}{平}$な$\\overset{がけ}{崖}$の$\\overset{うえ}{上}$で$\\overset{かさ}{傘}$を$\\overset{さ}{差}$し、$\\overset{どうぶつ}{動物}$の$\\overset{け}{毛}$を$\\overset{み}{見}$つける。/在平坦的悬崖上打着伞，发现了动物的毛。"
+  },
+  {
+    "word": "差す",
+    "kana": "さす",
+    "type": "五段自他动词",
+    "meaning": "撑（伞），照射。",
+    "example": "$\\overset{たいら}{平}$な$\\overset{がけ}{崖}$の$\\overset{うえ}{上}$で$\\overset{かさ}{傘}$を$\\overset{さ}{差}$し、$\\overset{どうぶつ}{動物}$の$\\overset{け}{毛}$を$\\overset{み}{見}$つける。/在平坦的悬崖上打着伞，发现了动物的毛。 || $\\overset{つよ}{強}$い$\\overset{ひざ}{日差}$しが$\\overset{さ}{差}$す。/强烈的阳光照射下来。"
+  },
+  {
+    "word": "平ら",
+    "kana": "たいら",
+    "type": "形动",
+    "meaning": "平坦的。",
+    "example": "$\\overset{たいら}{平}$な$\\overset{がけ}{崖}$の$\\overset{うえ}{上}$で$\\overset{かさ}{傘}$を$\\overset{さ}{差}$し、$\\overset{どうぶつ}{動物}$の$\\overset{け}{毛}$を$\\overset{み}{見}$つける。/在平坦的悬崖上打着伞，发现了动物的毛。"
+  },
+  {
+    "word": "罪",
+    "kana": "つみ",
+    "type": "名词",
+    "meaning": "罪，罪过。",
+    "example": "$\\overset{なみき}{並木}$の$\\overset{と}{戸}$の$\\overset{よこ}{横}$で、$\\overset{なし}{梨}$を$\\overset{ぬす}{盗}$む$\\overset{つみ}{罪}$を$\\overset{おか}{犯}$す。/在林荫道门旁，犯下了偷梨的罪。"
+  },
+  {
+    "word": "戸",
+    "kana": "と",
+    "type": "名词",
+    "meaning": "门。",
+    "example": "$\\overset{なみき}{並木}$の$\\overset{と}{戸}$の$\\overset{よこ}{横}$で、$\\overset{なし}{梨}$を$\\overset{ぬす}{盗}$む$\\overset{つみ}{罪}$を$\\overset{おか}{犯}$す。/在林荫道门旁，犯下了偷梨的罪。"
+  },
+  {
+    "word": "梨",
+    "kana": "なし",
+    "type": "名词",
+    "meaning": "梨。",
+    "example": "$\\overset{なみき}{並木}$の$\\overset{と}{戸}$の$\\overset{よこ}{横}$で、$\\overset{なし}{梨}$を$\\overset{ぬす}{盗}$む$\\overset{つみ}{罪}$を$\\overset{おか}{犯}$す。/在林荫道门旁，犯下了偷梨的罪。"
+  },
+  {
+    "word": "並木",
+    "kana": "なみき",
+    "type": "名词",
+    "meaning": "林荫道，行道树。",
+    "example": "$\\overset{なみき}{並木}$の$\\overset{と}{戸}$の$\\overset{よこ}{横}$で、$\\overset{なし}{梨}$を$\\overset{ぬす}{盗}$む$\\overset{つみ}{罪}$を$\\overset{おか}{犯}$す。/在林荫道门旁，犯下了偷梨的罪。"
+  },
+  {
+    "word": "縫う",
+    "kana": "ぬう",
+    "type": "五段他动词",
+    "meaning": "缝，缝合；穿梭。",
+    "example": "$\\overset{ねずみ}{鼠}$のように$\\overset{ひとご}{人込}$みを$\\overset{ぬ}{縫}$って$\\overset{はし}{走}$る$\\overset{かれ}{彼}$の$\\overset{はたら}{働}$きは$\\overset{よ}{良}$いはずだ。/像老鼠一样在人群中穿梭奔跑的他，工作能力应该是很好的。"
+  },
+  {
+    "word": "鼠",
+    "kana": "ねずみ",
+    "type": "名词",
+    "meaning": "老鼠。",
+    "example": "$\\overset{ねずみ}{鼠}$のように$\\overset{ひとご}{人込}$みを$\\overset{ぬ}{縫}$って$\\overset{はし}{走}$る$\\overset{かれ}{彼}$の$\\overset{はたら}{働}$きは$\\overset{よ}{良}$いはずだ。/像老鼠一样在人群中穿梭奔跑的他，工作能力应该是很好的。"
+  },
+  {
+    "word": "はず",
+    "kana": "はず",
+    "type": "名词",
+    "meaning": "应该，理应。",
+    "example": "$\\overset{ねずみ}{鼠}$のように$\\overset{ひとご}{人込}$みを$\\overset{ぬ}{縫}$って$\\overset{はし}{走}$る$\\overset{かれ}{彼}$の$\\overset{はたら}{働}$きは$\\overset{よ}{良}$いはずだ。/像老鼠一样在人群中穿梭奔跑的他，工作能力应该是很好的。"
+  },
+  {
+    "word": "働き",
+    "kana": "はたらき",
+    "type": "名词",
+    "meaning": "工作，作用，功能。",
+    "example": "$\\overset{ねずみ}{鼠}$のように$\\overset{ひとご}{人込}$みを$\\overset{ぬ}{縫}$って$\\overset{はし}{走}$る$\\overset{かれ}{彼}$の$\\overset{はたら}{働}$きは$\\overset{よ}{良}$いはずだ。/像老鼠一样在人群中穿梭奔跑的他，工作能力应该是很好的。"
+  },
+  {
+    "word": "含める",
+    "kana": "ふくめる",
+    "type": "一段他动词",
+    "meaning": "包括，包含。",
+    "example": "$\\overset{あいま}{合間}$の$\\overset{きゅうけい}{休憩}$を$\\overset{ふく}{含}$めると、$\\overset{しゃくはち}{尺八}$の$\\overset{えんそう}{演奏}$はまあまあだ。/算上中间的休息，尺八的演奏勉勉强强还算可以。"
+  },
+  {
+    "word": "まあまあ",
+    "kana": "まあまあ",
+    "type": "副词・形动",
+    "meaning": "还可以，勉勉强强。",
+    "example": "$\\overset{あいま}{合間}$の$\\overset{きゅうけい}{休憩}$を$\\overset{ふく}{含}$めると、$\\overset{しゃくはち}{尺八}$の$\\overset{えんそう}{演奏}$はまあまあだ。/算上中间的休息，尺八的演奏勉勉强强还算可以。 || まあまあ、そう$\\overset{おこ}{怒}$らないでください。/好了好了，请别那么生气了。"
+  },
+  {
+    "word": "尺八",
+    "kana": "しゃくはち",
+    "type": "名词",
+    "meaning": "尺八（日本传统吹管乐器）。",
+    "example": "$\\overset{あいま}{合間}$の$\\overset{きゅうけい}{休憩}$を$\\overset{ふく}{含}$めると、$\\overset{しゃくはち}{尺八}$の$\\overset{えんそう}{演奏}$はまあまあだ。/算上中间的休息，尺八的演奏勉勉强强还算可以。"
+  },
+  {
+    "word": "合間",
+    "kana": "あいま",
+    "type": "名词",
+    "meaning": "空闲，间歇。",
+    "example": "$\\overset{あいま}{合間}$の$\\overset{きゅうけい}{休憩}$を$\\overset{ふく}{含}$めると、$\\overset{しゃくはち}{尺八}$の$\\overset{えんそう}{演奏}$はまあまあだ。/算上中间的休息，尺八的演奏勉勉强强还算可以。"
+  },
+  {
+    "word": "状況",
+    "kana": "じょうきょう",
+    "type": "名词",
+    "meaning": "状况，情况。",
+    "example": "$\\overset{ふな}{不慣}$れな$\\overset{じょうきょう}{状況}$でも、$\\overset{ゆき}{雪}$が$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{どくしょ}{読書}$をして$\\overset{しんしん}{心身}$を$\\overset{やす}{休}$める。/即使在不习惯的状况下，也在雪花飞舞中读书，让身心休息。"
+  },
+  {
+    "word": "心身",
+    "kana": "しんしん",
+    "type": "名词",
+    "meaning": "身心。",
+    "example": "$\\overset{ふな}{不慣}$れな$\\overset{じょうきょう}{状況}$でも、$\\overset{ゆき}{雪}$が$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{どくしょ}{読書}$をして$\\overset{しんしん}{心身}$を$\\overset{やす}{休}$める。/即使在不习惯的状况下，也在雪花飞舞中读书，让身心休息。"
+  },
+  {
+    "word": "読書",
+    "kana": "どくしょ",
+    "type": "名・サ变动词する自",
+    "meaning": "读书。",
+    "example": "$\\overset{やす}{休}$みの日は$\\overset{どくしょ}{読書}$を$\\overset{たの}{楽}$しむ。/休息日享受读书的乐趣。 || $\\overset{ふな}{不慣}$れな$\\overset{じょうきょう}{状況}$でも、$\\overset{ゆき}{雪}$が$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{どくしょ}{読書}$して$\\overset{しんしん}{心身}$を$\\overset{やす}{休}$める。/即使在不习惯的状况下，也在雪花飞舞中读书，让身心休息。"
+  },
+  {
+    "word": "不慣れ",
+    "kana": "ふなれ",
+    "type": "名・形动",
+    "meaning": "不习惯，生疏。",
+    "example": "$\\overset{ふな}{不慣}$れから$\\overset{しっぱい}{失敗}$してしまった。/因为生疏而犯了错。 || $\\overset{ふな}{不慣}$れな$\\overset{じょうきょう}{状況}$でも、$\\overset{ゆき}{雪}$が$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{どくしょ}{読書}$をして$\\overset{しんしん}{心身}$を$\\overset{やす}{休}$める。/即使在不习惯的状况下，也在雪花飞舞中读书，让身心休息。"
+  },
+  {
+    "word": "舞う",
+    "kana": "まう",
+    "type": "五段自动词",
+    "meaning": "飞舞，跳舞。",
+    "example": "$\\overset{ふな}{不慣}$れな$\\overset{じょうきょう}{状況}$でも、$\\overset{ゆき}{雪}$が$\\overset{ま}{舞}$う$\\overset{なか}{中}$で$\\overset{どくしょ}{読書}$をして$\\overset{しんしん}{心身}$を$\\overset{やす}{休}$める。/即使在不习惯的状况下，也在雪花飞舞中读书，让身心休息。"
+  },
+  {
+    "word": "当り前",
+    "kana": "あたりまえ",
+    "type": "名・形动",
+    "meaning": "理所当然，自然；普通。",
+    "example": "それは$\\overset{あ}{当}$たり$\\overset{まえ}{前}$の$\\overset{こと}{事}$だ。/那是理所当然的事情。 || $\\overset{あに}{兄}$は$\\overset{あめ}{雨}$の$\\overset{ひ}{日}$でも$\\overset{いそが}{忙}$しいのが$\\overset{あ}{当}$たり$\\overset{まえ}{前}$だと$\\overset{い}{言}$う。/哥哥说即使在雨天忙碌也是理所当然的。"
+  },
+  {
+    "word": "兄",
+    "kana": "あに",
+    "type": "名词",
+    "meaning": "哥哥。",
+    "example": "$\\overset{あに}{兄}$は$\\overset{あめ}{雨}$の$\\overset{なか}{中}$、$\\overset{いそが}{忙}$しそうに$\\overset{いぬ}{犬}$を$\\overset{つ}{連}$れて$\\overset{ある}{歩}$く。/哥哥在雨中看起来很忙碌地带着狗散步。"
+  },
+  {
+    "word": "雨",
+    "kana": "あめ",
+    "type": "名词",
+    "meaning": "雨。",
+    "example": "$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$って、$\\overset{しごと}{仕事}$がさらに$\\overset{いそが}{忙}$しくなる。/下起了雨，工作变得更加忙碌了。"
+  },
+  {
+    "word": "忙しい",
+    "kana": "いそがしい",
+    "type": "形容词",
+    "meaning": "忙碌的。",
+    "example": "$\\overset{まいにち}{毎日}$$\\overset{いそが}{忙}$しいので、おいしい$\\overset{しょくじ}{食事}$が$\\overset{い}{要}$る。/因为每天都很忙，所以需要美味的饭菜。"
+  },
+  {
+    "word": "犬",
+    "kana": "いぬ",
+    "type": "名词",
+    "meaning": "狗。",
+    "example": "この$\\overset{いぬ}{犬}$にはおいしい$\\overset{えさ}{餌}$が$\\overset{い}{要}$る。/这只狗需要美味的食物（饵料）。"
+  },
+  {
+    "word": "要る",
+    "kana": "いる",
+    "type": "五段自动词",
+    "meaning": "需要。",
+    "example": "$\\overset{かれ}{彼}$らと$\\overset{おな}{同}$じおいしい$\\overset{かき}{柿}$が$\\overset{い}{要}$る。/需要和他们一样的美味柿子。"
+  },
+  {
+    "word": "おいしい",
+    "kana": "おいしい",
+    "type": "形容词",
+    "meaning": "好吃的，美味的。",
+    "example": "$\\overset{かのじょ}{彼女}$はおいしい$\\overset{かき}{柿}$を$\\overset{た}{食}$べて$\\overset{えがお}{笑顔}$を$\\overset{み}{見}$せる。/她吃着美味的柿子露出了笑容。"
+  },
+  {
+    "word": "同じ",
+    "kana": "おなじ",
+    "type": "连体词・形动",
+    "meaning": "相同的，一样的。",
+    "example": "$\\overset{きのう}{昨日}$と$\\overset{おな}{同}$じ$\\overset{かたち}{形}$の$\\overset{かき}{柿}$を$\\overset{か}{買}$う。/买和昨天形状相同的柿子。 || $\\overset{かれ}{彼}$の$\\overset{かんが}{考}$えは$\\overset{わたし}{私}$と$\\overset{おな}{同}$じだ。/他的想法和我一样。"
+  },
+  {
+    "word": "柿",
+    "kana": "かき",
+    "type": "名词",
+    "meaning": "柿子。",
+    "example": "$\\overset{かべ}{壁}$に$\\overset{まる}{丸}$い$\\overset{かたち}{形}$の$\\overset{かき}{柿}$の$\\overset{え}{絵}$を$\\overset{か}{描}$く。/在墙上画圆形柿子的画。"
+  },
+  {
+    "word": "形",
+    "kana": "かたち",
+    "type": "名词",
+    "meaning": "形状，样子。",
+    "example": "$\\overset{かのじょ}{彼女}$は$\\overset{くも}{雲}$の$\\overset{かたち}{形}$を$\\overset{み}{見}$て$\\overset{かべ}{壁}$に$\\overset{え}{絵}$を$\\overset{か}{描}$く。/她看着云的形状在墙上画画。"
+  },
+  {
+    "word": "彼女",
+    "kana": "かのじょ",
+    "type": "代词",
+    "meaning": "她；女朋友。",
+    "example": "$\\overset{かのじょ}{彼女}$は$\\overset{きた}{北}$の$\\overset{みせ}{店}$で$\\overset{くつ}{靴}$を$\\overset{か}{買}$う。/她在北边的店里买鞋。"
+  },
+  {
+    "word": "壁",
+    "kana": "かべ",
+    "type": "名词",
+    "meaning": "墙壁。",
+    "example": "$\\overset{かべ}{壁}$の$\\overset{む}{向}$こうに$\\overset{きた}{北}$の$\\overset{かぜ}{風}$が$\\overset{ふ}{吹}$く。/墙的那边吹着北风。"
+  },
+  {
+    "word": "北",
+    "kana": "きた",
+    "type": "名词",
+    "meaning": "北，北方。",
+    "example": "$\\overset{きた}{北}$の$\\overset{くに}{国}$の$\\overset{くつ}{靴}$とこちらの$\\overset{くつ}{靴}$を$\\overset{くら}{比}$べる。/把北国的鞋和这边的鞋做比较。"
+  },
+  {
+    "word": "靴",
+    "kana": "くつ",
+    "type": "名词",
+    "meaning": "鞋。",
+    "example": "こちらの$\\overset{くつ}{靴}$の$\\overset{ほう}{方}$が$\\overset{ある}{歩}$きやすいと$\\overset{くら}{比}$べる。/比较之后发现这边的鞋更好走。"
+  },
+  {
+    "word": "比べる",
+    "kana": "くらべる",
+    "type": "一段他动词",
+    "meaning": "比较。",
+    "example": "こちらと$\\overset{ことば}{言葉}$を$\\overset{くら}{比}$べて、$\\overset{さき}{先}$に$\\overset{りかい}{理解}$する。/和这边的语言进行比较，先去理解。"
+  },
+  {
+    "word": "こちら",
+    "kana": "こちら",
+    "type": "代词",
+    "meaning": "这边，这里；我（们）。",
+    "example": "こちらから$\\overset{さき}{先}$に$\\overset{ことば}{言葉}$をかけて$\\overset{あいて}{相手}$を$\\overset{すく}{救}$う。/从这边先搭话来拯救对方。"
+  },
+  {
+    "word": "言葉",
+    "kana": "ことば",
+    "type": "名词",
+    "meaning": "语言，话汇。",
+    "example": "$\\overset{やさ}{優}$しい$\\overset{ことば}{言葉}$で$\\overset{たび}{旅}$の$\\overset{ひと}{人}$を$\\overset{すく}{救}$う。/用温柔的语言拯救旅人。"
+  },
+  {
+    "word": "先に",
+    "kana": "さきに",
+    "type": "副词",
+    "meaning": "先，预先；以前。",
+    "example": "$\\overset{たび}{旅}$に$\\overset{で}{出}$る$\\overset{まえ}{前}$に、$\\overset{さき}{先}$に$\\overset{ちから}{力}$を$\\overset{たくわ}{蓄}$える。/在踏上旅途之前，先蓄积力量。"
+  },
+  {
+    "word": "救う",
+    "kana": "すくう",
+    "type": "五段他动词",
+    "meaning": "拯救，救助。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{ちから}{力}$で$\\overset{おお}{多}$くの$\\overset{いのち}{命}$を$\\overset{すく}{救}$う。/用他的力量拯救了许多生命。"
+  },
+  {
+    "word": "旅",
+    "kana": "たび",
+    "type": "名词",
+    "meaning": "旅行，旅途。",
+    "example": "$\\overset{つき}{月}$の$\\overset{で}{出}$ている$\\overset{よる}{夜}$に、$\\overset{いぬ}{犬}$を$\\overset{つ}{連}$れて$\\overset{たび}{旅}$に$\\overset{で}{出}$る。/在有月亮的夜晚，带着狗去旅行。"
+  },
+  {
+    "word": "力",
+    "kana": "ちから",
+    "type": "名词",
+    "meaning": "力量，力气。",
+    "example": "$\\overset{ちから}{力}$を$\\overset{つ}{尽}$くして$\\overset{つき}{月}$に$\\overset{とど}{届}$く$\\overset{とう}{塔}$を$\\overset{た}{建}$てる。/竭尽全力建造直达月亮的高塔。"
+  },
+  {
+    "word": "月",
+    "kana": "つき",
+    "type": "名词",
+    "meaning": "月亮；月。",
+    "example": "なぜ$\\overset{つき}{月}$の$\\overset{よる}{夜}$に$\\overset{かれ}{彼}$を$\\overset{つ}{連}$れて$\\overset{い}{行}$くのか。/为什么要在月夜带他去呢？"
+  },
+  {
+    "word": "連れる",
+    "kana": "つれる",
+    "type": "一段他动词",
+    "meaning": "带领，带着。",
+    "example": "なぜ$\\overset{かれ}{彼}$を$\\overset{つ}{連}$れて、$\\overset{なみだ}{涙}$を$\\overset{なが}{流}$すのか。/为什么带着他，却流下眼泪呢？"
+  },
+  {
+    "word": "なぜ",
+    "kana": "なぜ",
+    "type": "副词",
+    "meaning": "为什么。",
+    "example": "なぜ$\\overset{はこ}{箱}$の$\\overset{なか}{中}$で$\\overset{なみだ}{涙}$を$\\overset{かく}{隠}$すのか。/为什么要在箱子里隐藏眼泪呢？"
+  },
+  {
+    "word": "涙",
+    "kana": "なみだ",
+    "type": "名词",
+    "meaning": "眼泪。",
+    "example": "$\\overset{は}{恥}$ずかしい$\\overset{はな}{話}$しをして、$\\overset{おも}{思}$わず$\\overset{なみだ}{涙}$が$\\overset{で}{出}$る。/说了令人害羞的话，不由得流下眼泪。"
+  },
+  {
+    "word": "箱",
+    "kana": "はこ",
+    "type": "名词",
+    "meaning": "箱子，盒子。",
+    "example": "$\\overset{はこ}{箱}$の$\\overset{なか}{中}$から$\\overset{は}{恥}$ずかしい$\\overset{てがみ}{手紙}$が$\\overset{で}{出}$てくる。/从箱子里拿出了令人害羞的信。"
+  },
+  {
+    "word": "恥ずかしい",
+    "kana": "はずかしい",
+    "type": "形容词",
+    "meaning": "害羞的，不好意思的；可耻的。",
+    "example": "$\\overset{みな}{皆}$の$\\overset{まえ}{前}$で$\\overset{はな}{話}$すのはとても$\\overset{は}{恥}$ずかしい。/在大家面前说话感到很害羞。"
+  },
+  {
+    "word": "話す",
+    "kana": "はなす",
+    "type": "五段他动词",
+    "meaning": "说，讲话。",
+    "example": "$\\overset{はや}{速}$いスピードで$\\overset{ひく}{低}$い$\\overset{こえ}{声}$で$\\overset{はな}{話}$す。/以很快的语速用低沉的声音说话。"
+  },
+  {
+    "word": "速い",
+    "kana": "はやい",
+    "type": "形容词",
+    "meaning": "快的（速度）。",
+    "example": "$\\overset{はや}{速}$いスピードで$\\overset{はし}{走}$り、$\\overset{お}{落}$ちた$\\overset{さいふ}{財布}$を$\\overset{ひろ}{拾}$う。/以很快的速度奔跑，捡起掉落的钱包。"
+  },
+  {
+    "word": "低い",
+    "kana": "ひくい",
+    "type": "形容词",
+    "meaning": "低的，矮的。",
+    "example": "$\\overset{ひく}{低}$い$\\overset{まど}{窓}$の$\\overset{ふち}{縁}$から$\\overset{そと}{外}$を$\\overset{み}{見}$る。/从低矮的窗户边缘向外看。"
+  },
+  {
+    "word": "拾う",
+    "kana": "ひろう",
+    "type": "五段他动词",
+    "meaning": "捡，拾。",
+    "example": "$\\overset{みち}{道}$で$\\overset{ほ}{欲}$しい$\\overset{ゆびわ}{指輪}$を$\\overset{ひろ}{拾}$う。/在路上捡到想要的戒指。"
+  },
+  {
+    "word": "欲しい",
+    "kana": "ほしい",
+    "type": "形容词",
+    "meaning": "想要的。",
+    "example": "$\\overset{ほ}{欲}$しい$\\overset{もの}{物}$を$\\overset{まど}{窓}$の$\\overset{ふち}{縁}$に$\\overset{お}{置}$く。/把想要的东西放在窗户边缘。"
+  },
+  {
+    "word": "窓",
+    "kana": "まど",
+    "type": "名词",
+    "meaning": "窗户。",
+    "example": "みんなで$\\overset{まど}{窓}$の$\\overset{ふち}{縁}$を$\\overset{きれい}{綺麗}$に$\\overset{ふ}{拭}$く。/大家一起把窗户边缘擦干净。"
+  },
+  {
+    "word": "縁",
+    "kana": "ふち",
+    "type": "名词",
+    "meaning": "边缘，边。",
+    "example": "みんなで$\\overset{いけ}{池}$の$\\overset{ふち}{縁}$に$\\overset{た}{立}$つのは$\\overset{むずか}{難}$しい。/大家一起站在池塘边缘是很难的。"
+  },
+  {
+    "word": "みんな",
+    "kana": "みんな",
+    "type": "名词・副词",
+    "meaning": "大家，所有人；全部。",
+    "example": "みんなで$\\overset{むずか}{難}$しい$\\overset{もんだい}{問題}$に$\\overset{ちょうせん}{挑戦}$する。/大家一起挑战难题。 || お$\\overset{かね}{金}$をみんな$\\overset{つか}{使}$ってしまった。/把钱全花光了。"
+  },
+  {
+    "word": "難しい",
+    "kana": "むずかしい",
+    "type": "形容词",
+    "meaning": "困难的。",
+    "example": "$\\overset{やさ}{優}$しい$\\overset{かれ}{彼}$が$\\overset{むずか}{難}$しい$\\overset{ほん}{本}$を$\\overset{よ}{読}$む。/温柔的他读着很难的书。"
+  },
+  {
+    "word": "優しい",
+    "kana": "やさしい",
+    "type": "形容词",
+    "meaning": "温柔的，亲切的。",
+    "example": "$\\overset{やさ}{優}$しい$\\overset{かれ}{彼}$が$\\overset{こ}{子}$どもの$\\overset{にもつ}{荷物}$を$\\overset{あず}{預}$かる。/温柔的他保管（照看）着孩子的行李。"
+  },
+  {
+    "word": "読む",
+    "kana": "よむ",
+    "type": "五段他动词",
+    "meaning": "读，阅读。",
+    "example": "$\\overset{ほん}{本}$を$\\overset{よ}{読}$んで、うそと$\\overset{しんじつ}{真実}$を$\\overset{みわ}{見分}$ける。/通过读书，分辨谎言和真相。"
+  },
+  {
+    "word": "預かる",
+    "kana": "あずかる",
+    "type": "五段他动词",
+    "meaning": "保管，照看，存。",
+    "example": "うそをつかずに、$\\overset{おく}{奥}$の$\\overset{へや}{部屋}$で$\\overset{にもつ}{荷物}$を$\\overset{あず}{預}$かる。/不说谎，在里面的房间里保管行李。"
+  },
+  {
+    "word": "うそ",
+    "kana": "うそ",
+    "type": "名词",
+    "meaning": "谎言。",
+    "example": "うそをついたことが$\\overset{おく}{奥}$さんにバレる。/撒谎的事情被妻子发现了。"
+  },
+  {
+    "word": "奥",
+    "kana": "おく",
+    "type": "名词",
+    "meaning": "里面，深处。",
+    "example": "$\\overset{おく}{奥}$の$\\overset{へや}{部屋}$で$\\overset{なに}{何}$が$\\overset{お}{起}$こるか$\\overset{おそ}{恐}$れる。/害怕在里面的房间会发生什么。"
+  },
+  {
+    "word": "奥さん",
+    "kana": "おくさん",
+    "type": "名词",
+    "meaning": "尊夫人，妻子（敬称）。",
+    "example": "$\\overset{おく}{奥}$さんが$\\overset{おそ}{恐}$れる$\\overset{じたい}{事態}$が$\\overset{お}{起}$こる。/发生了妻子所害怕的事态。"
+  },
+  {
+    "word": "起こる",
+    "kana": "おこる",
+    "type": "五段自动词",
+    "meaning": "发生，引起。",
+    "example": "およそ$\\overset{かんが}{考}$えられない$\\overset{こと}{事}$が$\\overset{お}{起}$こる。/发生了大概完全想不到的事情。"
+  },
+  {
+    "word": "恐れる",
+    "kana": "おそれる",
+    "type": "一段他动词",
+    "meaning": "害怕，畏惧。",
+    "example": "およそ$\\overset{しっぱい}{失敗}$を$\\overset{おそ}{恐}$れてはいけない。/大体上来说，绝不能害怕失败。"
+  },
+  {
+    "word": "およそ",
+    "kana": "およそ",
+    "type": "副词・名词",
+    "meaning": "大约，大概；完全（后接否定）。",
+    "example": "およそ$\\overset{ひゃく}{百}$$\\overset{にん}{人}$の$\\overset{きゃく}{客}$が$\\overset{き}{来}$た。/大约来了一百位客人。 || $\\overset{じけん}{事件}$のおよそを$\\overset{りかい}{理解}$する。/了解案件的大概。"
+  },
+  {
+    "word": "飾る",
+    "kana": "かざる",
+    "type": "五段他动词",
+    "meaning": "装饰，装点。",
+    "example": "かわいそうな$\\overset{とり}{鳥}$を$\\overset{へや}{部屋}$に$\\overset{かざ}{飾}$るのを$\\overset{きら}{嫌}$う。/讨厌把可怜的鸟当做装饰摆在房间里。"
+  },
+  {
+    "word": "かわいそう",
+    "kana": "かわいそう",
+    "type": "形动",
+    "meaning": "可怜的。",
+    "example": "$\\overset{ひと}{人}$に$\\overset{きら}{嫌}$われる$\\overset{かれ}{彼}$はかわいそうだ。/被别人讨厌的他很可怜。"
+  },
+  {
+    "word": "嫌う",
+    "kana": "きらう",
+    "type": "五段他动词",
+    "meaning": "讨厌，嫌恶。",
+    "example": "$\\overset{むだ}{無駄}$な$\\overset{じかん}{時間}$を$\\overset{きら}{嫌}$い、$\\overset{き}{木}$を$\\overset{けず}{削}$る。/讨厌无谓的时间，认真地削木头。"
+  },
+  {
+    "word": "削る",
+    "kana": "けずる",
+    "type": "五段他动词",
+    "meaning": "削，刨；削减。",
+    "example": "$\\overset{こお}{凍}$った$\\overset{こおり}{氷}$を$\\overset{けず}{削}$って、$\\overset{ころ}{転}$ばないようにする。/削去冻住的冰，以免摔倒。"
+  },
+  {
+    "word": "凍る",
+    "kana": "こおる",
+    "type": "五段自动词",
+    "meaning": "结冰，冻结。",
+    "example": "$\\overset{こお}{凍}$った$\\overset{みち}{道}$で$\\overset{ころ}{転}$んで$\\overset{し}{死}$ぬかと$\\overset{おも}{思}$った。/在结冰的路上摔倒，以为自己要死了。"
+  },
+  {
+    "word": "転ぶ",
+    "kana": "ころぶ",
+    "type": "五段自动词",
+    "meaning": "摔倒，跌倒。",
+    "example": "$\\overset{ころ}{転}$んで$\\overset{けが}{怪我}$をしたが、$\\overset{し}{死}$ぬことはない。/摔倒受了伤，但不至于死。"
+  },
+  {
+    "word": "死ぬ",
+    "kana": "しぬ",
+    "type": "五段自动词",
+    "meaning": "死，死亡。",
+    "example": "$\\overset{き}{木}$が$\\overset{し}{死}$ぬ$\\overset{まえ}{前}$に$\\overset{しるし}{印}$をつける。/在树枯死之前做上记号。"
+  },
+  {
+    "word": "印",
+    "kana": "しるし",
+    "type": "名词",
+    "meaning": "记号，印记。",
+    "example": "$\\overset{す}{酸}$っぱい$\\overset{くだもの}{果物}$にずるい$\\overset{しるし}{印}$を$\\overset{たた}{叩}$く。/在酸的水果上敲上狡猾的记号。"
+  },
+  {
+    "word": "酸っぱい",
+    "kana": "すっぱい",
+    "type": "形容词",
+    "meaning": "酸的。",
+    "example": "ずるい$\\overset{おとこ}{男}$が$\\overset{す}{酸}$っぱい$\\overset{かお}{顔}$をして$\\overset{つくえ}{机}$を$\\overset{たた}{叩}$く。/狡猾的男人露出一副酸溜溜的表情敲桌子。"
+  },
+  {
+    "word": "ずるい",
+    "kana": "ずるい",
+    "type": "形容词",
+    "meaning": "狡猾的，奸诈的。",
+    "example": "$\\overset{かれ}{彼}$はずるい$\\overset{ほうほう}{方法}$で$\\overset{たな}{棚}$の$\\overset{いち}{位置}$を$\\overset{たも}{保}$つ。/他用狡猾的方法保持架子的位置。"
+  },
+  {
+    "word": "叩く",
+    "kana": "たたく",
+    "type": "五段他动词",
+    "meaning": "敲，打，拍。",
+    "example": "$\\overset{たな}{棚}$を$\\overset{たた}{叩}$いて、$\\overset{じょうぶ}{丈夫}$さを$\\overset{たも}{保}$つ。/敲打架子，保持其结实。"
+  },
+  {
+    "word": "棚",
+    "kana": "たな",
+    "type": "名词",
+    "meaning": "架子，搁板。",
+    "example": "$\\overset{たな}{棚}$の$\\overset{うつく}{美}$しさを$\\overset{たも}{保}$ち、$\\overset{かいしゃ}{会社}$に$\\overset{つと}{勤}$める。/保持架子的美观，并在公司工作。"
+  },
+  {
+    "word": "保つ",
+    "kana": "たもつ",
+    "type": "五段他动词",
+    "meaning": "保持，维持。",
+    "example": "$\\overset{けんこう}{健康}$を$\\overset{たも}{保}$ちながら$\\overset{かいしゃ}{会社}$に$\\overset{つと}{勤}$める。/一边保持健康一边在公司工作。"
+  },
+  {
+    "word": "勤める",
+    "kana": "つとめる",
+    "type": "一段自动词",
+    "meaning": "工作，任职。",
+    "example": "$\\overset{かいしゃ}{会社}$に$\\overset{つと}{勤}$める$\\overset{かれ}{彼}$が、$\\overset{と}{問}$いに$\\overset{こた}{答}$える。/在公司工作的他，回答了问题。"
+  },
+  {
+    "word": "問い",
+    "kana": "とい",
+    "type": "名词",
+    "meaning": "问题，提问。",
+    "example": "$\\overset{むずか}{難}$しい$\\overset{と}{問}$いをともに$\\overset{かんが}{考}$える。/共同思考难题。"
+  },
+  {
+    "word": "ともに",
+    "kana": "ともに",
+    "type": "副词",
+    "meaning": "一起，共同；同时。",
+    "example": "$\\overset{かれ}{彼}$とともに$\\overset{にが}{苦}$い$\\overset{けいけん}{経験}$を$\\overset{あじ}{味}$わうのはなかなか$\\overset{むずか}{難}$しい。/和他一起体验痛苦（苦涩）的经历是相当难的。"
+  },
+  {
+    "word": "なかなか",
+    "kana": "なかなか",
+    "type": "副词",
+    "meaning": "相当，很；（后接否定）不容易，怎么也（不）。",
+    "example": "なかなか$\\overset{にが}{苦}$い$\\overset{くすり}{薬}$で、$\\overset{じかん}{時間}$を$\\overset{ぬす}{盗}$まれる。/这药相当苦，很耗费（被偷走）时间。"
+  },
+  {
+    "word": "苦い",
+    "kana": "にがい",
+    "type": "形容词",
+    "meaning": "苦的。",
+    "example": "$\\overset{にが}{苦}$い$\\overset{おも}{思}$いをして、$\\overset{どろぼう}{泥棒}$が$\\overset{しなもの}{品物}$を$\\overset{ぬす}{盗}$む。/带着痛苦的心情，小偷去偷东西。"
+  },
+  {
+    "word": "盗む",
+    "kana": "ぬすむ",
+    "type": "五段他动词",
+    "meaning": "偷盗，盗窃。",
+    "example": "お$\\overset{かね}{金}$を$\\overset{ぬす}{盗}$んで$\\overset{に}{逃}$げたが、$\\overset{けいさつ}{警察}$に$\\overset{まい}{参}$った。/偷了钱逃跑，但被警察搞得走投无路（认输）。"
+  },
+  {
+    "word": "参る",
+    "kana": "まいる",
+    "type": "五段自动词",
+    "meaning": "去，来（「行く・来る」的谦让语）；认输，吃不消。",
+    "example": "$\\overset{まず}{貧}$しい$\\overset{むら}{村}$へ$\\overset{まい}{参}$り、めでたい$\\overset{ひ}{日}$を$\\overset{いわ}{祝}$う。/来到贫穷的村庄，庆祝喜庆的日子。"
+  },
+  {
+    "word": "貧しい",
+    "kana": "まずしい",
+    "type": "形容词",
+    "meaning": "贫穷的，贫乏的。",
+    "example": "$\\overset{まず}{貧}$しいが、めでたい$\\overset{ひ}{日}$にはやはり$\\overset{よろこ}{喜}$ぶ。/虽然贫穷，但在喜庆的日子果然还是很开心。"
+  },
+  {
+    "word": "めでたい",
+    "kana": "めでたい",
+    "type": "形容词",
+    "meaning": "可喜的，可贺的。",
+    "example": "めでたい$\\overset{ひ}{日}$に、やはり$\\overset{おんせん}{温泉}$が$\\overset{わ}{湧}$く。/在喜庆的日子里，果然温泉涌出了。"
+  },
+  {
+    "word": "やはり",
+    "kana": "やはり",
+    "type": "副词",
+    "meaning": "还是，果然。",
+    "example": "$\\overset{よる}{夜}$が$\\overset{あ}{明}$けると、やはりお$\\overset{ゆ}{湯}$が$\\overset{わ}{湧}$いている。/天一亮，果然水在沸腾着（涌出）。"
+  },
+  {
+    "word": "湧く",
+    "kana": "わく",
+    "type": "五段自动词",
+    "meaning": "涌出，涌现；（虫子等）滋生。",
+    "example": "$\\overset{よる}{夜}$が$\\overset{あ}{明}$けると、あるアイデアが$\\overset{わ}{湧}$く。/天亮后，涌现出了一个主意。"
+  },
+  {
+    "word": "明ける",
+    "kana": "あける",
+    "type": "一段自动词",
+    "meaning": "天亮；结束（指年、月、季节等过去）。",
+    "example": "$\\overset{とし}{年}$が$\\overset{あ}{明}$けて、ある$\\overset{けいかく}{計画}$はいかがですかと$\\overset{き}{聞}$く。/过了年，询问某个计划怎么样了。"
+  },
+  {
+    "word": "ある",
+    "kana": "ある",
+    "type": "连体词",
+    "meaning": "某，某个（修饰名词）。",
+    "example": "ある$\\overset{ひ}{日}$、いかがお$\\overset{す}{過}$ごしですかと$\\overset{てがみ}{手紙}$を$\\overset{だ}{出}$す。/某天，寄信问候您过得怎么样。"
+  },
+  {
+    "word": "いかが",
+    "kana": "いかが",
+    "type": "副词",
+    "meaning": "怎么样，如何（「どう」的礼貌说法）。",
+    "example": "「お$\\overset{ちゃ}{茶}$はいかがですか」「ええ、いただきます」/“喝点茶怎么样？”“好的，我喝。”"
+  },
+  {
+    "word": "奪う",
+    "kana": "うばう",
+    "type": "五段他动词",
+    "meaning": "夺取，抢走。",
+    "example": "ええ、$\\overset{かれ}{彼}$が$\\overset{さき}{先}$に$\\overset{にもつ}{荷物}$を$\\overset{うば}{奪}$って$\\overset{さ}{刺}$したのです。/是的，是他先抢了行李然后刺伤了人。"
+  },
+  {
+    "word": "ええ",
+    "kana": "ええ",
+    "type": "感叹词",
+    "meaning": "是，嗯（表示肯定或随声附和）。",
+    "example": "ええ、$\\overset{さき}{先}$に$\\overset{はり}{針}$で$\\overset{さ}{刺}$して$\\overset{ぬの}{布}$を$\\overset{ぬ}{縫}$います。/是的，先用针刺穿再缝布。"
+  },
+  {
+    "word": "先",
+    "kana": "さき",
+    "type": "名词",
+    "meaning": "前面，前方；将来。",
+    "example": "$\\overset{さき}{先}$に$\\overset{むし}{虫}$を$\\overset{さ}{刺}$して、その$\\overset{ば}{場}$を$\\overset{さ}{去}$る。/先刺了虫子，然后离开了那个地方。"
+  },
+  {
+    "word": "刺す",
+    "kana": "さす",
+    "type": "五段他动词",
+    "meaning": "刺，扎；叮咬。",
+    "example": "$\\overset{はり}{針}$で$\\overset{さ}{刺}$した$\\overset{あと}{後}$、$\\overset{いた}{痛}$みが$\\overset{さ}{去}$るのを$\\overset{ま}{待}$つ。/被针扎了之后，等待疼痛离去。"
+  },
+  {
+    "word": "去る",
+    "kana": "さる",
+    "type": "五段自他动词",
+    "meaning": "离开，离去；（时间）过去。",
+    "example": "$\\overset{たいふう}{台風}$が$\\overset{さ}{去}$って、そっと$\\overset{ふとん}{布団}$を$\\overset{し}{敷}$く。/台风过去后，悄悄地铺好被子。 || $\\overset{しょく}{職}$を$\\overset{さ}{去}$る。/离职。"
+  },
+  {
+    "word": "敷く",
+    "kana": "しく",
+    "type": "五段他动词",
+    "meaning": "铺，垫。",
+    "example": "そっと$\\overset{から}{空}$の$\\overset{へや}{部屋}$にカーペットを$\\overset{し}{敷}$く。/悄悄地在空房间里铺上地毯。"
+  },
+  {
+    "word": "そっと",
+    "kana": "そっと",
+    "type": "副词・サ变动词する自",
+    "meaning": "轻轻地，悄悄地。",
+    "example": "$\\overset{から}{空}$の$\\overset{はこ}{箱}$をそっと$\\overset{お}{置}$いて、$\\overset{た}{絶}$えず$\\overset{み}{見}$る。/悄悄地放下空箱子，然后不断地看着。 || $\\overset{ね}{寝}$ているからそっとしておく。/正在睡觉，所以不去打扰（保持安静）。"
+  },
+  {
+    "word": "空",
+    "kana": "から",
+    "type": "名词",
+    "meaning": "空，空虚。",
+    "example": "$\\overset{た}{絶}$えず$\\overset{から}{空}$の$\\overset{はこ}{箱}$を$\\overset{つめ}{爪}$で$\\overset{たた}{叩}$く。/不断地用指甲敲击空箱子。"
+  },
+  {
+    "word": "絶えず",
+    "kana": "たえず",
+    "type": "副词",
+    "meaning": "不断地，无休止地。",
+    "example": "$\\overset{た}{絶}$えず$\\overset{つめ}{爪}$を$\\overset{か}{噛}$んで、$\\overset{こころ}{心}$がどきどきする。/不停地咬指甲，心脏扑通扑通直跳。"
+  },
+  {
+    "word": "爪",
+    "kana": "つめ",
+    "type": "名词",
+    "meaning": "指甲，爪子。",
+    "example": "$\\overset{つめ}{爪}$を$\\overset{き}{切}$る$\\overset{とき}{時}$、なぜかどきどきして$\\overset{の}{野}$を$\\overset{み}{見}$る。/剪指甲的时候，不知为何心扑通扑通跳，看向原野。"
+  },
+  {
+    "word": "どきどき",
+    "kana": "どきどき",
+    "type": "副词・サ变动词する自",
+    "meaning": "心怦扑通扑通跳，七上八下。",
+    "example": "$\\overset{きんちょう}{緊張}$で$\\overset{しんぞう}{心臓}$がどきどきと$\\overset{な}{鳴}$る。/紧张得心脏扑通扑通直响。 || $\\overset{ひろ}{広}$い$\\overset{の}{野}$を$\\overset{はし}{走}$ってどきどきする。/在宽广的原野上奔跑，心跳加速。"
+  },
+  {
+    "word": "野",
+    "kana": "の",
+    "type": "名词",
+    "meaning": "原野，田野。",
+    "example": "$\\overset{の}{野}$で$\\overset{ふたた}{再}$び$\\overset{はり}{針}$とのりを$\\overset{さが}{探}$す。/在原野上再次寻找针和胶水。"
+  },
+  {
+    "word": "のり",
+    "kana": "のり",
+    "type": "名词",
+    "meaning": "浆糊，胶水；海苔。",
+    "example": "のりと$\\overset{はり}{針}$を$\\overset{つか}{使}$って、$\\overset{ふたた}{再}$び$\\overset{み}{実}$を$\\overset{つく}{作}$る。/使用胶水和针，再次制作果实（模型）。"
+  },
+  {
+    "word": "針",
+    "kana": "はり",
+    "type": "名词",
+    "meaning": "针，指针。",
+    "example": "$\\overset{ふたた}{再}$び$\\overset{とけい}{時計}$の$\\overset{はり}{針}$が$\\overset{うご}{動}$き、$\\overset{み}{実}$が$\\overset{おち}{落}$ちる。/钟表的指针再次走动，果实掉落了。"
+  },
+  {
+    "word": "再び",
+    "kana": "ふたたび",
+    "type": "副词",
+    "meaning": "再一次，重新。",
+    "example": "$\\overset{ふたた}{再}$び$\\overset{き}{木}$の$\\overset{み}{実}$を$\\overset{もと}{元}$の$\\overset{ばしょ}{場所}$に$\\overset{ゆず}{譲}$る。/再一次把树上的果实让给原来的地方。"
+  },
+  {
+    "word": "実",
+    "kana": "み",
+    "type": "名词",
+    "meaning": "果实，种子；内容。",
+    "example": "$\\overset{き}{木}$の$\\overset{み}{実}$を$\\overset{きつね}{狐}$に$\\overset{ゆず}{譲}$る。/把树上的果实让给狐狸。"
+  },
+  {
+    "word": "元",
+    "kana": "もと",
+    "type": "名词",
+    "meaning": "原来，原本；根源。",
+    "example": "$\\overset{もと}{元}$の$\\overset{ばしょ}{場所}$を$\\overset{きつね}{狐}$に$\\overset{ゆず}{譲}$るには$\\overset{こんき}{根気}$が$\\overset{い}{要}$る。/要把原来的地方让给狐狸，需要有耐心。"
+  },
+  {
+    "word": "譲る",
+    "kana": "ゆずる",
+    "type": "五段他动词",
+    "meaning": "让，让给；转让。",
+    "example": "$\\overset{きつね}{狐}$に$\\overset{せき}{席}$を$\\overset{ゆず}{譲}$り、$\\overset{こんき}{根気}$よく$\\overset{ま}{待}$つ。/把座位让给狐狸，然后耐心地等待。"
+  },
+  {
+    "word": "狐",
+    "kana": "きつね",
+    "type": "名词",
+    "meaning": "狐狸。",
+    "example": "$\\overset{きつね}{狐}$を$\\overset{つか}{捕}$まえるには$\\overset{こんき}{根気}$がずくめだ。/抓狐狸完全（净）靠耐心。"
+  },
+  {
+    "word": "根気",
+    "kana": "こんき",
+    "type": "名词",
+    "meaning": "耐心，毅力。",
+    "example": "いい$\\overset{こと}{事}$ずくめの$\\overset{けっか}{結果}$をぜひとも$\\overset{こんき}{根気}$よく$\\overset{ま}{待}$つ。/务必耐心地等待全是好事（清一色好事）的结果。"
+  },
+  {
+    "word": "ずくめ",
+    "kana": "ずくめ",
+    "type": "接尾词",
+    "meaning": "清一色，全是……（多用于好事或颜色）。",
+    "example": "$\\overset{くろ}{黒}$ずくめの$\\overset{ふく}{服}$とブーツでぜひとも$\\overset{で}{出}$かける。/务必要穿着一身黑衣服和靴子出门。"
+  },
+  {
+    "word": "ぜひとも",
+    "kana": "ぜひとも",
+    "type": "副词",
+    "meaning": "务必，一定。",
+    "example": "ぜひともそのブーツを$\\overset{は}{履}$いて、$\\overset{ほ}{吠}$える$\\overset{いぬ}{犬}$を$\\overset{み}{見}$に$\\overset{い}{行}$きたい。/务必要穿上那双靴子，去看那只狂吠的狗。"
+  },
+  {
+    "word": "ブーツ",
+    "kana": "ぶーつ",
+    "type": "名词",
+    "meaning": "长筒靴，靴子。",
+    "example": "$\\overset{あたら}{新}$しいブーツを$\\overset{は}{履}$いて、$\\overset{ほ}{吠}$える$\\overset{いぬ}{犬}$に$\\overset{ちか}{近}$づく。/穿上新靴子，靠近那只狂吠的狗。"
+  },
+  {
+    "word": "吠える",
+    "kana": "ほえる",
+    "type": "一段自动词",
+    "meaning": "狗叫，咆哮。",
+    "example": "ブーツの$\\overset{おと}{音}$を$\\overset{き}{聞}$いて、$\\overset{いぬ}{犬}$が$\\overset{はげ}{激}$しく$\\overset{ほ}{吠}$える。/听到靴子的声音，狗剧烈地叫了起来。"
+  },
+  {
+    "word": "挙げる",
+    "kana": "あげる",
+    "type": "一段他动词",
+    "meaning": "举起；列举。",
+    "example": "$\\overset{あね}{姉}$が$\\overset{て}{手}$を$\\overset{あ}{挙}$げて、$\\overset{あず}{預}$けた$\\overset{うま}{馬}$について$\\overset{かた}{語}$る。/姐姐举起手，讲述寄存的马的事情。"
+  },
+  {
+    "word": "預ける",
+    "kana": "あずける",
+    "type": "一段他动词",
+    "meaning": "寄存，存放，委托。",
+    "example": "$\\overset{あね}{姉}$に$\\overset{うま}{馬}$を$\\overset{あず}{預}$けて、$\\overset{いそ}{急}$いで$\\overset{しゅっぱつ}{出発}$する。/把马寄存给姐姐，然后急忙出发。"
+  },
+  {
+    "word": "姉",
+    "kana": "あね",
+    "type": "名词",
+    "meaning": "姐姐。",
+    "example": "$\\overset{あね}{姉}$は$\\overset{おこ}{怒}$りながら$\\overset{うた}{歌}$を$\\overset{うた}{歌}$って$\\overset{いそ}{急}$ぐ。/姐姐一边生着气一边唱着歌急忙赶路。"
+  },
+  {
+    "word": "急ぐ",
+    "kana": "いそぐ",
+    "type": "五段自动词",
+    "meaning": "急，赶快。",
+    "example": "おばさんに$\\overset{かぎ}{鍵}$を$\\overset{わた}{渡}$すために$\\overset{いそ}{急}$ぐ。/为了把钥匙交给阿姨而急忙赶路。"
+  },
+  {
+    "word": "歌",
+    "kana": "うた",
+    "type": "名词",
+    "meaning": "歌，歌曲。",
+    "example": "$\\overset{つら}{辛}$い$\\overset{とき}{時}$は$\\overset{かれ}{彼}$の$\\overset{うた}{歌}$を$\\overset{き}{聞}$いて$\\overset{かた}{語}$る。/痛苦的时候听着他的歌倾诉。"
+  },
+  {
+    "word": "馬",
+    "kana": "うま",
+    "type": "名词",
+    "meaning": "马。",
+    "example": "$\\overset{おこ}{怒}$った$\\overset{うま}{馬}$を$\\overset{あず}{預}$けて、$\\overset{かぎ}{鍵}$を$\\overset{も}{持}$って$\\overset{いそ}{急}$ぐ。/把发怒的马寄存好，带着钥匙急忙赶路。"
+  },
+  {
+    "word": "怒る",
+    "kana": "おこる",
+    "type": "五段自动词",
+    "meaning": "生气，发怒。",
+    "example": "$\\overset{かぎ}{鍵}$をなくして、おばさんがひどく$\\overset{おこ}{怒}$る。/弄丢了钥匙，阿姨大发雷霆。"
+  },
+  {
+    "word": "おばさん",
+    "kana": "おばさん",
+    "type": "名词",
+    "meaning": "阿姨，伯母，中年妇女。",
+    "example": "おばさんは$\\overset{つら}{辛}$い$\\overset{かこ}{過去}$を$\\overset{しず}{静}$かに$\\overset{かた}{語}$る。/阿姨平静地讲述着痛苦的过去。"
+  },
+  {
+    "word": "鍵",
+    "kana": "かぎ",
+    "type": "名词",
+    "meaning": "钥匙。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{くに}{国}$の$\\overset{かぎ}{鍵}$についてみんなに$\\overset{かた}{語}$る。/向大家讲述关于他那个国家的钥匙的事情。"
+  },
+  {
+    "word": "語る",
+    "kana": "かたる",
+    "type": "五段他动词",
+    "meaning": "讲述，谈论。",
+    "example": "$\\overset{かれ}{彼}$は$\\overset{つら}{辛}$い$\\overset{けいけん}{経験}$を$\\overset{しず}{静}$かに$\\overset{かた}{語}$る。/他平静地讲述着痛苦的经历。"
+  },
+  {
+    "word": "辛い",
+    "kana": "つらい",
+    "type": "形容词",
+    "meaning": "痛苦的，难受的（つらい）；辣的（からい）。",
+    "example": "$\\overset{から}{辛}$いものを$\\overset{た}{食}$べて$\\overset{かれ}{彼}$の$\\overset{くに}{国}$を$\\overset{おも}{思}$う。/吃着辣的东西，想起了他的国家。"
+  },
+  {
+    "word": "彼",
+    "kana": "かれ",
+    "type": "代词",
+    "meaning": "他；男朋友。",
+    "example": "$\\overset{かれ}{彼}$は$\\overset{こわ}{怖}$い$\\overset{かお}{顔}$で$\\overset{しろ}{白}$い$\\overset{はな}{花}$が$\\overset{さく}{咲}$くのを$\\overset{さ}{指}$す。/他沉着可怕的脸指着绽放的白花。"
+  },
+  {
+    "word": "国",
+    "kana": "くに",
+    "type": "名词",
+    "meaning": "国家，故乡。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{くに}{国}$では、$\\overset{すこ}{少}$ない$\\overset{せん}{千}$のゴミを$\\overset{すて}{捨}$る。/在他的国家，扔掉很少的一千个垃圾。"
+  },
+  {
+    "word": "怖い",
+    "kana": "こわい",
+    "type": "形容词",
+    "meaning": "可怕的，害怕的。",
+    "example": "$\\overset{こわ}{怖}$い$\\overset{かお}{顔}$をして$\\overset{しろ}{白}$い$\\overset{はな}{花}$が$\\overset{さく}{咲}$く$\\overset{ところ}{所}$を$\\overset{さ}{指}$す。/沉着可怕的脸指着白花绽放的地方。"
+  },
+  {
+    "word": "咲く",
+    "kana": "さく",
+    "type": "五段自动词",
+    "meaning": "开花。",
+    "example": "$\\overset{しろ}{白}$い$\\overset{はな}{花}$が$\\overset{さく}{咲}$くのを$\\overset{み}{見}$て、$\\overset{たか}{高}$い$\\overset{こえ}{声}$を$\\overset{だ}{出}$す。/看着白花绽放，发出了很高的声音。"
+  },
+  {
+    "word": "指す",
+    "kana": "さす",
+    "type": "五段他动词",
+    "meaning": "指，指向。",
+    "example": "$\\overset{ただ}{正}$しい$\\overset{ほうこう}{方向}$を$\\overset{さ}{指}$して、$\\overset{せん}{千}$の$\\overset{とり}{鳥}$を$\\overset{かぞ}{数}$える。/指着正确的方向，数着一千只鸟。"
+  },
+  {
+    "word": "白い",
+    "kana": "しろい",
+    "type": "形容词",
+    "meaning": "白色的。",
+    "example": "$\\overset{すこ}{少}$ない$\\overset{しろ}{白}$い$\\overset{かみ}{紙}$を$\\overset{すて}{捨}$て、$\\overset{たか}{高}$い$\\overset{ところ}{所}$へ$\\overset{い}{行}$く。/扔掉为数不多的白纸，去高处。"
+  },
+  {
+    "word": "少ない",
+    "kana": "すくない",
+    "type": "形容词",
+    "meaning": "少的。",
+    "example": "$\\overset{ひと}{人}$が$\\overset{すこ}{少}$ない$\\overset{ところ}{所}$で$\\overset{ただ}{正}$しい$\\overset{みち}{道}$を$\\overset{さ}{指}$す。/在人少的地方指明正确的道路。"
+  },
+  {
+    "word": "捨てる",
+    "kana": "すてる",
+    "type": "一段他动词",
+    "meaning": "扔，丢弃。",
+    "example": "$\\overset{せん}{千}$のゴミを$\\overset{すて}{捨}$て、$\\overset{たか}{高}$い$\\overset{やま}{山}$へ$\\overset{い}{行}$く。/扔掉一千个垃圾，去高山。"
+  },
+  {
+    "word": "千",
+    "kana": "せん",
+    "type": "名词",
+    "meaning": "千。",
+    "example": "$\\overset{たか}{高}$い$\\overset{ところ}{所}$から$\\overset{せん}{千}$の$\\overset{とり}{鳥}$を$\\overset{み}{見}$て$\\overset{ただ}{正}$しいと$\\overset{わ}{分}$かる。/从高处看一千只鸟，知道是正确的。"
+  },
+  {
+    "word": "高い",
+    "kana": "たかい",
+    "type": "形容词",
+    "meaning": "高的；贵的。",
+    "example": "$\\overset{たか}{高}$い$\\overset{ところ}{所}$から$\\overset{つぎ}{次}$の$\\overset{とり}{鳥}$を$\\overset{さ}{指}$す。/从高处指向下一只鸟。"
+  },
+  {
+    "word": "正しい",
+    "kana": "ただしい",
+    "type": "形容词",
+    "meaning": "正确的。",
+    "example": "$\\overset{ちち}{父}$が$\\overset{ただ}{正}$しい$\\overset{ほうこう}{方法}$で$\\overset{つめ}{冷}$たいものを$\\overset{た}{食}$べる。/父亲用正确的方法吃凉的东西。"
+  },
+  {
+    "word": "食べる",
+    "kana": "たべる",
+    "type": "一段他动词",
+    "meaning": "吃。",
+    "example": "$\\overset{ちち}{父}$と$\\overset{つぎ}{次}$の$\\overset{ところ}{所}$で$\\overset{つめ}{冷}$たいものを$\\overset{た}{食}$べる。/和父亲在下一个地方吃凉的东西。"
+  },
+  {
+    "word": "父",
+    "kana": "ちち",
+    "type": "名词",
+    "meaning": "父亲。",
+    "example": "$\\overset{ちち}{父}$はどうやって$\\overset{つぎ}{次}$の$\\overset{ところ}{所}$へ$\\overset{とり}{鳥}$を$\\overset{はこ}{運}$ぶか$\\overset{かんが}{考}$える。/父亲思考着怎么把鸟运到下一个地方。"
+  },
+  {
+    "word": "次",
+    "kana": "つぎ",
+    "type": "名词",
+    "meaning": "下一个，其次。",
+    "example": "$\\overset{つぎ}{次}$の$\\overset{なつ}{夏}$、$\\overset{にぎ}{賑}$やかな$\\overset{ひろば}{広場}$にテントを$\\overset{は}{張}$る。/下一个夏天，在热闹的广场上搭帐篷。"
+  },
+  {
+    "word": "冷たい",
+    "kana": "つめたい",
+    "type": "形容词",
+    "meaning": "凉的，冰冷的；冷淡的。",
+    "example": "$\\overset{つめ}{冷}$たい$\\overset{みず}{水}$を$\\overset{とり}{鳥}$に$\\overset{あた}{与}$えて、どうするか$\\overset{かんが}{考}$える。/给鸟喝凉水，然后思考该怎么办。"
+  },
+  {
+    "word": "どう",
+    "kana": "どう",
+    "type": "副词",
+    "meaning": "怎样，如何。",
+    "example": "この$\\overset{にぎ}{賑}$やかな$\\overset{ところ}{所}$でどうやって$\\overset{にもつ}{荷物}$を$\\overset{はこ}{運}$ぶか。/在这个热闹的地方该怎么搬运行李呢。"
+  },
+  {
+    "word": "所",
+    "kana": "ところ",
+    "type": "名词",
+    "meaning": "地方，处所。",
+    "example": "$\\overset{つぎ}{次}$の$\\overset{ところ}{所}$は$\\overset{なつ}{夏}$になると$\\overset{にぎ}{賑}$やかな$\\overset{ひろば}{広場}$になる。/下一个地方一到夏天就会变成热闹的广场。"
+  },
+  {
+    "word": "鳥",
+    "kana": "とり",
+    "type": "名词",
+    "meaning": "鸟。",
+    "example": "$\\overset{なつ}{夏}$の$\\overset{ひろば}{広場}$で$\\overset{とり}{鳥}$が$\\overset{ふと}{太}$い$\\overset{き}{木}$に$\\overset{とま}{止}$る。/在夏天的广场上，鸟停在粗壮的树上。"
+  },
+  {
+    "word": "夏",
+    "kana": "なつ",
+    "type": "名词",
+    "meaning": "夏天。",
+    "example": "$\\overset{なつ}{夏}$の$\\overset{にぎ}{賑}$やかな$\\overset{へや}{部屋}$に$\\overset{ふと}{太}$い$\\overset{いと}{糸}$を$\\overset{は}{張}$る。/在夏天热闹的房间里拉起粗线。"
+  },
+  {
+    "word": "賑やか",
+    "kana": "にぎやか",
+    "type": "形动",
+    "meaning": "热闹，繁华。",
+    "example": "$\\overset{にぎ}{賑}$やかな$\\overset{ひろば}{広場}$で$\\overset{ふと}{太}$い$\\overset{はしら}{柱}$を$\\overset{はこ}{運}$ぶ。/在热闹的广场上搬运粗壮的柱子。"
+  },
+  {
+    "word": "運ぶ",
+    "kana": "はこぶ",
+    "type": "五段他动词",
+    "meaning": "搬运，运送。",
+    "example": "$\\overset{にもつ}{荷物}$を$\\overset{ひろば}{広場}$から$\\overset{へや}{部屋}$へ$\\overset{はこ}{運}$んで$\\overset{は}{張}$る。/把行李从广场搬到房间里并拉紧。"
+  },
+  {
+    "word": "張る",
+    "kana": "はる",
+    "type": "五段自他动词",
+    "meaning": "拉紧，张开（他）；结冰（自）。",
+    "example": "$\\overset{へや}{部屋}$に$\\overset{ふと}{太}$い$\\overset{いと}{糸}$を$\\overset{は}{張}$る。/在房间里拉起粗线。 || $\\overset{ふゆ}{冬}$になると$\\overset{いけ}{池}$に$\\overset{こおり}{氷}$が$\\overset{は}{張}$る。/一到冬天池塘就结冰。"
+  },
+  {
+    "word": "広場",
+    "kana": "ひろば",
+    "type": "名词",
+    "meaning": "广场。",
+    "example": "$\\overset{ひろば}{広場}$の$\\overset{まえ}{前}$で$\\overset{ふと}{太}$い$\\overset{なわ}{縄}$を$\\overset{は}{張}$り、$\\overset{ふく}{服}$を$\\overset{ほ}{干}$す。/在广场前面拉起粗绳，晾晒衣服。"
+  },
+  {
+    "word": "太い",
+    "kana": "ふとい",
+    "type": "形容词",
+    "meaning": "粗的，胖的。",
+    "example": "$\\overset{へや}{部屋}$の$\\overset{まえ}{前}$に$\\overset{ふと}{太}$い$\\overset{き}{木}$があり、そこで$\\overset{ふく}{服}$を$\\overset{ほ}{干}$す。/房间前面有一棵粗壮的树，在那里晾衣服。"
+  },
+  {
+    "word": "部屋",
+    "kana": "へや",
+    "type": "名词",
+    "meaning": "房间。",
+    "example": "$\\overset{へや}{部屋}$で$\\overset{ふく}{服}$を$\\overset{ほ}{干}$して、$\\overset{まえ}{前}$の$\\overset{しっぱい}{失敗}$から$\\overset{まな}{学}$ぶ。/在房间里晾衣服，从以前的失败中学习。"
+  },
+  {
+    "word": "干す",
+    "kana": "ほす",
+    "type": "五段他动词",
+    "meaning": "晾干，晒干。",
+    "example": "$\\overset{へや}{部屋}$の$\\overset{まえ}{前}$で$\\overset{ふく}{服}$を$\\overset{ほ}{干}$し、みなさんともう$\\overset{いち}{一}$$\\overset{ど}{度}$$\\overset{まな}{学}$ぶ。/在房间前面晾衣服，和大家再学一次。"
+  },
+  {
+    "word": "前",
+    "kana": "まえ",
+    "type": "名词",
+    "meaning": "前面，以前。",
+    "example": "$\\overset{やま}{山}$の$\\overset{まえ}{前}$でみなさんと$\\overset{いっしょ}{一緒}$に$\\overset{や}{焼}$きそばを$\\overset{た}{食}$べる。/在山的前面和大家一起吃炒面。"
+  },
+  {
+    "word": "学ぶ",
+    "kana": "まなぶ",
+    "type": "五段他动词",
+    "meaning": "学习。",
+    "example": "みなさんと$\\overset{いっしょ}{一緒}$に$\\overset{ゆた}{豊}$かな$\\overset{やま}{山}$で$\\overset{いね}{稲}$の$\\overset{つく}{作}$り$\\overset{かた}{方}$を$\\overset{まな}{学}$ぶ。/和大家一起在物产丰饶的山里学习种稻子的方法。"
+  },
+  {
+    "word": "みなさん",
+    "kana": "みなさん",
+    "type": "代词",
+    "meaning": "大家，各位。",
+    "example": "みなさん、もうすぐ$\\overset{ゆた}{豊}$かな$\\overset{やま}{山}$で$\\overset{ゆ}{茹}$でた$\\overset{や}{焼}$きそばを$\\overset{た}{食}$べます。/大家，马上就要在物产丰饶的山里吃煮好的炒面了。"
+  },
+  {
+    "word": "もう",
+    "kana": "もう",
+    "type": "副词",
+    "meaning": "已经；再，还。",
+    "example": "もう$\\overset{やま}{山}$の$\\overset{まえ}{前}$で$\\overset{や}{焼}$きそばを$\\overset{ゆ}{茹}$でて$\\overset{た}{食}$べた。/已经在山的前面煮了炒面吃了。"
+  },
+  {
+    "word": "焼きそば",
+    "kana": "やきそば",
+    "type": "名词",
+    "meaning": "炒面。",
+    "example": "$\\overset{ゆた}{豊}$かな$\\overset{やま}{山}$で$\\overset{ゆ}{茹}$でた$\\overset{や}{焼}$きそばを$\\overset{いわ}{岩}$の$\\overset{うえ}{上}$に$\\overset{お}{置}$く。/在物产丰饶的山里，把煮好的炒面放在岩石上。"
+  },
+  {
+    "word": "山",
+    "kana": "やま",
+    "type": "名词",
+    "meaning": "山。",
+    "example": "$\\overset{ゆた}{豊}$かな$\\overset{やま}{山}$の$\\overset{いわ}{岩}$の$\\overset{まえ}{前}$で$\\overset{えがお}{笑顔}$を$\\overset{み}{見}$せる。/在丰饶的山里的岩石前露出笑容。"
+  },
+  {
+    "word": "豊か",
+    "kana": "ゆたか",
+    "type": "形动",
+    "meaning": "丰富，富裕。",
+    "example": "$\\overset{ゆた}{豊}$かな$\\overset{いね}{稲}$の$\\overset{はたけ}{畑}$で$\\overset{えがお}{笑顔}$で$\\overset{まな}{学}$ぶ。/在丰收的稻田里带着笑容学习。"
+  },
+  {
+    "word": "茹でる",
+    "kana": "ゆでる",
+    "type": "一段他动词",
+    "meaning": "煮，烫。",
+    "example": "$\\overset{ゆ}{茹}$でた$\\overset{めん}{麺}$で$\\overset{や}{焼}$きそばを$\\overset{つく}{作}$り、$\\overset{えがお}{笑顔}$になる。/用煮好的面做炒面，露出了笑容。"
+  },
+  {
+    "word": "稲",
+    "kana": "いね",
+    "type": "名词",
+    "meaning": "水稻，稻子。",
+    "example": "$\\overset{いわ}{岩}$の$\\overset{ちか}{近}$くの$\\overset{いね}{稲}$を$\\overset{み}{見}$て、$\\overset{おそ}{恐}$ろしい$\\overset{きり}{霧}$の$\\overset{なか}{中}$で$\\overset{えがお}{笑顔}$になる。/看着岩石附近的水稻，在可怕的雾中露出了笑容。"
+  },
+  {
+    "word": "岩",
+    "kana": "いわ",
+    "type": "名词",
+    "meaning": "岩石。",
+    "example": "$\\overset{おそ}{恐}$ろしい$\\overset{いわ}{岩}$の$\\overset{まえ}{前}$で$\\overset{かしこ}{賢}$い$\\overset{いぬ}{犬}$を$\\overset{きた}{鍛}$える。/在可怕的岩石前锻炼聪明的狗。"
+  },
+  {
+    "word": "笑顔",
+    "kana": "えがお",
+    "type": "名词",
+    "meaning": "笑容。",
+    "example": "$\\overset{おそ}{恐}$ろしい$\\overset{きり}{霧}$の$\\overset{なか}{中}$でも$\\overset{えがお}{笑顔}$を$\\overset{く}{繰}$り$\\overset{かえ}{返}$す。/即使在可怕的雾中也屡次露出笑容。"
+  },
+  {
+    "word": "恐ろしい",
+    "kana": "おそろしい",
+    "type": "形容词",
+    "meaning": "可怕的。",
+    "example": "$\\overset{おそ}{恐}$ろしい$\\overset{きり}{霧}$と$\\overset{けむり}{煙}$の$\\overset{なか}{中}$で$\\overset{からだ}{体}$を$\\overset{きた}{鍛}$える$\\overset{かしこ}{賢}$い$\\overset{ひと}{人}$。/在可怕的雾和烟中锻炼身体的聪明人。"
+  },
+  {
+    "word": "賢い",
+    "kana": "かしこい",
+    "type": "形容词",
+    "meaning": "聪明的。",
+    "example": "$\\overset{かしこ}{賢}$い$\\overset{かれ}{彼}$は$\\overset{おそ}{恐}$ろしい$\\overset{さそ}{誘}$いを$\\overset{く}{繰}$り$\\overset{かえ}{返}$し$\\overset{ことわ}{断}$る。/聪明的他一再拒绝可怕的邀请。"
+  },
+  {
+    "word": "鍛える",
+    "kana": "きたえる",
+    "type": "一段他动词",
+    "meaning": "锻炼。",
+    "example": "$\\overset{かしこ}{賢}$く$\\overset{からだ}{体}$を$\\overset{きた}{鍛}$えて、$\\overset{しげ}{茂}$る$\\overset{やま}{山}$をしばらく$\\overset{なが}{眺}$める。/聪明地锻炼身体，然后凝视了一会儿繁茂的山。"
+  },
+  {
+    "word": "霧",
+    "kana": "きり",
+    "type": "名词",
+    "meaning": "雾。",
+    "example": "$\\overset{きり}{霧}$と$\\overset{けむり}{煙}$が$\\overset{く}{繰}$り$\\overset{かえ}{返}$し$\\overset{はっせい}{発生}$する$\\overset{やま}{山}$を$\\overset{ことわ}{断}$る。/拒绝去那座反复产生雾和烟的山。"
+  },
+  {
+    "word": "繰り返す",
+    "kana": "くりかえす",
+    "type": "五段他动词",
+    "meaning": "反复，重复。",
+    "example": "しばらく$\\overset{けむり}{煙}$の$\\overset{なか}{中}$で$\\overset{おな}{同}$じ$\\overset{さぎょう}{作業}$を$\\overset{く}{繰}$り$\\overset{かえ}{返}$す。/在烟雾中暂时重复着相同的作业。"
+  },
+  {
+    "word": "煙",
+    "kana": "けむり",
+    "type": "名词",
+    "meaning": "烟。",
+    "example": "$\\overset{けむり}{煙}$を$\\overset{ことわ}{断}$って、$\\overset{くさ}{草}$が$\\overset{しげ}{茂}$る$\\overset{にわ}{庭}$を$\\overset{なが}{眺}$める。/拒绝烟味，眺望草木繁茂的庭院。"
+  },
+  {
+    "word": "断る",
+    "kana": "ことわる",
+    "type": "五段他动词",
+    "meaning": "拒绝；事先说明。",
+    "example": "$\\overset{たなばた}{七夕}$の$\\overset{さそ}{誘}$いをしばらく$\\overset{ことわ}{断}$り、のんびり$\\overset{なが}{眺}$める。/暂时拒绝七夕的邀请，悠闲地眺望。"
+  },
+  {
+    "word": "茂る",
+    "kana": "しげる",
+    "type": "五段自动词",
+    "meaning": "繁茂。",
+    "example": "$\\overset{しげ}{茂}$る$\\overset{き}{木}$の$\\overset{した}{下}$でしばらくのんびり$\\overset{なが}{眺}$める。/在繁茂的树下暂时悠闲地眺望。"
+  },
+  {
+    "word": "しばらく",
+    "kana": "しばらく",
+    "type": "副词",
+    "meaning": "暂时，一会儿；许久。",
+    "example": "$\\overset{たなばた}{七夕}$の$\\overset{よる}{夜}$、しばらく$\\overset{なめ}{滑}$らかな$\\overset{ほし}{星}$を$\\overset{なが}{眺}$める。/七夕的夜晚，暂时凝视着柔和闪烁的星星。"
+  },
+  {
+    "word": "七夕",
+    "kana": "たなばた",
+    "type": "名词",
+    "meaning": "七夕。",
+    "example": "$\\overset{たなばた}{七夕}$に$\\overset{のき}{軒}$の$\\overset{した}{下}$でのんびりと$\\overset{なめ}{滑}$らかな$\\overset{たんざく}{短冊}$を$\\overset{むす}{結}$ぶ。/七夕时在屋檐下悠闲地系上光滑的书签。"
+  },
+  {
+    "word": "眺める",
+    "kana": "ながめる",
+    "type": "一段他动词",
+    "meaning": "眺望，凝视。",
+    "example": "しばらく$\\overset{のき}{軒}$の$\\overset{した}{下}$からのんびりと$\\overset{たなばた}{七夕}$の$\\overset{ほし}{星}$を$\\overset{なが}{眺}$める。/暂时在屋檐下悠闲地眺望七夕的星星。"
+  },
+  {
+    "word": "滑らか",
+    "kana": "なめらか",
+    "type": "形动",
+    "meaning": "光滑，平滑；流利。",
+    "example": "$\\overset{なめ}{滑}$らかな$\\overset{ぬの}{布}$を$\\overset{むす}{結}$んで、のんびりと$\\overset{のき}{軒}$を$\\overset{み}{見}$る。/系上光滑的布，悠闲地看着屋檐。"
+  },
+  {
+    "word": "軒",
+    "kana": "のき",
+    "type": "名词",
+    "meaning": "屋檐。",
+    "example": "$\\overset{のき}{軒}$に$\\overset{たんざく}{短冊}$を$\\overset{むす}{結}$び、のんびり$\\overset{なが}{眺}$める。/在屋檐下系上书签，悠闲地眺望。"
+  },
+  {
+    "word": "のんびり",
+    "kana": "のんびり",
+    "type": "副词・サ变动词する自",
+    "meaning": "悠闲自在。",
+    "example": "$\\overset{のき}{軒}$の$\\overset{した}{下}$でのんびりと$\\overset{やす}{休}$む。/在屋檐下悠闲地休息。 || $\\overset{たなばた}{七夕}$の$\\overset{よる}{夜}$はのんびりする。/七夕的夜晚悠闲自在。"
+  },
+  {
+    "word": "ますます",
+    "kana": "ますます",
+    "type": "副词",
+    "meaning": "越发，更加。",
+    "example": "ますますあちこちで$\\overset{あやま}{誤}$りを$\\overset{もと}{求}$める。/越发在到处寻找错误。"
+  },
+  {
+    "word": "結ぶ",
+    "kana": "むすぶ",
+    "type": "五段他动词",
+    "meaning": "系，结；连接。",
+    "example": "$\\overset{いき}{息}$を$\\overset{お}{負}$って、ますます$\\overset{つよ}{強}$く$\\overset{いと}{糸}$を$\\overset{むす}{結}$ぶ。/喘着粗气（肩负着呼吸），越发用力地系紧线。"
+  },
+  {
+    "word": "求める",
+    "kana": "もとめる",
+    "type": "一段他动词",
+    "meaning": "寻找，追求；要求。",
+    "example": "$\\overset{かぞく}{家族}$を$\\overset{やしな}{養}$うために、あちこちで$\\overset{しごと}{仕事}$を$\\overset{もと}{求}$める。/为了养活家人，在到处寻找工作。"
+  },
+  {
+    "word": "養う",
+    "kana": "やしなう",
+    "type": "五段他动词",
+    "meaning": "养活，抚养；培养。",
+    "example": "$\\overset{おば}{叔母}$が$\\overset{あやま}{誤}$りを$\\overset{ゆる}{許}$し、$\\overset{いき}{息}$をついて$\\overset{かぞく}{家族}$を$\\overset{やしな}{養}$う。/伯母原谅了错误，叹了口气养活家人。"
+  },
+  {
+    "word": "あちこち",
+    "kana": "あちこち",
+    "type": "代词・副词",
+    "meaning": "到处，处处。",
+    "example": "あちこちで$\\overset{あやま}{誤}$りを$\\overset{さが}{探}$し、あるいは$\\overset{いき}{息}$をつく。/到处寻找错误，或者叹气。"
+  },
+  {
+    "word": "誤り",
+    "kana": "あやまり",
+    "type": "名词",
+    "meaning": "错误，过失。",
+    "example": "$\\overset{あやま}{誤}$りを$\\overset{お}{負}$って、あるいはおばさんに$\\overset{かま}{構}$う。/背负着错误，或者去照顾阿姨。"
+  },
+  {
+    "word": "あるいは",
+    "kana": "あるいは",
+    "type": "接续词・副词",
+    "meaning": "或者（接续）；也许，可能（副词）。",
+    "example": "$\\overset{いき}{息}$をするか、あるいは$\\overset{せきにん}{責任}$を$\\overset{お}{負}$うか。/是呼吸（喘息），还是背负责任。 || $\\overset{かれ}{彼}$はあるいは$\\overset{こ}{来}$ないかもしれない。/他也许多半不会来了。"
+  },
+  {
+    "word": "息",
+    "kana": "いき",
+    "type": "名词",
+    "meaning": "呼吸，气息。",
+    "example": "$\\overset{おも}{重}$い$\\overset{けが}{怪我}$を$\\overset{お}{負}$って、$\\overset{いき}{息}$も$\\overset{た}{絶}$え$\\overset{だ}{絶}$えだ。/受了重伤，奄奄一息。"
+  },
+  {
+    "word": "負う",
+    "kana": "おう",
+    "type": "五段他动词",
+    "meaning": "背负，承担；蒙受（伤等）。",
+    "example": "$\\overset{おば}{叔母}$の$\\overset{か}{代}$わりに$\\overset{せきにん}{責任}$を$\\overset{お}{負}$い、$\\overset{かま}{構}$う。/代替伯母背负责任，并去照顾。"
+  },
+  {
+    "word": "叔母・伯母",
+    "kana": "おば",
+    "type": "名词",
+    "meaning": "阿姨，伯母，姑母。",
+    "example": "$\\overset{おば}{叔母}$は$\\overset{さる}{猿}$を$\\overset{こわ}{怖}$がることおよび$\\overset{かま}{構}$うことをやめた。/伯母停止了害怕猴子以及照顾猴子这件事。"
+  },
+  {
+    "word": "および",
+    "kana": "および",
+    "type": "接续词",
+    "meaning": "以及，和。",
+    "example": "$\\overset{おば}{叔母}$および$\\overset{さる}{猿}$の$\\overset{か}{代}$わりに$\\overset{ふね}{船}$を$\\overset{こ}{漕}$ぐ。/代替伯母和猴子划船。"
+  },
+  {
+    "word": "構う",
+    "kana": "かまう",
+    "type": "五段自他动词",
+    "meaning": "介意，在乎（自）；照顾，管（他）。",
+    "example": "$\\overset{たにん}{他人}$の$\\overset{め}{目}$に$\\overset{かま}{構}$わず$\\overset{さる}{猿}$の$\\overset{か}{代}$わりをする。/不在乎别人的目光去代替猴子。 || $\\overset{いぬ}{犬}$より$\\overset{さる}{猿}$を$\\overset{かま}{構}$う。/比起狗，更愿意逗弄（照顾）猴子。"
+  },
+  {
+    "word": "がる",
+    "kana": "がる",
+    "type": "接尾词",
+    "meaning": "觉得……，感到……（接在表示感情的形容词/形动词干后，表示第三人称的情感表露）。",
+    "example": "$\\overset{さる}{猿}$を$\\overset{こわ}{怖}$がって、あるいは$\\overset{かま}{構}$うのを$\\overset{さ}{避}$ける。/觉得猴子可怕，或者避开去照顾它。"
+  },
+  {
+    "word": "代わり",
+    "kana": "かわり",
+    "type": "名词",
+    "meaning": "代替，代理。",
+    "example": "$\\overset{おば}{叔母}$の$\\overset{か}{代}$わりに$\\overset{さる}{猿}$を$\\overset{み}{見}$て、ボートを$\\overset{こ}{漕}$ぐ。/代替伯母看猴子，然后划小船。"
+  },
+  {
+    "word": "漕ぐ",
+    "kana": "こぐ",
+    "type": "五段他动词",
+    "meaning": "划（船）；踩，蹬（自行车）。",
+    "example": "$\\overset{さる}{猿}$がボートを$\\overset{こ}{漕}$ぐのを$\\overset{み}{見}$て$\\overset{おもしろ}{面白}$がる。/看着猴子划船，觉得很有趣。"
+  },
+  {
+    "word": "ごとに",
+    "kana": "ごとに",
+    "type": "接尾词",
+    "meaning": "每，每隔。",
+    "example": "$\\overset{いち}{一}$$\\overset{じかん}{時間}$ごとに$\\overset{こうたい}{交替}$してボートを$\\overset{こ}{漕}$ぐ。/每隔一小时轮换划船。"
+  },
+  {
+    "word": "猿",
+    "kana": "さる",
+    "type": "名词",
+    "meaning": "猴子。",
+    "example": "$\\overset{さる}{猿}$を$\\overset{み}{見}$るごとに、$\\overset{とき}{時}$が$\\overset{た}{経}$つのを$\\overset{わす}{忘}$れる。/每次看到猴子，就会忘记时间的流逝。"
+  },
+  {
+    "word": "時",
+    "kana": "とき",
+    "type": "名词",
+    "meaning": "时间，时候。",
+    "example": "$\\overset{とき}{時}$が$\\overset{た}{経}$つと、すると$\\overset{そで}{袖}$に$\\overset{たよ}{便}$りが$\\overset{とど}{届}$いた。/随着时间流逝，接着袖子里收到了信件。"
+  },
+  {
+    "word": "すると",
+    "kana": "すると",
+    "type": "接续词",
+    "meaning": "于是，接着。",
+    "example": "$\\overset{あみ}{網}$を$\\overset{な}{投}$げた。すると、$\\overset{みな}{皆}$が$\\overset{はくしゅ}{拍手}$した。/扔出了网。于是，大家都鼓掌了。"
+  },
+  {
+    "word": "袖",
+    "kana": "そで",
+    "type": "名词",
+    "meaning": "袖子。",
+    "example": "$\\overset{そで}{袖}$の$\\overset{ぬの}{布}$に$\\overset{たよ}{便}$りを$\\overset{い}{入}$れて$\\overset{はた}{旗}$を$\\overset{ふ}{振}$る。/把信件放进袖子的布里，挥舞旗帜。"
+  },
+  {
+    "word": "便り",
+    "kana": "たより",
+    "type": "名词",
+    "meaning": "信件，消息。",
+    "example": "$\\overset{みな}{皆}$から$\\overset{たよ}{便}$りが$\\overset{とど}{届}$き、すると$\\overset{しんり}{真理}$が$\\overset{わ}{分}$かった。/收到了大家的信件，于是明白了真理。"
+  },
+  {
+    "word": "網",
+    "kana": "あみ",
+    "type": "名词",
+    "meaning": "网。",
+    "example": "$\\overset{あみ}{網}$で$\\overset{はね}{羽}$のある$\\overset{とり}{鳥}$を$\\overset{とら}{捕}$え、$\\overset{みな}{皆}$が$\\overset{はくしゅ}{拍手}$する。/用网抓住了有羽毛的鸟，大家都在鼓掌。"
+  },
+  {
+    "word": "布",
+    "kana": "ぬの",
+    "type": "名词",
+    "meaning": "布，布料。",
+    "example": "$\\overset{なめ}{滑}$らかな$\\overset{ぬの}{布}$で$\\overset{はた}{旗}$と$\\overset{そで}{袖}$を$\\overset{お}{織}$る。/用光滑的布编织旗帜和袖子。"
+  },
+  {
+    "word": "旗",
+    "kana": "はた",
+    "type": "名词",
+    "meaning": "旗帜。",
+    "example": "$\\overset{はた}{旗}$を$\\overset{ふ}{振}$りながら$\\overset{けっこんしき}{結婚式}$で$\\overset{みな}{皆}$と$\\overset{はくしゅ}{拍手}$する。/在婚礼上一边挥舞旗帜一边和大家一起鼓掌。"
+  },
+  {
+    "word": "羽",
+    "kana": "はね",
+    "type": "名词",
+    "meaning": "羽毛，翅膀。",
+    "example": "$\\overset{はね}{羽}$を$\\overset{も}{持}$つ$\\overset{とり}{鳥}$の$\\overset{み}{身}$になって$\\overset{しんり}{真理}$を$\\overset{もと}{求}$める。/设身处地站在有翅膀的鸟的立场上寻求真理。"
+  },
+  {
+    "word": "ひげ",
+    "kana": "ひげ",
+    "type": "名词",
+    "meaning": "胡须。",
+    "example": "ひげを$\\overset{そ}{剃}$って、$\\overset{み}{身}$を$\\overset{きよ}{清}$めて$\\overset{けっこんしき}{結婚式}$に$\\overset{で}{出}$る。/剃掉胡须，净身参加婚礼。"
+  },
+  {
+    "word": "身",
+    "kana": "み",
+    "type": "名词",
+    "meaning": "身体；自身，身份。",
+    "example": "$\\overset{みな}{皆}$の$\\overset{み}{身}$になって$\\overset{わけ}{訳}$を$\\overset{かんが}{考}$える。/设身处地站在大家的立场上思考缘由。"
+  },
+  {
+    "word": "皆",
+    "kana": "みな",
+    "type": "代词・副词",
+    "meaning": "大家，所有人；全，都。",
+    "example": "$\\overset{みな}{皆}$が$\\overset{どうりで}{道理で}$$\\overset{かれ}{彼}$を$\\overset{ひょうか}{評価}$する$\\overset{わけ}{訳}$だ。/怪不得大家都会评价他的缘故啊。"
+  },
+  {
+    "word": "依る",
+    "kana": "よる",
+    "type": "五段自动词",
+    "meaning": "依赖，根据。",
+    "example": "$\\overset{みな}{皆}$の$\\overset{ひょうか}{評価}$に$\\overset{よ}{依}$ると、その$\\overset{しんり}{真理}$は$\\overset{ただ}{正}$しい。/根据大家的评价来看，那个真理是正确的。"
+  },
+  {
+    "word": "訳",
+    "kana": "わけ",
+    "type": "名词",
+    "meaning": "缘故，理由；意思。",
+    "example": "$\\overset{どうりで}{道理で}$$\\overset{みな}{皆}$が$\\overset{はくしゅ}{拍手}$する$\\overset{わけ}{訳}$だ。/怪不得大家都在鼓掌呢。"
+  },
+  {
+    "word": "織る",
+    "kana": "おる",
+    "type": "五段他动词",
+    "meaning": "编织。",
+    "example": "$\\overset{ぬの}{布}$を$\\overset{お}{織}$って、$\\overset{けっこんしき}{結婚式}$の$\\overset{はた}{旗}$を$\\overset{つく}{作}$る。/织布，制作婚礼的旗帜。"
+  },
+  {
+    "word": "結婚式",
+    "kana": "けっこんしき",
+    "type": "名词",
+    "meaning": "结婚典礼。",
+    "example": "$\\overset{けっこんしき}{結婚式}$の$\\overset{さそ}{誘}$いを$\\overset{う}{受}$けて、ひげを$\\overset{そ}{剃}$る。/接到了婚礼的邀请，剃掉胡须。"
+  },
+  {
+    "word": "誘い",
+    "kana": "さそい",
+    "type": "名词",
+    "meaning": "邀请，诱惑。",
+    "example": "$\\overset{けっこんしき}{結婚式}$の$\\overset{さそ}{誘}$いを$\\overset{よろこ}{喜}$んで$\\overset{う}{受}$ける。/高兴地接受婚礼的邀请。"
+  },
+  {
+    "word": "真理",
+    "kana": "しんり",
+    "type": "名词",
+    "meaning": "真理。",
+    "example": "願い$\\overset{ねがいごと}{事}$を$\\overset{とお}{通}$じて$\\overset{しんり}{真理}$と$\\overset{どうり}{道理}$を$\\overset{まな}{学}$ぶ。/通过祈愿来学习真理和道理。"
+  },
+  {
+    "word": "剃る",
+    "kana": "そる",
+    "type": "五段他动词",
+    "meaning": "剃，刮。",
+    "example": "ひげを$\\overset{きれい}{綺麗}$に$\\overset{そ}{剃}$って$\\overset{けっこんしき}{結婚式}$の$\\overset{さそ}{誘}$いに$\\overset{い}{行}$く。/把胡须剃得干干净净去赴婚礼的邀请。"
+  },
+  {
+    "word": "短冊",
+    "kana": "たんざく",
+    "type": "名词",
+    "meaning": "长条诗笺，许愿笺。",
+    "example": "$\\overset{たんざく}{短冊}$に願い$\\overset{ねがいごと}{事}$を$\\overset{か}{書}$き、$\\overset{みな}{皆}$が$\\overset{はくしゅ}{拍手}$する。/在许愿笺上写下心愿，大家都鼓掌。"
+  },
+  {
+    "word": "道理で",
+    "kana": "どうりで",
+    "type": "副词",
+    "meaning": "怪不得，难怪。",
+    "example": "$\\overset{どうりで}{道理で}$$\\overset{かれ}{彼}$の$\\overset{ひょうか}{評価}$が$\\overset{たか}{高}$い$\\overset{わけ}{訳}$だ。/怪不得他的评价那么高呢。"
+  },
+  {
+    "word": "願い事",
+    "kana": "ねがいごと",
+    "type": "名词",
+    "meaning": "心愿，愿望。",
+    "example": "$\\overset{たんざく}{短冊}$に願い$\\overset{ねがいごと}{事}$を$\\overset{か}{書}$いて、$\\overset{かな}{叶}$うと$\\overset{はくしゅ}{拍手}$する。/在许愿笺上写下心愿，如果实现了就会鼓掌。"
+  },
+  {
+    "word": "拍手",
+    "kana": "はくしゅ",
+    "type": "名・サ变动词する自",
+    "meaning": "鼓掌。",
+    "example": "$\\overset{みな}{皆}$から$\\overset{おお}{大}$きな$\\overset{はくしゅ}{拍手}$をもらう。/获得了大家热烈的掌声。 || $\\overset{すば}{素晴}$らしい$\\overset{ひょうか}{評価}$に$\\overset{はくしゅ}{拍手}$する。/为出色的评价而鼓掌。"
+  },
+  {
+    "word": "評価",
+    "kana": "ひょうか",
+    "type": "名・サ变动词する他",
+    "meaning": "评价，估价。",
+    "example": "$\\overset{たか}{高}$い$\\overset{ひょうか}{評価}$を$\\overset{え}{得}$て$\\overset{はくしゅ}{拍手}$される。/获得了很高的评价并被鼓掌。 || $\\overset{かれ}{彼}$の$\\overset{けっこんしき}{結婚式}$でのスピーチを$\\overset{ひょうか}{評価}$する。/评价他在婚礼上的致辞。"
+  },
+  {
+    "word": "汗",
+    "kana": "あせ",
+    "type": "名词",
+    "meaning": "汗，汗水。",
+    "example": "$\\overset{あせ}{汗}$をかきながら、あちらへ$\\overset{ある}{歩}$く。/一边流着汗，一边向那边走去。"
+  },
+  {
+    "word": "あちら",
+    "kana": "あちら",
+    "type": "代词",
+    "meaning": "那边，那儿；那位。",
+    "example": "あちらの$\\overset{みち}{道}$を$\\overset{ある}{歩}$きながら$\\overset{うた}{歌}$を$\\overset{うた}{歌}$う。/一边走在那边的路上，一边唱歌。"
+  },
+  {
+    "word": "歩く",
+    "kana": "あるく",
+    "type": "五段自动词",
+    "meaning": "走，步行。",
+    "example": "$\\overset{おお}{多}$くの$\\overset{ひと}{人}$が$\\overset{こうえん}{公園}$を$\\overset{ある}{歩}$いて$\\overset{けしき}{景色}$を$\\overset{おぼ}{覚}$える。/许多人在公园里散步并记下景色。"
+  },
+  {
+    "word": "歌う",
+    "kana": "うたう",
+    "type": "五段他动词",
+    "meaning": "唱，唱歌。",
+    "example": "$\\overset{あせ}{汗}$を$\\overset{なが}{流}$して$\\overset{うた}{歌}$う$\\overset{ひと}{人}$が$\\overset{おお}{多}$い。/流着汗唱歌的人很多。"
+  },
+  {
+    "word": "多い",
+    "kana": "おおい",
+    "type": "形容词",
+    "meaning": "多的。",
+    "example": "$\\overset{おお}{多}$い$\\overset{たんご}{単語}$を$\\overset{おぼ}{覚}$えるには、$\\overset{まいにち}{毎日}$の$\\overset{ふくしゅう}{復習}$に$\\overset{かぎ}{限}$る。/要记住大量的单词，最好是每天复习。"
+  },
+  {
+    "word": "覚える",
+    "kana": "おぼえる",
+    "type": "一段他动词",
+    "meaning": "记住，学会；感觉。",
+    "example": "$\\overset{たんご}{単語}$を$\\overset{かぎ}{限}$りなく$\\overset{おぼ}{覚}$えて、$\\overset{かれ}{彼}$にノートを$\\overset{か}{貸}$す。/无止境地记单词，把笔记本借给他。"
+  },
+  {
+    "word": "限る",
+    "kana": "かぎる",
+    "type": "五段自他动词",
+    "meaning": "限制，限于（他）；最好是……，莫过于……（自）。",
+    "example": "$\\overset{じかん}{時間}$を$\\overset{かぎ}{限}$って$\\overset{べんきょう}{勉強}$する。/限制时间进行学习。 || $\\overset{なつ}{夏}$は$\\overset{つめ}{冷}$たいビールに$\\overset{かぎ}{限}$る。/夏天最好是喝冰镇啤酒。"
+  },
+  {
+    "word": "貸す",
+    "kana": "かす",
+    "type": "五段他动词",
+    "meaning": "借出，借给。",
+    "example": "$\\overset{しあい}{試合}$で$\\overset{か}{勝}$つために、$\\overset{かれ}{彼}$に$\\overset{どうぐ}{道具}$を$\\overset{か}{貸}$す。/为了在比赛中获胜，把道具借给他。"
+  },
+  {
+    "word": "勝つ",
+    "kana": "かつ",
+    "type": "五段自动词",
+    "meaning": "获胜，战胜。",
+    "example": "$\\overset{からだ}{体}$が$\\overset{きたな}{汚}$いまま$\\overset{しあい}{試合}$で$\\overset{か}{勝}$つ。/带着一身脏兮兮的身体在比赛中获胜。"
+  },
+  {
+    "word": "体",
+    "kana": "からだ",
+    "type": "名词",
+    "meaning": "身体。",
+    "example": "$\\overset{からだ}{体}$が$\\overset{きたな}{汚}$いので、$\\overset{ふろ}{風呂}$に$\\overset{はい}{入}$る。/身体很脏，所以去洗澡。"
+  },
+  {
+    "word": "汚い",
+    "kana": "きたない",
+    "type": "形容词",
+    "meaning": "脏的，肮脏的；卑鄙的。",
+    "example": "$\\overset{きたな}{汚}$い$\\overset{ふく}{服}$を$\\overset{ぬ}{脱}$いで、$\\overset{あたら}{新}$しい$\\overset{ふく}{服}$を$\\overset{き}{着}$る。/脱下脏衣服，穿上新衣服。"
+  },
+  {
+    "word": "着る",
+    "kana": "きる",
+    "type": "一段他动词",
+    "meaning": "穿（上衣等）。",
+    "example": "$\\overset{あたら}{新}$しい$\\overset{ふく}{服}$を$\\overset{き}{着}$て、$\\overset{かのじょ}{彼女}$が$\\overset{く}{来}$るのを$\\overset{ま}{待}$つ。/穿上新衣服，等她来。"
+  },
+  {
+    "word": "来る",
+    "kana": "くる",
+    "type": "カ变自动词",
+    "meaning": "来。",
+    "example": "$\\overset{かれ}{彼}$が$\\overset{く}{来}$ると、$\\overset{くる}{苦}$しい$\\overset{こころ}{心}$が$\\overset{いや}{癒}$される。/他一来，痛苦的内心就得到了治愈。"
+  },
+  {
+    "word": "苦しい",
+    "kana": "くるしい",
+    "type": "形容词",
+    "meaning": "痛苦的，难受的。",
+    "example": "$\\overset{こころ}{心}$が$\\overset{くる}{苦}$しい$\\overset{とき}{時}$、$\\overset{さくら}{桜}$を$\\overset{み}{見}$に$\\overset{い}{行}$く。/心里难受的时候，去看樱花。"
+  },
+  {
+    "word": "心",
+    "kana": "こころ",
+    "type": "名词",
+    "meaning": "心，内心。",
+    "example": "$\\overset{こころ}{心}$を$\\overset{こ}{込}$めて$\\overset{かれ}{彼}$を$\\overset{さくら}{桜}$の$\\overset{はなみ}{花見}$に$\\overset{さそ}{誘}$う。/真心诚意地邀请他去赏樱花。"
+  },
+  {
+    "word": "桜",
+    "kana": "さくら",
+    "type": "名词",
+    "meaning": "樱花。",
+    "example": "$\\overset{しず}{静}$かな$\\overset{こうえん}{公園}$で$\\overset{さくら}{桜}$を$\\overset{み}{見}$んなで$\\overset{たの}{楽}$しむ。/大家在安静的公园里欣赏樱花。"
+  },
+  {
+    "word": "誘う",
+    "kana": "さそう",
+    "type": "五段他动词",
+    "meaning": "邀请，诱惑。",
+    "example": "$\\overset{せいせき}{成績}$が$\\overset{すぐ}{優}$れる$\\overset{かれ}{彼}$を$\\overset{しず}{静}$かな$\\overset{ばしょ}{場所}$へ$\\overset{さそ}{誘}$う。/邀请成绩优异的他去一个安静的地方。"
+  },
+  {
+    "word": "静か",
+    "kana": "しずか",
+    "type": "形动",
+    "meaning": "安静的，平静的。",
+    "example": "$\\overset{そと}{外}$は$\\overset{しず}{静}$かで、$\\overset{すぐ}{優}$れた$\\overset{けしき}{景色}$が$\\overset{ひろ}{広}$がる。/外面很安静，展现出优美的景色。"
+  },
+  {
+    "word": "優れる",
+    "kana": "すぐれる",
+    "type": "一段自动词",
+    "meaning": "优秀，出色；（后接否定）身体不佳。",
+    "example": "$\\overset{きぶん}{気分}$が$\\overset{すぐ}{優}$れない$\\overset{とき}{時}$、$\\overset{そと}{外}$の$\\overset{くうき}{空気}$に$\\overset{たよ}{頼}$る。/心情（身体）不好的时候，依赖外面的空气。"
+  },
+  {
+    "word": "外",
+    "kana": "そと",
+    "type": "名词",
+    "meaning": "外面，室外。",
+    "example": "$\\overset{そと}{外}$へ$\\overset{で}{出}$て、$\\overset{だれ}{誰}$に$\\overset{たよ}{頼}$るべきか$\\overset{かんが}{考}$える。/走到外面，思考该依靠谁。"
+  },
+  {
+    "word": "頼る",
+    "kana": "たよる",
+    "type": "五段自动词",
+    "meaning": "依靠，依赖。",
+    "example": "どれを$\\overset{たよ}{頼}$って$\\overset{ふあん}{不安}$を$\\overset{のぞ}{除}$くか。/依靠哪一个来消除不安呢。"
+  },
+  {
+    "word": "どれ",
+    "kana": "どれ",
+    "type": "代词",
+    "meaning": "哪个（三个或三个以上事物中选择）。",
+    "example": "どれを$\\overset{のぞ}{除}$けば、$\\overset{は}{歯}$の$\\overset{いた}{痛}$みが$\\overset{き}{消}$えるか。/剔除哪一个，牙痛才会消失呢。"
+  },
+  {
+    "word": "除く",
+    "kana": "のぞく",
+    "type": "五段他动词",
+    "meaning": "去除，除外。",
+    "example": "$\\overset{よご}{汚}$れを$\\overset{のぞ}{除}$いて、$\\overset{は}{歯}$を$\\overset{きれい}{綺麗}$にする。/去除污垢，把牙齿弄干净。"
+  },
+  {
+    "word": "歯",
+    "kana": "は",
+    "type": "名词",
+    "meaning": "牙齿。",
+    "example": "$\\overset{はは}{母}$がはさみで$\\overset{は}{歯}$のポスターを$\\overset{き}{切}$って$\\overset{は}{貼}$る。/母亲用剪刀剪下牙齿的海报并贴上。"
+  },
+  {
+    "word": "はさみ",
+    "kana": "はさみ",
+    "type": "名词",
+    "meaning": "剪刀。",
+    "example": "はさみで$\\overset{き}{切}$って、$\\overset{はは}{母}$と$\\overset{かべ}{壁}$に$\\overset{は}{貼}$る。/用剪刀剪下来，和妈妈一起贴在墙上。"
+  },
+  {
+    "word": "母",
+    "kana": "はは",
+    "type": "名词",
+    "meaning": "母亲，妈妈。",
+    "example": "$\\overset{はは}{母}$は$\\overset{しゃしん}{写真}$を$\\overset{は}{貼}$って、$\\overset{ふか}{深}$く$\\overset{おも}{思}$い$\\overset{で}{出}$に$\\overset{ひた}{浸}$る。/母亲贴上照片，深深地沉浸在回忆中。"
+  },
+  {
+    "word": "貼る",
+    "kana": "はる",
+    "type": "五段他动词",
+    "meaning": "贴，粘。",
+    "example": "$\\overset{ふね}{船}$のポスターを$\\overset{かべ}{壁}$に$\\overset{は}{貼}$る。/把船的海报贴在墙上。"
+  },
+  {
+    "word": "深い",
+    "kana": "ふかい",
+    "type": "形容词",
+    "meaning": "深的。",
+    "example": "$\\overset{ほそ}{細}$い$\\overset{ふね}{船}$で$\\overset{ふか}{深}$い$\\overset{うみ}{海}$へ$\\overset{で}{出}$る。/乘坐细长的船驶向深海。"
+  },
+  {
+    "word": "船",
+    "kana": "ふね",
+    "type": "名词",
+    "meaning": "船。",
+    "example": "$\\overset{ほそ}{細}$い$\\overset{ふね}{船}$にまた$\\overset{の}{乗}$って$\\overset{うみ}{海}$に$\\overset{で}{出}$る。/再次乘坐细长的船出海。"
+  },
+  {
+    "word": "細い",
+    "kana": "ほそい",
+    "type": "形容词",
+    "meaning": "细的，纤细的。",
+    "example": "$\\overset{ほそ}{細}$い$\\overset{みち}{道}$をまた$\\overset{ある}{歩}$く。/再次走在那条狭窄（细）的路上。"
+  },
+  {
+    "word": "また",
+    "kana": "また",
+    "type": "副词・接续词",
+    "meaning": "又，再（副）；另外，而且（接续）。",
+    "example": "また$\\overset{かれ}{彼}$に$\\overset{あ}{会}$いたい。/想再次见到他。 || $\\overset{くつ}{靴}$を$\\overset{あら}{洗}$う。また、$\\overset{くつ}{靴}$を$\\overset{みが}{磨}$く。/洗鞋子。另外，还要擦亮鞋子。"
+  },
+  {
+    "word": "磨く",
+    "kana": "みがく",
+    "type": "五段他动词",
+    "meaning": "刷，擦亮；锻炼（技术）。",
+    "example": "$\\overset{むすめ}{娘}$は$\\overset{くつ}{靴}$を$\\overset{みが}{磨}$く$\\overset{もの}{者}$を$\\overset{さが}{探}$す。/女儿寻找能擦亮鞋子的人。"
+  },
+  {
+    "word": "娘",
+    "kana": "むすめ",
+    "type": "名词",
+    "meaning": "女儿，少女。",
+    "example": "$\\overset{むすめ}{娘}$は$\\overset{やす}{安}$い$\\overset{くつ}{靴}$を$\\overset{は}{履}$く$\\overset{もの}{者}$だ。/女儿是个穿便宜鞋子的人。"
+  },
+  {
+    "word": "者",
+    "kana": "もの",
+    "type": "名词",
+    "meaning": "人（多含贬义或指代某一类人）。",
+    "example": "$\\overset{やす}{安}$い$\\overset{きゅうりょう}{給料}$で$\\overset{はたら}{働}$く$\\overset{もの}{者}$が$\\overset{かいしゃ}{会社}$を$\\overset{や}{辞}$める。/拿便宜工资工作的人辞职了。"
+  },
+  {
+    "word": "安い",
+    "kana": "やすい",
+    "type": "形容词",
+    "meaning": "便宜的。",
+    "example": "$\\overset{やす}{安}$い$\\overset{きゅうりょう}{給料}$の$\\overset{しごと}{仕事}$を$\\overset{や}{辞}$めて、$\\overset{あたら}{新}$しいことをやる。/辞掉工资便宜的工作，去干新的事情。"
+  },
+  {
+    "word": "辞める",
+    "kana": "やめる",
+    "type": "一段他动词",
+    "meaning": "辞去，退职。",
+    "example": "$\\overset{しごと}{仕事}$を$\\overset{や}{辞}$めて、ゆっくりと$\\overset{じぶん}{自分}$の$\\overset{じぎょう}{事業}$をやる。/辞掉工作，慢慢地干自己的事业。"
+  },
+  {
+    "word": "やる",
+    "kana": "やる",
+    "type": "五段他动词",
+    "meaning": "做，干；给（晚辈、动物等）。",
+    "example": "ゆっくり$\\overset{よ}{良}$いことをやる。/慢慢地干点好事。"
+  },
+  {
+    "word": "ゆっくり",
+    "kana": "ゆっくり",
+    "type": "副词・サ变动词する自",
+    "meaning": "慢慢地，悠闲地。",
+    "example": "$\\overset{よ}{良}$い$\\overset{よる}{夜}$をゆっくりと$\\overset{す}{過}$ごす。/慢慢地度过一个美好的夜晚。 || $\\overset{ふろ}{風呂}$に$\\overset{はい}{入}$ってゆっくりする。/洗个澡悠闲地放松一下。"
+  },
+  {
+    "word": "良い",
+    "kana": "よい",
+    "type": "形容词",
+    "meaning": "好的。",
+    "example": "$\\overset{よる}{夜}$にシャワーを$\\overset{あ}{浴}$びるのは$\\overset{よ}{良}$い$\\overset{しゅうかん}{習慣}$だ。/晚上冲个澡是个好习惯。"
+  },
+  {
+    "word": "夜",
+    "kana": "よる",
+    "type": "名词",
+    "meaning": "夜晚。",
+    "example": "$\\overset{よる}{夜}$にシャワーを$\\overset{あ}{浴}$びてから、$\\overset{かれ}{彼}$に$\\overset{あやま}{謝}$る。/晚上洗完澡后，向他道歉。"
+  },
+  {
+    "word": "浴びる",
+    "kana": "あびる",
+    "type": "一段他动词",
+    "meaning": "洗，淋浴；沐浴（阳光、目光等）。",
+    "example": "シャワーを$\\overset{あ}{浴}$びてから、$\\overset{かれ}{彼}$に$\\overset{あやま}{謝}$る。/冲完澡后，向他道歉。"
+  },
+  {
+    "word": "謝る",
+    "kana": "あやまる",
+    "type": "五段他动词",
+    "meaning": "道歉，认错。",
+    "example": "$\\overset{いきお}{勢}$いよく$\\overset{あたま}{頭}$を$\\overset{さ}{下}$げて$\\overset{かれ}{彼}$に$\\overset{あやま}{謝}$る。/猛地（很有势头地）低下头向他道歉。"
+  },
+  {
+    "word": "勢い",
+    "kana": "いきおい",
+    "type": "名词",
+    "meaning": "势头，气势。",
+    "example": "$\\overset{いのち}{命}$の$\\overset{いきお}{勢}$いを$\\overset{かん}{感}$じて$\\overset{たんじょうび}{誕生日}$を$\\overset{いわ}{祝}$う。/感受着生命的势头，庆祝生日。"
+  },
+  {
+    "word": "命",
+    "kana": "いのち",
+    "type": "名词",
+    "meaning": "生命，性命。",
+    "example": "$\\overset{あたら}{新}$しい$\\overset{いのち}{命}$を$\\overset{いわ}{祝}$い、うまい$\\overset{え}{絵}$を$\\overset{か}{描}$く。/庆祝新生命的诞生，画一幅好画。"
+  },
+  {
+    "word": "祝う",
+    "kana": "いわう",
+    "type": "五段他动词",
+    "meaning": "祝贺，庆祝。",
+    "example": "$\\overset{ゆうじん}{友人}$の$\\overset{けっこん}{結婚}$を$\\overset{いわ}{祝}$い、うまい$\\overset{りょうり}{料理}$を$\\overset{た}{食}$べる。/庆祝朋友的结婚，吃美味的菜肴。"
+  },
+  {
+    "word": "うまい",
+    "kana": "うまい",
+    "type": "形容词",
+    "meaning": "美味的；巧妙的，高明的。",
+    "example": "$\\overset{かれ}{彼}$は$\\overset{え}{絵}$を$\\overset{か}{描}$くのがとてもうまい。/他画画非常高明。"
+  },
+  {
+    "word": "描く",
+    "kana": "えがく",
+    "type": "五段他动词",
+    "meaning": "画，描绘。",
+    "example": "うまい$\\overset{え}{絵}$を$\\overset{か}{描}$いて、$\\overset{かんじょう}{感情}$を$\\overset{お}{押}$さえる。/画一幅好画，压抑自己的感情。"
+  },
+  {
+    "word": "押さえる",
+    "kana": "おさえる",
+    "type": "一段他动词",
+    "meaning": "按，压；控制，抑制。",
+    "example": "$\\overset{お}{終}$わりが$\\overset{ちか}{近}$づき、$\\overset{あいて}{相手}$を$\\overset{お}{押}$さえてボールを$\\overset{くば}{配}$る。/比赛临近结束，压制住对手分配球。"
+  },
+  {
+    "word": "終わり",
+    "kana": "おわり",
+    "type": "名词",
+    "meaning": "结束，终结。",
+    "example": "$\\overset{えいが}{映画}$の$\\overset{お}{終}$わりにチラシを$\\overset{くば}{配}$る。/在电影结束时分发传单。"
+  },
+  {
+    "word": "配る",
+    "kana": "くばる",
+    "type": "五段他动词",
+    "meaning": "分发，分配；多方留意。",
+    "example": "チラシを$\\overset{くば}{配}$る$\\overset{とちゅう}{途中}$で、$\\overset{いし}{石}$を$\\overset{け}{蹴}$る。/在发传单的途中，踢了一脚石头。"
+  },
+  {
+    "word": "蹴る",
+    "kana": "ける",
+    "type": "五段他动词",
+    "meaning": "踢，踹。",
+    "example": "ボールを$\\overset{け}{蹴}$って、みんなで$\\overset{さわ}{騒}$ぐ。/踢球，大家一起吵闹。"
+  },
+  {
+    "word": "騒ぐ",
+    "kana": "さわぐ",
+    "type": "五段自动词",
+    "meaning": "吵闹，喧哗。",
+    "example": "$\\overset{さわ}{騒}$ぐ$\\overset{はんにん}{犯人}$を$\\overset{なわ}{縄}$で$\\overset{しば}{縛}$る。/用绳子把吵闹的犯人绑起来。"
+  },
+  {
+    "word": "縛る",
+    "kana": "しばる",
+    "type": "五段他动词",
+    "meaning": "绑，束缚。",
+    "example": "$\\overset{すな}{砂}$の$\\overset{うえ}{上}$で$\\overset{はんにん}{犯人}$を$\\overset{するど}{鋭}$い$\\overset{なわ}{縄}$で$\\overset{しば}{縛}$る。/在沙滩上用尖锐的绳子把犯人绑起来。"
+  },
+  {
+    "word": "砂",
+    "kana": "すな",
+    "type": "名词",
+    "meaning": "沙子，沙。",
+    "example": "$\\overset{すな}{砂}$の$\\overset{なか}{中}$に$\\overset{するど}{鋭}$いガラスが$\\overset{かく}{隠}$れている。/沙子里藏着尖锐的玻璃。"
+  },
+  {
+    "word": "鋭い",
+    "kana": "するどい",
+    "type": "形容词",
+    "meaning": "尖锐的，锋利的；敏锐的。",
+    "example": "$\\overset{するど}{鋭}$い$\\overset{め}{目}$で$\\overset{たたみ}{畳}$の$\\overset{うえ}{上}$の$\\overset{よご}{汚}$れを$\\overset{み}{見}$る。/用敏锐的目光看着榻榻米上的污垢。"
+  },
+  {
+    "word": "畳",
+    "kana": "たたみ",
+    "type": "名词",
+    "meaning": "榻榻米。",
+    "example": "$\\overset{たたみ}{畳}$の$\\overset{うえ}{上}$で$\\overset{つなみ}{津波}$のニュースを$\\overset{み}{見}$る。/在榻榻米上看海啸的新闻。"
+  },
+  {
+    "word": "津波",
+    "kana": "つなみ",
+    "type": "名词",
+    "meaning": "海啸。",
+    "example": "$\\overset{つなみ}{津波}$の$\\overset{なが}{流}$れが$\\overset{まち}{町}$を$\\overset{の}{飲}$み$\\overset{こ}{込}$む。/海啸的洪流吞没了城镇。"
+  },
+  {
+    "word": "流れ",
+    "kana": "ながれ",
+    "type": "名词",
+    "meaning": "水流，流向；趋势。",
+    "example": "$\\overset{なつ}{懐}$かしい$\\overset{かわ}{川}$の$\\overset{なが}{流}$れを$\\overset{み}{見}$て$\\overset{なや}{悩}$む。/看着令人怀念的河水流淌而感到烦恼。"
+  },
+  {
+    "word": "懐かしい",
+    "kana": "なつかしい",
+    "type": "形容词",
+    "meaning": "令人怀念的。",
+    "example": "$\\overset{なつ}{懐}$かしい$\\overset{もんだい}{問題}$に$\\overset{なや}{悩}$んで、$\\overset{くすり}{薬}$を$\\overset{ぬ}{塗}$る。/为了令人怀念的问题烦恼，然后涂药。"
+  },
+  {
+    "word": "悩む",
+    "kana": "なやむ",
+    "type": "五段自动词",
+    "meaning": "烦恼，苦恼。",
+    "example": "$\\overset{びょうき}{病気}$に$\\overset{なや}{悩}$み、$\\overset{くすり}{薬}$を$\\overset{ぬ}{塗}$って$\\overset{て}{手}$を$\\overset{にぎ}{握}$る。/为疾病苦恼，涂抹药物并握紧双手。"
+  },
+  {
+    "word": "塗る",
+    "kana": "ぬる",
+    "type": "五段他动词",
+    "meaning": "涂，抹。",
+    "example": "$\\overset{て}{手}$に$\\overset{くすり}{薬}$を$\\overset{ぬ}{塗}$ってから、$\\overset{ほうたい}{包帯}$を$\\overset{ま}{巻}$く。/在手上涂了药之后，缠上绷带。"
+  },
+  {
+    "word": "握る",
+    "kana": "にぎる",
+    "type": "五段他动词",
+    "meaning": "握，抓；掌握。",
+    "example": "$\\overset{ほうたい}{包帯}$を$\\overset{ま}{巻}$いた$\\overset{て}{手}$でハンドルを$\\overset{にぎ}{握}$る。/用缠着绷带的手握住方向盘。"
+  },
+  {
+    "word": "巻く",
+    "kana": "まく",
+    "type": "五段他动词",
+    "meaning": "卷，缠绕。",
+    "example": "$\\overset{みなと}{港}$で$\\overset{つめ}{冷}$たい$\\overset{かぜ}{風}$を$\\overset{さ}{避}$けるためにマフラーを$\\overset{ま}{巻}$く。/在港口为了避开冷风而围上围巾。"
+  },
+  {
+    "word": "港",
+    "kana": "みなと",
+    "type": "名词",
+    "meaning": "港口。",
+    "example": "$\\overset{みなと}{港}$に$\\overset{あたら}{新}$しい$\\overset{せき}{席}$を$\\overset{もう}{設}$ける。/在港口设置了新的座位。"
+  },
+  {
+    "word": "設ける",
+    "kana": "もうける",
+    "type": "一段他动词",
+    "meaning": "设立，制定，安排。",
+    "example": "ルールを$\\overset{もう}{設}$けて、$\\overset{あご}{顎}$に$\\overset{さわ}{触}$るのを$\\overset{きんし}{禁止}$する。/制定了规则，禁止触摸下巴。"
+  },
+  {
+    "word": "顎",
+    "kana": "あご",
+    "type": "名词",
+    "meaning": "下巴。",
+    "example": "「あっ！」と$\\overset{い}{言}$って、$\\overset{あご}{顎}$をぶつけてしまった。/“啊！”地叫了一声，磕到了下巴。"
+  },
+  {
+    "word": "あっ",
+    "kana": "あっ",
+    "type": "感叹词",
+    "meaning": "哎呀，啊（表惊奇或突然想起）。",
+    "example": "あっ、$\\overset{いた}{板}$が$\\overset{おち}{落}$ちてきた！/啊，木板掉下来了！"
+  },
+  {
+    "word": "板",
+    "kana": "いた",
+    "type": "名词",
+    "meaning": "板，木板。",
+    "example": "$\\overset{じんじゃ}{神社}$の$\\overset{いた}{板}$の$\\overset{まえ}{前}$で、$\\overset{かみ}{神}$について$\\overset{おそ}{教}$わる。/在神社的木板前，学习（接受教导）关于神明的事情。"
+  },
+  {
+    "word": "教わる",
+    "kana": "おそわる",
+    "type": "五段他动词",
+    "meaning": "受教，学习。",
+    "example": "$\\overset{かんぬし}{神主}$から$\\overset{ほん}{本}$の$\\overset{か}{貸}$し$\\overset{だ}{出}$しについて$\\overset{おそ}{教}$わる。/向神官请教关于书籍出借的事情。"
+  },
+  {
+    "word": "貸し出し",
+    "kana": "かしだし",
+    "type": "名词",
+    "meaning": "借出，出租。",
+    "example": "$\\overset{かみ}{神}$の$\\overset{おし}{教}$えが$\\overset{か}{書}$かれた$\\overset{ほん}{本}$の$\\overset{か}{貸}$し$\\overset{だ}{出}$しを$\\overset{おこな}{行}$う。/提供写有神明教诲的书籍借阅服务。"
+  },
+  {
+    "word": "神",
+    "kana": "かみ",
+    "type": "名词",
+    "meaning": "神，神明。",
+    "example": "$\\overset{かみ}{神}$に$\\overset{いの}{祈}$りながら、$\\overset{しろ}{白}$い$\\overset{こな}{粉}$をまく。/一边向神明祈祷，一边撒白色的粉末。"
+  },
+  {
+    "word": "粉",
+    "kana": "こな",
+    "type": "名词",
+    "meaning": "粉末，粉。",
+    "example": "「さあ、この$\\overset{こな}{粉}$を$\\overset{みず}{水}$に$\\overset{と}{溶}$かして！」/“来吧，把这个粉溶解在水里！”"
+  },
+  {
+    "word": "さあ",
+    "kana": "さあ",
+    "type": "感叹词",
+    "meaning": "喂，来吧；哎呀，这可难说。",
+    "example": "さあ、お$\\overset{きゃくさま}{客様}$、$\\overset{さわ}{騒}$がしい$\\overset{みせ}{店}$へどうぞ。/来吧，各位客人，请进这家热闹的店。"
+  },
+  {
+    "word": "様",
+    "kana": "さま",
+    "type": "名词・接尾词",
+    "meaning": "样子，情况（名）；……大人，先生，女士（接尾）。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{どうどう}{堂々}$とした$\\overset{さま}{様}$を$\\overset{ほ}{褒}$める。/表扬他堂堂正正的样子。 || $\\overset{さわ}{騒}$がしい$\\overset{なか}{中}$、お$\\overset{きゃくさま}{客様}$を$\\overset{あんない}{案内}$する。/在喧闹声中，给客人带路。"
+  },
+  {
+    "word": "騒がしい",
+    "kana": "さわがしい",
+    "type": "形容词",
+    "meaning": "吵闹的，喧嚣的。",
+    "example": "$\\overset{さわ}{騒}$がしい$\\overset{みせ}{店}$で、しわのある$\\overset{かお}{顔}$で$\\overset{わら}{笑}$う。/在吵闹的店里，带着满脸皱纹笑着。"
+  },
+  {
+    "word": "しわ",
+    "kana": "しわ",
+    "type": "名词",
+    "meaning": "皱纹，褶皱。",
+    "example": "しわの$\\overset{よ}{寄}$った$\\overset{て}{手}$で、$\\overset{た}{食}$べ$\\overset{もの}{物}$の$\\overset{す}{好}$き$\\overset{きら}{嫌}$いについて$\\overset{たが}{互}$いに$\\overset{はな}{話}$す。/用满是皱纹的手，互相谈论着食物的喜恶。"
+  },
+  {
+    "word": "好き嫌い",
+    "kana": "すききらい",
+    "type": "名词",
+    "meaning": "好恶，挑食。",
+    "example": "$\\overset{たが}{互}$いの$\\overset{す}{好}$き$\\overset{きら}{嫌}$いを$\\overset{りかい}{理解}$し$\\overset{あ}{合}$う。/互相理解彼此的喜好。"
+  },
+  {
+    "word": "互い",
+    "kana": "たがい",
+    "type": "名词",
+    "meaning": "互相，彼此。",
+    "example": "$\\overset{たが}{互}$いに$\\overset{たま}{玉}$を$\\overset{な}{投}$げ$\\overset{あ}{合}$って$\\overset{あそ}{遊}$ぶ。/互相扔球玩耍。"
+  },
+  {
+    "word": "玉",
+    "kana": "たま",
+    "type": "名词",
+    "meaning": "球，珠子，玉。",
+    "example": "$\\overset{たま}{玉}$を$\\overset{お}{落}$としても、ちっとも$\\overset{き}{気}$にしない。/即使把球弄掉了，也一点都不在意。"
+  },
+  {
+    "word": "ちっとも",
+    "kana": "ちっとも",
+    "type": "副词",
+    "meaning": "（后接否定）一点儿也不……。",
+    "example": "$\\overset{つえ}{杖}$で$\\overset{つ}{突}$かれても、ちっとも$\\overset{おこ}{怒}$るつもりはない。/即使被拐杖戳了，也一点都没有生气的打算。"
+  },
+  {
+    "word": "突く",
+    "kana": "つく",
+    "type": "五段他动词",
+    "meaning": "戳，刺，撞。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{むね}{胸}$を$\\overset{つ}{突}$いて、$\\overset{おこ}{怒}$るつもりだ。/戳他的胸口，打算发火。"
+  },
+  {
+    "word": "つもり",
+    "kana": "つもり",
+    "type": "名词",
+    "meaning": "打算，意图。",
+    "example": "どうか$\\overset{わたし}{私}$のつもりを$\\overset{りかい}{理解}$してください。/请务必理解我的意图。"
+  },
+  {
+    "word": "どうか",
+    "kana": "どうか",
+    "type": "副词",
+    "meaning": "请，务必。",
+    "example": "どうか$\\overset{はれ}{晴}$れてほしい。ところが、$\\overset{あめ}{雨}$が$\\overset{ふ}{降}$った。/请务必是个晴天。然而，却下雨了。"
+  },
+  {
+    "word": "ところが",
+    "kana": "ところが",
+    "type": "接续词",
+    "meaning": "可是，然而。",
+    "example": "$\\overset{はれ}{晴}$れると$\\overset{おも}{思}$った。ところが、$\\overset{はだ}{肌}$に$\\overset{わる}{悪}$い$\\overset{かぜ}{風}$が$\\overset{ふ}{吹}$き、$\\overset{そと}{外}$に$\\overset{で}{出}$にくい。/本以为会晴天。然而，却吹起了对皮肤不好的风，很难出门。"
+  },
+  {
+    "word": "にくい",
+    "kana": "にくい",
+    "type": "接尾词・形容词",
+    "meaning": "难以……的（接在动词连用形后）；可憎的（形容词）。",
+    "example": "この$\\overset{ほん}{本}$は$\\overset{じ}{字}$が$\\overset{ちい}{小}$さくて$\\overset{よ}{読}$みにくい。/这本书字太小，很难读。 || $\\overset{はだ}{肌}$を$\\overset{さ}{刺}$すような$\\overset{にく}{憎}$い$\\overset{かぜ}{風}$だ。/像刺穿皮肤一样令人讨厌的风。"
+  },
+  {
+    "word": "肌",
+    "kana": "はだ",
+    "type": "名词",
+    "meaning": "肌肤，皮肤。",
+    "example": "$\\overset{はれ}{晴}$れの$\\overset{ひ}{日}$は$\\overset{はだ}{肌}$を$\\overset{まも}{守}$るため$\\overset{ひや}{日焼}$け$\\overset{ど}{止}$めを$\\overset{ぬ}{塗}$る。/晴天为了保护肌肤要涂防晒霜。"
+  },
+  {
+    "word": "晴れ",
+    "kana": "はれ",
+    "type": "名词",
+    "meaning": "晴天。",
+    "example": "$\\overset{はれ}{晴}$れの$\\overset{ひ}{日}$に、$\\overset{ひざ}{膝}$を$\\overset{ま}{曲}$げて$\\overset{やす}{休}$む。/在晴天里，弯着膝盖休息。"
+  },
+  {
+    "word": "膝",
+    "kana": "ひざ",
+    "type": "名词",
+    "meaning": "膝盖。",
+    "example": "$\\overset{なが}{長}$い$\\overset{じかん}{時間}$を$\\overset{へ}{経}$て、$\\overset{ひざ}{膝}$が$\\overset{いた}{痛}$くなった。/经过了很长的时间，膝盖变痛了。"
+  },
+  {
+    "word": "経る",
+    "kana": "へる",
+    "type": "一段自动词",
+    "meaning": "经过，流逝（时间）；经过，途径（空间）。",
+    "example": "$\\overset{ねんげつ}{年月}$を$\\overset{へ}{経}$て、わざわざ$\\overset{かれ}{彼}$を$\\overset{まね}{招}$く。/经过了岁月，特意将他招待过来。"
+  },
+  {
+    "word": "招く",
+    "kana": "まねく",
+    "type": "五段他动词",
+    "meaning": "招待，邀请；招致。",
+    "example": "わざわざ$\\overset{ゆうじん}{友人}$を$\\overset{いえ}{家}$に$\\overset{まね}{招}$く。/特意把朋友招待到家里来。"
+  },
+  {
+    "word": "わざわざ",
+    "kana": "わざわざ",
+    "type": "副词",
+    "meaning": "特意，专程。",
+    "example": "わざわざ$\\overset{でんとう}{伝統}$の$\\overset{けいしょう}{継承}$に$\\overset{かか}{関}$わるイベントに$\\overset{い}{行}$く。/特意去参加与传统继承相关的活动。"
+  },
+  {
+    "word": "関わる",
+    "kana": "かかわる",
+    "type": "五段自动词",
+    "meaning": "有关，涉及。",
+    "example": "お$\\overset{てら}{寺}$の$\\overset{かね}{鐘}$の$\\overset{けいしょう}{継承}$に$\\overset{かか}{関}$わる。/参与寺庙钟的传承。"
+  },
+  {
+    "word": "鐘",
+    "kana": "かね",
+    "type": "名词",
+    "meaning": "钟。",
+    "example": "$\\overset{かね}{鐘}$の$\\overset{おと}{音}$を$\\overset{つぎ}{次}$の$\\overset{せだい}{世代}$へ$\\overset{けいしょう}{継承}$する。/把钟声传承给下一代。"
+  },
+  {
+    "word": "継承",
+    "kana": "けいしょう",
+    "type": "名・サ变动词する他",
+    "meaning": "继承，传承。",
+    "example": "$\\overset{でんとう}{伝統}$$\\overset{ぎじゅつ}{技術}$の$\\overset{けいしょう}{継承}$が$\\overset{むずか}{難}$しい。/传统技术的传承很困难。 || $\\overset{れきし}{歴史}$ある$\\overset{かね}{鐘}$を$\\overset{けいしょう}{継承}$する。/传承有历史的钟。"
+  },
+  {
+    "word": "溺れる",
+    "kana": "おぼれる",
+    "type": "一段自动词",
+    "meaning": "溺水；沉迷于。",
+    "example": "$\\overset{うみ}{海}$で$\\overset{おぼ}{溺}$れたが、$\\overset{さいご}{最後}$に$\\overset{しょうり}{勝利}$した。/虽然在海里溺水了，但最终取得了胜利。"
+  },
+  {
+    "word": "勝利",
+    "kana": "しょうり",
+    "type": "名・サ变动词する自",
+    "meaning": "胜利。",
+    "example": "チームの$\\overset{しょうり}{勝利}$を$\\overset{いわ}{祝}$う。/庆祝队伍的胜利。 || $\\overset{こんなん}{困難}$な$\\overset{しあい}{試合}$で$\\overset{しょうり}{勝利}$して$\\overset{しんろ}{進路}$を$\\overset{きめ}{決}$る。/在艰难的比赛中获胜，从而决定出路。"
+  },
+  {
+    "word": "進路",
+    "kana": "しんろ",
+    "type": "名词",
+    "meaning": "前进的道路；升学或就业的方向。",
+    "example": "$\\overset{しんろ}{進路}$を$\\overset{きめ}{決}$て、$\\overset{あたら}{新}$しい$\\overset{しごと}{仕事}$を$\\overset{て}{手}$がける。/决定好出路，着手做新的工作。"
+  },
+  {
+    "word": "手がける",
+    "kana": "てがける",
+    "type": "一段他动词",
+    "meaning": "亲手做，着手。",
+    "example": "$\\overset{あたら}{新}$しい$\\overset{じぎょう}{事業}$を$\\overset{て}{手}$がけ、$\\overset{せかい}{世界}$に$\\overset{と}{飛}$び$\\overset{で}{出}$る。/着手做新事业，飞向世界。"
+  },
+  {
+    "word": "飛び出る",
+    "kana": "とびでる",
+    "type": "一段自动词",
+    "meaning": "跳出，飞出；突出。",
+    "example": "$\\overset{ながそで}{長袖}$を$\\overset{き}{着}$て、$\\overset{さむ}{寒}$い$\\overset{そと}{外}$へ$\\overset{と}{飛}$び$\\overset{で}{出}$る。/穿着长袖，跑出寒冷的室外。"
+  },
+  {
+    "word": "長袖",
+    "kana": "ながそで",
+    "type": "名词",
+    "meaning": "长袖。",
+    "example": "$\\overset{ねんげつ}{年月}$が$\\overset{た}{経}$ち、$\\overset{ふる}{古}$い$\\overset{ながそで}{長袖}$を$\\overset{き}{着}$る。/岁月流逝，穿着旧长袖。"
+  },
+  {
+    "word": "年月",
+    "kana": "ねんげつ",
+    "type": "名词",
+    "meaning": "年月，岁月。",
+    "example": "$\\overset{なが}{長}$い$\\overset{ねんげつ}{年月}$で$\\overset{つちか}{培}$った$\\overset{じつりょく}{実力}$を$\\overset{はっき}{発揮}$する。/发挥出经过漫长岁月培养出的实力。"
+  },
+  {
+    "word": "発揮",
+    "kana": "はっき",
+    "type": "名・サ变动词する他",
+    "meaning": "发挥。",
+    "example": "$\\overset{じつりょく}{実力}$の$\\overset{はっき}{発揮}$が$\\overset{きたい}{期待}$される。/期待你能发挥出实力。 || $\\overset{ちから}{力}$を$\\overset{はっき}{発揮}$して、つい$\\overset{ほんね}{本音}$を$\\overset{も}{漏}$らす。/发挥出力量，不小心漏出了真心话。"
+  },
+  {
+    "word": "漏らす",
+    "kana": "もらす",
+    "type": "五段他动词",
+    "meaning": "漏，漏出；泄露（秘密）。",
+    "example": "$\\overset{ぐち}{愚痴}$を$\\overset{も}{漏}$らさず、$\\overset{じつりょく}{実力}$を$\\overset{はっき}{発揮}$する。/不发牢骚，发挥出实力。"
+  },
+  {
+    "word": "アップロード",
+    "kana": "あっぷろーど",
+    "type": "名・サ变动词する他",
+    "meaning": "上传。",
+    "example": "ファイルの$\\overset{だいようりょう}{大容量}$アップロードが$\\overset{かんりょう}{完了}$した。/大容量文件的上传完成了。 || アニメの$\\overset{どうが}{動画}$をサイトにアップロードして、ウーロン$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$む。/把动画的视频上传到网站上，然后喝乌龙茶。"
+  },
+  {
+    "word": "アニメ",
+    "kana": "あにめ",
+    "type": "名词",
+    "meaning": "动画片（「アニメーション」的略称）。",
+    "example": "$\\overset{す}{好}$きなアニメを$\\overset{み}{見}$ながら、$\\overset{あつ}{熱}$いウーロン$\\overset{ちゃ}{茶}$を$\\overset{あじ}{味}$わう。/一边看喜欢的动画片，一边品尝热乌龙茶。"
+  },
+  {
+    "word": "ウーロン茶",
+    "kana": "うーろんちゃ",
+    "type": "名词",
+    "meaning": "乌龙茶。",
+    "example": "ウーロン$\\overset{ちゃ}{茶}$を$\\overset{の}{飲}$んでエネルギーを$\\overset{ほきゅう}{補給}$する。/喝乌龙茶补充能量。"
+  },
+  {
+    "word": "エネルギー",
+    "kana": "えねるぎー",
+    "type": "名词",
+    "meaning": "能量，能源。",
+    "example": "カメラを$\\overset{も}{持}$ってギターを$\\overset{ひ}{弾}$くには$\\overset{おお}{大}$きなエネルギーが$\\overset{い}{要}$る。/拿着相机弹吉他需要很大的能量。"
+  },
+  {
+    "word": "カメラ",
+    "kana": "かめら",
+    "type": "名词",
+    "meaning": "相机。",
+    "example": "$\\overset{あたら}{新}$しいカメラでクラスメートがギターを$\\overset{ひ}{弾}$く$\\overset{すがた}{姿}$を$\\overset{と}{撮}$る。/用新相机拍下同班同学弹吉他的身姿。"
+  },
+  {
+    "word": "ギター",
+    "kana": "ぎたー",
+    "type": "名词",
+    "meaning": "吉他。",
+    "example": "グループの$\\overset{みな}{皆}$の$\\overset{まえ}{前}$でギターの$\\overset{えんそう}{演奏}$を$\\overset{ひろう}{披露}$する。/在小组所有人面前展示吉他演奏。"
+  },
+  {
+    "word": "クラスメート",
+    "kana": "くらすめーと",
+    "type": "名词",
+    "meaning": "同班同学。",
+    "example": "クラスメートと$\\overset{おな}{同}$じグループになってけしゴムを$\\overset{か}{貸}$し$\\overset{か}{借}$りする。/和同班同学分在同一个小组，互相借用橡皮。"
+  },
+  {
+    "word": "グループ",
+    "kana": "ぐるーぷ",
+    "type": "名词",
+    "meaning": "小组，群体。",
+    "example": "グループで$\\overset{しりょう}{資料}$をコピーしてコミュニケーションを$\\overset{と}{取}$る。/小组一起复印资料并进行沟通交流。"
+  },
+  {
+    "word": "けしゴム",
+    "kana": "けしごむ",
+    "type": "名词",
+    "meaning": "橡皮（消しゴム）。",
+    "example": "けしゴムを$\\overset{つか}{使}$ってノートのミスを$\\overset{きれい}{綺麗}$に$\\overset{け}{消}$す。/用橡皮把笔记本上的错误擦干净。"
+  },
+  {
+    "word": "コピー",
+    "kana": "こぴー",
+    "type": "名・サ变动词する他",
+    "meaning": "复印，复制。",
+    "example": "この$\\overset{しょるい}{書類}$のコピーを$\\overset{じゅう}{十}$$\\overset{まい}{枚}$お$\\overset{ねが}{願}$いします。/请把这份文件复印十份。 || コンテストの$\\overset{しりょう}{資料}$をコピーしてコミュニケーションを$\\overset{ふか}{深}$める。/复印比赛的资料并加深沟通。"
+  },
+  {
+    "word": "コミュニケーション",
+    "kana": "こみゅにけーしょん",
+    "type": "名词",
+    "meaning": "交流，沟通。",
+    "example": "サッカーのチームでコミュニケーションを$\\overset{と}{取}$ることは$\\overset{じゅうよう}{重要}$だ。/在足球队里进行沟通是很重要的。"
+  },
+  {
+    "word": "コンテスト",
+    "kana": "こんてすと",
+    "type": "名词",
+    "meaning": "比赛，竞赛。",
+    "example": "$\\overset{うた}{歌}$のコンテストで$\\overset{ゆうしょう}{優勝}$したサラリーマン。/在歌唱比赛中获胜的工薪族。"
+  },
+  {
+    "word": "サッカー",
+    "kana": "さっかー",
+    "type": "名词",
+    "meaning": "足球。",
+    "example": "サラリーマンがサッカーの$\\overset{しあい}{試合}$を$\\overset{み}{見}$ながらサンドイッチを$\\overset{た}{食}$べる。/工薪族一边看足球比赛一边吃三明治。"
+  },
+  {
+    "word": "サラリーマン",
+    "kana": "さらりーまん",
+    "type": "名词",
+    "meaning": "工薪族，上班族。",
+    "example": "$\\overset{いそが}{忙}$しいサラリーマンがシャワーを$\\overset{あ}{浴}$びてからスーパーへ$\\overset{い}{行}$く。/忙碌的工薪族洗完淋浴后去超市。"
+  },
+  {
+    "word": "サンドイッチ",
+    "kana": "さんどいっち",
+    "type": "名词",
+    "meaning": "三明治。",
+    "example": "スーパーでサンドイッチを$\\overset{か}{買}$って$\\overset{ひる}{昼}$ご$\\overset{はん}{飯}$にする。/在超市买三明治当午饭。"
+  },
+  {
+    "word": "シャワー",
+    "kana": "しゃわー",
+    "type": "名词",
+    "meaning": "淋浴。",
+    "example": "スポーツの$\\overset{あと}{後}$でシャワーを$\\overset{あ}{浴}$びてさっぱりする。/运动后洗个淋浴清爽一下。"
+  },
+  {
+    "word": "スーパー",
+    "kana": "すーぱー",
+    "type": "名词",
+    "meaning": "超市。",
+    "example": "スーパーでスカートとズボンを$\\overset{み}{見}$て$\\overset{くら}{比}$べる。/在超市里看裙子和裤子并做比较。"
+  },
+  {
+    "word": "スカート",
+    "kana": "すかーと",
+    "type": "名词",
+    "meaning": "裙子。",
+    "example": "$\\overset{あたら}{新}$しいスカートを$\\overset{は}{穿}$いてスケートの$\\overset{れんしゅう}{練習}$に$\\overset{い}{行}$く。/穿上新裙子去滑冰练习。"
+  },
+  {
+    "word": "スケート",
+    "kana": "すけーと",
+    "type": "名・サ变动词する自",
+    "meaning": "滑冰。",
+    "example": "$\\overset{ふゆ}{冬}$はスケートが$\\overset{たの}{楽}$しい。/冬天滑冰很快乐。 || $\\overset{こおり}{氷}$の$\\overset{うえ}{上}$でスピードを$\\overset{だ}{出}$してスケートする。/在冰上加速滑冰。"
+  },
+  {
+    "word": "スタート",
+    "kana": "すたーと",
+    "type": "名・サ变动词する自他",
+    "meaning": "开始，起跑。",
+    "example": "$\\overset{あいず}{合図}$と$\\overset{どうじ}{同時}$にスタートを$\\overset{き}{切}$る。/和信号同时起跑。 || スケートの$\\overset{きょうぎ}{競技}$がスタートし、スピードが$\\overset{あ}{上}$がる。/滑冰比赛开始了，速度提升了。"
+  },
+  {
+    "word": "スピード",
+    "kana": "すぴーど",
+    "type": "名词",
+    "meaning": "速度。",
+    "example": "スポーツカーが$\\overset{ものすご}{物凄}$いスピードで$\\overset{はし}{走}$る。/跑车以惊人的速度行驶。"
+  },
+  {
+    "word": "スポーツ",
+    "kana": "すぽーつ",
+    "type": "名词",
+    "meaning": "体育运动。",
+    "example": "スポーツをする$\\overset{とき}{時}$は$\\overset{うご}{動}$きやすいズボンを$\\overset{は}{穿}$く。/做运动的时候穿容易活动的裤子。"
+  },
+  {
+    "word": "ズボン",
+    "kana": "ずぼん",
+    "type": "名词",
+    "meaning": "裤子。",
+    "example": "ズボンの$\\overset{よご}{汚}$れをタオルで$\\overset{きれい}{綺麗}$に$\\overset{ふ}{拭}$き$\\overset{と}{取}$る。/用毛巾把裤子上的污渍擦干净。"
+  },
+  {
+    "word": "タオル",
+    "kana": "たおる",
+    "type": "名词",
+    "meaning": "毛巾。",
+    "example": "タオルで$\\overset{かお}{顔}$を$\\overset{ふ}{拭}$いてから、チケットをダウンロードする。/用毛巾擦完脸后，下载门票。"
+  },
+  {
+    "word": "ダウンロード",
+    "kana": "だうんろーど",
+    "type": "名・サ变动词する他",
+    "meaning": "下载。",
+    "example": "アプリのダウンロードに$\\overset{じかん}{時間}$がかかる。/软件的下载需要花时间。 || $\\overset{えいが}{映画}$のチケットをスマホにダウンロードして、チョコレートを$\\overset{か}{買}$う。/把电影票下载到手机上，然后去买巧克力。"
+  },
+  {
+    "word": "チケット",
+    "kana": "ちけっと",
+    "type": "名词",
+    "meaning": "门票，票。",
+    "example": "コンサートのチケットをもらって$\\overset{うれ}{嬉}$しい。/拿到演唱会的门票很高兴。"
+  },
+  {
+    "word": "チョコレート",
+    "kana": "ちょこれーと",
+    "type": "名词",
+    "meaning": "巧克力。",
+    "example": "チョコレートを$\\overset{た}{食}$べながらパソコンのデータを$\\overset{かくにん}{確認}$する。/一边吃巧克力一边确认电脑的数据。"
+  },
+  {
+    "word": "データ",
+    "kana": "でーた",
+    "type": "名词",
+    "meaning": "数据，资料。",
+    "example": "テキストのデータを$\\overset{ひら}{開}$いてデパートの$\\overset{あんない}{案内}$を$\\overset{み}{見}$る。/打开文本数据看百货商场的指南。"
+  },
+  {
+    "word": "テキスト",
+    "kana": "てきすと",
+    "type": "名词",
+    "meaning": "文本；教材，课本。",
+    "example": "デパートの$\\overset{てんいん}{店員}$が$\\overset{せっきゃく}{接客}$のテキストを$\\overset{よ}{読}$む。/百货商场的店员阅读接待客人的教材。"
+  },
+  {
+    "word": "デパート",
+    "kana": "でぱーと",
+    "type": "名词",
+    "meaning": "百货商场。",
+    "example": "デパートのドアが$\\overset{あ}{開}$き、ニュースを$\\overset{み}{見}$る$\\overset{ひと}{人}$が$\\overset{はい}{入}$ってくる。/百货商场的门开了，看新闻的人走了进来。"
+  },
+  {
+    "word": "ドア",
+    "kana": "どあ",
+    "type": "名词",
+    "meaning": "门。",
+    "example": "ドアを$\\overset{し}{閉}$めて、トマトのサラダを$\\overset{つく}{作}$る。/关上门，做番茄沙拉。"
+  },
+  {
+    "word": "トマト",
+    "kana": "とまと",
+    "type": "名词",
+    "meaning": "西红柿，番茄。",
+    "example": "トマトを$\\overset{た}{食}$べながらテレビのニュースを$\\overset{き}{聞}$く。/一边吃番茄一边听电视新闻。"
+  },
+  {
+    "word": "ニュース",
+    "kana": "にゅーす",
+    "type": "名词",
+    "meaning": "新闻，消息。",
+    "example": "ニュースの$\\overset{ようてん}{要点}$をノートに$\\overset{か}{書}$き$\\overset{と}{留}$める。/把新闻的要点记在笔记本上。"
+  },
+  {
+    "word": "ノート",
+    "kana": "のーと",
+    "type": "名・サ变动词する他",
+    "meaning": "笔记本（名）；做笔记（サ变）。",
+    "example": "ノートのページをめくる。/翻开笔记本的页。 || $\\overset{せんせい}{先生}$の$\\overset{ことば}{言葉}$をノートして、テストの$\\overset{せいかい}{正解}$のパーセントを$\\overset{あ}{上}$げる。/记下老师的话，提高考试答对的百分比。"
+  },
+  {
+    "word": "パーセント",
+    "kana": "ぱーせんと",
+    "type": "名词",
+    "meaning": "百分比。",
+    "example": "バスケットボールのシュートが$\\overset{ひゃく}{百}$パーセント$\\overset{はい}{入}$る。/篮球投篮百分之百进球。"
+  },
+  {
+    "word": "バスケットボール",
+    "kana": "ばすけっとぼーる",
+    "type": "名词",
+    "meaning": "篮球。",
+    "example": "バスケットボールの$\\overset{しあい}{試合}$でパンダの$\\overset{ふく}{服}$を$\\overset{き}{着}$る。/在篮球比赛中穿熊猫的衣服。"
+  },
+  {
+    "word": "パンダ",
+    "kana": "ぱんだ",
+    "type": "名词",
+    "meaning": "大熊猫。",
+    "example": "$\\overset{どうぶつえん}{動物園}$でパンダを$\\overset{み}{見}$てからハンバーガーを$\\overset{た}{食}$べる。/在动物园看大熊猫之后去吃汉堡包。"
+  },
+  {
+    "word": "ハンバーガー",
+    "kana": "はんばーがー",
+    "type": "名词",
+    "meaning": "汉堡包。",
+    "example": "ハンバーガーにプラスしてポテトも$\\overset{ちゅうもん}{注文}$する。/除了汉堡包之外加上（再）点一份薯条。"
+  },
+  {
+    "word": "プラス",
+    "kana": "ぷらす",
+    "type": "名・サ变动词する自他",
+    "meaning": "加，加上；有利（名）。",
+    "example": "$\\overset{かれ}{彼}$の$\\overset{そんざい}{存在}$はチームのプラスになる。/他的存在对队伍是有利的。 || $\\overset{しごと}{仕事}$に$\\overset{どりょく}{努力}$をプラスして$\\overset{つぎ}{次}$のページへ$\\overset{すす}{進}$む。/在工作上加上努力，迈向新的一页。"
+  },
+  {
+    "word": "ページ",
+    "kana": "ぺーじ",
+    "type": "名词・量词",
+    "meaning": "页。",
+    "example": "$\\overset{ほん}{本}$のページを$\\overset{よ}{読}$み$\\overset{お}{終}$わり、ベッドに$\\overset{ね}{寝}$る。/读完书的这一页，躺到床上睡觉。"
+  },
+  {
+    "word": "ベッド",
+    "kana": "べっど",
+    "type": "名词",
+    "meaning": "床。",
+    "example": "ベッドの$\\overset{うえ}{上}$で$\\overset{かわい}{可愛}$いペットと$\\overset{あそ}{遊}$ぶ。/在床上和可爱的宠物玩耍。"
+  },
+  {
+    "word": "ペット",
+    "kana": "ぺっと",
+    "type": "名词",
+    "meaning": "宠物。",
+    "example": "ペットを$\\overset{つ}{連}$れて、レストランのマスターに$\\overset{あいさつ}{挨拶}$する。/带着宠物向餐厅的老板打招呼。"
+  },
+  {
+    "word": "マスター",
+    "kana": "ますたー",
+    "type": "名・サ变动词する他",
+    "meaning": "掌握，精通；老板（酒吧等）。",
+    "example": "この$\\overset{みせ}{店}$のマスターは$\\overset{やさ}{優}$しい$\\overset{ひと}{人}$だ。/这家店的老板是个温柔的人。 || $\\overset{にほんご}{日本語}$をマスターして、マンションの$\\overset{ちか}{近}$くで$\\overset{く}{暮}$らす。/精通了日语，在公寓附近生活。"
+  },
+  {
+    "word": "マンション",
+    "kana": "まんしょん",
+    "type": "名词",
+    "meaning": "高级公寓。",
+    "example": "マンションの$\\overset{へや}{部屋}$でメニューを$\\overset{み}{見}$て$\\overset{でまえ}{出前}$を$\\overset{たの}{頼}$む。/在公寓的房间里看着菜单叫外卖。"
+  },
+  {
+    "word": "メニュー",
+    "kana": "めにゅー",
+    "type": "名词",
+    "meaning": "菜单。",
+    "example": "メニューを$\\overset{きめ}{決}$てから、ラジオの$\\overset{おんがく}{音楽}$を$\\overset{き}{聴}$く。/决定好菜单后听收音机里的音乐。"
+  },
+  {
+    "word": "ラジオ",
+    "kana": "らじお",
+    "type": "名词",
+    "meaning": "收音机，广播。",
+    "example": "ラジオから$\\overset{なが}{流}$れる$\\overset{きょく}{曲}$のリズムに$\\overset{あ}{合}$わせて$\\overset{おど}{踊}$る。/合着收音机里流淌出的歌曲的节奏跳舞。"
+  },
+  {
+    "word": "リズム",
+    "kana": "りずむ",
+    "type": "名词",
+    "meaning": "节奏，韵律。",
+    "example": "$\\overset{けいかい}{軽快}$なリズムに$\\overset{の}{乗}$ってレジでお$\\overset{かね}{金}$を$\\overset{はら}{払}$う。/踩着轻快的节奏在收银台付钱。"
+  },
+  {
+    "word": "レジ",
+    "kana": "れじ",
+    "type": "名词",
+    "meaning": "收银台。",
+    "example": "レジで$\\overset{なら}{並}$びながら、$\\overset{がっこう}{学校}$のレポートの$\\overset{ないよう}{内容}$を$\\overset{かんが}{考}$える。/一边在收银台排队，一边思考学校报告的内容。"
+  },
+  {
+    "word": "レポート",
+    "kana": "れぽーと",
+    "type": "名・サ变动词する他",
+    "meaning": "报告，论文。",
+    "example": "$\\overset{あした}{明日}$までにレポートを$\\overset{ていしゅつ}{提出}$する。/在明天之前提交报告。 || ロボットに$\\overset{かん}{関}$するニュースをレポートする。/就关于机器人的新闻进行报告。"
+  },
+  {
+    "word": "ロボット",
+    "kana": "ろぼっと",
+    "type": "名词",
+    "meaning": "机器人。",
+    "example": "ロボットがアイドルのように$\\overset{うた}{歌}$って$\\overset{おど}{踊}$る。/机器人像偶像一样唱歌跳舞。"
+  },
+  {
+    "word": "アイドル",
+    "kana": "あいどる",
+    "type": "名词",
+    "meaning": "偶像。",
+    "example": "アイドルからファンへ$\\overset{あたた}{温}$かいアドバイスを$\\overset{おく}{送}$る。/偶像向粉丝送上温暖的建议。"
+  },
+  {
+    "word": "アドバイス",
+    "kana": "あどばいす",
+    "type": "名・サ变动词する他",
+    "meaning": "建议，劝告。",
+    "example": "$\\overset{せんぱい}{先輩}$の$\\overset{よ}{良}$いアドバイスを$\\overset{き}{聞}$く。/听取前辈的好建议。 || エコロジーのイメージについて$\\overset{かれ}{彼}$にアドバイスする。/就环保的印象向他提出建议。"
+  },
+  {
+    "word": "イメージ",
+    "kana": "いめーじ",
+    "type": "名・サ变动词する他",
+    "meaning": "印象，形象；想象。",
+    "example": "この$\\overset{しょうひん}{商品}$のイメージはとても$\\overset{さわ}{爽}$やかだ。/这款商品的印象非常清爽。 || エコロジーな$\\overset{せいかつ}{生活}$をイメージしてカーテンを$\\overset{えら}{選}$ぶ。/想象着环保的生活来挑选窗帘。"
+  },
+  {
+    "word": "エコロジー",
+    "kana": "えころじー",
+    "type": "名词",
+    "meaning": "环保，生态学。",
+    "example": "エコロジーのためにガスを$\\overset{つか}{使}$わず$\\overset{しぜん}{自然}$の$\\overset{ちから}{力}$を$\\overset{りよう}{利用}$する。/为了环保不使用燃气而是利用自然的力量。"
+  },
+  {
+    "word": "カーテン",
+    "kana": "かーてん",
+    "type": "名词",
+    "meaning": "窗帘。",
+    "example": "カレンダーを$\\overset{かくにん}{確認}$して、$\\overset{しゅうまつ}{週末}$にカーテンを$\\overset{あら}{洗}$う。/确认了日历后，周末洗窗帘。"
+  },
+  {
+    "word": "ガス",
+    "kana": "がす",
+    "type": "名词",
+    "meaning": "煤气，燃气；气体。",
+    "example": "ガスをつけてコーヒーを$\\overset{わか}{沸}$かす。/打开煤气烧咖啡。"
+  },
+  {
+    "word": "カレンダー",
+    "kana": "かれんだー",
+    "type": "名词",
+    "meaning": "日历。",
+    "example": "カレンダーを$\\overset{み}{見}$て、$\\overset{あたら}{新}$しいコースを$\\overset{きめ}{決}$る。/看着日历决定新的课程（路线）。"
+  },
+  {
+    "word": "コース",
+    "kana": "こーす",
+    "type": "名词",
+    "meaning": "路线，课程；套餐。",
+    "example": "$\\overset{とくべつ}{特別}$なコースの$\\overset{りょうり}{料理}$を$\\overset{た}{食}$べて、コーヒーを$\\overset{の}{飲}$む。/吃特别套餐的菜肴，喝咖啡。"
+  },
+  {
+    "word": "コーヒー",
+    "kana": "こーひー",
+    "type": "名词",
+    "meaning": "咖啡。",
+    "example": "ゴールデンウィークにカフェでコーヒーを$\\overset{あじ}{味}$わう。/黄金周在咖啡馆品尝咖啡。"
+  },
+  {
+    "word": "ゴールデンウィーク",
+    "kana": "ごーるでんうぃーく",
+    "type": "名词",
+    "meaning": "黄金周（日本五月初的长假）。",
+    "example": "ゴールデンウィークにコンタクトレンズを$\\overset{か}{買}$いに$\\overset{い}{行}$く。/黄金周去买隐形眼镜。"
+  },
+  {
+    "word": "コンタクトレンズ",
+    "kana": "こんたくとれんず",
+    "type": "名词",
+    "meaning": "隐形眼镜。",
+    "example": "コンタクトレンズをつけてから、コンピューターの$\\overset{がめん}{画面}$を$\\overset{み}{見}$る。/戴上隐形眼镜后看电脑屏幕。"
+  },
+  {
+    "word": "コンピューター",
+    "kana": "こんぴゅーたー",
+    "type": "名词",
+    "meaning": "电脑，计算机。",
+    "example": "コンピューターでサークルの$\\overset{かつどう}{活動}$サイトを$\\overset{つく}{作}$る。/用电脑制作社团的活动网站。"
+  },
+  {
+    "word": "サークル",
+    "kana": "さーくる",
+    "type": "名词",
+    "meaning": "社团，圈子。",
+    "example": "サークルの$\\overset{なかま}{仲間}$とサイトの$\\overset{うんえい}{運営}$について$\\overset{はな}{話}$し$\\overset{あ}{合}$う。/和社团的伙伴商量网站的运营。"
+  },
+  {
+    "word": "サイト",
+    "kana": "さいと",
+    "type": "名词",
+    "meaning": "网站。",
+    "example": "$\\overset{けんこう}{健康}$のサイトでジョギングの$\\overset{よ}{良}$さを$\\overset{し}{知}$る。/在健康网站上了解慢跑的好处。"
+  },
+  {
+    "word": "ジョギング",
+    "kana": "じょぎんぐ",
+    "type": "名・サ变动词する自",
+    "meaning": "慢跑。",
+    "example": "$\\overset{まいあさ}{毎朝}$のジョギングが$\\overset{にっか}{日課}$だ。/每天早晨的慢跑是必修课。 || シルクの$\\overset{ふく}{服}$を$\\overset{き}{着}$て$\\overset{ゆうが}{優雅}$にジョギングする。/穿着丝绸的衣服优雅地慢跑。"
+  },
+  {
+    "word": "シルク",
+    "kana": "しるく",
+    "type": "名词",
+    "meaning": "丝绸，真丝。",
+    "example": "シルクで$\\overset{つく}{作}$られたシンプルで$\\overset{うつく}{美}$しいドレス。/用丝绸制作的简单而美丽的连衣裙。"
+  },
+  {
+    "word": "シンプル",
+    "kana": "しんぷる",
+    "type": "形动",
+    "meaning": "简单的，单纯的。",
+    "example": "シンプルなデザインの$\\overset{ふく}{服}$をスタッフに$\\overset{すす}{勧}$められる。/工作人员推荐了设计简单的衣服。"
+  },
+  {
+    "word": "スタッフ",
+    "kana": "すたっふ",
+    "type": "名词",
+    "meaning": "工作人员，全体职员。",
+    "example": "スタッフがステージの$\\overset{じゅんび}{準備}$を$\\overset{いそ}{急}$ぐ。/工作人员急忙准备舞台。"
+  },
+  {
+    "word": "ステージ",
+    "kana": "すてーじ",
+    "type": "名词",
+    "meaning": "舞台，阶段。",
+    "example": "ステージで$\\overset{うた}{歌}$ってストレスを$\\overset{かいしょう}{解消}$する。/在舞台上唱歌消除压力。"
+  },
+  {
+    "word": "ストレス",
+    "kana": "すとれす",
+    "type": "名词",
+    "meaning": "压力。",
+    "example": "ストレスを$\\overset{へら}{減}$し、スモッグをゼロにする$\\overset{しゃかい}{社会}$。/减少压力，让雾霾变为零的社会。"
+  },
+  {
+    "word": "スモッグ",
+    "kana": "すもっぐ",
+    "type": "名词",
+    "meaning": "烟雾，雾霾。",
+    "example": "スモッグがゼロの$\\overset{はれ}{晴}$れた$\\overset{ひ}{日}$にテニスをする。/在雾霾为零的晴天打网球。"
+  },
+  {
+    "word": "ゼロ",
+    "kana": "ぜろ",
+    "type": "名词",
+    "meaning": "零。",
+    "example": "ミスをゼロにするためにトレーニングを$\\overset{かさ}{重}$ねる。/为了让失误变为零而不断进行训练。"
+  },
+  {
+    "word": "テニス",
+    "kana": "てにす",
+    "type": "名词",
+    "meaning": "网球。",
+    "example": "テニスのトレーニングで$\\overset{からだ}{体}$のバランスを$\\overset{たも}{保}$つ。/通过网球的训练保持身体的平衡。"
+  },
+  {
+    "word": "トレーニング",
+    "kana": "とれーにんぐ",
+    "type": "名・サ变动词する自他",
+    "meaning": "训练，锻炼。",
+    "example": "$\\overset{まいにち}{毎日}$のトレーニングが$\\overset{ちから}{力}$になる。/每天的训练都会变成力量。 || $\\overset{からだ}{体}$のバランスを$\\overset{よ}{良}$くするためにトレーニングする。/为了让身体的平衡变好而进行训练。"
+  },
+  {
+    "word": "バランス",
+    "kana": "ばらんす",
+    "type": "名词",
+    "meaning": "平衡。",
+    "example": "バランスの$\\overset{よ}{良}$い$\\overset{しょくじ}{食事}$をし、ポケットにハンカチを$\\overset{い}{入}$れる。/吃营养均衡的饭菜，把手帕放进口袋里。"
+  },
+  {
+    "word": "ハンカチ",
+    "kana": "はんかち",
+    "type": "名词",
+    "meaning": "手帕。",
+    "example": "ホームステイ$\\overset{さき}{先}$の$\\overset{かぞく}{家族}$に$\\overset{きれい}{綺麗}$なハンカチを$\\overset{おく}{贈}$る。/送给寄宿家庭一条漂亮的手帕。"
+  },
+  {
+    "word": "ホームステイ",
+    "kana": "ほーむすてい",
+    "type": "名・サ变动词する自",
+    "meaning": "寄宿家庭。",
+    "example": "$\\overset{かいがい}{海外}$でのホームステイは$\\overset{よ}{良}$い$\\overset{けいけん}{経験}$だ。/在国外的寄宿生活是一次很好的经历。 || $\\overset{にほん}{日本}$の$\\overset{かぞく}{家族}$のところでホームステイする。/在日本的家庭里寄宿。"
+  },
+  {
+    "word": "ポケット",
+    "kana": "ぽけっと",
+    "type": "名词",
+    "meaning": "口袋。",
+    "example": "ポケットのボタンが$\\overset{と}{取}$れたので、ユニークな$\\overset{ほうほう}{方法}$で$\\overset{なお}{直}$す。/口袋的纽扣掉了，用独特的方法修好。"
+  },
+  {
+    "word": "ボタン",
+    "kana": "ぼたん",
+    "type": "名词",
+    "meaning": "按钮，纽扣。",
+    "example": "ユニークな$\\overset{かたち}{形}$のボタンを$\\overset{お}{押}$して、マナーモードにする。/按下形状独特的按钮，调成静音模式。"
+  },
+  {
+    "word": "マナー",
+    "kana": "まなー",
+    "type": "名词",
+    "meaning": "礼节，礼貌。",
+    "example": "レストランの$\\overset{しょくじ}{食事}$のマナーを$\\overset{まも}{守}$り、リラックスする。/遵守餐厅的用餐礼仪，并放松心情。"
+  },
+  {
+    "word": "ユニーク",
+    "kana": "ゆにーく",
+    "type": "形动",
+    "meaning": "独特的，唯一的。",
+    "example": "ユニークなレストランでリラックスしてアイスクリームを$\\overset{た}{食}$べる。/在独特的餐厅里放松地吃冰淇淋。"
+  },
+  {
+    "word": "リラックス",
+    "kana": "りらっくす",
+    "type": "名・サ变动词する自",
+    "meaning": "放松，轻松。",
+    "example": "リラックスした$\\overset{ふんいき}{雰囲気}$のレストラン。/氛围轻松的餐厅。 || $\\overset{おんがく}{音楽}$を$\\overset{き}{聴}$いて$\\overset{しんしん}{心身}$をリラックスする。/听音乐让身心放松。"
+  },
+  {
+    "word": "レストラン",
+    "kana": "れすとらん",
+    "type": "名词",
+    "meaning": "西餐厅。",
+    "example": "レストランでアイスクリームとアフリカの$\\overset{りょうり}{料理}$を$\\overset{たの}{頼}$む。/在西餐厅点冰淇淋和非洲菜肴。"
+  },
+  {
+    "word": "アイスクリーム",
+    "kana": "あいすくりーむ",
+    "type": "名词",
+    "meaning": "冰淇淋。",
+    "example": "アイスクリームを$\\overset{た}{食}$べながらアルバムの$\\overset{しゃしん}{写真}$を$\\overset{み}{見}$る。/一边吃着冰淇淋一边看相册里的照片。"
+  },
+  {
+    "word": "アフリカ",
+    "kana": "あふりか",
+    "type": "名词",
+    "meaning": "非洲。",
+    "example": "アフリカの$\\overset{どうぶつ}{動物}$のアルバムをイーメールで$\\overset{おく}{送}$る。/把非洲动物的相册用电子邮件发送过去。"
+  },
+  {
+    "word": "アルバム",
+    "kana": "あるばむ",
+    "type": "名词",
+    "meaning": "相册，影集。",
+    "example": "$\\overset{なつ}{懐}$かしいアルバムの$\\overset{しゃしん}{写真}$をイーメールに$\\overset{てんぷ}{添付}$する。/把令人怀念的相册里的照片作为电子邮件附件发送。"
+  },
+  {
+    "word": "イーメール",
+    "kana": "いーめーる",
+    "type": "名词",
+    "meaning": "电子邮件。",
+    "example": "イーメールを$\\overset{よ}{読}$みながらインスタントラーメンを$\\overset{た}{食}$べる。/一边看电子邮件一边吃方便面。"
+  },
+  {
+    "word": "インスタントラーメン",
+    "kana": "いんすたんとらーめん",
+    "type": "名词",
+    "meaning": "方便面。",
+    "example": "インスタントラーメンを$\\overset{た}{食}$べた$\\overset{あと}{後}$、インタビューを$\\overset{う}{受}$ける。/吃完方便面后，接受采访。"
+  },
+  {
+    "word": "インタビュー",
+    "kana": "いんたびゅー",
+    "type": "名・サ变动词する他",
+    "meaning": "采访，访问。",
+    "example": "$\\overset{ざっし}{雑誌}$のインタビューに$\\overset{こた}{答}$える。/回答杂志的采访。 || エンジンの$\\overset{かいはつ}{開発}$$\\overset{しゃ}{者}$をインタビューする。/采访发动机的开发者。"
+  },
+  {
+    "word": "エンジン",
+    "kana": "えんじん",
+    "type": "名词",
+    "meaning": "发动机，引擎。",
+    "example": "エンジンが$\\overset{うご}{動}$き、$\\overset{あたら}{新}$しい$\\overset{みせ}{店}$がオープンする。/发动机运转起来，新店开业了。"
+  },
+  {
+    "word": "オープン",
+    "kana": "おーぷん",
+    "type": "名・形动・サ变动词する自他",
+    "meaning": "开业，开放。",
+    "example": "オープンな$\\overset{せいかく}{性格}$のガイド。/性格开朗（开放）的导游。 || ガイドと$\\overset{いっしょ}{一緒}$にオープンしたばかりの$\\overset{こうえん}{公園}$へ$\\overset{い}{行}$く。/和导游一起去刚刚开放的公园。"
+  },
+  {
+    "word": "ガイド",
+    "kana": "がいど",
+    "type": "名・サ变动词する他",
+    "meaning": "导游，向导；指南。",
+    "example": "$\\overset{かんこう}{観光}$ガイドの$\\overset{せつめい}{説明}$を$\\overset{き}{聞}$く。/听观光导游的解说。 || ガムを$\\overset{か}{噛}$む$\\overset{きゃく}{客}$を$\\overset{めいしょ}{名所}$へガイドする。/将嚼着口香糖的客人向导（带）到名胜地。"
+  },
+  {
+    "word": "ガム",
+    "kana": "がむ",
+    "type": "名词",
+    "meaning": "口香糖。",
+    "example": "ガムを$\\overset{すて}{捨}$ててからカラオケで$\\overset{うた}{歌}$う。/吐掉口香糖后在卡拉OK唱歌。"
+  },
+  {
+    "word": "カラオケ",
+    "kana": "からおけ",
+    "type": "名词",
+    "meaning": "卡拉OK。",
+    "example": "カラオケの$\\overset{あと}{後}$でキャベツ$\\overset{い}{入}$りのギョーザを$\\overset{た}{食}$べる。/唱完卡拉OK后吃放了卷心菜的饺子。"
+  },
+  {
+    "word": "キャベツ",
+    "kana": "きゃべつ",
+    "type": "名词",
+    "meaning": "卷心菜，圆白菜。",
+    "example": "キャベツをたくさん$\\overset{い}{入}$れてギョーザを$\\overset{つく}{作}$る。/放很多卷心菜做饺子。"
+  },
+  {
+    "word": "ギョーザ",
+    "kana": "ぎょーざ",
+    "type": "名词",
+    "meaning": "饺子。",
+    "example": "クリスマスにギョーザを$\\overset{た}{食}$べるのはユニークだ。/在圣诞节吃饺子很独特。"
+  },
+  {
+    "word": "クリスマス",
+    "kana": "くりすます",
+    "type": "名词",
+    "meaning": "圣诞节。",
+    "example": "クリスマスの$\\overset{か}{買}$い$\\overset{もの}{物}$をクレジットカードで$\\overset{はら}{払}$う。/用信用卡支付圣诞节购物的钱。"
+  },
+  {
+    "word": "クレジットカード",
+    "kana": "くれじっとかーど",
+    "type": "名词",
+    "meaning": "信用卡。",
+    "example": "クレジットカードでコックの$\\overset{とくべつ}{特別}$な$\\overset{りょうり}{料理}$の$\\overset{だいきん}{代金}$を$\\overset{はら}{払}$う。/用信用卡支付厨师特别料理的费用。"
+  },
+  {
+    "word": "コック",
+    "kana": "こっく",
+    "type": "名词",
+    "meaning": "厨师。",
+    "example": "コックがシーディーの$\\overset{おんがく}{音楽}$を$\\overset{き}{聴}$きながら$\\overset{りょうり}{料理}$する。/厨师一边听CD音乐一边做菜。"
+  },
+  {
+    "word": "シーディー",
+    "kana": "しーでぃー",
+    "type": "名词",
+    "meaning": "CD，光盘。",
+    "example": "ジャーナリストがシーディーに$\\overset{ろくおん}{録音}$されたインタビューを$\\overset{き}{聞}$く。/记者听CD里录音的采访。"
+  },
+  {
+    "word": "ジャーナリスト",
+    "kana": "じゃーなりすと",
+    "type": "名词",
+    "meaning": "记者，新闻工作者。",
+    "example": "ジャーナリストがシャープペンシルで$\\overset{きじ}{記事}$のスケッチを$\\overset{か}{描}$く。/记者用自动铅笔画报道的草图。"
+  },
+  {
+    "word": "シャープペンシル",
+    "kana": "しゃーぷぺんしる",
+    "type": "名词",
+    "meaning": "自动铅笔。",
+    "example": "シャープペンシルでメモを$\\overset{と}{取}$り、パンにジャムを$\\overset{ぬ}{塗}$る。/用自动铅笔做笔记，然后在面包上涂果酱。"
+  },
+  {
+    "word": "ジャム",
+    "kana": "じゃむ",
+    "type": "名词",
+    "meaning": "果酱。",
+    "example": "ストーブで$\\overset{や}{焼}$いたパンにジャムを$\\overset{ぬ}{塗}$る。/在炉子烤过的面包上涂果酱。"
+  },
+  {
+    "word": "スケッチ",
+    "kana": "すけっち",
+    "type": "名・サ变动词する他",
+    "meaning": "写生，速写，草图。",
+    "example": "$\\overset{ふうけい}{風景}$のスケッチを$\\overset{み}{見}$る。/看风景的写生画。 || ストーブの$\\overset{あたた}{暖}$かい$\\overset{へや}{部屋}$で$\\overset{そと}{外}$の$\\overset{けしき}{景色}$をスケッチする。/在有炉子的温暖房间里写生外面的景色。"
+  },
+  {
+    "word": "ストーブ",
+    "kana": "すとーぶ",
+    "type": "名词",
+    "meaning": "火炉，暖炉。",
+    "example": "ストーブで$\\overset{あたた}{暖}$まりながら、センターからの$\\overset{れんらく}{連絡}$を$\\overset{ま}{待}$つ。/一边在炉子旁取暖，一边等中心的联络。"
+  },
+  {
+    "word": "センター",
+    "kana": "せんたー",
+    "type": "名词",
+    "meaning": "中心，中央。",
+    "example": "$\\overset{けんきゅう}{研究}$センターの$\\overset{しごと}{仕事}$でタイのダムへ$\\overset{しゅっちょう}{出張}$する。/因为研究中心的工作而出差去泰国的各种水坝。"
+  },
+  {
+    "word": "タイ",
+    "kana": "たい",
+    "type": "名词",
+    "meaning": "泰国；领带（ネクタイ）。",
+    "example": "タイのダムを$\\overset{けんがく}{見学}$し、チーズを$\\overset{た}{食}$べる。/参观泰国的水坝，并吃奶酪。"
+  },
+  {
+    "word": "ダム",
+    "kana": "だむ",
+    "type": "名词",
+    "meaning": "水坝。",
+    "example": "$\\overset{きょだい}{巨大}$なダムのニュースを$\\overset{み}{見}$ながらチーズを$\\overset{あじ}{味}$わう。/一边看巨大水坝的新闻一边品尝奶酪。"
+  },
+  {
+    "word": "チーズ",
+    "kana": "ちーず",
+    "type": "名词",
+    "meaning": "奶酪。",
+    "example": "チーズを$\\overset{た}{食}$べながらテレビのチャンネルを$\\overset{かえ}{替}$る。/一边吃奶酪一边换电视频道。"
+  },
+  {
+    "word": "チャンネル",
+    "kana": "ちゃんねる",
+    "type": "名词",
+    "meaning": "频道。",
+    "example": "チャンネルを$\\overset{かえ}{替}$て、ティーシャツの$\\overset{こうこく}{広告}$を$\\overset{み}{見}$る。/换频道，看到了T恤衫的广告。"
+  },
+  {
+    "word": "ティーシャツ",
+    "kana": "てぃーしゃつ",
+    "type": "名词",
+    "meaning": "T恤衫。",
+    "example": "ティーシャツを$\\overset{き}{着}$て、$\\overset{ふる}{古}$いテープの$\\overset{おんがく}{音楽}$を$\\overset{き}{聴}$く。/穿着T恤衫，听旧磁带的音乐。"
+  },
+  {
+    "word": "テープ",
+    "kana": "てーぷ",
+    "type": "名词",
+    "meaning": "磁带，胶带。",
+    "example": "テープを$\\overset{か}{買}$うために$\\overset{じゅう}{十}$ドルを$\\overset{しはら}{支払}$う。/为了买磁带支付了十美元。"
+  },
+  {
+    "word": "ドル",
+    "kana": "どる",
+    "type": "名词",
+    "meaning": "美元。",
+    "example": "$\\overset{すう}{数}$ドルを$\\overset{はら}{払}$ってナンバー$\\overset{い}{入}$りのハードウェアを$\\overset{か}{買}$う。/付了几美元买了带有编号的硬件。"
+  },
+  {
+    "word": "ナンバー",
+    "kana": "なんばー",
+    "type": "名词",
+    "meaning": "号码，数字。",
+    "example": "ハードウェアのナンバーを$\\overset{かくにん}{確認}$する。/确认硬件的编号。"
+  },
+  {
+    "word": "ハードウェア",
+    "kana": "はーどうぇあ",
+    "type": "名词",
+    "meaning": "硬件。",
+    "example": "ハイテクなハードウェアが$\\overset{みず}{水}$のバケツに$\\overset{おち}{落}$ちた。/高科技的硬件掉进了装水的铁桶里。"
+  },
+  {
+    "word": "ハイテク",
+    "kana": "はいてく",
+    "type": "名词・形动",
+    "meaning": "高科技。",
+    "example": "ハイテクを$\\overset{くし}{駆使}$する。/运用高科技。 || ハイテクな$\\overset{せいひん}{製品}$をバケツの$\\overset{みず}{水}$で$\\overset{あら}{洗}$ってはいけない。/不能用铁桶里的水洗高科技产品。"
+  },
+  {
+    "word": "バケツ",
+    "kana": "ばけつ",
+    "type": "名词",
+    "meaning": "铁桶，水桶。",
+    "example": "バケツの$\\overset{なか}{中}$のボールをチームメイトにパスする。/把水桶里的球传给队友。"
+  },
+  {
+    "word": "パス",
+    "kana": "ぱす",
+    "type": "名・サ变动词する自他",
+    "meaning": "及格，通过（自）；传球，跳过（他）。",
+    "example": "テストにパスして、パソコンを$\\overset{か}{買}$ってもらった。/考试及格了，被买了一台电脑（别人买给我）。 || バドミントンの$\\overset{しあい}{試合}$で$\\overset{つぎ}{次}$の$\\overset{きかい}{機会}$にパスする。/在羽毛球比赛中放弃（跳过）这次机会留给下次。"
+  },
+  {
+    "word": "パソコン",
+    "kana": "ぱそこん",
+    "type": "名词",
+    "meaning": "个人电脑。",
+    "example": "パソコンでバドミントンのハンドブックを$\\overset{よ}{読}$む。/用电脑读羽毛球的手册。"
+  },
+  {
+    "word": "バドミントン",
+    "kana": "ばどみんとん",
+    "type": "名词",
+    "meaning": "羽毛球。",
+    "example": "バドミントンのルールが$\\overset{か}{書}$かれたハンドブック。/写有羽毛球规则的手册。"
+  },
+  {
+    "word": "ハンドブック",
+    "kana": "はんどぶっく",
+    "type": "名词",
+    "meaning": "手册，指南。",
+    "example": "ビザの$\\overset{しんせい}{申請}$についてハンドブックとビデオで$\\overset{かくにん}{確認}$する。/关于签证的申请，用手册和视频进行确认。"
+  },
+  {
+    "word": "ビザ",
+    "kana": "びざ",
+    "type": "名词",
+    "meaning": "签证。",
+    "example": "ビザを$\\overset{と}{取}$ってから、$\\overset{たか}{高}$いビルへ$\\overset{い}{行}$く。/拿到签证后，去高高的大楼。"
+  },
+  {
+    "word": "ビデオ",
+    "kana": "びでお",
+    "type": "名词",
+    "meaning": "视频，录像。",
+    "example": "ビルの$\\overset{なか}{中}$でファックスに$\\overset{かん}{関}$するビデオを$\\overset{み}{見}$る。/在大楼里看关于传真的视频。"
+  },
+  {
+    "word": "ビル",
+    "kana": "びる",
+    "type": "名词",
+    "meaning": "大楼，大厦。",
+    "example": "ビルの$\\overset{なか}{中}$のオフィスでプリントをファックスする。/在大楼的办公室里把打印件传真过去。"
+  },
+  {
+    "word": "ファックス",
+    "kana": "ふぁっくす",
+    "type": "名・サ变动词する他",
+    "meaning": "传真。",
+    "example": "ファックスで$\\overset{しょるい}{書類}$を$\\overset{おく}{送}$る。/用传真发送文件。 || $\\overset{じゅうよう}{重要}$なプリントをすぐファックスする。/马上把重要的打印件传真过去。"
+  },
+  {
+    "word": "プリント",
+    "kana": "ぷりんと",
+    "type": "名・サ变动词する他",
+    "meaning": "打印，讲义。",
+    "example": "$\\overset{せんせい}{先生}$からプリントをもらう。/从老师那里拿到讲义。 || ブレーキの$\\overset{ずめん}{図面}$をプリントする。/打印刹车的图纸。"
+  },
+  {
+    "word": "ブレーキ",
+    "kana": "ぶれーき",
+    "type": "名词",
+    "meaning": "刹车。",
+    "example": "ブレーキをかけて、$\\overset{そら}{空}$のヘリコプターを$\\overset{みあ}{見上}$げる。/踩下刹车，仰望天空的直升机。"
+  },
+  {
+    "word": "ヘリコプター",
+    "kana": "へりこぷたー",
+    "type": "名词",
+    "meaning": "直升机。",
+    "example": "ヘリコプターが$\\overset{と}{飛}$ぶ$\\overset{した}{下}$でベンチに$\\overset{すわ}{座}$る。/在飞翔的直升机下坐在长椅上。"
+  },
+  {
+    "word": "ベンチ",
+    "kana": "べんち",
+    "type": "名词",
+    "meaning": "长椅，长凳。",
+    "example": "ベンチの$\\overset{よこ}{横}$でボールをポストに$\\overset{あ}{当}$てる。/在长椅旁边把球砸在邮筒上。"
+  },
+  {
+    "word": "ボール",
+    "kana": "ぼーる",
+    "type": "名词",
+    "meaning": "球。",
+    "example": "ボールを$\\overset{ひろ}{拾}$って、マラソン$\\overset{たいかい}{大会}$のポストへ$\\overset{な}{投}$げ$\\overset{い}{入}$れる。/捡起球，投进马拉松比赛的邮筒里。"
+  },
+  {
+    "word": "ポスト",
+    "kana": "ぽすと",
+    "type": "名词",
+    "meaning": "邮筒；职位。",
+    "example": "$\\overset{てがみ}{手紙}$をポストに$\\overset{い}{入}$れてからマラソンに$\\overset{さんか}{参加}$する。/把信投进邮筒后参加马拉松。"
+  },
+  {
+    "word": "マラソン",
+    "kana": "まらそん",
+    "type": "名词",
+    "meaning": "马拉松。",
+    "example": "マラソンで$\\overset{すう}{数}$$\\overset{せん}{千}$メートルを$\\overset{はし}{走}$るメンバー。/在马拉松中跑数千米的成员。"
+  },
+  {
+    "word": "メートル",
+    "kana": "めーとる",
+    "type": "名词",
+    "meaning": "米（长度单位）。",
+    "example": "$\\overset{ひゃく}{百}$メートル$\\overset{そう}{走}$でメンバーのリーダーが$\\overset{か}{勝}$つ。/在百米赛跑中成员的队长获胜。"
+  },
+  {
+    "word": "メンバー",
+    "kana": "めんばー",
+    "type": "名词",
+    "meaning": "成员。",
+    "example": "チームのメンバーがリーダーの$\\overset{しじ}{指示}$に$\\overset{したが}{従}$う。/队伍的成员服从队长的指示。"
+  },
+  {
+    "word": "リーダー",
+    "kana": "りーだー",
+    "type": "名词",
+    "meaning": "领导，队长。",
+    "example": "リーダーがロッカーからワンピースを$\\overset{だ}{出}$す。/队长从储物柜里拿出连衣裙。"
+  },
+  {
+    "word": "ロッカー",
+    "kana": "ろっかー",
+    "type": "名词",
+    "meaning": "储物柜，更衣柜。",
+    "example": "ロッカーにワンピースをしまって$\\overset{きが}{着替}$える。/把连衣裙收进储物柜里换衣服。"
+  },
+  {
+    "word": "ワンピース",
+    "kana": "わんぴーす",
+    "type": "名词",
+    "meaning": "连衣裙。",
+    "example": "$\\overset{うつく}{美}$しいワンピースを$\\overset{き}{着}$て$\\overset{でか}{出掛}$ける。/穿着美丽的连衣裙出门。"
+  },
+  {
+    "word": "アイディア",
+    "kana": "あいでぃあ",
+    "type": "名词",
+    "meaning": "主意，想法。",
+    "example": "アジアの$\\overset{しじょう}{市場}$に$\\overset{む}{向}$けた$\\overset{あたら}{新}$しいアイディアを$\\overset{だ}{出}$す。/提出面向亚洲市场的新主意。"
+  },
+  {
+    "word": "アジア",
+    "kana": "あじあ",
+    "type": "名词",
+    "meaning": "亚洲。",
+    "example": "アジアの$\\overset{しじょう}{市場}$に$\\overset{む}{向}$けた$\\overset{あたら}{新}$しいアイディアを$\\overset{だ}{出}$す。/提出面向亚洲市场的新主意。"
+  },
+  {
+    "word": "アナウンサー",
+    "kana": "あなうんさー",
+    "type": "名词",
+    "meaning": "播音员，主持人。",
+    "example": "$\\overset{ゆうめい}{有名}$なアナウンサーが$\\overset{ふる}{古}$いアパートに$\\overset{す}{住}$んでいる。/有名的播音员住在旧公寓里。"
+  },
+  {
+    "word": "アパート",
+    "kana": "あぱーと",
+    "type": "名词",
+    "meaning": "公寓。",
+    "example": "$\\overset{ゆうめい}{有名}$なアナウンサーが$\\overset{ふる}{古}$いアパートに$\\overset{す}{住}$んでいる。/有名的播音员住在旧公寓里。"
+  },
+  {
+    "word": "アプリ",
+    "kana": "あぷり",
+    "type": "名词",
+    "meaning": "应用程序，APP。",
+    "example": "$\\overset{けいたい}{携帯}$のアプリを$\\overset{つか}{使}$ってアルバイトを$\\overset{さが}{探}$す。/使用手机APP寻找兼职。"
+  },
+  {
+    "word": "アルバイト",
+    "kana": "あるばいと",
+    "type": "名・サ变动词する自",
+    "meaning": "打工，兼职。",
+    "example": "$\\overset{しゅうまつ}{週末}$にレストランのアルバイトをする。/周末在西餐厅做兼职。 || $\\overset{けいたい}{携帯}$のアプリを$\\overset{つか}{使}$ってカフェでアルバイトする。/使用手机APP在咖啡馆打工。"
+  },
+  {
+    "word": "インターネット",
+    "kana": "いんたーねっと",
+    "type": "名词",
+    "meaning": "互联网。",
+    "example": "インターネットで$\\overset{やす}{安}$いエアコンを$\\overset{ちゅうもん}{注文}$する。/在网上订购便宜的空调。"
+  },
+  {
+    "word": "エアコン",
+    "kana": "えあこん",
+    "type": "名词",
+    "meaning": "空调。",
+    "example": "インターネットで$\\overset{やす}{安}$いエアコンを$\\overset{ちゅうもん}{注文}$する。/在网上订购便宜的空调。"
+  },
+  {
+    "word": "エスカレーター",
+    "kana": "えすかれーたー",
+    "type": "名词",
+    "meaning": "自动扶梯。",
+    "example": "デパートでエスカレーターやエレベーターに$\\overset{の}{乗}$る。/在百货商场乘坐自动扶梯和电梯。"
+  },
+  {
+    "word": "エレベーター",
+    "kana": "えれべーたー",
+    "type": "名词",
+    "meaning": "电梯，升降机。",
+    "example": "デパートでエスカレーターやエレベーターに$\\overset{の}{乗}$る。/在百货商场乘坐自动扶梯和电梯。"
+  },
+  {
+    "word": "オリンピック",
+    "kana": "おりんぴっく",
+    "type": "名词",
+    "meaning": "奥运会。",
+    "example": "$\\overset{いえ}{家}$でオリンピックの$\\overset{しあい}{試合}$を$\\overset{み}{見}$ながらオレンジを$\\overset{た}{食}$べる。/在家里一边看奥运会比赛一边吃橙子。"
+  },
+  {
+    "word": "オレンジ",
+    "kana": "おれんじ",
+    "type": "名词",
+    "meaning": "橙子；橙色。",
+    "example": "$\\overset{いえ}{家}$でオリンピックの$\\overset{しあい}{試合}$を$\\overset{み}{見}$ながらオレンジを$\\overset{た}{食}$べる。/在家里一边看奥运会比赛一边吃橙子。"
+  },
+  {
+    "word": "ガソリン",
+    "kana": "がそりん",
+    "type": "名词",
+    "meaning": "汽油。",
+    "example": "ガソリンを$\\overset{い}{入}$れるついでに、$\\overset{くるま}{車}$のガラスを$\\overset{ふ}{拭}$く。/在加汽油的顺便，擦拭车玻璃。"
+  },
+  {
+    "word": "ガラス",
+    "kana": "がらす",
+    "type": "名词",
+    "meaning": "玻璃。",
+    "example": "ガソリンを$\\overset{い}{入}$れるついでに、$\\overset{くるま}{車}$のガラスを$\\overset{ふ}{拭}$く。/在加汽油的顺便，擦拭车玻璃。"
+  },
+  {
+    "word": "ケーキ",
+    "kana": "けーき",
+    "type": "名词",
+    "meaning": "蛋糕。",
+    "example": "$\\overset{あま}{甘}$いケーキを$\\overset{た}{食}$べながらゲームで$\\overset{あそ}{遊}$ぶ。/一边吃甜蛋糕一边玩游戏。"
+  },
+  {
+    "word": "ゲーム",
+    "kana": "げーむ",
+    "type": "名词",
+    "meaning": "游戏，比赛。",
+    "example": "$\\overset{あま}{甘}$いケーキを$\\overset{た}{食}$べながらゲームで$\\overset{あそ}{遊}$ぶ。/一边吃甜蛋糕一边玩游戏。"
+  },
+  {
+    "word": "コップ",
+    "kana": "こっぷ",
+    "type": "名词",
+    "meaning": "杯子。",
+    "example": "コップを$\\overset{も}{持}$ったままコンサートの$\\overset{かいじょう}{会場}$に$\\overset{はい}{入}$る。/拿着杯子进入演唱会会场。"
+  },
+  {
+    "word": "コンサート",
+    "kana": "こんさーと",
+    "type": "名词",
+    "meaning": "音乐会，演唱会。",
+    "example": "コップを$\\overset{も}{持}$ったままコンサートの$\\overset{かいじょう}{会場}$に$\\overset{はい}{入}$る。/拿着杯子进入演唱会会场。"
+  },
+  {
+    "word": "コンビニ",
+    "kana": "こんびに",
+    "type": "名词",
+    "meaning": "便利店。",
+    "example": "コンビニで$\\overset{しんせん}{新鮮}$なサラダを$\\overset{か}{買}$う。/在便利店买新鲜的沙拉。"
+  },
+  {
+    "word": "サラダ",
+    "kana": "さらだ",
+    "type": "名词",
+    "meaning": "沙拉。",
+    "example": "コンビニで$\\overset{しんせん}{新鮮}$なサラダを$\\overset{か}{買}$う。/在便利店买新鲜的沙拉。"
+  },
+  {
+    "word": "シャーペン",
+    "kana": "しゃーぺん",
+    "type": "名词",
+    "meaning": "自动铅笔（シャープペンシル的略称）。",
+    "example": "シャーペンで$\\overset{か}{書}$きながら$\\overset{つめ}{冷}$たいジュースを$\\overset{の}{飲}$む。/一边用自动铅笔写字一边喝冰果汁。"
+  },
+  {
+    "word": "ジュース",
+    "kana": "じゅーす",
+    "type": "名词",
+    "meaning": "果汁，饮料。",
+    "example": "シャーペンで$\\overset{か}{書}$きながら$\\overset{つめ}{冷}$たいジュースを$\\overset{の}{飲}$む。/一边用自动铅笔写字一边喝冰果汁。"
+  },
+  {
+    "word": "ショッピング",
+    "kana": "しょっぴんぐ",
+    "type": "名・サ变动词する自",
+    "meaning": "购物。",
+    "example": "$\\overset{しゅうまつ}{週末}$はデパートへショッピングに$\\overset{い}{行}$く。/周末去百货商场购物。 || スマートフォンで$\\overset{ふく}{服}$をショッピングする。/用智能手机购物买衣服。"
+  },
+  {
+    "word": "スマートフォン",
+    "kana": "すまーとふぉん",
+    "type": "名词",
+    "meaning": "智能手机（常略称为スマホ）。",
+    "example": "スマートフォンで$\\overset{ふく}{服}$をショッピングする。/用智能手机购物买衣服。"
+  },
+  {
+    "word": "ソフト",
+    "kana": "そふと",
+    "type": "名词・形动",
+    "meaning": "软件（ソフトウェア的略称）；柔软的。",
+    "example": "$\\overset{あたら}{新}$しいソフトを$\\overset{かいはつ}{開発}$してタクシーに$\\overset{の}{乗}$る。/开发了新软件后去坐出租车。 || ソフトな$\\overset{たいおう}{対応}$を$\\overset{こころが}{心掛}$ける。/留心做到态度柔和。"
+  },
+  {
+    "word": "タクシー",
+    "kana": "たくしー",
+    "type": "名词",
+    "meaning": "出租车。",
+    "example": "$\\overset{あたら}{新}$しいソフトを$\\overset{かいはつ}{開発}$してタクシーに$\\overset{の}{乗}$る。/开发了新软件后去坐出租车。"
+  },
+  {
+    "word": "チャレンジ",
+    "kana": "ちゃれんじ",
+    "type": "名・サ变动词する自",
+    "meaning": "挑战。",
+    "example": "$\\overset{あたら}{新}$しい$\\overset{しごと}{仕事}$へのチャレンジが$\\overset{はじ}{始}$まる。/对新工作的挑战开始了。 || $\\overset{おお}{大}$きなチャンスを$\\overset{つか}{掴}$んでチャレンジする。/抓住大好机会进行挑战。"
+  },
+  {
+    "word": "チャンス",
+    "kana": "ちゃんす",
+    "type": "名词",
+    "meaning": "机会。",
+    "example": "$\\overset{おお}{大}$きなチャンスを$\\overset{つか}{掴}$んでチャレンジする。/抓住大好机会进行挑战。"
+  },
+  {
+    "word": "テスト",
+    "kana": "てすと",
+    "type": "名・サ变动词する他",
+    "meaning": "测验，考试。",
+    "example": "$\\overset{あした}{明日}$のテストのために$\\overset{べんきょう}{勉強}$する。/为了明天的考试而学习。 || テストが$\\overset{おわ}{終}$った$\\overset{あと}{後}$でテレビを$\\overset{み}{見}$る。/考完试后看电视。"
+  },
+  {
+    "word": "テレビ",
+    "kana": "てれび",
+    "type": "名词",
+    "meaning": "电视。",
+    "example": "テストが$\\overset{おわ}{終}$った$\\overset{あと}{後}$でテレビを$\\overset{み}{見}$る。/考完试后看电视。"
+  },
+  {
+    "word": "トイレ",
+    "kana": "といれ",
+    "type": "名词",
+    "meaning": "厕所，洗手间。",
+    "example": "トイレに$\\overset{い}{行}$ってからバイオリンの$\\overset{れんしゅう}{練習}$をする。/去完洗手间后练习小提琴。"
+  },
+  {
+    "word": "バイオリン",
+    "kana": "ばいおりん",
+    "type": "名词",
+    "meaning": "小提琴。",
+    "example": "トイレに$\\overset{い}{行}$ってからバイオリンの$\\overset{れんしゅう}{練習}$をする。/去完洗手间后练习小提琴。"
+  },
+  {
+    "word": "バス",
+    "kana": "ばす",
+    "type": "名词",
+    "meaning": "公交车，巴士。",
+    "example": "バスの$\\overset{なか}{中}$でバナナを$\\overset{た}{食}$べるのはマナー$\\overset{いはん}{違反}$だ。/在公交车里吃香蕉是不讲礼貌的。"
+  },
+  {
+    "word": "バナナ",
+    "kana": "ばなな",
+    "type": "名词",
+    "meaning": "香蕉。",
+    "example": "バスの$\\overset{なか}{中}$でバナナを$\\overset{た}{食}$べるのはマナー$\\overset{いはん}{違反}$だ。/在公交车里吃香蕉是不讲礼貌的。"
+  },
+  {
+    "word": "バレーボール",
+    "kana": "ばれーぼーる",
+    "type": "名词",
+    "meaning": "排球。",
+    "example": "バレーボールの$\\overset{れんしゅう}{練習}$の$\\overset{あと}{後}$でパンを$\\overset{た}{食}$べる。/排球练习之后吃面包。"
+  },
+  {
+    "word": "パン",
+    "kana": "ぱん",
+    "type": "名词",
+    "meaning": "面包。",
+    "example": "バレーボールの$\\overset{れんしゅう}{練習}$の$\\overset{あと}{後}$でパンを$\\overset{た}{食}$べる。/排球练习之后吃面包。"
+  },
+  {
+    "word": "ピアノ",
+    "kana": "ぴあの",
+    "type": "名词",
+    "meaning": "钢琴。",
+    "example": "$\\overset{かれ}{彼}$はピアノのビジネスを$\\overset{はじ}{始}$めた。/他开始了钢琴的生意。"
+  },
+  {
+    "word": "ビジネス",
+    "kana": "びじねす",
+    "type": "名词",
+    "meaning": "商业，生意。",
+    "example": "$\\overset{かれ}{彼}$はピアノのビジネスを$\\overset{はじ}{始}$めた。/他开始了钢琴的生意。"
+  },
+  {
+    "word": "プレゼント",
+    "kana": "ぷれぜんと",
+    "type": "名・サ变动词する他",
+    "meaning": "礼物，赠送。",
+    "example": "$\\overset{たんじょうび}{誕生日}$のプレゼントをもらって$\\overset{よろこ}{喜}$ぶ。/收到生日礼物很高兴。 || ドアのベルが$\\overset{な}{鳴}$り、$\\overset{かのじょ}{彼女}$に$\\overset{はな}{花}$をプレゼントする。/门铃响了，把花赠送给她。"
+  },
+  {
+    "word": "ベル",
+    "kana": "べる",
+    "type": "名词",
+    "meaning": "铃，门铃。",
+    "example": "ドアのベルが$\\overset{な}{鳴}$り、$\\overset{かのじょ}{彼女}$に$\\overset{はな}{花}$をプレゼントする。/门铃响了，把花赠送给她。"
+  },
+  {
+    "word": "ポスター",
+    "kana": "ぽすたー",
+    "type": "名词",
+    "meaning": "海报。",
+    "example": "ポスターの$\\overset{こうか}{効果}$がなく、$\\overset{う}{売}$り$\\overset{あ}{上}$げがマイナスになる。/海报没起作用，销售额变成了负数。"
+  },
+  {
+    "word": "マイナス",
+    "kana": "まいなす",
+    "type": "名・形动・サ变动词する自他",
+    "meaning": "负数，减去；消极。",
+    "example": "$\\overset{きおん}{気温}$がマイナスになる。/气温变成了零下。 || ポスターの$\\overset{ひよう}{費用}$を$\\overset{りえき}{利益}$からマイナスする。/从利润中减去海报的费用。"
+  },
+  {
+    "word": "メーカー",
+    "kana": "めーかー",
+    "type": "名词",
+    "meaning": "制造商，厂家。",
+    "example": "$\\overset{ゆうめい}{有名}$なメーカーからメールが$\\overset{とど}{届}$く。/收到了来自知名厂家的邮件。"
+  },
+  {
+    "word": "メール",
+    "kana": "めーる",
+    "type": "名・サ变动词する他",
+    "meaning": "邮件。",
+    "example": "$\\overset{ともだち}{友達}$からメールが$\\overset{き}{来}$た。/朋友发来了邮件。 || $\\overset{ゆうめい}{有名}$なメーカーに$\\overset{しつもん}{質問}$をメールする。/给知名厂家发邮件提问。"
+  },
+  {
+    "word": "メモ",
+    "kana": "めも",
+    "type": "名・サ变动词する他",
+    "meaning": "便条，备忘录。",
+    "example": "$\\overset{でんわ}{電話}$の$\\overset{よこ}{横}$にメモを$\\overset{のこ}{残}$す。/在电话旁边留便条。 || レベルの$\\overset{たか}{高}$い$\\overset{じゅぎょう}{授業}$の$\\overset{ないよう}{内容}$をメモする。/把高水平课程的内容记下来。"
+  },
+  {
+    "word": "レベル",
+    "kana": "れべる",
+    "type": "名词",
+    "meaning": "水平，等级。",
+    "example": "レベルの$\\overset{たか}{高}$い$\\overset{じゅぎょう}{授業}$の$\\overset{ないよう}{内容}$をメモする。/把高水平课程的内容记下来。"
+  },
+  {
+    "word": "ロビー",
+    "kana": "ろびー",
+    "type": "名词",
+    "meaning": "大厅，休息室。",
+    "example": "ホテルの$\\overset{なか}{中}$のロビーでアンケートに$\\overset{こた}{答}$える。/在酒店的大厅里回答问卷调查。"
+  },
+  {
+    "word": "アンケート",
+    "kana": "あんけーと",
+    "type": "名词",
+    "meaning": "问卷调查。",
+    "example": "ホテルの$\\overset{なか}{中}$のロビーでアンケートに$\\overset{こた}{答}$える。/在酒店的大厅里回答问卷调查。"
+  },
+  {
+    "word": "カード",
+    "kana": "かーど",
+    "type": "名词",
+    "meaning": "卡片，信用卡。",
+    "example": "クレジットカードで$\\overset{りょこう}{旅行}$のガイドブックを$\\overset{か}{買}$う。/用信用卡买旅行指南。"
+  },
+  {
+    "word": "ガイドブック",
+    "kana": "がいどぶっく",
+    "type": "名词",
+    "meaning": "旅行指南，导游手册。",
+    "example": "クレジットカードで$\\overset{りょこう}{旅行}$のガイドブックを$\\overset{か}{買}$う。/用信用卡买旅行指南。"
+  },
+  {
+    "word": "カリキュラム",
+    "kana": "かりきゅらむ",
+    "type": "名词",
+    "meaning": "课程，课程表。",
+    "example": "カロリー$\\overset{けいさん}{計算}$のカリキュラムを$\\overset{く}{組}$む。/制定计算卡路里的课程。"
+  },
+  {
+    "word": "カロリー",
+    "kana": "かろりー",
+    "type": "名词",
+    "meaning": "卡路里，热量。",
+    "example": "カロリー$\\overset{けいさん}{計算}$のカリキュラムを$\\overset{く}{組}$む。/制定计算卡路里的课程。"
+  },
+  {
+    "word": "キャンパス",
+    "kana": "きゃんぱす",
+    "type": "名词",
+    "meaning": "校园。",
+    "example": "$\\overset{だいがく}{大学}$のキャンパスでクラブ$\\overset{かつどう}{活動}$に$\\overset{さんか}{参加}$する。/在大学校园里参加俱乐部活动。"
+  },
+  {
+    "word": "クラブ",
+    "kana": "くらぶ",
+    "type": "名词",
+    "meaning": "俱乐部，社团。",
+    "example": "$\\overset{だいがく}{大学}$のキャンパスでクラブ$\\overset{かつどう}{活動}$に$\\overset{さんか}{参加}$する。/在大学校园里参加俱乐部活动。"
+  },
+  {
+    "word": "ゴール",
+    "kana": "ごーる",
+    "type": "名・サ变动词する自",
+    "meaning": "终点，目标；进球。",
+    "example": "$\\overset{たか}{高}$いコストをかけてゴールに$\\overset{とうたつ}{到達}$する。/花费高昂的成本到达终点。 || マラソン$\\overset{せんしゅ}{選手}$が$\\overset{ぶじ}{無事}$にゴールする。/马拉松选手平安到达终点。"
+  },
+  {
+    "word": "コスト",
+    "kana": "こすと",
+    "type": "名词",
+    "meaning": "成本，费用。",
+    "example": "$\\overset{たか}{高}$いコストをかけてゴールに$\\overset{とうたつ}{到達}$する。/花费高昂的成本到达终点。"
+  },
+  {
+    "word": "コマーシャル",
+    "kana": "こまーしゃる",
+    "type": "名词",
+    "meaning": "商业广告。",
+    "example": "テレビでゴム$\\overset{せいひん}{製品}$のコマーシャルを$\\overset{み}{見}$る。/在电视上看橡胶制品的商业广告。"
+  },
+  {
+    "word": "ゴム",
+    "kana": "ごむ",
+    "type": "名词",
+    "meaning": "橡胶，橡皮。",
+    "example": "テレビでゴム$\\overset{せいひん}{製品}$のコマーシャルを$\\overset{み}{見}$る。/在电视上看橡胶制品的商业广告。"
+  },
+  {
+    "word": "システム",
+    "kana": "しすてむ",
+    "type": "名词",
+    "meaning": "系统，体系。",
+    "example": "$\\overset{あたら}{新}$しいシステムのシンボルを$\\overset{せっけい}{設計}$する。/设计新系统的标志。"
+  },
+  {
+    "word": "シンボル",
+    "kana": "しんぼる",
+    "type": "名词",
+    "meaning": "象征，标志。",
+    "example": "$\\overset{あたら}{新}$しいシステムのシンボルを$\\overset{せっけい}{設計}$する。/设计新系统的标志。"
+  },
+  {
+    "word": "スイッチ",
+    "kana": "すいっち",
+    "type": "名词",
+    "meaning": "开关。",
+    "example": "スーツを$\\overset{き}{着}$た$\\overset{かれ}{彼}$が$\\overset{きかい}{機械}$のスイッチを$\\overset{お}{押}$す。/穿着西装的他按下了机器的开关。"
+  },
+  {
+    "word": "スーツ",
+    "kana": "すーつ",
+    "type": "名词",
+    "meaning": "西装，套装。",
+    "example": "スーツを$\\overset{き}{着}$た$\\overset{かれ}{彼}$が$\\overset{きかい}{機械}$のスイッチを$\\overset{お}{押}$す。/穿着西装的他按下了机器的开关。"
+  },
+  {
+    "word": "スケジュール",
+    "kana": "すけじゅーる",
+    "type": "名词",
+    "meaning": "日程，时间表。",
+    "example": "スケジュール$\\overset{どお}{通}$りに$\\overset{りっぱ}{立派}$なスピーチをする。/按照日程进行了出色的演讲。"
+  },
+  {
+    "word": "スピーチ",
+    "kana": "すぴーち",
+    "type": "名・サ变动词する自",
+    "meaning": "演讲，致辞。",
+    "example": "$\\overset{かれ}{彼}$のスピーチに$\\overset{かんどう}{感動}$した。/被他的演讲感动了。 || スケジュール$\\overset{どお}{通}$りに$\\overset{かいぎ}{会議}$でスピーチする。/按照日程在会议上演讲。"
+  },
+  {
+    "word": "スプーン",
+    "kana": "すぷーん",
+    "type": "名词",
+    "meaning": "勺子。",
+    "example": "$\\overset{あたた}{暖}$かいセーターを$\\overset{き}{着}$てスプーンを$\\overset{も}{持}$つ。/穿着温暖的毛衣拿着勺子。"
+  },
+  {
+    "word": "セーター",
+    "kana": "せーたー",
+    "type": "名词",
+    "meaning": "毛衣。",
+    "example": "$\\overset{あたた}{暖}$かいセーターを$\\overset{き}{着}$てスプーンを$\\overset{も}{持}$つ。/穿着温暖的毛衣拿着勺子。"
+  },
+  {
+    "word": "タイトル",
+    "kana": "たいとる",
+    "type": "名词",
+    "meaning": "标题，头衔。",
+    "example": "チームのみんなで$\\overset{えいが}{映画}$のタイトルを$\\overset{きめ}{決}$る。/队伍的所有人一起决定电影的标题。"
+  },
+  {
+    "word": "チーム",
+    "kana": "ちーむ",
+    "type": "名词",
+    "meaning": "队伍，团队。",
+    "example": "チームのみんなで$\\overset{えいが}{映画}$のタイトルを$\\overset{きめ}{決}$る。/队伍的所有人一起决定电影的标题。"
+  },
+  {
+    "word": "テーブル",
+    "kana": "てーぶる",
+    "type": "名词",
+    "meaning": "桌子。",
+    "example": "テーブルの$\\overset{うえ}{上}$の$\\overset{しりょう}{資料}$で$\\overset{こきゃく}{顧客}$のニーズを$\\overset{ぶんせき}{分析}$する。/用桌子上的资料分析顾客的需求。"
+  },
+  {
+    "word": "ニーズ",
+    "kana": "にーず",
+    "type": "名词",
+    "meaning": "需求，需要。",
+    "example": "テーブルの$\\overset{うえ}{上}$の$\\overset{しりょう}{資料}$で$\\overset{こきゃく}{顧客}$のニーズを$\\overset{ぶんせき}{分析}$する。/用桌子上的资料分析顾客的需求。"
+  },
+  {
+    "word": "ネクタイ",
+    "kana": "ねくたい",
+    "type": "名词",
+    "meaning": "领带。",
+    "example": "ネクタイを$\\overset{し}{締}$めてパーティーに$\\overset{しゅっせき}{出席}$する。/系上领带出席派对。"
+  },
+  {
+    "word": "パーティー",
+    "kana": "ぱーてぃー",
+    "type": "名词",
+    "meaning": "派对，聚会。",
+    "example": "ネクタイを$\\overset{し}{締}$めてパーティーに$\\overset{しゅっせき}{出席}$する。/系上领带出席派对。"
+  },
+  {
+    "word": "ハイキング",
+    "kana": "はいきんぐ",
+    "type": "名・サ变动词する自",
+    "meaning": "远足，徒步旅行。",
+    "example": "$\\overset{あき}{秋}$はハイキングに$\\overset{さいてき}{最適}$な$\\overset{きせつ}{季節}$だ。/秋天是最适合远足的季节。 || $\\overset{やま}{山}$へハイキングして、その$\\overset{あと}{後}$でビールを$\\overset{の}{飲}$む。/去山里远足，然后喝啤酒。"
+  },
+  {
+    "word": "ビール",
+    "kana": "びーる",
+    "type": "名词",
+    "meaning": "啤酒。",
+    "example": "$\\overset{やま}{山}$へハイキングして、その$\\overset{あと}{後}$でビールを$\\overset{の}{飲}$む。/去山里远足，然后喝啤酒。"
+  },
+  {
+    "word": "ビニール",
+    "kana": "びにーる",
+    "type": "名词",
+    "meaning": "塑料，乙烯基。",
+    "example": "ビニール$\\overset{ぶくろ}{袋}$を$\\overset{へら}{減}$す$\\overset{うんどう}{運動}$がブームになる。/减少使用塑料袋的运动成了一股热潮。"
+  },
+  {
+    "word": "ブーム",
+    "kana": "ぶーむ",
+    "type": "名词",
+    "meaning": "热潮，高潮。",
+    "example": "ビニール$\\overset{ぶくろ}{袋}$を$\\overset{へら}{減}$す$\\overset{うんどう}{運動}$がブームになる。/减少使用塑料袋的运动成了一股热潮。"
+  },
+  {
+    "word": "プール",
+    "kana": "ぷーる",
+    "type": "名词",
+    "meaning": "游泳池。",
+    "example": "プールにプラスチックのゴミが$\\overset{うか}{浮}$んでいる。/游泳池里漂浮着塑料垃圾。"
+  },
+  {
+    "word": "プラスチック",
+    "kana": "ぷらすちっく",
+    "type": "名词",
+    "meaning": "塑料。",
+    "example": "プールにプラスチックのゴミが$\\overset{うか}{浮}$んでいる。/游泳池里漂浮着塑料垃圾。"
+  },
+  {
+    "word": "ベストセラー",
+    "kana": "べすとせらー",
+    "type": "名词",
+    "meaning": "畅销书。",
+    "example": "$\\overset{しず}{静}$かなホテルでベストセラーの$\\overset{しょうせつ}{小説}$を$\\overset{よ}{読}$む。/在安静的酒店里读畅销小说。"
+  },
+  {
+    "word": "ホテル",
+    "kana": "ほてる",
+    "type": "名词",
+    "meaning": "酒店，宾馆。",
+    "example": "$\\overset{しず}{静}$かなホテルでベストセラーの$\\overset{しょうせつ}{小説}$を$\\overset{よ}{読}$む。/在安静的酒店里读畅销小说。"
+  },
+  {
+    "word": "ボランティア",
+    "kana": "ぼらんてぃあ",
+    "type": "名词",
+    "meaning": "志愿者，志愿活动。",
+    "example": "$\\overset{やす}{休}$みの$\\overset{ひ}{日}$にボランティアでリサイクル$\\overset{かつどう}{活動}$をする。/在休息日作为志愿者进行回收再利用活动。"
+  },
+  {
+    "word": "リサイクル",
+    "kana": "りさいくる",
+    "type": "名・サ变动词する他",
+    "meaning": "回收利用，再生。",
+    "example": "$\\overset{しげん}{資源}$のリサイクルは$\\overset{かんきょう}{環境}$に$\\overset{よ}{良}$い。/资源的回收利用对环境有好处。 || ボランティアが$\\overset{ふる}{古}$い$\\overset{ふく}{服}$をリサイクルする。/志愿者把旧衣服回收再利用。"
+  },
+  {
+    "word": "リハーサル",
+    "kana": "りはーさる",
+    "type": "名・サ变动词する自他",
+    "meaning": "排练，彩排。",
+    "example": "$\\overset{あした}{明日}$の$\\overset{げき}{劇}$のリハーサルが$\\overset{はじ}{始}$まる。/明天戏剧的排练开始了。 || ルールを$\\overset{まも}{守}$って$\\overset{まじめ}{真面目}$にリハーサルする。/遵守规则认真地彩排。"
+  },
+  {
+    "word": "ルール",
+    "kana": "るーる",
+    "type": "名词",
+    "meaning": "规则。",
+    "example": "ルールを$\\overset{まも}{守}$って$\\overset{まじめ}{真面目}$にリハーサルする。/遵守规则认真地彩排。"
+  },
+  {
+    "word": "レジャー",
+    "kana": "れじゃー",
+    "type": "名词",
+    "meaning": "休闲，娱乐。",
+    "example": "ワイシャツを$\\overset{き}{着}$てレジャーに$\\overset{でか}{出掛}$けるのは$\\overset{すこ}{少}$し$\\overset{へん}{変}$だ。/穿着衬衫出门休闲娱乐有点奇怪。"
+  },
+  {
+    "word": "ワイシャツ",
+    "kana": "わいしゃつ",
+    "type": "名词",
+    "meaning": "衬衫（男士白衬衫等）。",
+    "example": "ワイシャツを$\\overset{き}{着}$てレジャーに$\\overset{でか}{出掛}$けるのは$\\overset{すこ}{少}$し$\\overset{へん}{変}$だ。/穿着衬衫出门休闲娱乐有点奇怪。"
+  },
+  {
+    "word": "イベント",
+    "kana": "いべんと",
+    "type": "名词",
+    "meaning": "活动，事件。",
+    "example": "イベントのポスターのインクがやっと$\\overset{かわ}{乾}$いた。/活动海报上的墨水终于干了。"
+  },
+  {
+    "word": "インク",
+    "kana": "いんく",
+    "type": "名词",
+    "meaning": "墨水。",
+    "example": "イベントのポスターのインクがやっと$\\overset{かわ}{乾}$いた。/活动海报上的墨水终于干了。"
+  },
+  {
+    "word": "オートバイ",
+    "kana": "おーとばい",
+    "type": "名词",
+    "meaning": "摩托车。",
+    "example": "$\\overset{めずら}{珍}$しいカラーのオートバイで$\\overset{うみ}{海}$へ$\\overset{い}{行}$く。/骑着罕见颜色的摩托车去海边。"
+  },
+  {
+    "word": "カラー",
+    "kana": "からー",
+    "type": "名词",
+    "meaning": "颜色，彩色。",
+    "example": "$\\overset{めずら}{珍}$しいカラーのオートバイで$\\overset{うみ}{海}$へ$\\overset{い}{行}$く。/骑着罕见颜色的摩托车去海边。"
+  },
+  {
+    "word": "グラウンド",
+    "kana": "ぐらうんど",
+    "type": "名词",
+    "meaning": "操场，运动场。",
+    "example": "クラスのみんなでグラウンドに$\\overset{あつ}{集}$まる。/班里所有人都在操场上集合。"
+  },
+  {
+    "word": "クラス",
+    "kana": "くらす",
+    "type": "名词",
+    "meaning": "班级。",
+    "example": "クラスのみんなでグラウンドに$\\overset{あつ}{集}$まる。/班里所有人都在操场上集合。"
+  },
+  {
+    "word": "クリック",
+    "kana": "くりっく",
+    "type": "名・サ变动词する他",
+    "meaning": "点击。",
+    "example": "マウスを$\\overset{に}{二}$$\\overset{かい}{回}$クリックする。/点击两下鼠标。 || ボタンをクリックして$\\overset{ふゆ}{冬}$のコートを$\\overset{か}{買}$う。/点击按钮买冬天的外套。"
+  },
+  {
+    "word": "コート",
+    "kana": "こーと",
+    "type": "名词",
+    "meaning": "大衣，外套；网球场等。",
+    "example": "ボタンをクリックして$\\overset{ふゆ}{冬}$のコートを$\\overset{か}{買}$う。/点击按钮买冬天的外套。"
+  },
+  {
+    "word": "コーラ",
+    "kana": "こーら",
+    "type": "名词",
+    "meaning": "可乐。",
+    "example": "お$\\overset{みせ}{店}$のサービスで$\\overset{つめ}{冷}$たいコーラをもらう。/作为店里的赠品（服务）得到了一杯冰可乐。"
+  },
+  {
+    "word": "サービス",
+    "kana": "さーびす",
+    "type": "名・サ变动词する他",
+    "meaning": "服务，售后服务；免费附赠。",
+    "example": "この$\\overset{みせ}{店}$はサービスがとても$\\overset{よ}{良}$い。/这家店的服务非常好。 || お$\\overset{きゃく}{客}$さんにコーラを$\\overset{いっぱい}{一杯}$サービスする。/免费赠送给客人一杯可乐。"
+  },
+  {
+    "word": "サイン",
+    "kana": "さいん",
+    "type": "名・サ变动词する自他",
+    "meaning": "签名，署名；信号。",
+    "example": "$\\overset{ゆうめい}{有名}$な$\\overset{さっか}{作家}$にサインをもらう。/得到了著名作家的签名。 || サンダルを$\\overset{は}{履}$いて$\\overset{しょるい}{書類}$にサインする。/穿着凉鞋在文件上签名。"
+  },
+  {
+    "word": "サンダル",
+    "kana": "さんだる",
+    "type": "名词",
+    "meaning": "凉鞋。",
+    "example": "サンダルを$\\overset{は}{履}$いて$\\overset{しょるい}{書類}$にサインする。/穿着凉鞋在文件上签名。"
+  },
+  {
+    "word": "シーズン",
+    "kana": "しーずん",
+    "type": "名词",
+    "meaning": "季节，旺季。",
+    "example": "$\\overset{あき}{秋}$はジャガイモを$\\overset{しゅうかく}{収穫}$するシーズンだ。/秋天是收获土豆的季节。"
+  },
+  {
+    "word": "ジャガイモ",
+    "kana": "じゃがいも",
+    "type": "名词",
+    "meaning": "土豆，马铃薯。",
+    "example": "$\\overset{あき}{秋}$はジャガイモを$\\overset{しゅうかく}{収穫}$するシーズンだ。/秋天是收获土豆的季节。"
+  },
+  {
+    "word": "シャツ",
+    "kana": "しゃつ",
+    "type": "名词",
+    "meaning": "衬衫。",
+    "example": "シャツ$\\overset{いちまい}{一枚}$でシルクロードを$\\overset{たび}{旅}$する。/只穿一件衬衫在丝绸之路上旅行。"
+  },
+  {
+    "word": "シルクロード",
+    "kana": "しるくろーど",
+    "type": "名词",
+    "meaning": "丝绸之路。",
+    "example": "シャツ$\\overset{いちまい}{一枚}$でシルクロードを$\\overset{たび}{旅}$する。/只穿一件衬衫在丝绸之路上旅行。"
+  },
+  {
+    "word": "スキー",
+    "kana": "すきー",
+    "type": "名・サ变动词する自",
+    "meaning": "滑雪。",
+    "example": "$\\overset{ふゆ}{冬}$$\\overset{やす}{休}$みに$\\overset{かぞく}{家族}$とスキーに$\\overset{い}{行}$く。/寒假和家人去滑雪。 || スタンドで$\\overset{やす}{休}$んでからまたスキーする。/在看台休息之后再滑雪。"
+  },
+  {
+    "word": "スタンド",
+    "kana": "すたんど",
+    "type": "名词",
+    "meaning": "看台；台灯；小卖部。",
+    "example": "スタンドで$\\overset{やす}{休}$んでからまたスキーする。/在看台休息之后再滑雪。"
+  },
+  {
+    "word": "ステレオ",
+    "kana": "すてれお",
+    "type": "名词",
+    "meaning": "立体声音响。",
+    "example": "ステレオの$\\overset{おんがく}{音楽}$を$\\overset{きゅう}{急}$にストップする。/突然停止音响里的音乐。"
+  },
+  {
+    "word": "ストップ",
+    "kana": "すとっぷ",
+    "type": "名・サ变动词する自他",
+    "meaning": "停止。",
+    "example": "$\\overset{きゅう}{急}$なストップは$\\overset{きけん}{危険}$だ。/急停很危险。 || ステレオの$\\overset{おんがく}{音楽}$をストップする。/停止音响里的音乐。"
+  },
+  {
+    "word": "スリッパ",
+    "kana": "すりっぱ",
+    "type": "名词",
+    "meaning": "拖鞋。",
+    "example": "スリッパを$\\overset{は}{履}$いて$\\overset{えいご}{英語}$のセンテンスを$\\overset{おんどく}{音読}$する。/穿着拖鞋朗读英语句子。"
+  },
+  {
+    "word": "センテンス",
+    "kana": "せんてんす",
+    "type": "名词",
+    "meaning": "句子。",
+    "example": "スリッパを$\\overset{は}{履}$いて$\\overset{えいご}{英語}$のセンテンスを$\\overset{おんどく}{音読}$する。/穿着拖鞋朗读英语句子。"
+  },
+  {
+    "word": "ソフトウェア",
+    "kana": "そふとうぇあ",
+    "type": "名词",
+    "meaning": "软件。",
+    "example": "ソフトウェアを$\\overset{つか}{使}$ってダンスの$\\overset{どうが}{動画}$を$\\overset{へんしゅう}{編集}$する。/使用软件编辑跳舞的视频。"
+  },
+  {
+    "word": "ダンス",
+    "kana": "だんす",
+    "type": "名・サ变动词する自",
+    "meaning": "跳舞，舞蹈。",
+    "example": "$\\overset{かのじょ}{彼女}$のダンスはとても$\\overset{うつく}{美}$しい。/她的舞蹈非常美丽。 || ソフトウェアで$\\overset{おんがく}{音楽}$を$\\overset{なが}{流}$してダンスする。/用软件播放音乐并跳舞。"
+  },
+  {
+    "word": "チョーク",
+    "kana": "ちょーく",
+    "type": "名词",
+    "meaning": "粉笔。",
+    "example": "ティッシュでチョークの$\\overset{こな}{粉}$を$\\overset{きれい}{綺麗}$に$\\overset{ふ}{拭}$く。/用纸巾把粉笔的粉末擦干净。"
+  },
+  {
+    "word": "ティッシュ",
+    "kana": "てぃっしゅ",
+    "type": "名词",
+    "meaning": "纸巾。",
+    "example": "ティッシュでチョークの$\\overset{こな}{粉}$を$\\overset{きれい}{綺麗}$に$\\overset{ふ}{拭}$く。/用纸巾把粉笔的粉末擦干净。"
+  },
+  {
+    "word": "テーマ",
+    "kana": "てーま",
+    "type": "名词",
+    "meaning": "主题。",
+    "example": "テーマに$\\overset{あ}{合}$わせたデザインを$\\overset{いっしょうけんめい}{一生懸命}$$\\overset{かんが}{考}$える。/拼命思考符合主题的设计。"
+  },
+  {
+    "word": "デザイン",
+    "kana": "でざいん",
+    "type": "名・サ变动词する他",
+    "meaning": "设计。",
+    "example": "この$\\overset{ふく}{服}$のデザインはとてもユニークだ。/这件衣服的设计非常独特。 || テーマに$\\overset{あ}{合}$わせて$\\overset{あたら}{新}$しいロゴをデザインする。/配合主题设计新的标志。"
+  },
+  {
+    "word": "トラック",
+    "kana": "とらっく",
+    "type": "名词",
+    "meaning": "卡车；跑道。",
+    "example": "トラックの$\\overset{うんてんしゅ}{運転手}$の$\\overset{かんどう}{感動}$$\\overset{てき}{的}$なドラマを$\\overset{み}{見}$る。/看令人感动的卡车司机的电视剧。"
+  },
+  {
+    "word": "ドラマ",
+    "kana": "どらま",
+    "type": "名词",
+    "meaning": "电视剧，戏剧。",
+    "example": "トラックの$\\overset{うんてんしゅ}{運転手}$の$\\overset{かんどう}{感動}$$\\overset{てき}{的}$なドラマを$\\overset{み}{見}$る。/看令人感动的卡车司机的电视剧。"
+  },
+  {
+    "word": "トンネル",
+    "kana": "とんねる",
+    "type": "名词",
+    "meaning": "隧道。",
+    "example": "$\\overset{くら}{暗}$いトンネルの$\\overset{なか}{中}$で$\\overset{するど}{鋭}$いナイフを$\\overset{み}{見}$つける。/在黑暗的隧道里发现了一把锋利的刀。"
+  },
+  {
+    "word": "ナイフ",
+    "kana": "ないふ",
+    "type": "名词",
+    "meaning": "刀，小刀。",
+    "example": "$\\overset{くら}{暗}$いトンネルの$\\overset{なか}{中}$で$\\overset{するど}{鋭}$いナイフを$\\overset{み}{見}$つける。/在黑暗的隧道里发现了一把锋利的刀。"
+  },
+  {
+    "word": "ノック",
+    "kana": "のっく",
+    "type": "名・サ变动词する自他",
+    "meaning": "敲门。",
+    "example": "ドアのノックの$\\overset{おと}{音}$が$\\overset{き}{聞}$こえる。/听到了敲门的声音。 || ドアをノックしてパスポートを$\\overset{わた}{渡}$す。/敲门并递上护照。"
+  },
+  {
+    "word": "パスポート",
+    "kana": "ぱすぽーと",
+    "type": "名词",
+    "meaning": "护照。",
+    "example": "ドアをノックしてパスポートを$\\overset{わた}{渡}$す。/敲门并递上护照。"
+  },
+  {
+    "word": "バター",
+    "kana": "ばたー",
+    "type": "名词",
+    "meaning": "黄油。",
+    "example": "バターとハムを$\\overset{はさ}{挟}$んだサンドイッチを$\\overset{つく}{作}$る。/做夹着黄油和火腿的三明治。"
+  },
+  {
+    "word": "ハム",
+    "kana": "はむ",
+    "type": "名词",
+    "meaning": "火腿。",
+    "example": "バターとハムを$\\overset{はさ}{挟}$んだサンドイッチを$\\overset{つく}{作}$る。/做夹着黄油和火腿的三明治。"
+  },
+  {
+    "word": "ハンドバッグ",
+    "kana": "はんどばっぐ",
+    "type": "名词",
+    "meaning": "手提包。",
+    "example": "ハンドバッグを$\\overset{よこ}{横}$に$\\overset{お}{置}$いて、$\\overset{くるま}{車}$のハンドルを$\\overset{にぎ}{握}$る。/把手提包放在旁边，握住汽车的方向盘。"
+  },
+  {
+    "word": "ハンドル",
+    "kana": "はんどる",
+    "type": "名词",
+    "meaning": "方向盘，车把。",
+    "example": "ハンドバッグを$\\overset{よこ}{横}$に$\\overset{お}{置}$いて、$\\overset{くるま}{車}$のハンドルを$\\overset{にぎ}{握}$る。/把手提包放在旁边，握住汽车的方向盘。"
+  },
+  {
+    "word": "ペキン",
+    "kana": "ぺきん",
+    "type": "名词",
+    "meaning": "北京。",
+    "example": "ペキンへ$\\overset{りょこう}{旅行}$に$\\overset{い}{行}$って、$\\overset{きねん}{記念}$にペンを$\\overset{か}{買}$う。/去北京旅行，买了一支笔作为纪念。"
+  },
+  {
+    "word": "ペン",
+    "kana": "ぺん",
+    "type": "名词",
+    "meaning": "笔。",
+    "example": "ペキンへ$\\overset{りょこう}{旅行}$に$\\overset{い}{行}$って、$\\overset{きねん}{記念}$にペンを$\\overset{か}{買}$う。/去北京旅行，买了一支笔作为纪念。"
+  },
+  {
+    "word": "ホーム",
+    "kana": "ほーむ",
+    "type": "名词",
+    "meaning": "站台（プラットホーム的略称）；家。",
+    "example": "$\\overset{えき}{駅}$のホームでボールペンを$\\overset{おと}{落}$して$\\overset{あわ}{慌}$てる。/在车站站台掉了一支圆珠笔，慌了神。"
+  },
+  {
+    "word": "ボールペン",
+    "kana": "ぼーるぺん",
+    "type": "名词",
+    "meaning": "圆珠笔。",
+    "example": "$\\overset{えき}{駅}$のホームでボールペンを$\\overset{おと}{落}$して$\\overset{あわ}{慌}$てる。/在车站站台掉了一支圆珠笔，慌了神。"
+  },
+  {
+    "word": "マッチ",
+    "kana": "まっち",
+    "type": "名词",
+    "meaning": "火柴；比赛。",
+    "example": "$\\overset{あたた}{暖}$かいマフラーをして、マッチで$\\overset{ひ}{火}$をつける。/戴着温暖的围巾，用火柴点火。"
+  },
+  {
+    "word": "マフラー",
+    "kana": "まふらー",
+    "type": "名词",
+    "meaning": "围巾。",
+    "example": "$\\overset{あたた}{暖}$かいマフラーをして、マッチで$\\overset{ひ}{火}$をつける。/戴着温暖的围巾，用火柴点火。"
+  },
+  {
+    "word": "マルチメディア",
+    "kana": "まるちめでぃあ",
+    "type": "名词",
+    "meaning": "多媒体。",
+    "example": "マルチメディアの$\\overset{ぎじゅつ}{技術}$を$\\overset{まな}{学}$びながらミルクを$\\overset{の}{飲}$む。/一边学习多媒体技术一边喝牛奶。"
+  },
+  {
+    "word": "ミルク",
+    "kana": "みるく",
+    "type": "名词",
+    "meaning": "牛奶。",
+    "example": "マルチメディアの$\\overset{ぎじゅつ}{技術}$を$\\overset{まな}{学}$びながらミルクを$\\overset{の}{飲}$む。/一边学习多媒体技术一边喝牛奶。"
+  },
+  {
+    "word": "モーター",
+    "kana": "もーたー",
+    "type": "名词",
+    "meaning": "马达，电动机。",
+    "example": "モーターの$\\overset{ぎじゅつ}{技術}$を$\\overset{まな}{学}$ぶためにヨーロッパへ$\\overset{い}{行}$く。/为了学习马达的技术而去欧洲。"
+  },
+  {
+    "word": "ヨーロッパ",
+    "kana": "よーろっぱ",
+    "type": "名词",
+    "meaning": "欧洲。",
+    "example": "モーターの$\\overset{ぎじゅつ}{技術}$を$\\overset{まな}{学}$ぶためにヨーロッパへ$\\overset{い}{行}$く。/为了学习马达的技术而去欧洲。"
+  },
+  {
+    "word": "ラッシュアワー",
+    "kana": "らっしゅあわー",
+    "type": "名词",
+    "meaning": "交通高峰期。",
+    "example": "ラッシュアワーの$\\overset{でんしゃ}{電車}$の$\\overset{なか}{中}$でローマ$\\overset{じ}{字}$を$\\overset{おぼ}{覚}$える。/在交通高峰期的电车里背罗马音。"
+  },
+  {
+    "word": "ローマ字",
+    "kana": "ろーまじ",
+    "type": "名词",
+    "meaning": "罗马字，拼音字母。",
+    "example": "ラッシュアワーの$\\overset{でんしゃ}{電車}$の$\\overset{なか}{中}$でローマ$\\overset{じ}{字}$を$\\overset{おぼ}{覚}$える。/在交通高峰期的电车里背罗马音。"
+  }
+
+
+
+
+
 
 
 ];

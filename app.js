@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (MD3涟漪 + 虚拟滚动 + 7步10词算法 + 本地范围记忆 + 硬核盲听三轮检测)
+ * 终极进化版 (虚拟词库 + 樱花花丸徽章 + 盲听检测 + 大卡片TTS联动双向同步)
  */
 
 const escapeHTML = (str) => {
@@ -63,7 +63,6 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     document.getElementById('prompt-cancel').onclick = () => { window.toggleModal('prompt-overlay', false); };
 };
 
-// 📱 原生底部导航栏管理器
 const Nav = {
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -75,7 +74,6 @@ const Nav = {
             });
         });
 
-        // ⌨️ 键盘避让系统
         let inputs = document.querySelectorAll('input[type="text"], textarea');
         let nav = document.getElementById('bottom-nav');
         inputs.forEach(el => {
@@ -149,15 +147,35 @@ const BottomSheet = {
         Array.from(selectEl.options).forEach(opt => {
             let btn = document.createElement('div');
             btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
-            btn.innerText = opt.text;
+            
+            let innerHTML = `<span>${opt.text}</span>`;
+            
+            // 🌟 注入定制的徽章段位（保留文字，但在CSS里可以把花丸印记化）
+            if (selectEl.id === 'group-select') {
+                let clears = opt.getAttribute('data-clears');
+                if (clears && parseInt(clears) > 0) {
+                    let count = parseInt(clears);
+                    if (count >= 10) innerHTML += ` <span class="hanko-badge hanko-diamond">極</span>`;
+                    else if (count >= 5) innerHTML += ` <span class="hanko-badge hanko-gold">免許皆伝</span>`;
+                    else if (count >= 3) innerHTML += ` <span class="hanko-badge hanko-silver">熟練</span>`;
+                    else if (count >= 1) innerHTML += ` <span class="hanko-badge hanko-bronze">合格</span>`;
+                }
+                btn.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;">${innerHTML}</div>`;
+            } else if (selectEl.id === 'wb-folder-filter') {
+                let iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">folder</span>`;
+                if (opt.value === 'all') iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">grid_view</span>`;
+                else if (opt.value === 'virtual_starred') iconHTML = `<span class="material-symbols-rounded" style="color:#fbbc04; font-variation-settings: 'FILL' 1;">star</span>`;
+                else if (opt.value === 'virtual_cleared') iconHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary);">workspace_premium</span>`;
+                else if (opt.value === 'virtual_uncleared') iconHTML = `<span class="material-symbols-rounded" style="color:var(--outline);">hourglass_empty</span>`;
+                btn.innerHTML = `<div style="display:flex; align-items:center; gap:8px; justify-content:center;">${iconHTML}<span>${opt.text}</span></div>`;
+            } else {
+                btn.innerText = opt.text;
+            }
+
             btn.onclick = () => {
                 selectEl.value = opt.value;
-                
-                // 🌟 方案 B 核心：下拉列表选项持久化记忆！
-                if (selectEl.id === 'group-select') {
-                    localStorage.setItem('lastSelectedGroup', opt.value);
-                }
-
+                if (selectEl.id === 'group-select') localStorage.setItem('lastSelectedGroup', opt.value);
+                if (selectEl.id === 'wb-folder-filter') localStorage.setItem('lastSelectedFolder', opt.value);
                 selectEl.dispatchEvent(new Event('facade-update'));
                 selectEl.dispatchEvent(new Event('change')); 
                 window.toggleModal('bs-overlay', false);
@@ -170,13 +188,11 @@ const BottomSheet = {
 
 const Model = {
   db: [], folders: ["默认词库"], stars: [], records: [], editingIdx: -1,
+  mtGroupClears: {}, mtWordClears: {},
   state: {
-    mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '',
+    mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    
-    // 🌟 硬核记忆检测专用状态
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
-
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false,
     srsHistory: [],
@@ -190,15 +206,27 @@ const Model = {
     else { this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); this.saveDB(); }
     this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
     this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
+    this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
+    this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
   },
   saveDB() { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); },
   saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
   saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
   saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
+  saveClears() {
+      localStorage.setItem('mtGroupClears_v3', JSON.stringify(this.mtGroupClears));
+      localStorage.setItem('mtWordClears_v3', JSON.stringify(this.mtWordClears));
+  },
   
   updateFilteredDb(searchQuery, currentFilter) {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
-          let matchFolder = (currentFilter === 'all' || item.w.folder === currentFilter);
+          let matchFolder = false;
+          if (currentFilter === 'all') matchFolder = true;
+          else if (currentFilter === 'virtual_starred') matchFolder = this.stars.includes(item.w.word);
+          else if (currentFilter === 'virtual_cleared') matchFolder = (this.mtWordClears[item.w.word] > 0);
+          else if (currentFilter === 'virtual_uncleared') matchFolder = (!this.mtWordClears[item.w.word]);
+          else matchFolder = (item.w.folder === currentFilter);
+
           let matchSearch = !searchQuery || 
                             item.w.word.toLowerCase().includes(searchQuery) ||
                             item.w.kana.toLowerCase().includes(searchQuery) ||
@@ -255,25 +283,15 @@ const Model = {
 };
 
 const Hardware = {
-  audioCtx: null, chargeOsc: null, chargeGain: null,
+  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null,
   init() {
     try {
         if (window.speechSynthesis) {
-            window.speechSynthesis.getVoices();
-            if (speechSynthesis.onvoiceschanged !== undefined) {
-                speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-            }
+          let loadVoice = () => { this.jaVoiceCache = window.speechSynthesis.getVoices().find(v => v.lang.includes('ja') || v.lang.includes('JP')); };
+          loadVoice();
+          if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoice;
         }
-        document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                if (window.speechSynthesis) window.speechSynthesis.cancel();
-            } else {
-                this.unlockSpeech();
-            }
-        });
-    } catch(e) {
-        console.error('Hardware init error:', e);
-    }
+    } catch(e) {}
   },
   vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {} },
   playSound(type) {
@@ -360,32 +378,12 @@ const Hardware = {
   speakText(text) {
     try {
         if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
-        
-        window.speechSynthesis.cancel();
-
-        setTimeout(() => {
-            let utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'ja-JP'; 
-            utterance.rate = 0.85; 
-            utterance.volume = 1; 
-
-            let voices = window.speechSynthesis.getVoices();
-            let jaVoice = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
-            if (jaVoice) utterance.voice = jaVoice;
-
-            utterance.onerror = (e) => {
-                console.warn('TTS 引擎发生中断或错误:', e);
-                if (e.error === 'not-allowed' || e.error === 'interrupted') {
-                    window.speechSynthesis.cancel();
-                }
-            };
-
-            window.speechSynthesis.speak(utterance);
-        }, 50);
-
-    } catch(e) {
-        console.error('Speech synthesis execution failed:', e);
-    }
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { window.speechSynthesis.cancel(); }
+        let utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
+        if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
+        window.speechSynthesis.speak(utterance);
+    } catch(e) {}
   }
 };
 
@@ -410,65 +408,21 @@ const View = {
   
   toggleTheme(e) {
     let isDark = document.body.getAttribute('data-theme') === 'dark';
-    
     let toggleAction = () => {
-        if (isDark) { 
-            document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); 
-            document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); 
-        } else { 
-            document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); 
-            document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); 
-        }
+        if (isDark) { document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); } 
+        else { document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); }
     };
-
-    if (!document.startViewTransition) {
-        toggleAction();
-        return;
-    }
-
+    if (!document.startViewTransition) { toggleAction(); return; }
     const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
     const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
-
-    const endRadius = Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y)
-    );
-
+    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
     document.documentElement.classList.add('theme-switching');
-
     const transition = document.startViewTransition(toggleAction);
-
     transition.ready.then(() => {
-        document.documentElement.animate(
-            { 
-                clipPath: [
-                    `circle(0px at ${x}px ${y}px)`,
-                    `circle(${endRadius}px at ${x}px ${y}px)`
-                ],
-                opacity: [0.5, 1] 
-            },
-            {
-                duration: 400, 
-                easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', 
-                pseudoElement: '::view-transition-new(root)',
-            }
-        );
-
-        document.documentElement.animate(
-            { 
-                filter: ['brightness(1) blur(0px)', 'brightness(0.6) blur(4px)']
-            },
-            {
-                duration: 400,
-                easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)',
-                pseudoElement: '::view-transition-old(root)',
-            }
-        );
+        document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`], opacity: [0.5, 1] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-new(root)' });
+        document.documentElement.animate({ filter: ['brightness(1) blur(0px)', 'brightness(0.6) blur(4px)'] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-old(root)' });
     });
-
-    transition.finished.then(() => {
-        document.documentElement.classList.remove('theme-switching');
-    });
+    transition.finished.then(() => { document.documentElement.classList.remove('theme-switching'); });
   },
   
   getCardVisuals(typeStr) {
@@ -502,24 +456,14 @@ const View = {
     let isMemTest = Model.state.mode === 'memory-test';
     let isSRS = Model.state.mode === 'srs';
     
-    // 内存检测的进度计算
     let total = isMemTest ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     let current = isMemTest ? (total - Model.state.studyQueue.length) : Model.state.currentIndex;
     
-    let displayTotal = total;
-    let displayCurrent = current;
-
-    if (isSRS && total > 10) {
-        displayTotal = 10;
-        displayCurrent = current % 10;
-    }
+    let displayTotal = total; let displayCurrent = current;
+    if (isSRS && total > 10) { displayTotal = 10; displayCurrent = current % 10; }
     
-    while (c.children.length < displayTotal) {
-      let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p);
-    }
-    while (c.children.length > displayTotal) {
-      c.removeChild(c.lastChild);
-    }
+    while (c.children.length < displayTotal) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
+    while (c.children.length > displayTotal) { c.removeChild(c.lastChild); }
     
     Array.from(c.children).forEach((p, i) => {
       p.className = (i < displayCurrent) ? 'pixel filled' : (i === displayCurrent ? 'pixel current' : 'pixel');
@@ -538,27 +482,22 @@ const View = {
     let select = this.getEl('group-select'); select.innerHTML = '';
     Model.folders.forEach(f => {
       let wordsInFolder = Model.db.filter(w => w.folder === f); let total = wordsInFolder.length; if (total === 0) return;
-      
-      // 🌟 核心算法变更：步长从 10 改为 7，实现每组最后 3 个词成为下一组前 3 个词的完美交叠！
       let i = 0; while (i * 7 < total) { 
           let startIdx = i * 7; 
           let endIdx = Math.min(startIdx + 10, total); 
-          select.add(new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`)); 
+          let opt = new Option(`${f} (第 ${startIdx + 1}-${endIdx} 词)`, `folder|${f}|${i}`);
+          let clearCount = Model.mtGroupClears[`folder|${f}|${i}`] || 0;
+          opt.setAttribute('data-clears', clearCount);
+          select.add(opt);
           i++; 
       }
     });
 
-    // 🌟 提取记忆，自动定位到上次学习的词组
     let lastGroup = localStorage.getItem('lastSelectedGroup');
-    if (lastGroup) {
-        let exists = Array.from(select.options).some(opt => opt.value === lastGroup);
-        if (exists) select.value = lastGroup;
-    }
-
+    if (lastGroup && Array.from(select.options).some(opt => opt.value === lastGroup)) { select.value = lastGroup; }
     select.dispatchEvent(new Event('facade-update'));
     
-    let t = new Date().toLocaleDateString('zh-CN');
-    let btn = this.getEl('btn-long-press');
+    let t = new Date().toLocaleDateString('zh-CN'); let btn = this.getEl('btn-long-press');
     if (btn) {
         let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
         if(isPunched) {
@@ -582,10 +521,7 @@ const View = {
     let forceRoteFull = false;
     if (isRote) {
         let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
-        if (isFirstAppearance) {
-            forceRoteFull = true;
-            mode = 'all'; 
-        }
+        if (isFirstAppearance) { forceRoteFull = true; mode = 'all'; }
     }
 
     if (Model.state.mode === 'dual-track') {
@@ -595,7 +531,6 @@ const View = {
         mode = 'all';
     }
 
-    // 🌟 记忆检测模式顶部显示专属轮次与进度
     if (isMemTest) {
         let remain = Model.state.studyQueue.length;
         let total = Model.state.mtBaseQueue.length;
@@ -634,7 +569,6 @@ const View = {
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let showWord = true, showKana = true, showMeaning = true;
     
-    // 只处理死记硬背的隐藏逻辑，硬核检测模式由自己的方法全权接管
     if (isRote && mode !== 'all' && !forceRoteFull) {
         if (mode === 'word') { showKana = Model.state.mtStep > 1; showMeaning = false; } 
         else if (mode === 'kana') { showWord = Model.state.mtStep > 1; showMeaning = false; } 
@@ -647,7 +581,8 @@ const View = {
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
     
     let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
-    this.getEl('star-icon').classList.toggle('icon-filled', isStarred);
+    let starIcon = this.getEl('star-icon');
+    if (starIcon) starIcon.style.fontVariationSettings = isStarred ? "'FILL' 1" : "'FILL' 0";
 
     let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
     let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
@@ -660,21 +595,16 @@ const View = {
         this.getEl('w-meaning').style.display = 'block';
     }
     
-    // 隐藏小喇叭
     let hideSpeaker = isDtSpell || isMemTest || (isRote && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     
-    // 🌟 在记忆检测模式下，彻底隐藏右上角的小眼睛
     let displayTrigger = this.getEl('btn-display-mode-trigger');
     if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track' || isMemTest) ? 'none' : 'inline-flex';
 
     let undoBtn = this.getEl('btn-srs-undo');
     if (undoBtn) {
-        if (Model.state.mode === 'srs' && Model.state.srsHistory && Model.state.srsHistory.length > 0) {
-            undoBtn.classList.remove('hidden');
-        } else {
-            undoBtn.classList.add('hidden');
-        }
+        if (Model.state.mode === 'srs' && Model.state.srsHistory && Model.state.srsHistory.length > 0) { undoBtn.classList.remove('hidden'); } 
+        else { undoBtn.classList.add('hidden'); }
     }
 
     this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
@@ -688,7 +618,6 @@ const View = {
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
         if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
     } else if (isMemTest) {
-        // 记忆检测拥有独立排版控制
         ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
         this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'none';
     } else if (forceRoteFull) {
@@ -722,7 +651,6 @@ const View = {
       this.renderMemoryTestUI(w, mode);
     }
     
-    // 🌟 在记忆检测模式的第一轮和第二轮，强制发音
     if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
         setTimeout(() => Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')), 300);
     } else {
@@ -784,7 +712,6 @@ const View = {
       }
   },
   
-  // 🌟 记忆检测核心渲染器（彻底支持三轮独立打法）
   renderMemoryTestUI(wObj, displayMode) {
       let mtWarning = this.getEl('mt-warning'); if(mtWarning) mtWarning.classList.add('hidden'); 
       this.getEl('mt-spell-area').classList.add('hidden'); 
@@ -799,7 +726,6 @@ const View = {
       let targetText = '';
 
       if (isMemTest) {
-          // 硬核盲测：默认全部隐藏文字
           this.getEl('w-word').style.display = 'none';
           this.getEl('w-kana').style.display = 'none';
           this.getEl('w-meaning').style.display = 'none';
@@ -809,32 +735,27 @@ const View = {
           let step = Model.state.mtStep;
           
           if (round === 1) { 
-              // 第一轮：盲听 -> 选释义
               if(blindAudioUi) blindAudioUi.classList.remove('hidden');
               currentTestType = 'choice';
               isMeaning = true;
               targetText = wObj.meaning;
           } else if (round === 2) {
               if (step === 1) { 
-                  // 第二轮.1：盲听 -> 选汉字
                   if(blindAudioUi) blindAudioUi.classList.remove('hidden');
                   currentTestType = 'choice';
                   isMeaning = false;
                   targetText = wObj.word;
               } else if (step === 2) { 
-                  // 第二轮.2：见汉字 -> 拼假名
                   this.getEl('w-word').style.display = 'block';
                   currentTestType = 'spell';
               }
           } else if (round === 3) {
               if (step === 1) { 
-                  // 第三轮.1：见假名 -> 选释义
                   this.getEl('w-kana').style.display = 'block';
                   currentTestType = 'choice';
                   isMeaning = true;
                   targetText = wObj.meaning;
               } else if (step === 2) { 
-                  // 第三轮.2：见假名+释义 -> 选汉字
                   this.getEl('w-kana').style.display = 'block';
                   this.getEl('w-meaning').style.display = 'block';
                   currentTestType = 'choice';
@@ -843,7 +764,6 @@ const View = {
               }
           }
       } else {
-          // 保留给老版本「死记硬背」的适配逻辑
           if (displayMode === 'all') { if(mtWarning) mtWarning.classList.remove('hidden'); return; }
           if (displayMode === 'word') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning'; } 
           else if (displayMode === 'kana') { currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning'; } 
@@ -881,7 +801,6 @@ const View = {
           
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
           choices.forEach(c => { 
-              // 🌟 加入 choice-flip-anim 确保切换时发生 3D 翻转动画
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; btn.innerText = c.text; 
               btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); 
               cb.appendChild(btn); 
@@ -938,9 +857,7 @@ const View = {
     let startIndex = startRow * cols;
     let endIndex = endRow * cols;
 
-    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) {
-        return; 
-    }
+    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) { return; }
     Model.state.renderedStartIndex = startIndex;
     Model.state.renderedEndIndex = endIndex;
 
@@ -952,6 +869,7 @@ const View = {
 
     let slice = filteredData.slice(startIndex, endIndex);
     let fragment = document.createDocumentFragment();
+    
     slice.forEach((item) => {
       let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);
       let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
@@ -961,8 +879,36 @@ const View = {
       card.style.background = visuals.bg; card.dataset.idx = idx; 
       card.style.opacity = '1'; 
 
+      let starFilled = Model.stars.includes(w.word) ? 1 : 0;
+      let starClass = starFilled ? 'active' : '';
+      
+      let clearCount = Model.mtWordClears[w.word] || 0;
+      let hankoHTML = '';
+      if (clearCount >= 10) hankoHTML = `<div class="card-hanko hanko-diamond"></div>`;
+      else if (clearCount >= 5) hankoHTML = `<div class="card-hanko hanko-gold"></div>`;
+      else if (clearCount >= 3) hankoHTML = `<div class="card-hanko hanko-silver"></div>`;
+      else if (clearCount >= 1) hankoHTML = `<div class="card-hanko hanko-bronze"></div>`;
+
+      // 隐患一规避：开启多选管理模式时，隐藏左上角的樱花，避免与复选框打架
+      if (Model.state.manageMode || Model.state.batchMode) hankoHTML = '';
+
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
-      card.innerHTML = `<div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}<div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div><div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div><div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div><div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}"><button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button><button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button><button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button></div>`;
+      card.innerHTML = `
+        ${hankoHTML}
+        <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
+        ${Model.state.batchMode ? `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>` : ''}
+        ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
+        <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
+        <div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>
+        <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
+        <div class="wb-c-star btn-wb-star ${starClass}">
+            <span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span>
+        </div>
+        <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
+            <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
+            <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
+            <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
+        </div>`;
       fragment.appendChild(card);
     });
     
@@ -988,10 +934,22 @@ const View = {
         manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
     }
 
-    let selFilter = this.getEl('wb-folder-filter'); let currentVal = selFilter.value;
-    selFilter.innerHTML = '<option value="all">查看所有词汇</option>'; 
+    let selFilter = this.getEl('wb-folder-filter'); 
+    let currentVal = selFilter.value;
+    selFilter.innerHTML = ''; 
+    selFilter.add(new Option('查看所有词汇', 'all'));
+    selFilter.add(new Option('收藏词汇', 'virtual_starred'));
+    selFilter.add(new Option('已通关词汇', 'virtual_cleared'));
+    selFilter.add(new Option('未通关词汇', 'virtual_uncleared'));
+    
     Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
-    if(Model.folders.includes(currentVal) || currentVal === 'all') selFilter.value = currentVal;
+    
+    let lastFolder = localStorage.getItem('lastSelectedFolder') || currentVal;
+    if(Array.from(selFilter.options).some(opt => opt.value === lastFolder)) {
+        selFilter.value = lastFolder;
+    } else {
+        selFilter.value = 'all';
+    }
     selFilter.dispatchEvent(new Event('facade-update'));
   }
 };
@@ -1042,14 +1000,21 @@ const Controller = {
   },
 
   bindEvents() {
-    document.querySelectorAll('.modal-overlay').forEach(ov => { ov.addEventListener('click', (e) => { if(e.target === ov) window.toggleModal(ov.id, false); }); });
+    document.querySelectorAll('.modal-overlay').forEach(ov => { 
+        ov.addEventListener('click', (e) => { 
+            if(e.target === ov) {
+                window.toggleModal(ov.id, false); 
+                // 🌟 隐患四规避：关窗强制刷新，同步双向绑定的星星状态
+                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) {
+                    Model.state.renderedStartIndex = -1;
+                    View.renderVirtualGrid();
+                }
+            }
+        }); 
+    });
     
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
-        btn.addEventListener('click', (e) => { 
-            Hardware.playSound('click'); 
-            Hardware.vibrate(20); 
-            View.toggleTheme(e); 
-        }); 
+        btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('tab-home'); View.renderDashboard(); });
@@ -1072,7 +1037,6 @@ const Controller = {
         });
     }
 
-    // 🌟 盲听模式的重新播放和作弊暗门事件
     let btnMtReplay = View.getEl('btn-mt-replay');
     if (btnMtReplay) {
         btnMtReplay.addEventListener('click', () => {
@@ -1111,9 +1075,7 @@ const Controller = {
     }
 
     let searchInput = View.getEl('wb-search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => { View.resetWordbankRenderer(); });
-    }
+    if (searchInput) { searchInput.addEventListener('input', () => { View.resetWordbankRenderer(); }); }
 
     let btnExport = View.getEl('btn-export-backup');
     if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
@@ -1129,9 +1091,7 @@ const Controller = {
     }
 
     let undoBtn = View.getEl('btn-srs-undo');
-    if (undoBtn) {
-        undoBtn.addEventListener('click', () => this.undoSRS());
-    }
+    if (undoBtn) { undoBtn.addEventListener('click', () => this.undoSRS()); }
 
     window.addEventListener('keydown', (e) => {
         if (localStorage.getItem('volNav') !== 'true') return;
@@ -1166,8 +1126,51 @@ const Controller = {
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
     ['again', 'hard', 'good', 'easy'].forEach(rating => { View.getEl(`srs-${rating}`).addEventListener('click', () => this.handleSRSRating(rating)); });
+    
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
-    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); if(idx > -1) { Model.stars.splice(idx, 1); } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); } Model.saveStars(); View.renderStudyCard('none'); });
+    
+    // 学习界面的右上角星星按钮
+    View.getEl('star-btn').addEventListener('click', (e) => { 
+        Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; 
+        let idx = Model.stars.indexOf(wordObj.word); 
+        let icon = View.getEl('star-icon');
+        if(idx > -1) { 
+            Model.stars.splice(idx, 1); 
+            icon.style.fontVariationSettings = "'FILL' 0";
+        } else { 
+            Model.stars.push(wordObj.word); 
+            window.createStarParticles(e.currentTarget); Hardware.vibrate(20); 
+            icon.style.fontVariationSettings = "'FILL' 1";
+        } 
+        Model.saveStars(); 
+    });
+
+    // 🌟 大卡片里的右下角星星按钮绑定！
+    let dtStarBtn = View.getEl('dt-star-btn');
+    if (dtStarBtn) {
+        dtStarBtn.addEventListener('click', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(10);
+            let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+            let wWord = Model.db[realIdx].word;
+            let sIdx = Model.stars.indexOf(wWord);
+            let starBtn = e.currentTarget;
+            let icon = View.getEl('dt-star-icon');
+
+            if (sIdx > -1) {
+                Model.stars.splice(sIdx, 1);
+                starBtn.classList.remove('active');
+                icon.style.fontVariationSettings = "'FILL' 0";
+            } else {
+                Model.stars.push(wWord);
+                starBtn.classList.add('active');
+                icon.style.fontVariationSettings = "'FILL' 1";
+                window.createStarParticles(starBtn);
+            }
+            Model.saveStars();
+            // 静默打上需要刷新的标记
+            Model.state.renderedStartIndex = -1;
+        });
+    }
 
     document.addEventListener('click', (e) => { let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } });
 
@@ -1175,8 +1178,9 @@ const Controller = {
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
     
     const onPointerDownCard = (e) => {
-        if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker')) return; if (Model.state.batchMode || Model.state.manageMode) return;
+        if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode) return;
         startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); 
+        // 🌟 打开大卡片触发！
         pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500);
     };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
@@ -1184,10 +1188,31 @@ const Controller = {
 
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     
-    grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card')) e.preventDefault(); });
+    grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
 
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
+      
+      if (e.target.closest('.btn-wb-star')) { 
+          Hardware.playSound('click'); Hardware.vibrate(10);
+          let wWord = Model.db[idx].word;
+          let sIdx = Model.stars.indexOf(wWord);
+          let starBtn = e.target.closest('.btn-wb-star');
+          let icon = starBtn.querySelector('.material-symbols-rounded');
+          if (sIdx > -1) {
+              Model.stars.splice(sIdx, 1);
+              starBtn.classList.remove('active');
+              icon.style.fontVariationSettings = "'FILL' 0";
+          } else {
+              Model.stars.push(wWord);
+              starBtn.classList.add('active');
+              icon.style.fontVariationSettings = "'FILL' 1";
+              window.createStarParticles(starBtn);
+          }
+          Model.saveStars();
+          return;
+      }
+      
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); this.openMoveModal(idx); return; }
       if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); this.editWord(idx); return; }
@@ -1203,24 +1228,28 @@ const Controller = {
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); Model.migrateSRSData(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
-    View.getEl('detail-close').addEventListener('click', () => window.toggleModal('detail-overlay', false)); View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
+    
+    // 🌟 隐患四规避：单独点击大卡片右上角叉号关闭时，也执行刷新判定
+    View.getEl('detail-close').addEventListener('click', () => { 
+        window.toggleModal('detail-overlay', false); 
+        if (document.getElementById('tab-wordbank').classList.contains('active')) {
+            Model.state.renderedStartIndex = -1;
+            View.renderVirtualGrid();
+        }
+    }); 
+    View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
   },
 
   exportBackup() {
-      Hardware.playSound('success');
-      Hardware.vibrate(50);
-      let data = { db: Model.db, folders: Model.folders, stars: Model.stars, records: Model.records, version: "v3", exportDate: new Date().toISOString() };
+      Hardware.playSound('success'); Hardware.vibrate(50);
+      let data = { db: Model.db, folders: Model.folders, stars: Model.stars, records: Model.records, mtGroupClears: Model.mtGroupClears, mtWordClears: Model.mtWordClears, version: "v3", exportDate: new Date().toISOString() };
       let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-
       if (navigator.share && navigator.canShare) {
           let file = new File([blob], fileName, { type: "application/json" });
-          if (navigator.canShare({ files: [file] })) {
-              navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName));
-              return;
-          }
+          if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName)); return; }
       }
       this.fallbackDownload(blob, fileName);
   },
@@ -1240,7 +1269,8 @@ const Controller = {
               let data = JSON.parse(e.target.result);
               if (data && data.db && data.folders) {
                   Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || [];
-                  Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords();
+                  Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
+                  Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords(); Model.saveClears();
                   Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
               } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
           } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
@@ -1254,9 +1284,9 @@ const Controller = {
     Model.state.currentGroupLabel = sel.options[sel.selectedIndex].text;
     
     let [type, folderName, idxStr] = sel.value.split('|'); let idx = parseInt(idxStr);
-    
-    // 🌟 算法更新：7步10词！读取时使用 7 倍数为起点截取 10 个词
     let startIdx = idx * 7; let endIdx = startIdx + 10;
+    
+    Model.state.currentGroupKey = `folder|${folderName}|${idxStr}`;
     
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => item.w.folder === folderName).slice(startIdx, endIdx);
     if(sourceWords.length === 0) return;
@@ -1265,7 +1295,6 @@ const Controller = {
     Model.state.currentWordFailed = false;
 
     if (launchMode === 'memory-test') {
-        // 🌟 记忆检测初始化，建立独立的三轮队列
         Model.state.mtRound = 1;
         Model.state.mtBaseQueue = sourceWords.map(x => x.i);
         Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
@@ -1307,7 +1336,6 @@ const Controller = {
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); }
   },
 
-  // 🌟 记忆检测 & 传统检测 共享拼写处理逻辑
   handleMtSpellClick(btn, token, wObj, displayMode) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
@@ -1320,12 +1348,10 @@ const Controller = {
               Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
               
               if (Model.state.mode === 'memory-test') {
-                  // 纯硬核检测模式下（只有第二轮第二步会走到这里拼写）
                   View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block';
                   View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300);
                   setTimeout(() => this.mtAdvanceNext(), 800);
               } else {
-                  // 老的死记硬背模式
                   if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); }
                   setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); 
               }
@@ -1337,7 +1363,6 @@ const Controller = {
       }
   },
 
-  // 🌟 记忆检测 & 传统检测 共享选择反馈逻辑
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
       
@@ -1349,26 +1374,22 @@ const Controller = {
               let step = Model.state.mtStep;
               
               if (round === 1) {
-                  // 第一轮：选对释义后，展示一下释义，然后进入下一个词
                   View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
                   View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
                   document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); 
                   setTimeout(() => this.mtAdvanceNext(), 800);
               } else if (round === 2) {
                   if (step === 1) {
-                      // 第二轮：选对汉字后，进入这道题的 step 2 (考拼写)
                       View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
                       View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
                       setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
                   }
               } else if (round === 3) {
                   if (step === 1) {
-                      // 第三轮.1：选对释义，进入 step 2 (考汉字)
                       View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
                       View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
                       setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
                   } else if (step === 2) {
-                      // 第三轮.2：选对汉字，全词考查结束，进入下一个
                       View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
                       View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
                       document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
@@ -1376,7 +1397,6 @@ const Controller = {
                   }
               }
           } else {
-              // 传统死记硬背检测逻辑保持不变
               if (Model.state.mtStep === 1) {
                   View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
                   setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
@@ -1394,10 +1414,8 @@ const Controller = {
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
   
-  // 🌟 控制多轮流转与错误推迟的核心方法
   mtAdvanceNext() { 
       if (Model.state.mode === 'memory-test') {
-          // 无论对错，当前词从队首移除。若错，压入队尾重考。
           if (Model.state.currentWordFailed) { 
               let failedIdx = Model.state.studyQueue.shift(); 
               Model.state.studyQueue.push(failedIdx); 
@@ -1411,20 +1429,26 @@ const Controller = {
           
           if (Model.state.studyQueue.length === 0) {
               if (Model.state.mtRound < 3) {
-                  // 🌟 一轮通过，自动重置满队列，推进到下一轮
                   Model.state.mtRound++;
                   Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
                   Hardware.playSound('success'); Hardware.vibrate(200);
                   showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`);
                   setTimeout(() => View.renderStudyCard('next'), 500); 
               } else {
+                  let gk = Model.state.currentGroupKey;
+                  Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
+                  Model.state.mtBaseQueue.forEach(idx => {
+                      let wWord = Model.db[idx].word;
+                      Model.mtWordClears[wWord] = (Model.mtWordClears[wWord] || 0) + 1;
+                  });
+                  Model.saveClears(); 
+
                   this.finishPendulum();
               }
           } else {
               View.renderStudyCard('next');
           }
       } else {
-          // 传统检测模式
           Model.state.currentIndex++; Model.state.mtStep = 1; 
           if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); 
       }
@@ -1453,62 +1477,124 @@ const Controller = {
     setTimeout(() => {
         btn.classList.remove('btn-active-feedback'); 
         let realIdx = Model.state.studyQueue[Model.state.currentIndex]; 
-
-        Model.state.srsHistory.push({
-            idx: realIdx,
-            oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)),
-            rating: rating
-        });
-
+        Model.state.srsHistory.push({ idx: realIdx, oldSrs: JSON.parse(JSON.stringify(Model.db[realIdx].srs)), rating: rating });
         Model.calculateSRS(realIdx, rating); 
-
         if (rating === 'again') { Model.state.studyQueue.push(realIdx); }
-        
         Model.state.currentIndex++; Model.state.isAnimating = false;
         
         if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
             Hardware.playSound('success'); Hardware.vibrate(1000); showToast("智能复习队列已清空"); View.getEl('btn-exit-study').click(); 
-        } else { 
-            View.renderStudyCard('next'); 
-        }
+        } else { View.renderStudyCard('next'); }
     }, 300);
   },
 
   undoSRS() {
       if (Model.state.isAnimating || Model.state.srsHistory.length === 0) return;
       Hardware.playSound('click'); Hardware.vibrate(40);
-
       let lastAction = Model.state.srsHistory.pop();
       Model.db[lastAction.idx].srs = lastAction.oldSrs;
       Model.saveDB();
-
-      if (lastAction.rating === 'again') {
-          Model.state.studyQueue.pop();
-      }
-
-      Model.state.currentIndex--;
-      View.renderStudyCard('prev');
-      showToast("已撤销上一步评级");
+      if (lastAction.rating === 'again') { Model.state.studyQueue.pop(); }
+      Model.state.currentIndex--; View.renderStudyCard('prev'); showToast("已撤销上一步评级");
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
   createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
-  deleteFolder() { Hardware.vibrate(20); let filter = View.getEl('wb-folder-filter').value; if (filter === 'all' || filter === '默认词库') return showToast("不能删除默认词库"); showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); Model.folders = Model.folders.filter(f => f !== filter); Model.saveFolders(); Model.saveDB(); View.getEl('wb-folder-filter').value = "all"; View.updateWordbankUI(); View.resetWordbankRenderer(); showToast("已删除"); }); },
+  deleteFolder() { Hardware.vibrate(20); let filter = View.getEl('wb-folder-filter').value; if (filter === 'all' || filter === '默认词库' || filter.startsWith('virtual_')) return showToast("内置分类不可删除"); showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); Model.folders = Model.folders.filter(f => f !== filter); Model.saveFolders(); Model.saveDB(); View.getEl('wb-folder-filter').value = "all"; View.updateWordbankUI(); View.resetWordbankRenderer(); showToast("已删除"); }); },
   openMoveModal(idx) { if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); Model.state.moveTargetIdx = idx; let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = ''; Model.folders.forEach(f => { destSelect.add(new Option(f, f)); }); destSelect.dispatchEvent(new Event('facade-update')); window.toggleModal('move-overlay', true); },
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
   batchDelete() { Hardware.playSound('click'); Hardware.vibrate(30); if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); Model.saveDB(); this.toggleBatchMode(); showToast("已批量删除"); }); },
   
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
   deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
-  importWords() { Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all') target = "默认词库"; let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } }); if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; } },
-  openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { if(currentFilter === 'all' || w.folder === currentFilter) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none'); },
-  navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev'); },
+  importWords() { Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all' || target.startsWith('virtual_')) target = "默认词库"; let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } }); if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; } },
   
-  renderDetailCard(anim) {
-    let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
-    if(anim !== 'none') { wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); setTimeout(() => { this.updateDetailContent(w); wrapper.className = 'detail-anim-wrapper'; wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); }, 200); } else { this.updateDetailContent(w); }
+  // 🌟 隐患三规避：增加触发 TTS 的参数，只有新打开或主动翻页时才触发 TTS，渲染不触发
+  openDetailModal(idx) { 
+      let currentFilter = View.getEl('wb-folder-filter').value; 
+      Model.state.detailArray = []; 
+      Model.db.forEach((w, i) => { 
+          let matchFolder = false;
+          if (currentFilter === 'all') matchFolder = true;
+          else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word);
+          else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0);
+          else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]);
+          else matchFolder = (w.folder === currentFilter);
+          if(matchFolder) Model.state.detailArray.push(i); 
+      }); 
+      Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
+      window.toggleModal('detail-overlay', true); 
+      this.renderDetailCard('none', true); // 主动打开大卡片，允许触发 TTS
   },
-  updateDetailContent(w) { let visuals = View.getCardVisuals(w.type); document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; View.getEl('dt-watermark').innerText = visuals.wm; View.getEl('dt-word').innerText = w.word; View.getEl('dt-kana').innerText = w.kana; View.getEl('dt-type').innerHTML = visuals.tagsHTML; View.getEl('dt-mean').innerText = w.meaning; View.renderExampleBox(w.example, 'dt-example-box'); }
+  
+  navDetail(dir) { 
+      Model.state.activeDetailIdx += dir; 
+      let max = Model.state.detailArray.length; 
+      if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; 
+      if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; 
+      Hardware.playSound('click'); Hardware.vibrate(30); 
+      this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); // 翻页，允许触发 TTS
+  },
+  
+  renderDetailCard(anim, triggerTTS = false) {
+    let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
+    if(anim !== 'none') { 
+        wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); 
+        setTimeout(() => { 
+            this.updateDetailContent(w, triggerTTS); 
+            wrapper.className = 'detail-anim-wrapper'; 
+            wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); 
+        }, 200); 
+    } else { 
+        this.updateDetailContent(w, triggerTTS); 
+    }
+  },
+  
+  updateDetailContent(w, triggerTTS = false) { 
+      let visuals = View.getCardVisuals(w.type); 
+      document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
+      View.getEl('dt-watermark').innerText = visuals.wm; 
+      View.getEl('dt-word').innerText = w.word; 
+      View.getEl('dt-kana').innerText = w.kana; 
+      View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
+      View.getEl('dt-mean').innerText = w.meaning; 
+      View.renderExampleBox(w.example, 'dt-example-box'); 
+
+      // 🌟 大卡片同步：渲染左上角樱花徽章
+      let clearCount = Model.mtWordClears[w.word] || 0;
+      let badge = View.getEl('dt-hanko-badge');
+      if (badge) {
+          if(clearCount > 0) {
+              badge.style.display = 'block';
+              badge.className = 'card-hanko sakura-badge'; 
+              if (clearCount >= 10) { badge.classList.add('hanko-diamond'); }
+              else if (clearCount >= 5) { badge.classList.add('hanko-gold'); }
+              else if (clearCount >= 3) { badge.classList.add('hanko-silver'); }
+              else { badge.classList.add('hanko-bronze'); }
+          } else {
+              badge.style.display = 'none';
+          }
+      }
+
+      // 🌟 大卡片同步：渲染右下角星星按钮状态
+      let isStarred = Model.stars.includes(w.word);
+      let starBtn = View.getEl('dt-star-btn');
+      let starIcon = View.getEl('dt-star-icon');
+      if (starBtn && starIcon) {
+          if (isStarred) {
+              starBtn.classList.add('active');
+              starIcon.style.fontVariationSettings = "'FILL' 1";
+          } else {
+              starBtn.classList.remove('active');
+              starIcon.style.fontVariationSettings = "'FILL' 0";
+          }
+      }
+
+      // 🌟 精准朗读：仅在首次打开或翻页时触发 TTS，避开点星星时的重绘渲染
+      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') {
+          Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
+      }
+  }
 };
 
 window.onload = () => Controller.init();

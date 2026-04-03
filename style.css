@@ -338,7 +338,7 @@
   .srs-time { font-size: 0.75rem; opacity: 0.7; font-weight: 600; margin-top: 2px;}
 
   /* ==========================================
-     📦 全景词库网格体系 - 纯正轻拟物 (丝滑阻尼版)
+     📦 全景词库网格体系 - 全新排版防打架版！
      ========================================== */
   
   #wb-grid-container { width: 100%; position: relative; }
@@ -353,7 +353,10 @@
   }
 
   .wb-card { 
-      min-width: 0; border-radius: var(--radius-md); padding: 28px 12px 16px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      min-width: 0; border-radius: var(--radius-md); 
+      /* 🌟 核心防御：底部强制留白 40px，给喇叭和星星腾出专属防空洞！ */
+      padding: 24px 12px 40px; 
+      position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; 
       user-select: none; -webkit-user-select: none; overflow: hidden; cursor: pointer; opacity: 0;
       
@@ -412,23 +415,36 @@
   [data-theme="dark"] .wb-c-word { color: rgba(240, 235, 230, 0.95); }
   [data-theme="dark"] .wb-c-kana, [data-theme="dark"] .wb-c-mean { color: #b5afa6; }
 
-  #wb-grid[data-cols="3"] .wb-card { padding: 24px 8px 12px; border-radius: var(--radius-md);}
+  /* 动态响应式的安全区留白 */
+  #wb-grid[data-cols="3"] .wb-card { padding: 20px 8px 36px; border-radius: var(--radius-md);}
   #wb-grid[data-cols="3"] .wb-c-word { font-size: 1.1rem; margin-bottom: 4px; }
   #wb-grid[data-cols="3"] .wb-c-kana { font-size: 0.8rem; margin-bottom: 8px; }
   #wb-grid[data-cols="3"] .wb-c-mean { font-size: 0.75rem; }
   #wb-grid[data-cols="3"] .wb-card .watermark { font-size: 4.5rem; right: -5px; bottom: -5px; }
 
-  #wb-grid[data-cols="4"] .wb-card { padding: 16px 4px 10px; border-radius: var(--radius-sm); gap: 4px;}
+  #wb-grid[data-cols="4"] .wb-card { padding: 16px 4px 32px; border-radius: var(--radius-sm); gap: 4px;}
   #wb-grid[data-cols="4"] .wb-c-word { font-size: 0.95rem; margin-bottom: 2px;}
   #wb-grid[data-cols="4"] .wb-c-kana { font-size: 0.7rem; margin-bottom: 4px; opacity: 0.7;}
   #wb-grid[data-cols="4"] .wb-c-mean { font-size: 0.7rem; opacity: 0.8;}
   #wb-grid[data-cols="4"] .wb-c-speaker { display: none; }
   #wb-grid[data-cols="4"] .wb-card .watermark { font-size: 3.5rem; right: -5px; bottom: -5px;}
 
-  .wb-c-speaker { position: absolute; top: 12px; left: 12px; font-size: 1.2rem; cursor: pointer; color: var(--primary); z-index: 10; padding: 8px; margin: -8px; background: transparent; pointer-events: auto; transition: transform 0.2s; box-shadow: none; border: none;}
+  /* 🌟 卡片四角重构：喇叭和星星被彻底按死在最底部！复选框移动到右上角！ */
+  .wb-c-speaker { 
+      position: absolute; bottom: 8px; left: 8px; /* 沉到底部 */
+      font-size: 1.2rem; cursor: pointer; color: var(--primary); z-index: 10; padding: 4px; background: transparent; pointer-events: auto; transition: transform 0.2s; box-shadow: none; border: none; opacity: 0.7;
+  }
   .wb-c-speaker:active { transform: scale(0.85); }
+  
+  .wb-c-star { 
+      position: absolute; bottom: 8px; right: 8px; /* 沉到底部 */
+      font-size: 1.2rem; cursor: pointer; color: var(--outline); z-index: 10; padding: 4px; background: transparent; pointer-events: auto; transition: transform 0.3s var(--spring), color 0.3s; border: none;
+  }
+  .wb-c-star.active { color: #fbbc04; transform: scale(1.15); opacity: 1; }
+  .wb-c-star:active { transform: scale(0.8); }
 
-  .wb-checkbox { position: absolute; top: 12px; left: 12px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); z-index: 10; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; transition: all 0.2s; pointer-events: none; box-shadow: none;}
+  /* 复选框移动到右上角，彻底避开左上角的樱花 */
+  .wb-checkbox { position: absolute; top: 10px; right: 10px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--primary); z-index: 16; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; transition: all 0.2s; pointer-events: none; box-shadow: none;}
   .wb-checkbox.checked { background: var(--primary); }
   
   .batch-bar { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.85); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 100; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
@@ -436,6 +452,47 @@
   
   .wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: inherit;}
   .wb-manage-overlay.active { opacity: 1; pointer-events: auto;}
+
+  /* ==========================================
+     🎖️ 硬核成就系统：无Emoji之纯净樱花 SVG
+     ========================================== */
+
+  /* 底部弹窗内的组级角印 (保留日式文本框) */
+  .hanko-badge {
+      display: inline-block; font-size: 0.75rem; font-weight: 900; 
+      padding: 2px 6px; border: 2px solid var(--badge-color, #c0392b); border-radius: 4px; 
+      transform: rotate(-4deg); margin-left: 8px; letter-spacing: 1px; 
+      font-family: var(--font-jp-serif); white-space: nowrap; line-height: 1.2;
+      color: var(--badge-color, #c0392b);
+  }
+  
+  /* 🌟 卡片内的单词级印记：CSS 纯正花丸 (利用 SVG 路径做遮罩) 
+     这能彻底避开原先的红章盖住黑字的视觉灾难！
+  */
+  .card-hanko {
+      position: absolute; top: 10px; left: 10px; z-index: 15; 
+      width: 24px; height: 24px; 
+      color: transparent !important; font-size: 0; /* 隐藏掉“合格”等文字 */
+      background-color: var(--badge-color, #e74c3c);
+      /* 纯 SVG 樱花路径遮罩，全平台完美支持！ */
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C13.5 5 17 6 19 4C18 7.5 20 10 23 11C19.5 12 18 15 20 18C16.5 17 14 19 12 22C10 19 7.5 17 4 18C6 15 4.5 12 1 11C4 10 6 7.5 5 4C7 6 10.5 5 12 2Z'/%3E%3C/svg%3E");
+      -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center;
+      border: none !important; transform: none !important; opacity: 0.9; pointer-events: none;
+  }
+  [data-theme="dark"] .card-hanko { opacity: 0.95; }
+  #wb-grid[data-cols="4"] .card-hanko { width: 16px; height: 16px; top: 6px; left: 6px; }
+  
+  /* 段位色彩系统 (共通) */
+  .hanko-bronze { --badge-color: #c0392b; }
+  .hanko-silver { --badge-color: #7f8c8d; }
+  .hanko-gold { --badge-color: #d4af37; }
+  .hanko-diamond { --badge-color: #00ced1; }
+  
+  .hanko-badge.hanko-gold { box-shadow: inset 0 0 4px rgba(212,175,55,0.2), 0 0 6px rgba(212,175,55,0.3); }
+  .hanko-badge.hanko-diamond { text-shadow: 0 0 4px #00ced1; box-shadow: inset 0 0 6px rgba(0,206,209,0.3), 0 0 10px rgba(0,206,209,0.5); }
+  
+  [data-theme="dark"] .hanko-bronze { --badge-color: #e74c3c; }
+  [data-theme="dark"] .hanko-silver { --badge-color: #bdc3c7; }
 
   /* ==========================================
      🧩 模态框与弹窗体系
@@ -465,10 +522,31 @@
   .toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--on-surface); color: var(--surface); padding: 14px 28px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.95rem; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.15); transition: top 0.4s var(--spring), opacity 0.4s; opacity: 0; pointer-events: none; white-space: nowrap;}
   .toast.show { top: calc(80px + env(safe-area-inset-top)); opacity: 1; }
 
-  /* 单词详情卡片 */
-  .detail-card-container { width: 85%; max-width: 380px; border-radius: var(--radius-lg); padding: 48px var(--space-md); position: relative; transform: scale(0.95); transition: transform 0.4s var(--spring); box-shadow: 0 16px 40px rgba(0,0,0,0.2); text-align: center; background: transparent;}
+  /* 🌟 大单词详情卡片：排版优化 */
+  .detail-card-container { 
+      width: 85%; max-width: 380px; border-radius: var(--radius-lg); 
+      /* 给新加的左上樱花和右下星星留出极度充裕的空间 */
+      padding: 60px var(--space-md) 60px; 
+      position: relative; transform: scale(0.95); transition: transform 0.4s var(--spring); 
+      box-shadow: 0 16px 40px rgba(0,0,0,0.2); text-align: center; background: transparent;
+  }
   .modal-overlay.active .detail-card-container { transform: scale(1); }
   .detail-card-container .watermark { font-size: 9rem; opacity: 0.04; right: -15px; bottom: -20px;}
+  
+  /* 大卡片的专属樱花 */
+  #dt-hanko-badge {
+      width: 36px !important; height: 36px !important;
+      top: 16px !important; left: 16px !important;
+      opacity: 1 !important;
+  }
+  
+  /* 大卡片的专属星星 */
+  #dt-star-btn {
+      bottom: 16px; right: 16px; font-size: 2.2rem;
+      opacity: 1; z-index: 20;
+  }
+  #dt-star-btn .material-symbols-rounded { font-size: 2.2rem; }
+
   .detail-anim-wrapper { transition: transform 0.2s ease, opacity 0.2s ease; position: relative;}
   
   @keyframes slideOutLeft { to { opacity: 0; transform: translateX(-40px) scale(0.95); } }
@@ -510,15 +588,7 @@
   .dt-spell-key.used { opacity: 0; pointer-events: none; transform: scale(0.5); }
   
   #dt-choice-buttons, #mt-choice-buttons { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
-  
-  /* 🌟 防抖选项按钮，固定了最小高度和居中方式 */
-  .dt-choice-btn { 
-      text-align: center; padding: 16px var(--space-sm); font-size: 1.05rem; 
-      color: var(--on-surface) !important; background: var(--surface-container) !important; 
-      word-break: break-word; line-height: 1.4;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 72px; /* 强制锁定最小高度，防止切换长短文本时跳动 */
-  }
+  .dt-choice-btn { text-align: center; padding: 20px var(--space-sm); font-size: 1.05rem; color: var(--on-surface) !important; background: var(--surface-container) !important; word-break: break-word; line-height: 1.4;}
   .dt-choice-btn.wrong { border-color: var(--accent-red) !important; background: var(--accent-red-bg) !important; color: var(--accent-red) !important; }
   .dt-choice-btn.correct { border-color: var(--tertiary) !important; background: var(--accent-green-bg) !important; color: var(--tertiary) !important; }
   [data-theme="dark"] .dt-choice-btn.correct { color: #87c7a5 !important; } 
@@ -651,10 +721,6 @@
     box-shadow: 0 4px 12px var(--paper-shadow) !important;
 }
 
-/* ==========================================
-   🌙 终极视觉：View Transitions 水波纹动画专属配置
-   ========================================== */
-
 .theme-switching * {
     transition: none !important;
 }
@@ -665,30 +731,20 @@
 }
 
 /* ==========================================
-   🎧 盲听记忆检测专属动画与样式 (新增)
+   🎧 盲听记忆检测专属动画与样式
    ========================================== */
 
-#mt-blind-audio-ui {
-    animation: fadeIn 0.4s ease;
-}
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+#mt-blind-audio-ui { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-/* 播放按钮呼吸灯光晕 */
-#btn-mt-replay {
-    animation: pulse-glow 2s infinite;
-}
+#btn-mt-replay { animation: pulse-glow 2s infinite; }
 @keyframes pulse-glow {
     0% { box-shadow: 0 0 0 0 rgba(139, 121, 103, 0.4); }
     70% { box-shadow: 0 0 0 20px rgba(139, 121, 103, 0); }
     100% { box-shadow: 0 0 0 0 rgba(139, 121, 103, 0); }
 }
 
-[data-theme="dark"] #btn-mt-replay {
-    animation: pulse-glow-dark 2s infinite;
-}
+[data-theme="dark"] #btn-mt-replay { animation: pulse-glow-dark 2s infinite; }
 @keyframes pulse-glow-dark {
     0% { box-shadow: 0 0 0 0 rgba(214, 195, 176, 0.2); }
     70% { box-shadow: 0 0 0 20px rgba(214, 195, 176, 0); }
@@ -697,10 +753,7 @@
 
 #btn-mt-show-hint:active { opacity: 0.5; }
 
-/* 选项内容切换时的 3D 翻转动画 */
-.choice-flip-anim {
-    animation: flipInX 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
+.choice-flip-anim { animation: flipInX 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
 @keyframes flipInX {
     0% { transform: perspective(400px) rotateX(90deg); opacity: 0; }
     100% { transform: perspective(400px) rotateX(0deg); opacity: 1; }

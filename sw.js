@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v41
+const CACHE_NAME = 'pendulum-v42
   ';
 const ASSETS = [
   './',

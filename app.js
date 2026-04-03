@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机)
+ * 终极进化版 (MD3 涟漪动画 + 性能冻结优化 + 本地备份 + 实时搜索 + SRS时光机 + 防弹 TTS)
  */
 
 const escapeHTML = (str) => {
@@ -230,15 +230,28 @@ const Model = {
 };
 
 const Hardware = {
-  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null,
+  audioCtx: null, chargeOsc: null, chargeGain: null,
   init() {
     try {
+        // 1. 初始化语音引擎
         if (window.speechSynthesis) {
-          let loadVoice = () => { this.jaVoiceCache = window.speechSynthesis.getVoices().find(v => v.lang.includes('ja') || v.lang.includes('JP')); };
-          loadVoice();
-          if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoice;
+            window.speechSynthesis.getVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+            }
         }
-    } catch(e) {}
+
+        // 2. 页面可见性监听 (核心修复：解决切后台/息屏导致的引擎死亡)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (window.speechSynthesis) window.speechSynthesis.cancel(); // 息屏主动释放，防止内存泄漏卡死
+            } else {
+                this.unlockSpeech(); // 唤醒时重新打通发音管道
+            }
+        });
+    } catch(e) {
+        console.error('Hardware init error:', e);
+    }
   },
   vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {} },
   playSound(type) {
@@ -325,12 +338,38 @@ const Hardware = {
   speakText(text) {
     try {
         if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
-        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { window.speechSynthesis.cancel(); }
-        let utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
-        if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
-        window.speechSynthesis.speak(utterance);
-    } catch(e) {}
+        
+        // 核心修复 A：无论当前是否 speaking，每次发音前都强制重置引擎
+        window.speechSynthesis.cancel();
+
+        // 核心修复 B：给 iOS 引擎一点喘息时间。cancel() 后立刻 speak() 是导致 Safari 哑火的罪魁祸首
+        setTimeout(() => {
+            let utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ja-JP'; 
+            utterance.rate = 0.85; 
+            utterance.volume = 1; 
+
+            // 核心修复 C：动态获取 Voice 对象。
+            // 不要把 Voice 对象缓存在全局！iOS 会在垃圾回收时清理掉底层绑定，导致缓存的对象失效。
+            let voices = window.speechSynthesis.getVoices();
+            let jaVoice = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
+            if (jaVoice) utterance.voice = jaVoice;
+
+            // 核心修复 D：监听错误，避免静默失败
+            utterance.onerror = (e) => {
+                console.warn('TTS 引擎发生中断或错误:', e);
+                // 极端情况下尝试自救重置
+                if (e.error === 'not-allowed' || e.error === 'interrupted') {
+                    window.speechSynthesis.cancel();
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }, 50);
+
+    } catch(e) {
+        console.error('Speech synthesis execution failed:', e);
+    }
   }
 };
 

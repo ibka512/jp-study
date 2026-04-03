@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化)
+ * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 全局状态重置防污染)
  */
 
 const escapeHTML = (str) => {
@@ -193,9 +193,8 @@ const Model = {
     
     ftState: 'A', 
     ftHint: null,
-    ftShowKanaHint: false, // 🌟 修复：新增筛选检测假名提示状态
+    ftShowKanaHint: false,
 
-    // 双轨制反馈核心状态变量
     comboCount: 0,
     maxProgressSeen: 0,
     uniqueWordCount: 0,
@@ -673,15 +672,22 @@ const View = {
   },
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
+    // 🌟 核心修复：全局 UI 强制重置，彻底根除跨模式状态污染
+    this.getEl('mt-blind-audio-ui').classList.add('hidden');
+    this.getEl('w-word').style.display = 'block';
+    this.getEl('w-kana').style.display = 'block';
+    this.getEl('w-meaning').style.display = 'block';
+    this.getEl('w-type').style.display = 'flex';
+    this.getEl('w-example-box').style.display = 'block';
+
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let maskFixed = "■■■"; 
 
-    // 🌟 修复：筛选检测听力模式 UI 联动优化
     if (isFilterTest) {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
         let st = Model.state.ftState; 
         let hint = Model.state.ftHint;
-        let showKanaHint = Model.state.ftShowKanaHint; // 获取假名提示状态
+        let showKanaHint = Model.state.ftShowKanaHint; // 🌟 修复：获取假名提示状态
 
         let isVisible = (field) => {
             if (st === 'C') return true;
@@ -704,18 +710,18 @@ const View = {
         ['word','kana','meaning','type'].forEach(k => {
              let el = this.getEl(`w-${k}`);
              el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
-             el.style.display = (st !== 'C' && k === 'word' && displayMode === 'audio' && !showW) ? 'none' : 'block';
         });
 
-        // 🌟 修复：判决阶段 (st === 'C') 强制清除听力专用 UI
+        // 🌟 修复：精准的听力 UI 控制，判决阶段强制隐藏盲听 UI 并显示汉字
         let blindAudioUi = this.getEl('mt-blind-audio-ui');
         if (st === 'C') {
             blindAudioUi.classList.add('hidden');
             this.getEl('w-word').style.display = 'block';
         } else {
-            // 盲听模式下开启播放器
-            blindAudioUi.classList.toggle('hidden', displayMode !== 'audio');
-            if (displayMode === 'audio' && !showW) this.getEl('w-word').style.display = 'none';
+            if (displayMode === 'audio') {
+                blindAudioUi.classList.remove('hidden');
+                if (!showW) this.getEl('w-word').style.display = 'none';
+            }
         }
 
         this.getEl('btn-speaker').style.display = showA || st === 'C' ? 'block' : 'none';
@@ -1272,7 +1278,7 @@ const Controller = {
             Hardware.vibrate(10);
             if (Model.state.mode === 'filter-test') {
                 Model.state.ftShowKanaHint = true;
-                View.renderStudyCard('none'); // 重新渲染以显示假名
+                View.renderStudyCard('none'); 
             } else {
                 let wKana = View.getEl('w-kana');
                 if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); }
@@ -1565,7 +1571,7 @@ const Controller = {
       Model.state.currentIndex = 0; 
       Model.state.ftState = 'A';
       Model.state.ftHint = null;
-      Model.state.ftShowKanaHint = false; // 🌟 修复：重置假名提示状态
+      Model.state.ftShowKanaHint = false; 
       Model.state.maxProgressSeen = 0;
 
       Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);

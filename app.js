@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开)
+ * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化)
  */
 
 const escapeHTML = (str) => {
@@ -193,6 +193,7 @@ const Model = {
     
     ftState: 'A', 
     ftHint: null,
+    ftShowKanaHint: false, // 🌟 修复：新增筛选检测假名提示状态
 
     // 双轨制反馈核心状态变量
     comboCount: 0,
@@ -410,7 +411,7 @@ const View = {
     let wm = '';
     if (typeStr.includes('自他')) wm = 'が / を'; else if (typeStr.includes('自')) wm = 'が'; else if (typeStr.includes('他')) wm = 'を';
     const getCat = (t) => {
-        if (t.includes('形动') || t.includes('形动')) return { color: 'var(--bg-adj-na)' };
+        if (t.includes('形容动词') || t.includes('形动')) return { color: 'var(--bg-adj-na)' };
         if (t.includes('形')) return { color: 'var(--bg-adj)' };
         if (/[段変变動自他サ]/.test(t)) return { color: 'var(--bg-verb)' };
         if (t.includes('代')) return { color: 'var(--bg-pronoun)' };
@@ -435,7 +436,6 @@ const View = {
       let badge = this.getEl('combo-badge');
       if (!badge) return;
 
-      // Combo 仅限硬核检验模式使用
       if (Model.state.mode !== 'rote-learning' && Model.state.mode !== 'dual-track') {
           badge.classList.remove('active', 'tier-2', 'tier-3');
           return;
@@ -455,7 +455,6 @@ const View = {
       }
   },
   
-  // 🌟 修复：精细化的多模式动态进度条映射分发机制
   updatePixelMatrix() {
     let c = this.getEl('pixel-matrix');
     let mode = Model.state.mode;
@@ -463,27 +462,20 @@ const View = {
     let totalPixels = 10;
     let displayCurrent = 0;
     
-    // 1. 记忆检测模式：根据队列缩减计算
     if (mode === 'memory-test') {
         let total = Model.state.mtBaseQueue.length;
         totalPixels = total;
         displayCurrent = total - Model.state.studyQueue.length;
-    } 
-    // 2. 筛选检验模式：动态分水岭
-    else if (mode === 'filter-test') {
+    } else if (mode === 'filter-test') {
         let totalWords = Model.state.studyQueue.length;
         if (totalWords <= 100) {
-            // 不超过 100 词：原汁原味，1词1块
             totalPixels = totalWords;
             displayCurrent = Model.state.currentIndex;
         } else {
-            // 超过 100 词：降维映射，固定 10 块防压迫
             totalPixels = 10;
             displayCurrent = Math.floor((Model.state.currentIndex / totalWords) * 10);
         }
-    } 
-    // 3. 死记硬背模式：降维映射 + 单向锁死防倒退
-    else if (mode === 'rote-learning') {
+    } else if (mode === 'rote-learning') {
         totalPixels = 10;
         let ratio = Model.state.initialQueueLength ? (Model.state.currentIndex / Model.state.initialQueueLength) : 0;
         let currentProgress = Math.floor(ratio * 10);
@@ -492,9 +484,7 @@ const View = {
             Model.state.maxProgressSeen = currentProgress;
         }
         displayCurrent = Model.state.maxProgressSeen;
-    } 
-    // 4. 经典突击 & 闯关模式：原汁原味，1步1块
-    else if (mode === 'pendulum' || mode === 'dual-track') {
+    } else if (mode === 'pendulum' || mode === 'dual-track') {
         totalPixels = Model.state.studyQueue.length;
         displayCurrent = Model.state.currentIndex;
     }
@@ -686,10 +676,12 @@ const View = {
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let maskFixed = "■■■"; 
 
+    // 🌟 修复：筛选检测听力模式 UI 联动优化
     if (isFilterTest) {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
         let st = Model.state.ftState; 
         let hint = Model.state.ftHint;
+        let showKanaHint = Model.state.ftShowKanaHint; // 获取假名提示状态
 
         let isVisible = (field) => {
             if (st === 'C') return true;
@@ -699,7 +691,7 @@ const View = {
         };
 
         let showW = isVisible('word');
-        let showK = isVisible('kana');
+        let showK = isVisible('kana') || showKanaHint; // 🌟 修复：如果开启了显示假名提示，则原文显示
         let showM = isVisible('meaning');
         let showA = isVisible('audio');
 
@@ -712,7 +704,19 @@ const View = {
         ['word','kana','meaning','type'].forEach(k => {
              let el = this.getEl(`w-${k}`);
              el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
+             el.style.display = (st !== 'C' && k === 'word' && displayMode === 'audio' && !showW) ? 'none' : 'block';
         });
+
+        // 🌟 修复：判决阶段 (st === 'C') 强制清除听力专用 UI
+        let blindAudioUi = this.getEl('mt-blind-audio-ui');
+        if (st === 'C') {
+            blindAudioUi.classList.add('hidden');
+            this.getEl('w-word').style.display = 'block';
+        } else {
+            // 盲听模式下开启播放器
+            blindAudioUi.classList.toggle('hidden', displayMode !== 'audio');
+            if (displayMode === 'audio' && !showW) this.getEl('w-word').style.display = 'none';
+        }
 
         this.getEl('btn-speaker').style.display = showA || st === 'C' ? 'block' : 'none';
         
@@ -1260,13 +1264,18 @@ const Controller = {
             if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
         });
     }
+
+    // 🌟 修复：修正“查看提示”的点击事件逻辑
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
     if (btnMtShowHint) {
         btnMtShowHint.addEventListener('click', () => {
-            let wKana = View.getEl('w-kana');
-            if(wKana) {
-                wKana.style.display = 'block'; wKana.classList.remove('blur-text');
-                Hardware.vibrate(10);
+            Hardware.vibrate(10);
+            if (Model.state.mode === 'filter-test') {
+                Model.state.ftShowKanaHint = true;
+                View.renderStudyCard('none'); // 重新渲染以显示假名
+            } else {
+                let wKana = View.getEl('w-kana');
+                if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); }
             }
         });
     }
@@ -1484,7 +1493,6 @@ const Controller = {
   },
 
   startPendulum(launchMode = 'pendulum') {
-    // 🌟 修复：懒加载回退判定，直接提取本地缓存，实现一键开背
     let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || 'group|default|0';
     Model.state.currentGroupKey = groupKey;
     if (!Model.state.currentGroupLabel) {
@@ -1506,7 +1514,6 @@ const Controller = {
 
     Hardware.playSound('click'); 
     
-    // 核心状态初始化
     Model.state.mode = launchMode; 
     Model.state.currentIndex = 0; 
     Model.state.dtWordAppearanceMap = {}; 
@@ -1558,6 +1565,7 @@ const Controller = {
       Model.state.currentIndex = 0; 
       Model.state.ftState = 'A';
       Model.state.ftHint = null;
+      Model.state.ftShowKanaHint = false; // 🌟 修复：重置假名提示状态
       Model.state.maxProgressSeen = 0;
 
       Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
@@ -1580,6 +1588,7 @@ const Controller = {
       Model.state.currentIndex++;
       Model.state.ftState = 'A';
       Model.state.ftHint = null;
+      Model.state.ftShowKanaHint = false; // 🌟 修复：跳转下一题前重置提示状态
 
       if (Model.state.currentIndex >= Model.state.studyQueue.length) {
            Hardware.playSound('success'); Hardware.vibrate(1000); 

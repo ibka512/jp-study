@@ -751,3 +751,43 @@
       animation: shake-punch 0.2s infinite; 
       box-shadow: 0 0 0 transparent !important; 
   }
+    /* 🌟 修复：长按打卡按钮的防冲突与进度条注水动画 */
+  .btn-long-press {
+      position: relative;
+      overflow: hidden;
+      touch-action: none;          /* 禁用系统默认的滚动和缩放手势 */
+      -webkit-user-select: none;   /* 禁用长按选词 */
+      user-select: none;
+      -webkit-touch-callout: none; /* 禁用长按弹出系统菜单 */
+  }
+
+  .btn-long-press .lp-bg {
+      position: absolute;
+      inset: 0;
+      background: var(--tertiary);
+      transform: scaleX(0);
+      transform-origin: left center;
+      z-index: 1;
+  }
+
+  .btn-long-press.pressing .lp-bg {
+      transform: scaleX(1);
+      /* 这里的 1.5s 完美匹配你 JS 里设定的 1500ms 长按判定时间 */
+      transition: transform 1.5s linear; 
+  }
+
+  .btn-long-press .lp-text {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+  }
+
+  .btn-long-press.done {
+      background: var(--tertiary) !important;
+      color: var(--on-primary) !important;
+      border-color: transparent !important;
+  }
+

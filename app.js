@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条 + 纯净脱壳TTS发音 + 全局防污染)
+ * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化 + 长按防冲突)
  */
 
 const escapeHTML = (str) => {
@@ -854,7 +854,6 @@ const View = {
         let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; 
         let cnPart = parts[1] ? parts[1].trim() : "";
         
-        // 🌟 修复：提取纯净发音文本，并剔除 LaTeX 标签 ($符号 和 \overset)
         let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
         
         if (mode === 'choice' && cnPart) { 
@@ -1340,19 +1339,45 @@ const Controller = {
         e.preventDefault(); 
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
-    
+
+    // 🌟 修复：重构长按打卡按钮的触控与防抖逻辑
     let lpBtn = View.getEl('btn-long-press');
-    let punchTimer = null; let vibrateInterval = null;
-    const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
+    let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
+    const clearPunch = () => { 
+        if(punchTimer) clearTimeout(punchTimer); 
+        if(vibrateInterval) clearInterval(vibrateInterval); 
+        punchTimer = null; vibrateInterval = null; isLpPressing = false; 
+        if(lpBtn) lpBtn.classList.remove('pressing'); 
+        Hardware.stopChargeSound(); 
+    };
 
     if(lpBtn) {
         lpBtn.addEventListener('pointerdown', (e) => {
-            if(lpBtn.classList.contains('done')) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
-            Hardware.unlockSpeech(); lpBtn.setPointerCapture(e.pointerId); lpBtn.classList.add('pressing'); Hardware.playChargeSound();
+            if(lpBtn.classList.contains('done') || isLpPressing) return; 
+            if(e.pointerType === 'mouse' && e.button !== 0) return;
+            
+            isLpPressing = true;
+            Hardware.unlockSpeech(); 
+            try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
+            
+            lpBtn.classList.add('pressing'); 
+            Hardware.playChargeSound();
             vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            punchTimer = setTimeout(() => { clearInterval(vibrateInterval); Hardware.stopChargeSound(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
+            
+            punchTimer = setTimeout(() => { 
+                clearPunch(); 
+                Hardware.playDingDong(); Hardware.vibrate(200); 
+                let t = new Date().toLocaleDateString('zh-CN'); 
+                Model.records.push({date: t, type: 'daily_punch'}); 
+                Model.saveRecords(); 
+                View.renderDashboard(); 
+                showToast("打卡成功！能量满点"); 
+            }, 1500);
         });
-        lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('pointerleave', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
+        
+        lpBtn.addEventListener('pointerup', clearPunch); 
+        lpBtn.addEventListener('pointercancel', clearPunch); 
+        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
     }
 
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
@@ -1401,14 +1426,12 @@ const Controller = {
     }
 
     document.addEventListener('click', (e) => { 
-        // 模糊解锁点击
         let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
         if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
             let el = target.classList.contains('blur-text') ? target : target.parentElement; 
             el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); 
         } 
 
-        // 🌟 修复：新增事件委托，例句点击朗读功能接入
         let exJp = e.target.closest('.dt-ex-jp');
         if (exJp) {
             let textToSpeak = exJp.getAttribute('data-speak');

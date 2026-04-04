@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化 + 长按防冲突)
+ * 终极进化版 (动态进度条 + 独立胶囊数据板 + 长按手势优化 + 正则脱壳TTS)
  */
 
 const escapeHTML = (str) => {
@@ -589,6 +589,20 @@ const View = {
     let stats = Model.calculateStats();
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
+
+    // 🌟 修复：精算首页独立胶囊的通关/未通关数据
+    let clearedCount = 0;
+    Model.db.forEach(w => {
+        if (Model.mtWordClears[w.word] > 0) clearedCount++;
+    });
+    let totalCount = Model.db.length;
+    let unclearedCount = Math.max(0, totalCount - clearedCount);
+    
+    let elCleared = this.getEl('cap-cleared');
+    let elUncleared = this.getEl('cap-uncleared');
+    
+    if (elCleared) elCleared.innerText = clearedCount;
+    if (elUncleared) elUncleared.innerText = unclearedCount;
 
     let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
     this.getEl('custom-group-text').innerText = lastTxt;
@@ -1340,7 +1354,7 @@ const Controller = {
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
 
-    // 🌟 修复：重构长按打卡按钮的触控与防抖逻辑
+    // 🌟 修复：重构长按打卡按钮的触控与数据计算逻辑
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
     const clearPunch = () => { 

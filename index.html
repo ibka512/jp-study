@@ -49,12 +49,24 @@
       <div class="stats-grid" style="flex-wrap: nowrap; margin-bottom: 0;">
         <div class="stat-item" style="flex: 1;"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
         <div class="stat-item" style="flex: 1;"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
-        <div class="stat-item" style="flex: 2; background: var(--accent-green-bg); border: 2px dashed var(--tertiary); display: flex; flex-direction: column; justify-content: center;">
-          <div class="stat-number" id="db-total-count" style="color: var(--tertiary); font-size: 1.6rem;">0</div>
-          <div class="stat-label" style="color: var(--tertiary); font-weight: 800;">词库词汇</div>
+        <div class="stat-item" style="flex: 1.5; background: var(--accent-red-bg); border: 2px dashed var(--accent-red); display: flex; flex-direction: column; justify-content: center;">
+          <div class="stat-number" id="cap-uncleared" style="color: var(--accent-red); font-size: 1.6rem;">0</div>
+          <div class="stat-label" style="color: var(--accent-red); font-weight: 800;">未过</div>
         </div>
       </div>
+      
+      <div style="display: block; margin-top: 12px; overflow: hidden;">
+          <div class="flat-stat-box box-cleared" style="width: calc((100% - 24px) / 3.5 * 2 + 12px); float: left;">
+              <div class="flat-stat-num" id="db-total-count">0</div>
+              <div class="flat-stat-label">词库词汇</div>
+          </div>
+          <div class="flat-stat-box box-cleared" style="width: calc((100% - 24px) * 3 / 7); float: right;">
+              <div class="flat-stat-num" id="cap-cleared">0</div>
+              <div class="flat-stat-label">已过</div>
+          </div>
+      </div>
     </div>
+    
     <div id="total-words" style="display:none;"></div>
 
     <div class="card-panel">
@@ -155,7 +167,6 @@
       <div id="wb-scroll-sentinel" class="loading-dots" style="display: none;"><div></div><div></div><div></div></div> 
     </div>
   </div>
-
 
   <div id="tab-settings" class="tab-content hidden">
 

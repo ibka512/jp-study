@@ -109,14 +109,35 @@
     padding-left: var(--space-sm); padding-right: var(--space-sm);
   }
 
+  /* ==========================================
+     顶栏 (Header) 样式及滚动阴影状态
+     ========================================== */
   .global-header {
     position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
     background: rgba(251, 250, 245, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     display: flex; justify-content: space-between; align-items: center;
     padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
     border-bottom: 1px solid rgba(139, 121, 103, 0.1);
+    transition: box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
   }
-  [data-theme="dark"] .global-header { background: rgba(26, 24, 22, 0.85); border-color: rgba(255,255,255,0.05); }
+  
+  /* 🚀 滚动时的阴影悬浮状态 (白天) */
+  .global-header.scrolled {
+    box-shadow: 0 4px 20px var(--paper-shadow); 
+    border-bottom-color: transparent;
+  }
+
+  /* 🌙 夜间模式的基础背景色 */
+  [data-theme="dark"] .global-header { 
+    background: rgba(26, 24, 22, 0.85); 
+    border-color: rgba(255,255,255,0.05); 
+  }
+  
+  /* 🌙 滚动时的阴影悬浮状态 (夜间) */
+  [data-theme="dark"] .global-header.scrolled {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-bottom-color: transparent;
+  }
 
   .global-header h2 { 
     color: var(--primary); font-weight: 800; margin: 0; font-size: 1.3rem; 
@@ -964,3 +985,4 @@
     background: #2a332a !important; /* 👉 夜间打卡完成后的整体背景色 */
     color: #bdcabd !important;      /* 👉 夜间打卡完成后的文字颜色 */
 }
+

@@ -114,6 +114,9 @@ const Nav = {
                 View.renderVirtualGrid();
             }
         }
+        
+        // 🚀 新增：切换 Tab 后触发一次滚动检查，重置顶栏阴影状态
+        window.dispatchEvent(new Event('scroll')); 
     }
 };
 

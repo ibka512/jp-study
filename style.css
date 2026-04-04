@@ -791,3 +791,47 @@
       border-color: transparent !important;
   }
 
+  /* =========================================
+     学习模式按钮：日系和色 x MD3 Monet 色彩系统
+  ========================================= */
+
+  /* 浅色模式 (Light Mode) : Tone ~40 (背景) + Tone 100 (文字) */
+  .mode-btn-classic {
+      background: #567591; /* 瑠璃 Ruri */
+      color: #ffffff;
+  }
+  .mode-btn-challenge {
+      background: #ba6b68; /* 茜 Akane */
+      color: #ffffff;
+  }
+  .mode-btn-rote {
+      background: #6b847b; /* 千草 Chigusa */
+      color: #ffffff;
+  }
+  .mode-btn-test {
+      background: #45413e; /* 墨 Sumi */
+      color: #ffffff;
+  }
+
+  /* 深色模式 (Dark Mode) : 莫奈算法反转 -> Tone 80 (背景) + Tone 20 (文字) */
+  [data-theme="dark"] .mode-btn-classic {
+      background: #9fccee; /* 瑠璃色的 Tone 80 映射 */
+      color: #003353;      /* 瑠璃色的 Tone 20 映射 */
+  }
+  [data-theme="dark"] .mode-btn-challenge {
+      background: #ffb4ab; /* 茜色的 Tone 80 映射 */
+      color: #690005;      /* 茜色的 Tone 20 映射 */
+  }
+  [data-theme="dark"] .mode-btn-rote {
+      background: #a1d0c3; /* 千草色的 Tone 80 映射 */
+      color: #00382b;      /* 千草色的 Tone 20 映射 */
+  }
+  [data-theme="dark"] .mode-btn-test {
+      background: #d7c2ba; /* 墨色的 Tone 80 映射 */
+      color: #3a2e28;      /* 墨色的 Tone 20 映射 */
+  }
+
+  /* 给按钮增加一点 MD3 风格的柔和过渡效果 */
+  .mode-btn-classic, .mode-btn-challenge, .mode-btn-rote, .mode-btn-test {
+      transition: background-color 0.3s ease, color 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s;
+  }

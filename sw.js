@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v47';
+const CACHE_NAME = 'pendulum-v44';
 const ASSETS = [
   './',
   './index.html',
@@ -51,8 +51,15 @@ self.addEventListener('fetch', (event) => {
         // 3. 把新请求到的外部字体、JS 存入缓存，下次断网就能用了
         let responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
-          // 注意：不要缓存 POST 请求或 Chrome 扩展程序的请求
-          if (event.request.method === 'GET' && !event.request.url.startsWith('chrome-extension')) {
+          // 修改部分：严格限制动态缓存的范围
+          const url = new URL(event.request.url);
+          const isSameOrigin = url.origin === location.origin;
+          const isAllowedCDN = url.hostname.includes('cdn.jsdelivr.net'); // 允许 MathJax 的 CDN
+
+          // 注意：不要缓存 POST 请求或 Chrome 扩展程序的请求，且必须是同源或白名单CDN
+          if (event.request.method === 'GET' && 
+              !event.request.url.startsWith('chrome-extension') && 
+              (isSameOrigin || isAllowedCDN)) {
             cache.put(event.request, responseToCache);
           }
         });

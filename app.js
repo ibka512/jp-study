@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (排行榜 + 夜间质感切换 + 分页加载 + 动态进度条 + 异步存储)
+ * 终极进化版 (修复虚拟滚动 + 修复分组面板 + 剔除冗余三列排行榜)
  */
 
 const escapeHTML = (str) => {
@@ -147,8 +147,7 @@ const BottomSheet = {
             'test-display-select': '默认显示模式',
             'next-display-mode': '遮盖模式',
             'wb-folder-filter': '选择词库',
-            'move-dest-select': '移动至目标文件夹',
-            'setting-lb-layout': '选择排行榜布局'
+            'move-dest-select': '移动至目标文件夹'
         };
         document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
         
@@ -172,7 +171,6 @@ const BottomSheet = {
                 if (selectEl.id === 'test-range-select') localStorage.setItem('lastTestRange', opt.value);
                 if (selectEl.id === 'test-display-select') localStorage.setItem('lastTestDisplay', opt.value);
                 if (selectEl.id === 'wb-folder-filter') localStorage.setItem('lastSelectedFolder', opt.value);
-                if (selectEl.id === 'setting-lb-layout') { localStorage.setItem('lbLayout', opt.value); View.renderLeaderboard(); }
                 
                 selectEl.dispatchEvent(new Event('facade-update'));
                 selectEl.dispatchEvent(new Event('change')); 
@@ -192,10 +190,7 @@ const Model = {
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
-    
-    // 连击记录追踪
     comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
-
     maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
@@ -203,7 +198,7 @@ const Model = {
   
   lbState: {
       singleMode: 'dual-track', 
-      page: { single: 1, triple_dt: 1, triple_mt: 1, triple_rt: 1 },
+      page: 1,
       pageSize: 50
   },
 
@@ -380,7 +375,13 @@ const Hardware = {
       } catch(e) {}
   },
   unlockSpeech() {
-      try { if (!window.speechSynthesis) return; let unlock = new SpeechSynthesisUtterance('あ'); unlock.volume = 0; window.speechSynthesis.speak(unlock); } catch(e) {}
+      try { 
+          if (!window.speechSynthesis) return; 
+          let unlock = new SpeechSynthesisUtterance('あ'); 
+          unlock.volume = 0.01; 
+          unlock.rate = 2.0;
+          window.speechSynthesis.speak(unlock); 
+      } catch(e) {}
   },
   speakText(text) {
     try {
@@ -533,100 +534,157 @@ const View = {
   },
 
   renderLeaderboard() {
-      let layout = localStorage.getItem('lbLayout') || 'single';
-      let layoutSel = this.getEl('setting-lb-layout');
-      if (layoutSel && layoutSel.value !== layout) {
-          layoutSel.value = layout; layoutSel.dispatchEvent(new Event('facade-update'));
-      }
-
       let allComboRecords = Model.records.filter(r => r.type === 'combo_record');
+      let mode = Model.lbState.singleMode;
       
-      if (layout === 'single') {
-          this.getEl('lb-layout-single-wrap').style.display = 'block';
-          this.getEl('lb-layout-triple-wrap').style.display = 'none';
+      document.querySelectorAll('#lb-tabs .g-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+      
+      let filtered = allComboRecords.filter(r => r.mode === mode);
+      filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
 
-          let mode = Model.lbState.singleMode;
-          document.querySelectorAll('#lb-tabs .g-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
-          
-          let filtered = allComboRecords.filter(r => r.mode === mode);
-          filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
-
-          let listEl = this.getEl('lb-single-list');
-          let limit = Model.lbState.page.single * Model.lbState.pageSize;
-          let displayList = filtered.slice(0, limit);
-          
-          let html = '';
-          if (filtered.length === 0) {
-              html = `<div style="text-align:center; padding: 40px 20px; opacity: 0.5;">暂无挑战记录</div>`;
-          } else {
-              displayList.forEach((r, idx) => {
-                  let rankHTML = '';
-                  if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
-                  else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
-                  else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
-                  else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
-
-                  html += `
-                  <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 12px; border-bottom: 1px solid var(--outline);">
-                     <div>
-                        <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 4px;">${r.combo} 连击</div>
-                        <div style="font-size: 0.8rem; opacity: 0.7;">${r.dateStr} · ${r.group}</div>
-                     </div>
-                     <div style="display:flex; align-items:center; justify-content:center; width:40px;">${rankHTML}</div>
-                  </div>`;
-              });
-          }
-          listEl.innerHTML = html;
-          
-          let btnMore = this.getEl('btn-lb-load-more-single');
-          if (filtered.length > limit) { btnMore.style.display = 'block'; btnMore.onclick = () => { Model.lbState.page.single++; this.renderLeaderboard(); }; } 
-          else { btnMore.style.display = 'none'; }
-
+      let listEl = this.getEl('lb-single-list');
+      let limit = Model.lbState.page * Model.lbState.pageSize;
+      let displayList = filtered.slice(0, limit);
+      
+      let html = '';
+      if (filtered.length === 0) {
+          html = `<div style="text-align:center; padding: 40px 20px; opacity: 0.5;">暂无挑战记录</div>`;
       } else {
-          this.getEl('lb-layout-single-wrap').style.display = 'none';
-          this.getEl('lb-layout-triple-wrap').style.display = 'block';
+          displayList.forEach((r, idx) => {
+              let rankHTML = '';
+              if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+              else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+              else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+              else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
 
-          let renderCol = (modeId, colId, stateKey) => {
-              let filtered = allComboRecords.filter(r => r.mode === modeId);
-              filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
+              html += `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 12px; border-bottom: 1px solid var(--outline);">
+                 <div>
+                    <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 4px;">${r.combo} 连击</div>
+                    <div style="font-size: 0.8rem; opacity: 0.7;">${r.dateStr} · ${r.group}</div>
+                 </div>
+                 <div style="display:flex; align-items:center; justify-content:center; width:40px;">${rankHTML}</div>
+              </div>`;
+          });
+      }
+      listEl.innerHTML = html;
+      
+      let btnMore = this.getEl('btn-lb-load-more');
+      if (filtered.length > limit) { 
+          btnMore.style.display = 'block'; 
+          btnMore.onclick = () => { Model.lbState.page++; this.renderLeaderboard(); }; 
+      } else { 
+          btnMore.style.display = 'none'; 
+      }
+  },
+
+  updateGroupTabs() {
+      let tabsContainer = this.getEl('gs-tabs');
+      if (!tabsContainer) return;
+      
+      let currentActive = tabsContainer.querySelector('.active') ? tabsContainer.querySelector('.active').dataset.cat : 'default';
+      tabsContainer.innerHTML = '';
+      
+      Model.folders.forEach(f => {
+          let catVal = f === '默认词库' ? 'default' : f;
+          let tab = document.createElement('div');
+          tab.className = `g-tab ${currentActive === catVal ? 'active' : ''}`;
+          tab.dataset.cat = catVal;
+          tab.innerText = f;
+          tabsContainer.appendChild(tab);
+      });
+      
+      const virtuals = [
+          { cat: 'virtual_cleared', text: '已通关' },
+          { cat: 'virtual_uncleared', text: '未通关' },
+          { cat: 'virtual_starred', text: '收藏' }
+      ];
+      virtuals.forEach(v => {
+          let tab = document.createElement('div');
+          tab.className = `g-tab ${currentActive === v.cat ? 'active' : ''}`;
+          tab.dataset.cat = v.cat;
+          tab.innerText = v.text;
+          tabsContainer.appendChild(tab);
+      });
+
+      if (!tabsContainer.querySelector('.active')) {
+          let defTab = tabsContainer.querySelector('[data-cat="default"]');
+          if(defTab) defTab.classList.add('active');
+      }
+  },
+
+  renderGroupBottomSheet(cat) {
+      let container = this.getEl('group-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+      
+      try {
+          let catVal = cat || 'default';
+          let words = Model.db.map((w, i) => ({w, i})).filter(item => {
+              if (catVal === 'virtual_starred') return Model.stars.includes(item.w.word);
+              if (catVal === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
+              if (catVal === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
+              return item.w.folder === (catVal === 'default' ? '默认词库' : catVal);
+          });
+
+          if (words.length === 0) {
+              let emptyText = "暂无词汇";
+              if(catVal === 'virtual_starred') emptyText = "暂无收藏词汇";
+              if(catVal === 'virtual_cleared') emptyText = "暂无已通关词汇";
+              if(catVal === 'virtual_uncleared') emptyText = "太棒了，没有未通关词汇！";
+              container.innerHTML = `<div style="text-align:center; padding: 40px 20px; color: var(--outline); font-weight: 700; font-size: 1.1rem;">${emptyText}</div>`;
+              return;
+          }
+
+          let i = 0; let total = words.length;
+          let fragment = document.createDocumentFragment();
+          
+          let activeTabEl = document.querySelector('#gs-tabs .active');
+          let catLabel = activeTabEl ? activeTabEl.innerText : (catVal === 'default' ? '默认词库' : catVal);
+
+          while (i * 7 < total) {
+              let startIdx = i * 7;
+              let endIdx = Math.min(startIdx + 10, total);
+              let btn = document.createElement('div');
+              btn.className = 'bs-option';
               
-              let limit = Model.lbState.page[stateKey] * Model.lbState.pageSize;
-              let displayList = filtered.slice(0, limit);
+              let groupVal = `group|${catVal}|${i}`;
+              let clears = Model.mtGroupClears[groupVal] || 0;
+              let badgeHTML = '';
               
-              let html = '';
-              if (filtered.length === 0) { html = `<div style="text-align:center; padding: 20px 0; opacity: 0.4; font-size: 0.8rem;">无记录</div>`; }
-              else {
-                  displayList.forEach((r, idx) => {
-                      let dateShort = r.dateStr.split(' ')[0].slice(5); 
-                      let topStyle = '';
-                      if(idx===0) topStyle = 'color: #d4af37; font-size: 1.1rem; font-weight: 900;';
-                      else if(idx===1) topStyle = 'color: #C0C0C0; font-size: 1.05rem; font-weight: 900;';
-                      else if(idx===2) topStyle = 'color: #cd7f32; font-size: 1.05rem; font-weight: 900;';
-                      
-                      html += `<div style="display:flex; justify-content:space-between; padding: 10px 0; border-bottom: 1px dashed var(--outline); align-items: baseline;">
-                                  <span style="font-weight:800; color:var(--primary); ${topStyle}">${r.combo}</span>
-                                  <span style="opacity:0.6; font-size:0.75rem;">${dateShort}</span>
-                               </div>`;
-                  });
+              if (clears > 0 || catVal === 'virtual_cleared') {
+                  let badgeClass = 'hanko-bronze'; 
+                  if (clears >= 10 || catVal === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
+                  else if (clears >= 5) badgeClass = 'hanko-gold';
+                  else if (clears >= 3) badgeClass = 'hanko-silver';
+                  badgeHTML = `<span class="hanko-badge ${badgeClass}"></span>`;
               }
-              this.getEl(colId).innerHTML = html;
-              return filtered.length > limit;
-          };
+              
+              btn.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span>第 ${startIdx + 1}-${endIdx} 词</span>${badgeHTML}</div>`;
 
-          let moreDt = renderCol('dual-track', 'lb-col-dt', 'triple_dt');
-          let moreMt = renderCol('memory-test', 'lb-col-mt', 'triple_mt');
-          let moreRt = renderCol('rote-learning', 'lb-col-rt', 'triple_rt');
+              let displayTxt = `${catLabel} (第 ${startIdx + 1}-${endIdx} 词)`;
 
-          let btnMore = this.getEl('btn-lb-load-more-triple');
-          if (moreDt || moreMt || moreRt) {
-              btnMore.style.display = 'block';
-              btnMore.onclick = () => {
-                  if(moreDt) Model.lbState.page.triple_dt++;
-                  if(moreMt) Model.lbState.page.triple_mt++;
-                  if(moreRt) Model.lbState.page.triple_rt++;
-                  this.renderLeaderboard();
+              if (localStorage.getItem('lastCustomGroupVal') === groupVal) {
+                  btn.classList.add('selected');
+              }
+
+              btn.onclick = () => {
+                  Hardware.playSound('click'); Hardware.vibrate(15);
+                  Model.state.currentGroupKey = groupVal;
+                  Model.state.currentGroupLabel = displayTxt;
+                  this.getEl('custom-group-text').innerText = displayTxt;
+                  localStorage.setItem('lastCustomGroupVal', groupVal);
+                  localStorage.setItem('lastCustomGroupTxt', displayTxt);
+                  window.toggleModal('group-select-overlay', false);
               };
-          } else { btnMore.style.display = 'none'; }
+              fragment.appendChild(btn);
+              i++;
+              if (i > 1000) break; 
+          }
+          container.appendChild(fragment);
+      } catch(err) {
+          console.error(err);
+          container.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--accent-red); font-size: 0.9rem;">加载出错，请重试或重置应用</div>`;
       }
   },
 
@@ -662,6 +720,8 @@ const View = {
         selFilter.value = 'all';
     }
     selFilter.dispatchEvent(new Event('facade-update'));
+
+    this.updateGroupTabs();
   },
 
   renderDashboard() {
@@ -954,21 +1014,34 @@ const View = {
 
     let htmlStr = processedStr.split('||').map(blk => {
         let parts = blk.split('/'); 
-        let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; 
-        let cnPart = parts[1] ? parts[1].trim() : "";
+        let jpPartRaw = parts[0] ? parts[0].trim() : "暂无例句"; 
+        let cnPartRaw = parts[1] ? parts[1].trim() : "";
         
-        let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
+        let pureJpText = jpPartRaw.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
         
-        if (mode === 'choice' && cnPart) { 
-            return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${jpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${cnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
+        let safeJpPart = escapeHTML(jpPartRaw).replace(/\\＆/g, '\\&');
+        let safeCnPart = escapeHTML(cnPartRaw);
+        
+        if (mode === 'choice' && cnPartRaw) { 
+            return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${safeCnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
         }
-        return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${jpPart}</div><div class="dt-ex-cn revealed-translation">${cnPart}</div></div>`;
+        return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn revealed-translation">${safeCnPart}</div></div>`;
     }).join('');
     
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
-    if (window.MathJax) { MathJax.typesetPromise(Array.from(jpExEls)).then(() => jpExEls.forEach(el => el.style.opacity = '1')).catch(() => jpExEls.forEach(el => el.style.opacity = '1')); } 
-    else { jpExEls.forEach(el => el.style.opacity = '1'); }
+    
+    if (window.MathJax) { 
+        window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
+            .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
+            .then(() => { jpExEls.forEach(el => el.style.opacity = '1'); })
+            .catch((err) => { 
+                console.warn('MathJax 排版被中断', err);
+                jpExEls.forEach(el => el.style.opacity = '1'); 
+            });
+    } else { 
+        jpExEls.forEach(el => el.style.opacity = '1'); 
+    }
   },
 
   renderDualTrackUI(wObj) {
@@ -1125,16 +1198,25 @@ const View = {
         return;
     }
 
-    const rowHeights = { 2: 155, 3: 125, 4: 100 }; 
-    const rowHeight = rowHeights[cols];
-    const totalRows = Math.ceil(filteredData.length / cols);
+    let baseRowHeights = { 2: 160, 3: 130, 4: 110 }; 
+    let rowHeight = baseRowHeights[cols];
     
+    if (grid.children.length > 0) {
+        let gap = cols === 4 ? 8 : 12;
+        let actualHeight = grid.children[0].offsetHeight + gap;
+        if (actualHeight > 50) { 
+            rowHeight = actualHeight;
+        }
+    }
+
+    const totalRows = Math.ceil(filteredData.length / cols);
     const rect = container.getBoundingClientRect();
     const gridTop = window.scrollY + rect.top; 
     let relativeScrollY = Math.max(0, window.scrollY - gridTop + 20);
 
     const viewportHeight = window.innerHeight;
-    const bufferRows = 4; 
+    const bufferRows = 6;  
+    
     let startRow = Math.floor(relativeScrollY / rowHeight) - bufferRows;
     startRow = Math.max(0, startRow);
     
@@ -1230,7 +1312,6 @@ const Controller = {
     let volCheck = View.getEl('setting-vol-nav');
     if(volCheck) volCheck.checked = volNavEnabled;
 
-    // ✨ 新增：夜间按钮质感开关状态读取与注入
     let darkBtnStyle = localStorage.getItem('darkBtnStyle') === 'translucent';
     let darkBtnCheck = View.getEl('setting-dark-btn');
     if(darkBtnCheck) {
@@ -1242,16 +1323,20 @@ const Controller = {
   },
 
   setupVirtualScroll() {
-    const sentinel = View.getEl('wb-scroll-sentinel');
     const container = View.getEl('wb-grid-container');
-    window.addEventListener('resize', () => { if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
-    if (!window.IntersectionObserver || !sentinel) return;
-    const observer = new IntersectionObserver((entries) => {
-        let shouldRender = false;
-        entries.forEach(entry => { if (entry.isIntersecting) shouldRender = true; });
-        if (shouldRender && document.getElementById('tab-wordbank').classList.contains('active')) { window.requestAnimationFrame(() => { View.renderVirtualGrid(); }); }
-    }, { rootMargin: '200px 0px', threshold: 0.1 });
-    observer.observe(container); observer.observe(sentinel);
+    if (!container) return;
+    
+    window.addEventListener('scroll', () => { 
+        if (document.getElementById('tab-wordbank').classList.contains('active')) { 
+            window.requestAnimationFrame(() => { View.renderVirtualGrid(); }); 
+        } 
+    }, { passive: true });
+    
+    window.addEventListener('resize', () => { 
+        if (document.getElementById('tab-wordbank').classList.contains('active')) { 
+            View.resetWordbankRenderer(); 
+        } 
+    });
   },
 
   saveSessionRecord() {
@@ -1292,17 +1377,22 @@ const Controller = {
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
         window.toggleModal('group-select-overlay', true);
-        let activeTab = document.querySelector('#gs-tabs .active').dataset.cat;
-        View.renderGroupBottomSheet(activeTab);
+        setTimeout(() => {
+            let activeTabEl = document.querySelector('#gs-tabs .active');
+            let activeTab = activeTabEl ? activeTabEl.dataset.cat : 'default';
+            View.renderGroupBottomSheet(activeTab);
+        }, 10);
     });
 
-    document.querySelectorAll('#gs-tabs .g-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            Hardware.playSound('click');
-            document.querySelectorAll('#gs-tabs .g-tab').forEach(t => t.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            View.renderGroupBottomSheet(e.currentTarget.dataset.cat);
-        });
+    View.getEl('gs-tabs').addEventListener('click', (e) => {
+        let tab = e.target.closest('.g-tab');
+        if (!tab) return;
+        Hardware.playSound('click');
+        document.querySelectorAll('#gs-tabs .g-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        setTimeout(() => {
+            View.renderGroupBottomSheet(tab.dataset.cat);
+        }, 10);
     });
 
     document.querySelectorAll('#lb-tabs .g-tab').forEach(tab => {
@@ -1347,7 +1437,6 @@ const Controller = {
     let volCheck = View.getEl('setting-vol-nav');
     if (volCheck) { volCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('volNav', e.target.checked); showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页"); }); }
 
-    // ✨ 新增：夜间按钮质感开关事件绑定
     let darkBtnCheck = View.getEl('setting-dark-btn');
     if (darkBtnCheck) {
         darkBtnCheck.addEventListener('change', (e) => {
@@ -1399,9 +1488,6 @@ const Controller = {
 
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
-    
-    let lbLayoutTrigger = View.getEl('setting-lb-layout');
-    if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
     View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); let icon = View.getEl('star-icon'); if(idx > -1) { Model.stars.splice(idx, 1); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); icon.style.fontVariationSettings = "'FILL' 1"; } Model.saveStars(); });

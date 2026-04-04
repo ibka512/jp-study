@@ -913,15 +913,54 @@
   .mode-btn-classic, .mode-btn-challenge, .mode-btn-rote, .mode-btn-test {
       transition: background-color 0.3s ease, color 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s;
   }
-
-  /* ==========================================
-     🏆 排行榜专属样式
-     ========================================== */
   
-  .lb-triple-header { 
-      display: flex; text-align: center; font-weight: 800; color: var(--primary); 
-      padding-bottom: 12px; border-bottom: 2px solid var(--outline); margin-bottom: 8px; 
-  }
-  .lb-th { flex: 1; font-size: 0.9rem; opacity: 0.8; }
-  .lb-triple-grid { display: flex; gap: 16px; }
-  .lb-col { flex: 1; display: flex; flex-direction: column; }
+/* =========================================
+   💡 自定义「筛选检验」与「长按打卡」按钮颜色
+========================================= */
+
+/* --- ☀️ 白天模式 (Light Mode) --- */
+
+/* 1. 【筛选检验词汇】按钮组 */
+.filter-test-btn-group {
+    background: #5c8286 !important; /* 👉 修改背景颜色  */
+}
+.filter-test-btn-group button {
+    color: #ffffff !important;      /* 👉 修改文字和图标的颜色  */
+}
+
+/* 2. 【长按打卡 / 今日已完成】按钮 */
+.btn-long-press {
+    background: #c9793e !important; /* 👉 未打卡时的基础背景色 */
+    color: #ffffff !important;      /* 👉 未打卡时的文字和图标颜色  */
+}
+.btn-long-press .lp-bg {
+    background: #7b8d7a !important; /* 👉 长按时，从左向右注水的进度条颜色 */
+}
+.btn-long-press.done {
+    background: #7b8d7a !important; /* 👉 打卡完成变成“今日已完成”后的整体背景色 */
+    color: #ffffff !important;      /* 👉 打卡完成后的文字和图标颜色 */
+}
+
+
+/* --- 🌙 深色模式 (Dark Mode) --- */
+
+/* 1. 【筛选检验词汇】按钮组 */
+[data-theme="dark"] .filter-test-btn-group {
+    background: #1f3638 !important; /* 👉 修改夜间的背景颜色 */
+}
+[data-theme="dark"] .filter-test-btn-group button {
+    color: #aed9dd !important;      /* 👉 修改夜间的文字和图标颜色 (深色字防刺眼) */
+}
+
+/* 2. 【长按打卡 / 今日已完成】按钮 */
+[data-theme="dark"] .btn-long-press {
+    background: #592d13 !important; /* 👉 夜间未打卡时的基础背景色 */
+    color: #f7c5a8 !important;      /* 👉 夜间未打卡时的文字颜色 */
+}
+[data-theme="dark"] .btn-long-press .lp-bg {
+    background: #2a332a !important; /* 👉 夜间长按时，注水进度条的颜色 */
+}
+[data-theme="dark"] .btn-long-press.done {
+    background: #2a332a !important; /* 👉 夜间打卡完成后的整体背景色 */
+    color: #bdcabd !important;      /* 👉 夜间打卡完成后的文字颜色 */
+}

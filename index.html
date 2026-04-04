@@ -162,29 +162,13 @@
         <span class="material-symbols-rounded">emoji_events</span> 连击排行榜
       </h3>
       
-      <div id="lb-layout-single-wrap">
-          <div class="group-tabs" id="lb-tabs" style="margin-bottom: 24px;">
-              <div class="g-tab active" data-mode="dual-track" style="flex: 1; text-align: center;">闯关模式</div>
-              <div class="g-tab" data-mode="memory-test" style="flex: 1; text-align: center;">记忆检测</div>
-              <div class="g-tab" data-mode="rote-learning" style="flex: 1; text-align: center;">死记硬背</div>
-          </div>
-          <div id="lb-single-list"></div>
-          <button id="btn-lb-load-more-single" class="btn-outline" style="width: 100%; margin-top: 16px; margin-bottom: 16px; display: none;">加载更多记录</button>
+      <div class="group-tabs" id="lb-tabs" style="margin-bottom: 24px;">
+          <div class="g-tab active" data-mode="dual-track" style="flex: 1; text-align: center;">闯关模式</div>
+          <div class="g-tab" data-mode="memory-test" style="flex: 1; text-align: center;">记忆检测</div>
+          <div class="g-tab" data-mode="rote-learning" style="flex: 1; text-align: center;">死记硬背</div>
       </div>
-
-      <div id="lb-layout-triple-wrap" style="display:none;">
-          <div class="lb-triple-header">
-              <div class="lb-th">闯关</div>
-              <div class="lb-th">检测</div>
-              <div class="lb-th">硬背</div>
-          </div>
-          <div class="lb-triple-grid" id="lb-triple-grid">
-              <div class="lb-col" id="lb-col-dt"></div>
-              <div class="lb-col" id="lb-col-mt"></div>
-              <div class="lb-col" id="lb-col-rt"></div>
-          </div>
-          <button id="btn-lb-load-more-triple" class="btn-outline" style="width: 100%; margin-top: 24px; margin-bottom: 16px; display: none;">加载更多记录</button>
-      </div>
+      <div id="lb-single-list"></div>
+      <button id="btn-lb-load-more" class="btn-outline" style="width: 100%; margin-top: 16px; margin-bottom: 16px; display: none;">加载更多记录</button>
       
     </div>
   </div>
@@ -227,7 +211,7 @@
         </label>
       </div>
 
-      <div class="setting-item">
+      <div class="setting-item" style="border-bottom: none;">
         <div class="setting-info">
           <div class="setting-title">夜间按钮质感</div>
           <div class="setting-desc">在夜间模式下，使主页学习按钮呈现半透明叠加效果</div>
@@ -238,16 +222,6 @@
         </label>
       </div>
 
-      <div class="setting-item setting-item-vertical" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
-        <div class="setting-info">
-          <div class="setting-title">排行榜排版</div>
-          <div class="setting-desc">记录页面的连击榜显示样式</div>
-        </div>
-        <select id="setting-lb-layout" style="display:none;">
-            <option value="single">单列详情</option>
-            <option value="triple">三列极简</option>
-        </select>
-      </div>
     </div>
 
     <div class="card-panel">

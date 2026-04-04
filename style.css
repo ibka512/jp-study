@@ -2,46 +2,42 @@
   
   :root {
     /* ================= 🎨 核心色彩 (白天模式) ================= */
-    /* 全局主色调：用于顶部标题的樱花图标、大数字、悬浮喇叭图标、部分按钮的描边 */
     --primary: #8b7967; 
-    /* 主色的浅色容器底色：用于主页“学习天数”那几个小方块的背景 */
-    --primary-container: #f4f0ea; 
-    /* 放在主色上面的文字颜色：通常是纯白，保证文字清晰可读 */
+    /* 优化：配合更暖的底色，让数字方块底色更温润 */
+    --primary-container: #ede7de; 
     --on-primary: #ffffff;
 
-    /* 网页最底层的底色：就是那一层带和纸纹理的偏米黄色背景 */
-    --surface: #fbfaf5; 
-    /* 全局卡片底色：主页那些带圆角的白色大卡片、所有弹窗的背景色 */
-    --surface-container: #ffffff; 
-    /* 全局主要文字颜色：用来写正文、单词文本的深灰偏棕色，避免纯黑刺眼 */
-    --on-surface: #3a352f;
+    /* 🚀 核心优化：网页最底层的底色（燕麦色/浅卡其，增加空间深度） */
+    --surface: #eae4db; 
+    /* 🚀 核心优化：全局卡片底色（羊皮纸/象牙白，去掉刺眼的纯白，护眼且高级） */
+    --surface-container: #f6f4ef; 
+    /* 优化：文字颜色偏向深咖啡色，模拟真实的墨迹印在纸上的感觉 */
+    --on-surface: #38322c;
 
-    /* 描边与分割线：各个区域的分界线、未激活状态的灰色小点 */
-    --outline: #ddd5cc; 
-    /* 强调色(点缀色)：用于“死记硬背”按钮默认底色、长按打卡按钮的注水颜色、选中/成功的绿色 */
+    /* 优化：稍微加深分割线颜色以适配新的底色 */
+    --outline: #d6cexc3; 
     --tertiary: #6b847b;        
 
-    /* 危险/警告色：删除按钮、打错字时键盘亮起的红色、警告弹窗文字 */
     --accent-red: #ba6b68; 
-    /* 危险色的极浅背景：打错字时，卡片背景闪烁的淡红色 */
-    --accent-red-bg: #fdf3f3; 
-    /* 成功/通过的浅色背景：主页“词库词汇”方块的浅绿底色、答对时的浅绿高亮 */
-    --accent-green-bg: #f0f7f3;
+    /* 优化：让出错时的红色背景与暖色纸张更融合 */
+    --accent-red-bg: #f5eaea; 
+    /* 优化：让成功时的绿色背景更柔和 */
+    --accent-green-bg: #e8f0ea;
 
-    /* ================= 🏷️ 词性胶囊专属背景色 (白天模式) ================= */
-    --bg-verb: #D0EFFF;       /* 动词：浅蓝色 */
-    --bg-noun: #FFE5CC;       /* 名词：浅橙色 */
-    --bg-adj: #FFDDE4;        /* 形容词(一类)：浅粉色 */
-    --bg-adj-na: #FFF2C2;     /* 形容动词(二类)：浅黄色 */
-    --bg-adv: #C7F6D6;        /* 副词/接续词：浅薄荷绿 */
-    --bg-pronoun: #CCF0F0;    /* 代词：浅青色 */
-    --bg-other: #ECEEED;      /* 其他词性：浅灰色 */
+    /* ================= 🏷️ 词性胶囊专属背景色 (白天模式) - 降低饱和度以匹配日系纸张 ================= */
+    --bg-verb: #d6e8f0;       
+    --bg-noun: #f2e2d5;       
+    --bg-adj: #f2dadf;        
+    --bg-adj-na: #f2ebd5;     
+    --bg-adv: #d5eedc;        
+    --bg-pronoun: #d5ecec;    
+    --bg-other: #e3e4e3;      
 
-    /* UI 悬浮控件的厚度变量 */
-    --paper-highlight: rgba(255, 255, 255, 0.8);
-    --paper-shadow: rgba(139, 121, 103, 0.15);
-    --ink-emboss: rgba(255, 255, 255, 0.6);
-    --ink-deboss: rgba(0, 0, 0, 0.1);
+    /* UI 悬浮控件的厚度变量（调整透明度，让阴影在燕麦色背景上更干净） */
+    --paper-highlight: rgba(255, 255, 255, 0.9);
+    --paper-shadow: rgba(115, 102, 88, 0.12);
+    --ink-emboss: rgba(255, 255, 255, 0.7);
+    --ink-deboss: rgba(0, 0, 0, 0.08);
 
     /* 空间与圆角 */
     --space-xs: 8px; --space-sm: 16px; --space-md: 24px; --space-lg: 32px;
@@ -496,42 +492,28 @@
       transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; 
       user-select: none; -webkit-user-select: none; overflow: hidden; cursor: pointer; opacity: 0;
       
-      box-shadow: 
-          inset 0 0 0 rgba(139, 121, 103, 0),
-          inset 0 0 0 rgba(255, 255, 255, 0),
-          -4px -4px 12px rgba(255, 255, 255, 0.95), 
-          4px 4px 12px rgba(139, 121, 103, 0.16) !important;
-      border: 1px solid rgba(255, 255, 255, 0.6);
+      /* 移除廉价白光，换成干净的弥散投影 */
+      box-shadow: 0 4px 16px var(--paper-shadow) !important;
+      border: 1px solid rgba(255, 255, 255, 0.4);
       mix-blend-mode: normal; 
   }
   
   .wb-card:active, .wb-card.pressing { 
       transform: scale(0.94); 
-      box-shadow: 
-          inset 4px 4px 8px rgba(139, 121, 103, 0.12), 
-          inset -4px -4px 8px rgba(255, 255, 255, 0.8),
-          0 0 0 rgba(255, 255, 255, 0),
-          0 0 0 rgba(139, 121, 103, 0) !important;
+      /* 按下时产生向内的微弱凹陷感 */
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 2px var(--paper-shadow) !important;
       border-color: transparent;
   }
   
   [data-theme="dark"] .wb-card { 
-      box-shadow: 
-          inset 0 0 0 rgba(0, 0, 0, 0),
-          inset 0 0 0 rgba(255, 255, 255, 0),
-          -3px -3px 8px rgba(255, 255, 255, 0.04), 
-          4px 4px 12px rgba(0, 0, 0, 0.5) !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
       border: 1px solid rgba(255, 255, 255, 0.04);
       mix-blend-mode: normal;
   }
   
   [data-theme="dark"] .wb-card:active, [data-theme="dark"] .wb-card.pressing { 
       transform: scale(0.94); 
-      box-shadow: 
-          inset 4px 4px 8px rgba(0, 0, 0, 0.6), 
-          inset -3px -3px 8px rgba(255, 255, 255, 0.03),
-          0 0 0 rgba(255, 255, 255, 0),
-          0 0 0 rgba(0, 0, 0, 0) !important;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.5) !important;
       border-color: transparent;
   }
 
@@ -689,10 +671,10 @@
   @keyframes slideInRight { from { opacity: 0; transform: translateX(40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
   @keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
   
-  .anim-slide-out-left { animation: slideOutLeft 0.2s var(--spring) forwards; }
-  .anim-slide-out-right { animation: slideOutRight 0.2s var(--spring) forwards; }
-  .anim-slide-in-right { animation: slideInRight 0.2s var(--spring) forwards; }
-  .anim-slide-in-left { animation: slideInLeft 0.2s var(--spring) forwards; }
+ .anim-slide-out-left { animation: slideOutLeft 0.2s var(--spring); }
+.anim-slide-out-right { animation: slideOutRight 0.2s var(--spring); }
+.anim-slide-in-right { animation: slideInRight 0.2s var(--spring); }
+.anim-slide-in-left { animation: slideInLeft 0.2s var(--spring); }
   
   .dt-word { font-family: var(--font-jp-serif); font-size: 3.2rem; font-weight: 900; margin-bottom: 12px; color: var(--on-surface);}
   .dt-kana { font-family: var(--font-jp-sans); font-size: 1.25rem; font-weight: 600; opacity: 0.8; color: var(--on-surface); margin: 0;}
@@ -984,5 +966,55 @@
 [data-theme="dark"] .btn-long-press.done {
     background: #2a332a !important; /* 👉 夜间打卡完成后的整体背景色 */
     color: #bdcabd !important;      /* 👉 夜间打卡完成后的文字颜色 */
+}
+
+/* =========================================
+   ✨ 首页彩色按钮：统一高级轻拟物（树脂质感）优化
+========================================= */
+
+/* 1. 白天模式：移除刺眼的高光和缺角的底边框，改为柔和的全包围树脂倒角 */
+.filter-test-btn-group,
+.mode-btn-classic, 
+.mode-btn-challenge, 
+.mode-btn-rote, 
+.mode-btn-test,
+.btn-long-press {
+    /* 使用仅 15% 透明度的微白边，彻底解决“廉价塑料感”和上下“错位感” */
+    border: 1px solid rgba(255, 255, 255, 0.15) !important; 
+    /* 顶部保留非常微弱的内阴影模拟玻璃厚度，底部保留环境投影 */
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 4px 12px var(--paper-shadow) !important;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* 2. 按下时的物理阻尼反馈（统一凹陷效果） */
+.filter-test-btn-group:active,
+.mode-btn-classic:active, 
+.mode-btn-challenge:active, 
+.mode-btn-rote:active, 
+.mode-btn-test:active,
+.btn-long-press:active:not(.done) {
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 2px var(--paper-shadow) !important;
+    border-color: transparent !important;
+}
+
+/* 3. 夜间模式：保持原本极佳的深色质感，统一下发光参数 */
+[data-theme="dark"] .filter-test-btn-group,
+[data-theme="dark"] .mode-btn-classic, 
+[data-theme="dark"] .mode-btn-challenge, 
+[data-theme="dark"] .mode-btn-rote, 
+[data-theme="dark"] .mode-btn-test,
+[data-theme="dark"] .btn-long-press {
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 夜间模式按下反馈 */
+[data-theme="dark"] .filter-test-btn-group:active,
+[data-theme="dark"] .mode-btn-classic:active, 
+[data-theme="dark"] .mode-btn-challenge:active, 
+[data-theme="dark"] .mode-btn-rote:active, 
+[data-theme="dark"] .mode-btn-test:active,
+[data-theme="dark"] .btn-long-press:active:not(.done) {
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.6) !important;
 }
 

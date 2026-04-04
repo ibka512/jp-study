@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (修复虚拟滚动 + 修复分组面板 + 剔除冗余三列排行榜)
+ * 修复版 (详情卡片显示不完整 + 切换空白修复 + 数据同步)
  */
 
 const escapeHTML = (str) => {
@@ -115,7 +115,6 @@ const Nav = {
             }
         }
         
-        // 🚀 新增：切换 Tab 后触发一次滚动检查，重置顶栏阴影状态
         window.dispatchEvent(new Event('scroll')); 
     }
 };
@@ -459,6 +458,10 @@ const View = {
     let uniqueColors = [...new Set(mainColors)];
     let bg = uniqueColors[0] || 'var(--surface-container)';
     if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
+    // 兜底：如果 bg 是默认色但实际应有颜色，确保至少有一个背景
+    if (bg === 'var(--surface-container)' && tagsHTML) {
+        bg = 'var(--bg-other)';
+    }
     return { bg, wm, tagsHTML };
   },
 
@@ -1005,8 +1008,14 @@ const View = {
 
   renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
     let exBox = this.getEl(boxId);
-    if (!exString) { exBox.style.display = 'none'; exBox.innerHTML = ''; return; }
-    exBox.style.display = 'block';
+    if (!exBox) return;
+    
+    // 增加健壮性：检查 exString 有效性
+    if (!exString || typeof exString !== 'string') {
+        exBox.style.display = 'none';
+        exBox.innerHTML = '';
+        return;
+    }
     
     let processedStr = exString;
     if (mode === 'spell' && targetWordObj) {
@@ -1017,33 +1026,33 @@ const View = {
 
     let htmlStr = processedStr.split('||').map(blk => {
         let parts = blk.split('/'); 
-        let jpPartRaw = parts[0] ? parts[0].trim() : "暂无例句"; 
-        let cnPartRaw = parts[1] ? parts[1].trim() : "";
+        let jpPart = parts[0] ? parts[0].trim() : "暂无例句"; 
+        let cnPart = parts[1] ? parts[1].trim() : "";
         
-        let pureJpText = jpPartRaw.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
+        let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
         
-        let safeJpPart = escapeHTML(jpPartRaw).replace(/\\＆/g, '\\&');
-        let safeCnPart = escapeHTML(cnPartRaw);
+        let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
+        let safeCnPart = escapeHTML(cnPart);
         
-        if (mode === 'choice' && cnPartRaw) { 
-            return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${safeCnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
+        if (mode === 'choice' && cnPart) { 
+            return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn hidden-translation" data-text="${safeCnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
         }
-        return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="opacity: 0;"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn revealed-translation">${safeCnPart}</div></div>`;
+        return `<div class="ex-item"><div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}"><span class="material-symbols-rounded ex-speaker">volume_up</span>${safeJpPart}</div><div class="dt-ex-cn revealed-translation">${safeCnPart}</div></div>`;
     }).join('');
     
+    if (!htmlStr.replace(/<[^>]*>/g, '').trim()) { 
+        exBox.style.display = 'none'; 
+        exBox.innerHTML = ''; 
+        return; 
+    }
+
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
     if (window.MathJax) { 
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
             .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
-            .then(() => { jpExEls.forEach(el => el.style.opacity = '1'); })
-            .catch((err) => { 
-                console.warn('MathJax 排版被中断', err);
-                jpExEls.forEach(el => el.style.opacity = '1'); 
-            });
-    } else { 
-        jpExEls.forEach(el => el.style.opacity = '1'); 
+            .catch((err) => { console.warn('MathJax 排版被中断', err); });
     }
   },
 
@@ -1177,6 +1186,11 @@ const View = {
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
+      // 如果处于批量模式，自动退出并清空选中集，避免索引错乱
+      if (Model.state.batchMode) {
+          Controller.toggleBatchMode();
+      }
+      
       Model.updateFilteredDb(searchQuery, currentFilter);
       window.scrollTo({ top: 0, behavior: 'instant' }); 
       Model.state.renderedStartIndex = -1; 
@@ -1304,6 +1318,7 @@ const Controller = {
     View.updateWordbankUI(); 
     this.bindEvents(); 
     this.setupVirtualScroll(); 
+    this.setupHeaderScrollShadow(); 
     
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
@@ -1342,6 +1357,22 @@ const Controller = {
     });
   },
 
+  setupHeaderScrollShadow() {
+      const header = View.getEl('global-header');
+      if (!header) return;
+
+      const updateHeaderStatus = () => {
+          if (window.scrollY > 10) {
+              header.classList.add('scrolled');
+          } else {
+              header.classList.remove('scrolled');
+          }
+      };
+
+      window.addEventListener('scroll', updateHeaderStatus, { passive: true });
+      updateHeaderStatus();
+  },
+
   saveSessionRecord() {
       if (Model.state.sessionSaved) return; 
       let mode = Model.state.mode;
@@ -1359,6 +1390,18 @@ const Controller = {
           Model.saveRecords();
       }
       Model.state.sessionSaved = true;
+  },
+
+  // 辅助函数：在数据库变更时关闭详情模态框，避免 detailArray 不同步
+  closeDetailIfOpen() {
+      if (document.getElementById('detail-overlay').classList.contains('active')) {
+          window.toggleModal('detail-overlay', false);
+          // 同时重置渲染索引以便刷新词库
+          if (document.getElementById('tab-wordbank').classList.contains('active')) {
+              Model.state.renderedStartIndex = -1;
+              View.renderVirtualGrid();
+          }
+      }
   },
 
   bindEvents() {
@@ -1402,6 +1445,7 @@ const Controller = {
         tab.addEventListener('click', (e) => {
             Hardware.playSound('click');
             Model.lbState.singleMode = e.currentTarget.dataset.mode;
+            Model.lbState.page = 1;  // 重置页码
             View.renderLeaderboard();
         });
     });
@@ -1452,7 +1496,12 @@ const Controller = {
     }
 
     let searchInput = View.getEl('wb-search-input');
-    if (searchInput) { searchInput.addEventListener('input', () => { View.resetWordbankRenderer(); }); }
+    if (searchInput) { 
+        searchInput.addEventListener('input', () => { 
+            if (Model.state.batchMode) Controller.toggleBatchMode(); // 搜索时退出批量模式
+            View.resetWordbankRenderer(); 
+        }); 
+    }
 
     let btnExport = View.getEl('btn-export-backup');
     if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
@@ -1465,6 +1514,11 @@ const Controller = {
     }
 
     window.addEventListener('keydown', (e) => {
+        // 如果当前聚焦在输入框或文本域，不处理音量键翻页
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+            return;
+        }
         if (localStorage.getItem('volNav') !== 'true') return;
         let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
         let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
@@ -1489,8 +1543,35 @@ const Controller = {
         lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
     }
 
-    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
-    View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
+    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { 
+        let el = View.getEl(id);
+        if (el) {
+            el.addEventListener('change', (e) => { 
+                Hardware.playSound('click'); 
+                if(id === 'next-display-mode') { 
+                    localStorage.setItem('displayMode', e.target.value); 
+                    Model.state.mtStep = 1; 
+                    View.renderStudyCard('none'); 
+                } else if(id.includes('wb')) { 
+                    // 切换列数或遮盖模式时，如果处于批量模式，退出
+                    if (Model.state.batchMode) Controller.toggleBatchMode();
+                    View.resetWordbankRenderer(); 
+                } 
+            });
+        }
+    });
+    
+    let folderFilter = View.getEl('wb-folder-filter');
+    if (folderFilter) {
+        folderFilter.addEventListener('change', () => { 
+            Hardware.playSound('click'); 
+            if (Model.state.batchMode) Controller.toggleBatchMode();
+            View.resetWordbankRenderer(); 
+        });
+    }
+    
+    let lbLayoutTrigger = View.getEl('setting-lb-layout');
+    if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
     View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); let icon = View.getEl('star-icon'); if(idx > -1) { Model.stars.splice(idx, 1); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); icon.style.fontVariationSettings = "'FILL' 1"; } Model.saveStars(); });
@@ -1686,17 +1767,189 @@ const Controller = {
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
   createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
-  deleteFolder() { Hardware.vibrate(20); let filter = View.getEl('wb-folder-filter').value; if (filter === 'all' || filter === '默认词库' || filter.startsWith('virtual_')) return showToast("内置分类不可删除"); showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); Model.folders = Model.folders.filter(f => f !== filter); Model.saveFolders(); Model.saveDB(); View.getEl('wb-folder-filter').value = "all"; View.updateWordbankUI(); View.resetWordbankRenderer(); showToast("已删除"); }); },
+  deleteFolder() { 
+      Hardware.vibrate(20); 
+      let filter = View.getEl('wb-folder-filter').value; 
+      if (filter === 'all' || filter === '默认词库' || filter.startsWith('virtual_')) return showToast("内置分类不可删除"); 
+      showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { 
+          // 删除前退出批量模式
+          if (Model.state.batchMode) this.toggleBatchMode();
+          Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); 
+          Model.folders = Model.folders.filter(f => f !== filter); 
+          Model.saveFolders(); 
+          Model.saveDB(); 
+          View.getEl('wb-folder-filter').value = "all"; 
+          View.updateWordbankUI(); 
+          View.resetWordbankRenderer(); 
+          showToast("已删除"); 
+      }); 
+  },
   openMoveModal(idx) { if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); Model.state.moveTargetIdx = idx; let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = ''; Model.folders.forEach(f => { destSelect.add(new Option(f, f)); }); destSelect.dispatchEvent(new Event('facade-update')); window.toggleModal('move-overlay', true); },
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
-  batchDelete() { Hardware.playSound('click'); Hardware.vibrate(30); if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); Model.saveDB(); this.toggleBatchMode(); showToast("已批量删除"); }); },
+  batchDelete() { 
+      Hardware.playSound('click'); Hardware.vibrate(30); 
+      if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); 
+      showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
+          // 删除前关闭详情卡片，避免 detailArray 失效
+          this.closeDetailIfOpen();
+          Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
+          Model.saveDB(); 
+          this.toggleBatchMode(); 
+          showToast("已批量删除"); 
+      }); 
+  },
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
-  deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
-  importWords() { Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all' || target.startsWith('virtual_')) target = "默认词库"; let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } }); if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; } },
-  openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { let matchFolder = false; if (currentFilter === 'all') matchFolder = true; else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word); else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0); else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]); else matchFolder = (w.folder === currentFilter); if(matchFolder) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none', true); },
-  navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); },
-  renderDetailCard(anim, triggerTTS = false) { let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper'; if(anim !== 'none') { wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); setTimeout(() => { this.updateDetailContent(w, triggerTTS); wrapper.className = 'detail-anim-wrapper'; wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); }, 200); } else { this.updateDetailContent(w, triggerTTS); } },
-  updateDetailContent(w, triggerTTS = false) { let visuals = View.getCardVisuals(w.type); document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; View.getEl('dt-watermark').innerText = visuals.wm; View.getEl('dt-word').innerText = w.word; View.getEl('dt-kana').innerText = w.kana; View.getEl('dt-type').innerHTML = visuals.tagsHTML; View.getEl('dt-mean').innerText = w.meaning; this.renderExampleBox(w.example, 'dt-example-box'); let clearCount = Model.mtWordClears[w.word] || 0; let badge = View.getEl('dt-hanko-badge'); if (badge) { if(clearCount > 0) { badge.style.display = 'block'; badge.className = 'card-hanko sakura-badge'; if (clearCount >= 10) { badge.classList.add('hanko-diamond'); } else if (clearCount >= 5) { badge.classList.add('hanko-gold'); } else if (clearCount >= 3) { badge.classList.add('hanko-silver'); } else { badge.classList.add('hanko-bronze'); } } else { badge.style.display = 'none'; } } let isStarred = Model.stars.includes(w.word); let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); if (starBtn && starIcon) { if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } } if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); } }
+  deleteWord(idx) { 
+      showConfirm('删除单词', '彻底删除该词？', () => { 
+          // 删除前关闭详情卡片
+          this.closeDetailIfOpen();
+          const word = Model.db[idx].word;
+          Model.db.splice(idx,1); 
+          Model.saveDB();
+          // 清理关联数据
+          Model.stars = Model.stars.filter(w => w !== word);
+          delete Model.mtWordClears[word];
+          Model.saveStars();
+          Model.saveClears();
+          View.resetWordbankRenderer(); 
+          showToast("已删除"); 
+      }); 
+  },
+  importWords() { 
+      Hardware.playSound('success'); 
+      let text = View.getEl('custom-input').value.trim(); 
+      if(!text) return; 
+      let target = View.getEl('wb-folder-filter').value; 
+      if(target === 'all' || target.startsWith('virtual_')) target = "默认词库"; 
+      let added = 0; 
+      text.split('\n').forEach(line => { 
+          let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); 
+          if(parts.length >= 4){ 
+              Model.db.push({ 
+                  word: parts[0].trim(), 
+                  kana: parts[1].trim(), 
+                  type: parts[2].trim(), 
+                  meaning: parts[3].trim(), 
+                  example: parts[4] ? parts[4].trim() : "", 
+                  folder: target, 
+                  srs: { ease: 2.5, interval: 0, nextReview: Date.now() } 
+              }); 
+              added++; 
+          } 
+      }); 
+      if(added) { 
+          // 导入后关闭详情卡片
+          this.closeDetailIfOpen();
+          Model.saveDB(); 
+          View.resetWordbankRenderer(); 
+          showToast(`成功导入 ${added} 词`); 
+          View.getEl('custom-input').value=''; 
+      } 
+  },
+  
+  openDetailModal(idx) { 
+      let currentFilter = View.getEl('wb-folder-filter').value; 
+      Model.state.detailArray = []; 
+      Model.db.forEach((w, i) => { 
+          let matchFolder = false; 
+          if (currentFilter === 'all') matchFolder = true; 
+          else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word); 
+          else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0); 
+          else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]); 
+          else matchFolder = (w.folder === currentFilter); 
+          if(matchFolder) Model.state.detailArray.push(i); 
+      }); 
+      Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
+      window.toggleModal('detail-overlay', true); 
+      this.renderDetailCard('none', true); 
+  },
+  
+  navDetail(dir) { 
+      Model.state.activeDetailIdx += dir; 
+      let max = Model.state.detailArray.length; 
+      if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; 
+      if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; 
+      
+      // 检查当前索引是否有效
+      let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+      let w = Model.db[realIdx];
+      if (!w) {
+          // 单词可能已被删除，关闭详情并刷新词库
+          window.toggleModal('detail-overlay', false);
+          if (document.getElementById('tab-wordbank').classList.contains('active')) {
+              Model.state.renderedStartIndex = -1;
+              View.renderVirtualGrid();
+          }
+          showToast("单词不存在，已关闭详情");
+          return;
+      }
+      
+      Hardware.playSound('click'); Hardware.vibrate(30); 
+      this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); 
+  },
+  
+  renderDetailCard(anim, triggerTTS = false) { 
+      let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
+      let w = Model.db[realIdx]; 
+      if (!w) {
+          // 如果当前单词无效，关闭模态框
+          window.toggleModal('detail-overlay', false);
+          return;
+      }
+      let wrapper = View.getEl('dt-anim-wrapper'); 
+      wrapper.className = 'detail-anim-wrapper'; 
+      void wrapper.offsetWidth; 
+      
+      if(anim !== 'none') { 
+          wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); 
+          setTimeout(() => { 
+              try {
+                  this.updateDetailContent(w, triggerTTS); 
+              } catch (err) {
+                  console.error('更新详情内容失败', err);
+                  // 出错时强制恢复可见性
+                  wrapper.style.opacity = '1';
+                  wrapper.style.transform = 'none';
+              } finally {
+                  wrapper.className = 'detail-anim-wrapper'; 
+                  void wrapper.offsetWidth; 
+                  wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); 
+              }
+          }, 200); 
+      } else { 
+          this.updateDetailContent(w, triggerTTS); 
+      } 
+  },
+  
+  updateDetailContent(w, triggerTTS = false) { 
+      let visuals = View.getCardVisuals(w.type); 
+      document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
+      View.getEl('dt-watermark').innerText = visuals.wm; 
+      View.getEl('dt-word').innerText = w.word; 
+      View.getEl('dt-kana').innerText = w.kana; 
+      View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
+      View.getEl('dt-mean').innerText = w.meaning; 
+      View.renderExampleBox(w.example, 'dt-example-box'); 
+      let clearCount = Model.mtWordClears[w.word] || 0; 
+      let badge = View.getEl('dt-hanko-badge'); 
+      if (badge) { 
+          if(clearCount > 0) { 
+              badge.style.display = 'block'; 
+              badge.className = 'card-hanko sakura-badge'; 
+              if (clearCount >= 10) { badge.classList.add('hanko-diamond'); } 
+              else if (clearCount >= 5) { badge.classList.add('hanko-gold'); } 
+              else if (clearCount >= 3) { badge.classList.add('hanko-silver'); } 
+              else { badge.classList.add('hanko-bronze'); } 
+          } else { badge.style.display = 'none'; } 
+      } 
+      let isStarred = Model.stars.includes(w.word); 
+      let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); 
+      if (starBtn && starIcon) { 
+          if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } 
+          else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } 
+      } 
+      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); } 
+  }
 };
 
 window.onload = () => Controller.init();

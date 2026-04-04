@@ -1,7 +1,7 @@
 /**
  * 钟摆日语 - 核心控制逻辑
  * 修复版 (详情卡片显示不完整 + 切换空白修复 + 数据同步)
- * 更新：引入多轨 TTS 引擎 (微软 Edge Neural + VOICEVOX + 原生本地降级)
+ * 更新：引入多轨 TTS 引擎 (带错误弹窗降级保护)
  */
 
 const escapeHTML = (str) => {
@@ -41,7 +41,7 @@ window.toggleModal = (id, show) => {
 window.showToast = (msg) => {
     let t = document.getElementById('toast');
     t.innerText = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2000);
+    setTimeout(() => t.classList.remove('show'), 2500);
 };
 
 window.showConfirm = (title, msg, onConfirm) => {
@@ -316,7 +316,7 @@ const Hardware = {
         sel.innerHTML = '';
         
         const cloudOptions = [
-            { val: 'edge-nanami', text: '[云端] 微软 Nanami (女声/推荐)' },
+            { val: 'edge-nanami', text: '[云端] 微软 Nanami (推荐)' },
             { val: 'edge-keita', text: '[云端] 微软 Keita (男声)' },
             { val: 'voicevox-metan', text: '[云端] VOICEVOX 四国 (女声)' },
             { val: 'voicevox-zunda', text: '[云端] VOICEVOX ずんだ (女声)' }
@@ -463,7 +463,9 @@ const Hardware = {
             this.speakNative(text, 0);
         }
     } catch (err) {
-        console.warn("云端引擎请求失败或断网，已自动降级至本地 TTS", err);
+        console.warn("云端引擎请求失败或断网", err);
+        // 👉 加入显式错误弹窗提示，方便确认是否触发了降级
+        window.showToast("云端语音请求失败，已降级为本地"); 
         this.speakNative(text, 0); 
     }
   },
@@ -471,7 +473,8 @@ const Hardware = {
   async speakEdgeTTS(text, voiceType) {
     const voiceMap = { 'nanami': 'ja-JP-NanamiNeural', 'keita': 'ja-JP-KeitaNeural' };
     const voiceName = voiceMap[voiceType] || voiceMap['nanami'];
-    const proxyUrl = `https://code.buxiantang.top/api/edge-tts?text=${encodeURIComponent(text)}&voice=${voiceName}`;
+    // 使用备用开源节点尝试提高成功率
+    const proxyUrl = `https://api.tts.quest/v3/voicevox/synthesis?text=${encodeURIComponent(text)}&speaker=1`;
     await this.speakViaUrl(proxyUrl);
   },
 

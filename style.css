@@ -1,15 +1,41 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   
   :root {
-    /* 核心色彩 */
-    --primary: #8b7967; --primary-container: #f4f0ea; --on-primary: #ffffff;
-    --surface: #fbfaf5; --surface-container: #ffffff; --on-surface: #3a352f;
-    --outline: #ddd5cc; --tertiary: #6b847b;        
-    --accent-red: #ba6b68; --accent-red-bg: #fdf3f3; --accent-green-bg: #f0f7f3;
+    /* ================= 🎨 核心色彩 (白天模式) ================= */
+    /* 全局主色调：用于顶部标题的樱花图标、大数字、悬浮喇叭图标、部分按钮的描边 */
+    --primary: #8b7967; 
+    /* 主色的浅色容器底色：用于主页“学习天数”那几个小方块的背景 */
+    --primary-container: #f4f0ea; 
+    /* 放在主色上面的文字颜色：通常是纯白，保证文字清晰可读 */
+    --on-primary: #ffffff;
 
-    /* 词性色彩分类 */
-    --bg-verb: #D0EFFF; --bg-noun: #FFE5CC; --bg-adj: #FFDDE4;        
-    --bg-adj-na: #FFF2C2; --bg-adv: #C7F6D6; --bg-pronoun: #CCF0F0; --bg-other: #ECEEED;      
+    /* 网页最底层的底色：就是那一层带和纸纹理的偏米黄色背景 */
+    --surface: #fbfaf5; 
+    /* 全局卡片底色：主页那些带圆角的白色大卡片、所有弹窗的背景色 */
+    --surface-container: #ffffff; 
+    /* 全局主要文字颜色：用来写正文、单词文本的深灰偏棕色，避免纯黑刺眼 */
+    --on-surface: #3a352f;
+
+    /* 描边与分割线：各个区域的分界线、未激活状态的灰色小点 */
+    --outline: #ddd5cc; 
+    /* 强调色(点缀色)：用于“死记硬背”按钮默认底色、长按打卡按钮的注水颜色、选中/成功的绿色 */
+    --tertiary: #6b847b;        
+
+    /* 危险/警告色：删除按钮、打错字时键盘亮起的红色、警告弹窗文字 */
+    --accent-red: #ba6b68; 
+    /* 危险色的极浅背景：打错字时，卡片背景闪烁的淡红色 */
+    --accent-red-bg: #fdf3f3; 
+    /* 成功/通过的浅色背景：主页“词库词汇”方块的浅绿底色、答对时的浅绿高亮 */
+    --accent-green-bg: #f0f7f3;
+
+    /* ================= 🏷️ 词性胶囊专属背景色 (白天模式) ================= */
+    --bg-verb: #D0EFFF;       /* 动词：浅蓝色 */
+    --bg-noun: #FFE5CC;       /* 名词：浅橙色 */
+    --bg-adj: #FFDDE4;        /* 形容词(一类)：浅粉色 */
+    --bg-adj-na: #FFF2C2;     /* 形容动词(二类)：浅黄色 */
+    --bg-adv: #C7F6D6;        /* 副词/接续词：浅薄荷绿 */
+    --bg-pronoun: #CCF0F0;    /* 代词：浅青色 */
+    --bg-other: #ECEEED;      /* 其他词性：浅灰色 */
 
     /* UI 悬浮控件的厚度变量 */
     --paper-highlight: rgba(255, 255, 255, 0.8);
@@ -28,14 +54,27 @@
   }
 
   [data-theme="dark"] {
-    --primary: #d6c3b0; --primary-container: #503f2f; --on-primary: #3b2e21;      
-    --surface: #1a1816; --surface-container: #24211e; --on-surface: #e8e2d9;      
-    --outline: #79726a; --tertiary: #a4c7b6;        
-    --accent-red: #ffb4a9; --accent-red-bg: #690005; --accent-green-bg: #1c3829; 
+    /* ================= 🌙 核心色彩 (夜间模式) ================= */
+    --primary: #d6c3b0; 
+    --primary-container: #503f2f; 
+    --on-primary: #3b2e21;      
 
+    --surface: #1a1816; 
+    --surface-container: #24211e; 
+    --on-surface: #e8e2d9;      
+
+    --outline: #79726a; 
+    --tertiary: #a4c7b6;        
+
+    --accent-red: #ffb4a9; 
+    --accent-red-bg: #690005; 
+    --accent-green-bg: #1c3829; 
+
+    /* ================= 🏷️ 词性胶囊专属背景色 (夜间模式) ================= */
     --bg-verb: #113B4D; --bg-noun: #4D280B; --bg-adj: #47152A;        
     --bg-adj-na: #4A401A; --bg-adv: #163E23; --bg-pronoun: #14404A; --bg-other: #292B2B;      
 
+    /* 夜间的 UI 阴影与高光透明度 */
     --paper-highlight: rgba(255, 255, 255, 0.06);
     --paper-shadow: rgba(0, 0, 0, 0.6);
     --ink-emboss: rgba(255, 255, 255, 0.03);
@@ -218,7 +257,7 @@
   .setting-desc { font-size: 0.8rem; opacity: 0.7; color: var(--on-surface); line-height: 1.4; }
   .danger-zone { background: var(--accent-red-bg); padding: 16px; border-radius: var(--radius-sm); border: 1px dashed var(--accent-red); margin-top: 12px;}
 
-  /* 🌟 修复：设置项垂直排版（解决长文本与全宽按钮的挤压冲突） */
+  /* 🌟 设置项垂直排版（解决长文本与全宽按钮的挤压冲突） */
   .setting-item-vertical { flex-direction: column; align-items: stretch; }
   .setting-item-vertical .setting-info { padding-right: 0; margin-bottom: 12px; }
 
@@ -247,9 +286,7 @@
       z-index: 2;
   }
 
-  /* ==========================================
-     Instagram 快拍式全宽进度条 (Compact Mode)
-     ========================================== */
+  /* Instagram 快拍式全宽进度条 (Compact Mode) */
   #pixel-matrix.compact-mode {
       gap: 4px;
       padding: 0 20px;
@@ -646,7 +683,7 @@
   [data-theme="dark"] .ex-item { border-bottom: 2px solid rgba(255,255,255,0.04); }
   .ex-item:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
   
-  /* 🌟 日文例句部分点击响应样式与动画 */
+  /* 日文例句部分点击响应样式与动画 */
   .dt-ex-jp { 
       font-family: var(--font-jp-sans); 
       font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; 
@@ -656,7 +693,7 @@
   }
   .dt-ex-jp:active { opacity: 0.6; transform: scale(0.99); }
   
-  /* 🌟 迷你朗读喇叭样式 */
+  /* 迷你朗读喇叭样式 */
   .ex-speaker { 
       font-size: 1.15rem; opacity: 0.5; color: var(--primary); 
       vertical-align: sub; margin-right: 6px; 
@@ -813,19 +850,65 @@
       border-color: transparent !important;
   }
 
+
   /* =========================================
-     学习模式按钮：日系和色 x MD3 Monet 色彩系统
+     🎮 学习模式按钮：日系和色 x MD3 Monet 色彩系统
   ========================================= */
 
-  .mode-btn-classic { background: #567591; color: #ffffff; }
-  .mode-btn-challenge { background: #ba6b68; color: #ffffff; }
-  .mode-btn-rote { background: #6b847b; color: #ffffff; }
-  .mode-btn-test { background: #45413e; color: #ffffff; }
+  /* --- 🌞 浅色模式 (Light Mode) 下的四个按钮 --- */
+  .mode-btn-classic { 
+      background: #567591 !important; /* 【经典突击】的背景色：瑠璃色 (沉稳蓝) */
+      color: #ffffff !important;      /* 【经典突击】的文字色：纯白 */
+  }
+  .mode-btn-challenge { 
+      background: #ba6b68 !important; /* 【闯关模式】的背景色：茜色 (柔和砖红) */
+      color: #ffffff !important;      /* 【闯关模式】的文字色：纯白 */
+  }
+  .mode-btn-rote { 
+      background: #6b847b !important; /* 【死记硬背】的背景色：千草色 (灰绿) */
+      color: #ffffff !important;      /* 【死记硬背】的文字色：纯白 */
+  }
+  .mode-btn-test { 
+      background: #45413e !important; /* 【记忆检测】的背景色：墨色 (黑灰) */
+      color: #ffffff !important;      /* 【记忆检测】的文字色：纯白 */
+  }
 
-  [data-theme="dark"] .mode-btn-classic { background: #9fccee; color: #003353; }
-  [data-theme="dark"] .mode-btn-challenge { background: #ffb4ab; color: #690005; }
-  [data-theme="dark"] .mode-btn-rote { background: #a1d0c3; color: #00382b; }
-  [data-theme="dark"] .mode-btn-test { background: #d7c2ba; color: #3a2e28; }
+  /* --- 🌙 深色模式 (Dark Mode)：思路一 (默认：实色明暗反转) --- */
+  [data-theme="dark"] .mode-btn-classic { 
+      background: #1a3c5a !important; /* 极深的瑠璃蓝 */
+      color: #aecbe6 !important;      /* 浅雾蓝文字 */
+  }
+  [data-theme="dark"] .mode-btn-challenge { 
+      background: #541c1b !important; /* 极深的暗红色 */
+      color: #ffb3b0 !important;      /* 柔和粉砖文字 */
+  }
+  [data-theme="dark"] .mode-btn-rote { 
+      background: #244034 !important; /* 极深的千草绿 */
+      color: #b8d1c6 !important;      /* 清浅灰绿文字 */
+  }
+  [data-theme="dark"] .mode-btn-test { 
+      background: #36322e !important; /* 极深的碳褐色 */
+      color: #d8d3d0 !important;      /* 暖灰银文字 */
+  }
+
+  /* --- 🌙 深色模式 (Dark Mode)：思路二 (可选：半透明叠加质感) --- */
+  /* 当 body 带有 data-dark-btn="translucent" 属性时触发覆盖 */
+  [data-theme="dark"][data-dark-btn="translucent"] .mode-btn-classic { 
+      background: rgba(86, 117, 145, 0.2) !important; /* 20% 透明度 */
+      color: #aecbe6 !important; 
+  }
+  [data-theme="dark"][data-dark-btn="translucent"] .mode-btn-challenge { 
+      background: rgba(186, 107, 104, 0.2) !important; /* 20% 透明度 */
+      color: #ffb3b0 !important; 
+  }
+  [data-theme="dark"][data-dark-btn="translucent"] .mode-btn-rote { 
+      background: rgba(107, 132, 123, 0.2) !important; /* 20% 透明度 */
+      color: #b8d1c6 !important; 
+  }
+  [data-theme="dark"][data-dark-btn="translucent"] .mode-btn-test { 
+      background: rgba(69, 65, 62, 0.3) !important; /* 30% 透明度 (稍微提高以确保边缘可见) */
+      color: #d8d3d0 !important; 
+  }
 
   .mode-btn-classic, .mode-btn-challenge, .mode-btn-rote, .mode-btn-test {
       transition: background-color 0.3s ease, color 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s;

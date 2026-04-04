@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (连击排行榜 + 数据懒加载 + 动态进度条映射 + 双轨Combo + 免选直开)
+ * 终极进化版 (排行榜 + 夜间质感切换 + 分页加载 + 动态进度条 + 异步存储)
  */
 
 const escapeHTML = (str) => {
@@ -193,9 +193,9 @@ const Model = {
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
     
-    // 连击与记录追踪
+    // 连击记录追踪
     comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
-    
+
     maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
@@ -532,123 +532,6 @@ const View = {
     });
   },
 
-  renderGroupBottomSheet(cat) {
-      let container = this.getEl('group-list-container');
-      container.innerHTML = '';
-      
-      let words = Model.db.map((w, i) => ({w, i})).filter(item => {
-          if (cat === 'virtual_starred') return Model.stars.includes(item.w.word);
-          if (cat === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
-          if (cat === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
-          return item.w.folder === (cat === 'default' ? '默认词库' : cat);
-      });
-
-      if (words.length === 0) {
-          let emptyText = "暂无词汇";
-          if(cat === 'virtual_starred') emptyText = "暂无收藏词汇";
-          if(cat === 'virtual_cleared') emptyText = "暂无已通关词汇";
-          if(cat === 'virtual_uncleared') emptyText = "太棒了，没有未通关词汇！";
-          container.innerHTML = `<div style="text-align:center; padding: 40px 20px; color: var(--outline); font-weight: 700; font-size: 1.1rem;">${emptyText}</div>`;
-          return;
-      }
-
-      let i = 0; let total = words.length;
-      while (i * 7 < total) {
-          let startIdx = i * 7;
-          let endIdx = Math.min(startIdx + 10, total);
-          let btn = document.createElement('div');
-          btn.className = 'bs-option';
-          
-          let clears = Model.mtGroupClears[`group|${cat}|${i}`] || 0;
-          let badgeHTML = '';
-          
-          if (clears > 0 || cat === 'virtual_cleared') {
-              let badgeClass = 'hanko-bronze'; 
-              if (clears >= 10 || cat === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
-              else if (clears >= 5) badgeClass = 'hanko-gold';
-              else if (clears >= 3) badgeClass = 'hanko-silver';
-              badgeHTML = `<span class="hanko-badge ${badgeClass}"></span>`;
-          }
-          
-          btn.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span>第 ${startIdx + 1}-${endIdx} 词</span>${badgeHTML}</div>`;
-
-          let catLabel = document.querySelector(`#gs-tabs .g-tab[data-cat="${cat}"]`).innerText;
-          let groupVal = `group|${cat}|${i}`;
-          let displayTxt = `${catLabel} (第 ${startIdx + 1}-${endIdx} 词)`;
-
-          if (localStorage.getItem('lastCustomGroupVal') === groupVal) {
-              btn.classList.add('selected');
-          }
-
-          btn.onclick = () => {
-              Hardware.playSound('click'); Hardware.vibrate(15);
-              Model.state.currentGroupKey = groupVal;
-              Model.state.currentGroupLabel = displayTxt;
-              this.getEl('custom-group-text').innerText = displayTxt;
-              localStorage.setItem('lastCustomGroupVal', groupVal);
-              localStorage.setItem('lastCustomGroupTxt', displayTxt);
-              window.toggleModal('group-select-overlay', false);
-          };
-          container.appendChild(btn);
-          i++;
-      }
-  },
-
-  updateTestSelects() {
-      let testSel = this.getEl('test-range-select');
-      let currentTest = testSel.value || localStorage.getItem('lastTestRange') || '默认词库';
-
-      testSel.innerHTML = '';
-      let options = [
-          { text: '默认词库', val: '默认词库' },
-          { text: '收藏词汇', val: 'virtual_starred' },
-          { text: '已通关词汇', val: 'virtual_cleared' },
-          { text: '未通关词汇', val: 'virtual_uncleared' }
-      ];
-      Model.folders.forEach(f => {
-          if(f !== '默认词库') options.push({ text: f, val: f });
-      });
-
-      options.forEach(opt => { testSel.add(new Option(opt.text, opt.val)); });
-
-      if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
-      testSel.dispatchEvent(new Event('facade-update'));
-  },
-
-  renderDashboard() {
-    let dbTotalEl = this.getEl('db-total-count');
-    if (dbTotalEl) dbTotalEl.innerText = Model.db.length;
-    
-    let stats = Model.calculateStats();
-    this.getEl('total-days').innerText = stats.totalDays;
-    this.getEl('streak-days').innerText = stats.streak;
-
-    let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
-    this.getEl('custom-group-text').innerText = lastTxt;
-
-    this.updateTestSelects();
-
-    let lastTestDisplay = localStorage.getItem('lastTestDisplay') || 'kana';
-    let displaySel = this.getEl('test-display-select');
-    if (displaySel && Array.from(displaySel.options).some(o => o.value === lastTestDisplay)) {
-        displaySel.value = lastTestDisplay;
-        displaySel.dispatchEvent(new Event('facade-update'));
-    }
-    
-    let t = new Date().toLocaleDateString('zh-CN'); let btn = this.getEl('btn-long-press');
-    if (btn) {
-        let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
-        if(isPunched) {
-            btn.className = 'btn-long-press done';
-            btn.innerHTML = `<span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">task_alt</span> 今日已完成</span>`;
-        } else {
-            btn.className = 'btn-long-press';
-            btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
-        }
-    }
-  },
-
-  // ✨ 连击排行榜渲染引擎
   renderLeaderboard() {
       let layout = localStorage.getItem('lbLayout') || 'single';
       let layoutSel = this.getEl('setting-lb-layout');
@@ -666,7 +549,6 @@ const View = {
           document.querySelectorAll('#lb-tabs .g-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
           
           let filtered = allComboRecords.filter(r => r.mode === mode);
-          // 双重排序：分数降序 -> 时间降序 (最新优先)
           filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
 
           let listEl = this.getEl('lb-single-list');
@@ -747,7 +629,95 @@ const View = {
           } else { btnMore.style.display = 'none'; }
       }
   },
-  
+
+  updateWordbankUI() {
+    this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
+    
+    let batchBtn = this.getEl('wb-batch-toggle');
+    if(batchBtn) {
+        batchBtn.style.color = Model.state.batchMode ? "var(--tertiary)" : "var(--primary)";
+        batchBtn.style.boxShadow = Model.state.batchMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
+    }
+    
+    let manageBtn = this.getEl('wb-manage-toggle');
+    if(manageBtn) {
+        manageBtn.style.color = Model.state.manageMode ? "var(--tertiary)" : "var(--primary)";
+        manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
+    }
+
+    let selFilter = this.getEl('wb-folder-filter'); 
+    let currentVal = selFilter.value;
+    selFilter.innerHTML = ''; 
+    selFilter.add(new Option('查看所有词汇', 'all'));
+    selFilter.add(new Option('收藏词汇', 'virtual_starred'));
+    selFilter.add(new Option('已通关词汇', 'virtual_cleared'));
+    selFilter.add(new Option('未通关词汇', 'virtual_uncleared'));
+    
+    Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
+    
+    let lastFolder = localStorage.getItem('lastSelectedFolder') || currentVal;
+    if(Array.from(selFilter.options).some(opt => opt.value === lastFolder)) {
+        selFilter.value = lastFolder;
+    } else {
+        selFilter.value = 'all';
+    }
+    selFilter.dispatchEvent(new Event('facade-update'));
+  },
+
+  renderDashboard() {
+    let dbTotalEl = this.getEl('db-total-count');
+    if (dbTotalEl) dbTotalEl.innerText = Model.db.length;
+    
+    let stats = Model.calculateStats();
+    this.getEl('total-days').innerText = stats.totalDays;
+    this.getEl('streak-days').innerText = stats.streak;
+
+    let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
+    this.getEl('custom-group-text').innerText = lastTxt;
+
+    this.updateTestSelects();
+
+    let lastTestDisplay = localStorage.getItem('lastTestDisplay') || 'kana';
+    let displaySel = this.getEl('test-display-select');
+    if (displaySel && Array.from(displaySel.options).some(o => o.value === lastTestDisplay)) {
+        displaySel.value = lastTestDisplay;
+        displaySel.dispatchEvent(new Event('facade-update'));
+    }
+    
+    let t = new Date().toLocaleDateString('zh-CN'); let btn = this.getEl('btn-long-press');
+    if (btn) {
+        let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
+        if(isPunched) {
+            btn.className = 'btn-long-press done';
+            btn.innerHTML = `<span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">task_alt</span> 今日已完成</span>`;
+        } else {
+            btn.className = 'btn-long-press';
+            btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
+        }
+    }
+  },
+
+  updateTestSelects() {
+      let testSel = this.getEl('test-range-select');
+      let currentTest = testSel.value || localStorage.getItem('lastTestRange') || '默认词库';
+
+      testSel.innerHTML = '';
+      let options = [
+          { text: '默认词库', val: '默认词库' },
+          { text: '收藏词汇', val: 'virtual_starred' },
+          { text: '已通关词汇', val: 'virtual_cleared' },
+          { text: '未通关词汇', val: 'virtual_uncleared' }
+      ];
+      Model.folders.forEach(f => {
+          if(f !== '默认词库') options.push({ text: f, val: f });
+      });
+
+      options.forEach(opt => { testSel.add(new Option(opt.text, opt.val)); });
+
+      if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
+      testSel.dispatchEvent(new Event('facade-update'));
+  },
+
   renderStudyCard(anim = 'none') {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
     let w = Model.db[idx];
@@ -1236,40 +1206,6 @@ const View = {
 
     let sentinel = this.getEl('wb-scroll-sentinel');
     if (sentinel) sentinel.style.display = 'none';
-  },
-
-  updateWordbankUI() {
-    this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
-    
-    let batchBtn = this.getEl('wb-batch-toggle');
-    if(batchBtn) {
-        batchBtn.style.color = Model.state.batchMode ? "var(--tertiary)" : "var(--primary)";
-        batchBtn.style.boxShadow = Model.state.batchMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
-    }
-    
-    let manageBtn = this.getEl('wb-manage-toggle');
-    if(manageBtn) {
-        manageBtn.style.color = Model.state.manageMode ? "var(--tertiary)" : "var(--primary)";
-        manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
-    }
-
-    let selFilter = this.getEl('wb-folder-filter'); 
-    let currentVal = selFilter.value;
-    selFilter.innerHTML = ''; 
-    selFilter.add(new Option('查看所有词汇', 'all'));
-    selFilter.add(new Option('收藏词汇', 'virtual_starred'));
-    selFilter.add(new Option('已通关词汇', 'virtual_cleared'));
-    selFilter.add(new Option('未通关词汇', 'virtual_uncleared'));
-    
-    Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
-    
-    let lastFolder = localStorage.getItem('lastSelectedFolder') || currentVal;
-    if(Array.from(selFilter.options).some(opt => opt.value === lastFolder)) {
-        selFilter.value = lastFolder;
-    } else {
-        selFilter.value = 'all';
-    }
-    selFilter.dispatchEvent(new Event('facade-update'));
   }
 };
 
@@ -1294,42 +1230,30 @@ const Controller = {
     let volCheck = View.getEl('setting-vol-nav');
     if(volCheck) volCheck.checked = volNavEnabled;
 
+    // ✨ 新增：夜间按钮质感开关状态读取与注入
+    let darkBtnStyle = localStorage.getItem('darkBtnStyle') === 'translucent';
+    let darkBtnCheck = View.getEl('setting-dark-btn');
+    if(darkBtnCheck) {
+        darkBtnCheck.checked = darkBtnStyle;
+        if(darkBtnStyle) document.body.setAttribute('data-dark-btn', 'translucent');
+    }
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
 
   setupVirtualScroll() {
     const sentinel = View.getEl('wb-scroll-sentinel');
     const container = View.getEl('wb-grid-container');
-    
-    window.addEventListener('resize', () => {
-         if (document.getElementById('tab-wordbank').classList.contains('active')) {
-             View.resetWordbankRenderer();
-         }
-    });
-
+    window.addEventListener('resize', () => { if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
     if (!window.IntersectionObserver || !sentinel) return;
-
     const observer = new IntersectionObserver((entries) => {
         let shouldRender = false;
-        entries.forEach(entry => {
-            if (entry.isIntersecting) shouldRender = true;
-        });
-
-        if (shouldRender && document.getElementById('tab-wordbank').classList.contains('active')) {
-            window.requestAnimationFrame(() => {
-                View.renderVirtualGrid();
-            });
-        }
-    }, {
-        rootMargin: '200px 0px', 
-        threshold: 0.1
-    });
-
-    observer.observe(container);
-    observer.observe(sentinel);
+        entries.forEach(entry => { if (entry.isIntersecting) shouldRender = true; });
+        if (shouldRender && document.getElementById('tab-wordbank').classList.contains('active')) { window.requestAnimationFrame(() => { View.renderVirtualGrid(); }); }
+    }, { rootMargin: '200px 0px', threshold: 0.1 });
+    observer.observe(container); observer.observe(sentinel);
   },
 
-  // ✨ 核心方法：保存对局最高连击记录
   saveSessionRecord() {
       if (Model.state.sessionSaved) return; 
       let mode = Model.state.mode;
@@ -1354,10 +1278,7 @@ const Controller = {
         ov.addEventListener('click', (e) => { 
             if(e.target === ov) {
                 window.toggleModal(ov.id, false); 
-                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) {
-                    Model.state.renderedStartIndex = -1;
-                    View.renderVirtualGrid();
-                }
+                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); }
             }
         }); 
     });
@@ -1366,12 +1287,7 @@ const Controller = {
         btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
-    // 退出时：无论是否通关，都自动保存当前产生的连击记录
-    View.getEl('btn-exit-study').addEventListener('click', () => { 
-        Hardware.vibrate(20); window.speechSynthesis.cancel(); 
-        this.saveSessionRecord(); 
-        View.showPage('tab-home'); View.renderDashboard(); 
-    });
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); this.saveSessionRecord(); View.showPage('tab-home'); View.renderDashboard(); });
 
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
@@ -1389,7 +1305,6 @@ const Controller = {
         });
     });
 
-    // 记录页面内的选项卡切换
     document.querySelectorAll('#lb-tabs .g-tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
             Hardware.playSound('click');
@@ -1407,82 +1322,40 @@ const Controller = {
     View.getEl('btn-test-range-trigger').addEventListener('click', () => { BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
-    View.getEl('ft-forget').addEventListener('click', () => {
-         Hardware.playSound('error'); Hardware.vibrate(30);
-         this.processFilterTestResult(false);
-    });
-    View.getEl('ft-blur').addEventListener('click', () => {
-         Hardware.playSound('click'); Hardware.vibrate(20);
-         let currentDisplay = View.getEl('test-display-select').value || 'kana';
-         let pool = ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay);
-         Model.state.ftHint = pool[Math.floor(Math.random() * pool.length)]; 
-         Model.state.ftState = 'B';
-         View.renderStudyCard('none');
-    });
-    View.getEl('ft-know').addEventListener('click', () => {
-         Hardware.playSound('click'); Hardware.vibrate(20);
-         Model.state.ftState = 'C';
-         View.renderStudyCard('none');
-    });
-    View.getEl('ft-correct').addEventListener('click', () => {
-         Hardware.playSound('success'); Hardware.vibrate(40);
-         this.processFilterTestResult(true);
-    });
-    View.getEl('ft-wrong').addEventListener('click', () => {
-         Hardware.playSound('error'); Hardware.vibrate(30);
-         this.processFilterTestResult(false);
-    });
+    View.getEl('ft-forget').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
+    View.getEl('ft-blur').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); let currentDisplay = View.getEl('test-display-select').value || 'kana'; let pool = ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay); Model.state.ftHint = pool[Math.floor(Math.random() * pool.length)]; Model.state.ftState = 'B'; View.renderStudyCard('none'); });
+    View.getEl('ft-know').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.ftState = 'C'; View.renderStudyCard('none'); });
+    View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
+    View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
 
     View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
     let displayTrigger = View.getEl('btn-display-mode-trigger');
-    if (displayTrigger) {
-        displayTrigger.addEventListener('click', () => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span'));
-        });
-    }
+    if (displayTrigger) { displayTrigger.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span')); }); }
 
     let btnMtReplay = View.getEl('btn-mt-replay');
-    if (btnMtReplay) {
-        btnMtReplay.addEventListener('click', () => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-            if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
-        });
-    }
+    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }); }
 
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
-    if (btnMtShowHint) {
-        btnMtShowHint.addEventListener('click', () => {
-            Hardware.vibrate(10);
-            if (Model.state.mode === 'filter-test') {
-                Model.state.ftShowKanaHint = true;
-                View.renderStudyCard('none'); 
-            } else {
-                let wKana = View.getEl('w-kana');
-                if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); }
-            }
-        });
-    }
+    if (btnMtShowHint) { btnMtShowHint.addEventListener('click', () => { Hardware.vibrate(10); if (Model.state.mode === 'filter-test') { Model.state.ftShowKanaHint = true; View.renderStudyCard('none'); } else { let wKana = View.getEl('w-kana'); if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); } } }); }
 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
-    if (autoSpeakCheck) {
-        autoSpeakCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('autoSpeak', e.target.checked);
-            showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读");
-        });
-    }
+    if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读"); }); }
 
     let volCheck = View.getEl('setting-vol-nav');
-    if (volCheck) {
-        volCheck.addEventListener('change', (e) => {
+    if (volCheck) { volCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('volNav', e.target.checked); showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页"); }); }
+
+    // ✨ 新增：夜间按钮质感开关事件绑定
+    let darkBtnCheck = View.getEl('setting-dark-btn');
+    if (darkBtnCheck) {
+        darkBtnCheck.addEventListener('change', (e) => {
             Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('volNav', e.target.checked);
-            showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页");
+            localStorage.setItem('darkBtnStyle', e.target.checked ? 'translucent' : 'solid');
+            if(e.target.checked) document.body.setAttribute('data-dark-btn', 'translucent');
+            else document.body.removeAttribute('data-dark-btn');
+            showToast(e.target.checked ? "已开启透明叠加质感" : "已恢复实色按钮质感");
         });
     }
 
@@ -1496,10 +1369,7 @@ const Controller = {
     let fileImport = View.getEl('file-import-backup');
     if (btnImport && fileImport) {
         btnImport.addEventListener('click', () => fileImport.click());
-        fileImport.addEventListener('change', (e) => {
-            if(e.target.files.length > 0) this.importBackup(e.target.files[0]);
-            e.target.value = '';
-        });
+        fileImport.addEventListener('change', (e) => { if(e.target.files.length > 0) this.importBackup(e.target.files[0]); e.target.value = ''; });
     }
 
     window.addEventListener('keydown', (e) => {
@@ -1507,165 +1377,60 @@ const Controller = {
         let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
         let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
         if (!isVolUp && !isVolDown) return;
-        
         let inDetail = document.getElementById('detail-overlay').classList.contains('active');
         let inStudy = !document.getElementById('study-area').classList.contains('hidden');
-        let isPendulum = Model.state.mode === 'pendulum';
-        let isRoteFirstTime = Model.state.mode === 'rote-learning' && !document.getElementById('capsule-pendulum').classList.contains('hidden');
-        
-        if (!inDetail && !(inStudy && (isPendulum || isRoteFirstTime))) return;
+        if (!inDetail && !(inStudy && (Model.state.mode === 'pendulum' || (Model.state.mode === 'rote-learning' && !document.getElementById('capsule-pendulum').classList.contains('hidden'))))) return;
         e.preventDefault(); 
-        if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
+        if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
 
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
-    const clearPunch = () => { 
-        if(punchTimer) clearTimeout(punchTimer); 
-        if(vibrateInterval) clearInterval(vibrateInterval); 
-        punchTimer = null; vibrateInterval = null; isLpPressing = false; 
-        if(lpBtn) lpBtn.classList.remove('pressing'); 
-        Hardware.stopChargeSound(); 
-    };
-
+    const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; isLpPressing = false; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
     if(lpBtn) {
         lpBtn.addEventListener('pointerdown', (e) => {
-            if(lpBtn.classList.contains('done') || isLpPressing) return; 
-            if(e.pointerType === 'mouse' && e.button !== 0) return;
-            
-            isLpPressing = true;
-            Hardware.unlockSpeech(); 
-            try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
-            
-            lpBtn.classList.add('pressing'); 
-            Hardware.playChargeSound();
-            vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            
-            punchTimer = setTimeout(() => { 
-                clearPunch(); 
-                Hardware.playDingDong(); Hardware.vibrate(200); 
-                let t = new Date().toLocaleDateString('zh-CN'); 
-                Model.records.push({date: t, type: 'daily_punch'}); 
-                Model.saveRecords(); 
-                View.renderDashboard(); 
-                showToast("打卡成功！能量满点"); 
-            }, 1500);
+            if(lpBtn.classList.contains('done') || isLpPressing) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
+            isLpPressing = true; Hardware.unlockSpeech(); try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
+            lpBtn.classList.add('pressing'); Hardware.playChargeSound(); vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
+            punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
         });
-        
-        lpBtn.addEventListener('pointerup', clearPunch); 
-        lpBtn.addEventListener('pointercancel', clearPunch); 
-        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
+        lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
     }
 
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
     
-    // 排版设置触发底栏点击，顺便复用
     let lbLayoutTrigger = View.getEl('setting-lb-layout');
-    if (lbLayoutTrigger) {
-        let facade = lbLayoutTrigger.nextElementSibling;
-        if (facade && facade.classList.contains('bs-facade')) {
-            facade.addEventListener('click', () => { BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); });
-        }
-    }
+    if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
-    
-    View.getEl('star-btn').addEventListener('click', (e) => { 
-        Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; 
-        let idx = Model.stars.indexOf(wordObj.word); 
-        let icon = View.getEl('star-icon');
-        if(idx > -1) { 
-            Model.stars.splice(idx, 1); 
-            icon.style.fontVariationSettings = "'FILL' 0";
-        } else { 
-            Model.stars.push(wordObj.word); 
-            window.createStarParticles(e.currentTarget); Hardware.vibrate(20); 
-            icon.style.fontVariationSettings = "'FILL' 1";
-        } 
-        Model.saveStars(); 
-    });
+    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); let icon = View.getEl('star-icon'); if(idx > -1) { Model.stars.splice(idx, 1); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); icon.style.fontVariationSettings = "'FILL' 1"; } Model.saveStars(); });
 
     let dtStarBtn = View.getEl('dt-star-btn');
     if (dtStarBtn) {
         dtStarBtn.addEventListener('click', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(10);
-            let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
-            let wWord = Model.db[realIdx].word;
-            let sIdx = Model.stars.indexOf(wWord);
-            let starBtn = e.currentTarget;
-            let icon = View.getEl('dt-star-icon');
-
-            if (sIdx > -1) {
-                Model.stars.splice(sIdx, 1);
-                starBtn.classList.remove('active');
-                icon.style.fontVariationSettings = "'FILL' 0";
-            } else {
-                Model.stars.push(wWord);
-                starBtn.classList.add('active');
-                icon.style.fontVariationSettings = "'FILL' 1";
-                window.createStarParticles(starBtn);
-            }
-            Model.saveStars();
-            Model.state.renderedStartIndex = -1;
+            Hardware.playSound('click'); Hardware.vibrate(10); let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let wWord = Model.db[realIdx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.currentTarget; let icon = View.getEl('dt-star-icon');
+            if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } 
+            else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); }
+            Model.saveStars(); Model.state.renderedStartIndex = -1;
         });
     }
 
     document.addEventListener('click', (e) => { 
-        let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
-        if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
-            let el = target.classList.contains('blur-text') ? target : target.parentElement; 
-            el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); 
-        } 
-
-        let exJp = e.target.closest('.dt-ex-jp');
-        if (exJp) {
-            let textToSpeak = exJp.getAttribute('data-speak');
-            if (textToSpeak) {
-                Hardware.unlockSpeech();
-                Hardware.speakText(textToSpeak);
-                Hardware.vibrate(10);
-            }
-        }
+        let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } 
+        let exJp = e.target.closest('.dt-ex-jp'); if (exJp) { let textToSpeak = exJp.getAttribute('data-speak'); if (textToSpeak) { Hardware.unlockSpeech(); Hardware.speakText(textToSpeak); Hardware.vibrate(10); } }
     });
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    
-    const onPointerDownCard = (e) => {
-        if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode) return;
-        startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); 
-        pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500);
-    };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
-
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
-
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
-      
-      if (e.target.closest('.btn-wb-star')) { 
-          Hardware.playSound('click'); Hardware.vibrate(10);
-          let wWord = Model.db[idx].word;
-          let sIdx = Model.stars.indexOf(wWord);
-          let starBtn = e.target.closest('.btn-wb-star');
-          let icon = starBtn.querySelector('.material-symbols-rounded');
-          if (sIdx > -1) {
-              Model.stars.splice(sIdx, 1);
-              starBtn.classList.remove('active');
-              icon.style.fontVariationSettings = "'FILL' 0";
-          } else {
-              Model.stars.push(wWord);
-              starBtn.classList.add('active');
-              icon.style.fontVariationSettings = "'FILL' 1";
-              window.createStarParticles(starBtn);
-          }
-          Model.saveStars();
-          return;
-      }
-      
+      if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); this.openMoveModal(idx); return; }
       if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); this.editWord(idx); return; }
@@ -1681,14 +1446,7 @@ const Controller = {
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); await Model.saveDB(); await Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
-    
-    View.getEl('detail-close').addEventListener('click', () => { 
-        window.toggleModal('detail-overlay', false); 
-        if (document.getElementById('tab-wordbank').classList.contains('active')) {
-            Model.state.renderedStartIndex = -1;
-            View.renderVirtualGrid();
-        }
-    }); 
+    View.getEl('detail-close').addEventListener('click', () => { window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => window.toggleModal('edit-overlay', false));
@@ -1699,19 +1457,11 @@ const Controller = {
       let data = { db: Model.db, folders: Model.folders, stars: Model.stars, records: Model.records, mtGroupClears: Model.mtGroupClears, mtWordClears: Model.mtWordClears, version: "v3", exportDate: new Date().toISOString() };
       let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-      if (navigator.share && navigator.canShare) {
-          let file = new File([blob], fileName, { type: "application/json" });
-          if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName)); return; }
-      }
+      if (navigator.share && navigator.canShare) { let file = new File([blob], fileName, { type: "application/json" }); if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName)); return; } }
       this.fallbackDownload(blob, fileName);
   },
 
-  fallbackDownload(blob, fileName) {
-      let url = URL.createObjectURL(blob); let a = document.createElement('a');
-      a.style.display = 'none'; a.href = url; a.download = fileName;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url); showToast("尝试唤起本地下载...");
-  },
+  fallbackDownload(blob, fileName) { let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("尝试唤起本地下载..."); },
 
   importBackup(file) {
       if (!file) return;
@@ -1720,11 +1470,8 @@ const Controller = {
           try {
               let data = JSON.parse(e.target.result);
               if (data && data.db && data.folders) {
-                  Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || [];
-                  Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
-                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => {
-                      Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
-                  });
+                  Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || []; Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
+                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => { Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); });
               } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
           } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
       };
@@ -1734,62 +1481,28 @@ const Controller = {
   startPendulum(launchMode = 'pendulum') {
     let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || 'group|default|0';
     Model.state.currentGroupKey = groupKey;
-    if (!Model.state.currentGroupLabel) {
-        Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
-    }
-    
+    if (!Model.state.currentGroupLabel) { Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)'; }
     let [prefix, catName, idxStr] = groupKey.split('|'); 
-    let idx = parseInt(idxStr);
-    let startIdx = idx * 7; let endIdx = startIdx + 10;
-    
+    let idx = parseInt(idxStr); let startIdx = idx * 7; let endIdx = startIdx + 10;
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
         if (catName === 'virtual_starred') return Model.stars.includes(item.w.word);
         if (catName === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
         if (catName === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
         return item.w.folder === (catName === 'default' ? '默认词库' : catName);
     }).slice(startIdx, endIdx);
-
     if(sourceWords.length === 0) return showToast("所选范围内暂无词汇哦");
-
     Hardware.playSound('click'); 
-    
-    Model.state.mode = launchMode; 
-    Model.state.currentIndex = 0; 
-    Model.state.dtWordAppearanceMap = {}; 
-    Model.state.mtStep = 1; 
-    Model.state.currentWordFailed = false;
-    Model.state.comboCount = 0;
-    Model.state.maxSessionCombo = 0;
-    Model.state.sessionSaved = false;
-    Model.state.maxProgressSeen = 0;
-    Model.state.uniqueWordCount = sourceWords.length;
-
-    if (launchMode === 'memory-test') {
-        Model.state.mtRound = 1;
-        Model.state.mtBaseQueue = sourceWords.map(x => x.i);
-        Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
-        Model.state.totalTestWords = Model.state.studyQueue.length;
-    } else {
-        Model.state.studyQueue = []; let len = sourceWords.length;
-        for (let i = 0; i < len; i++) {
-          Model.state.studyQueue.push(sourceWords[i].i);
-          for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i);
-          for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i);
-        }
-    }
-    
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
+    if (launchMode === 'memory-test') { Model.state.mtRound = 1; Model.state.mtBaseQueue = sourceWords.map(x => x.i); Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Model.state.totalTestWords = Model.state.studyQueue.length; } 
+    else { Model.state.studyQueue = []; let len = sourceWords.length; for (let i = 0; i < len; i++) { Model.state.studyQueue.push(sourceWords[i].i); for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i); for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i); } }
     Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     View.updateComboBadge();
-
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
   startFilterTest() {
-      let sel = View.getEl('test-range-select');
-      let cat = sel.value;
-      if (!cat) return;
-
+      let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
       let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
           if (cat === 'virtual_starred') return Model.stars.includes(item.w.word);
           if (cat === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
@@ -1797,49 +1510,20 @@ const Controller = {
           if (cat === 'all') return true;
           return item.w.folder === cat;
       });
-
       if (sourceWords.length === 0) return showToast("当前分类下没有词汇哦");
-
       Hardware.playSound('click'); 
-      
-      Model.state.mode = 'filter-test'; 
-      Model.state.currentIndex = 0; 
-      Model.state.ftState = 'A';
-      Model.state.ftHint = null;
-      Model.state.ftShowKanaHint = false; 
-      Model.state.maxProgressSeen = 0;
-      Model.state.maxSessionCombo = 0;
-      Model.state.sessionSaved = false;
-
+      Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false;
       Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
-      
-      View.updateComboBadge();
-      View.showPage('study-area'); 
-      let c = View.getEl('pixel-matrix'); c.innerHTML=''; 
-      View.renderStudyCard('none'); Hardware.vibrate(40);
+      View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
   processFilterTestResult(isCorrect) {
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-      if (isCorrect) {
-          Model.mtWordClears[w.word] = (Model.mtWordClears[w.word] || 0) + 1;
-      } else {
-          Model.mtWordClears[w.word] = Math.floor((Model.mtWordClears[w.word] || 0) / 2);
-      }
-      Model.saveClears();
-
-      Model.state.currentIndex++;
-      Model.state.ftState = 'A';
-      Model.state.ftHint = null;
-      Model.state.ftShowKanaHint = false;
-
-      if (Model.state.currentIndex >= Model.state.studyQueue.length) {
-           Hardware.playSound('success'); Hardware.vibrate(1000); 
-           showToast("恭喜，全部检验完成！"); 
-           View.getEl('btn-exit-study').click();
-      } else {
-           View.renderStudyCard('next');
-      }
+      if (isCorrect) { Model.mtWordClears[w.word] = (Model.mtWordClears[w.word] || 0) + 1; } 
+      else { Model.mtWordClears[w.word] = Math.floor((Model.mtWordClears[w.word] || 0) / 2); }
+      Model.saveClears(); Model.state.currentIndex++; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false;
+      if (Model.state.currentIndex >= Model.state.studyQueue.length) { Hardware.playSound('success'); Hardware.vibrate(1000); showToast("恭喜，全部检验完成！"); View.getEl('btn-exit-study').click(); } 
+      else { View.renderStudyCard('next'); }
   },
 
   handleDtSpellClick(btn, token) {
@@ -1848,174 +1532,67 @@ const Controller = {
       if (token === targetChar) {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
           View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
-          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
-              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
-              Model.state.comboCount++; 
-              Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
-              View.updateComboBadge();
-              setTimeout(() => this.dtAdvanceNext(), 300); 
-          }
-      } else { 
-          Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
-      }
+          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge(); setTimeout(() => this.dtAdvanceNext(), 300); }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); }
   },
 
   handleDtChoiceClick(btn, isCorrect) {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
-          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          Model.state.comboCount++; 
-          Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
-          View.updateComboBadge();
-          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
-              el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0';
-              setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150);
-          });
+          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
+          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0'; setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150); });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
-      } else { 
-          Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
-      }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); }
   },
 
   handleMtSpellClick(btn, token, wObj, displayMode) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
-      
       if (token === targetChar) {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
           View.getEl('mt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
-          
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
-              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
-              Model.state.comboCount++; 
-              Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
-              View.updateComboBadge();
-              
-              if (Model.state.mode === 'memory-test') {
-                  View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block';
-                  View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300);
-                  setTimeout(() => this.mtAdvanceNext(), 800);
-              } else {
-                  if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); }
-                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); 
-              }
+              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
+              if (Model.state.mode === 'memory-test') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); setTimeout(() => this.mtAdvanceNext(), 800); } 
+              else { if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); } setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); }
           }
-      } else { 
-          Hardware.playSound('error'); Hardware.vibrate(50); 
-          btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong');
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
-          Model.state.currentWordFailed = true;
-      }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); Model.state.currentWordFailed = true; }
   },
 
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
-      
       if (isCorrect) {
-          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          Model.state.comboCount++; 
-          Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
-          View.updateComboBadge();
-
+          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
           if (Model.state.mode === 'memory-test') {
-              let round = Model.state.mtRound;
-              let step = Model.state.mtStep;
-              
-              if (round === 1) {
-                  View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
-                  View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
-                  document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); 
-                  setTimeout(() => this.mtAdvanceNext(), 800);
-              } else if (round === 2) {
-                  if (step === 1) {
-                      View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
-                      View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
-                      setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
-                  }
-              } else if (round === 3) {
-                  if (step === 1) {
-                      View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block';
-                      View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300);
-                      setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
-                  } else if (step === 2) {
-                      View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block';
-                      View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
-                      document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
-                      setTimeout(() => this.mtAdvanceNext(), 800);
-                  }
-              }
+              let round = Model.state.mtRound; let step = Model.state.mtStep;
+              if (round === 1) { View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block'; View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300); document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); } 
+              else if (round === 2) { if (step === 1) { View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block'; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } } 
+              else if (round === 3) { if (step === 1) { View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block'; View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } else if (step === 2) { View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block'; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); } }
           } else {
-              if (Model.state.mtStep === 1) {
-                  View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300);
-                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600);
-              } else {
-                  if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; }
-                  View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800);
-              }
+              if (Model.state.mtStep === 1) { View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } 
+              else { if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; } View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); }
           }
-      } else { 
-          Hardware.playSound('error'); Hardware.vibrate(50); 
-          btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); 
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
-          Model.state.currentWordFailed = true;
-      }
+      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); Model.state.currentWordFailed = true; }
   },
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
-  
   mtAdvanceNext() { 
       if (Model.state.mode === 'memory-test') {
-          if (Model.state.currentWordFailed) { 
-              let failedIdx = Model.state.studyQueue.shift(); 
-              Model.state.studyQueue.push(failedIdx); 
-          } else { 
-              Model.state.studyQueue.shift(); 
-          }
-          
-          Model.state.currentWordFailed = false; 
-          Model.state.mtStep = 1; 
-          Model.state.currentIndex = 0; 
-          
+          if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue.shift(); Model.state.studyQueue.push(failedIdx); } else { Model.state.studyQueue.shift(); }
+          Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
           if (Model.state.studyQueue.length === 0) {
-              if (Model.state.mtRound < 3) {
-                  Model.state.mtRound++;
-                  Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5);
-                  Hardware.playSound('success'); Hardware.vibrate(200);
-                  showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`);
-                  setTimeout(() => View.renderStudyCard('next'), 500); 
-              } else {
-                  let gk = Model.state.currentGroupKey;
-                  Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
-                  Model.state.mtBaseQueue.forEach(idx => {
-                      let wWord = Model.db[idx].word;
-                      Model.mtWordClears[wWord] = (Model.mtWordClears[wWord] || 0) + 1;
-                  });
-                  Model.saveClears(); 
-
-                  this.finishPendulum();
-              }
-          } else {
-              View.renderStudyCard('next');
-          }
-      } else {
-          if (Model.state.currentWordFailed) {
-              let failedIdx = Model.state.studyQueue[Model.state.currentIndex];
-              Model.state.studyQueue.push(failedIdx);
-              Model.state.currentWordFailed = false;
-          }
-          Model.state.currentIndex++; Model.state.mtStep = 1; 
-          if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); 
-      }
+              if (Model.state.mtRound < 3) { Model.state.mtRound++; Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Hardware.playSound('success'); Hardware.vibrate(200); showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`); setTimeout(() => View.renderStudyCard('next'), 500); } 
+              else { let gk = Model.state.currentGroupKey; Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1; Model.state.mtBaseQueue.forEach(idx => { let wWord = Model.db[idx].word; Model.mtWordClears[wWord] = (Model.mtWordClears[wWord] || 0) + 1; }); Model.saveClears(); this.finishPendulum(); }
+          } else { View.renderStudyCard('next'); }
+      } else { if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.state.studyQueue.push(failedIdx); Model.state.currentWordFailed = false; } Model.state.currentIndex++; Model.state.mtStep = 1; if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); }
   },
 
   finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
+    this.saveSessionRecord(); 
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
     if(exist === -1) { Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords(); }
-    showToast("任务完成"); 
-    View.getEl('btn-exit-study').click();
+    showToast("任务完成"); View.getEl('btn-exit-study').click();
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
@@ -2024,93 +1601,13 @@ const Controller = {
   openMoveModal(idx) { if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); Model.state.moveTargetIdx = idx; let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = ''; Model.folders.forEach(f => { destSelect.add(new Option(f, f)); }); destSelect.dispatchEvent(new Event('facade-update')); window.toggleModal('move-overlay', true); },
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
   batchDelete() { Hardware.playSound('click'); Hardware.vibrate(30); if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); Model.saveDB(); this.toggleBatchMode(); showToast("已批量删除"); }); },
-  
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
   deleteWord(idx) { showConfirm('删除单词', '彻底删除该词？', () => { Model.db.splice(idx,1); Model.saveDB(); View.resetWordbankRenderer(); showToast("已删除"); }); },
   importWords() { Hardware.playSound('success'); let text = View.getEl('custom-input').value.trim(); if(!text) return; let target = View.getEl('wb-folder-filter').value; if(target === 'all' || target.startsWith('virtual_')) target = "默认词库"; let added = 0; text.split('\n').forEach(line => { let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); if(parts.length >= 4){ Model.db.push({ word: parts[0].trim(), kana: parts[1].trim(), type: parts[2].trim(), meaning: parts[3].trim(), example: parts[4] ? parts[4].trim() : "", folder: target, srs: { ease: 2.5, interval: 0, nextReview: Date.now() } }); added++; } }); if(added) { Model.saveDB(); View.resetWordbankRenderer(); showToast(`成功导入 ${added} 词`); View.getEl('custom-input').value=''; } },
-  
-  openDetailModal(idx) { 
-      let currentFilter = View.getEl('wb-folder-filter').value; 
-      Model.state.detailArray = []; 
-      Model.db.forEach((w, i) => { 
-          let matchFolder = false;
-          if (currentFilter === 'all') matchFolder = true;
-          else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word);
-          else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0);
-          else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]);
-          else matchFolder = (w.folder === currentFilter);
-          if(matchFolder) Model.state.detailArray.push(i); 
-      }); 
-      Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
-      window.toggleModal('detail-overlay', true); 
-      this.renderDetailCard('none', true); 
-  },
-  
-  navDetail(dir) { 
-      Model.state.activeDetailIdx += dir; 
-      let max = Model.state.detailArray.length; 
-      if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; 
-      if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; 
-      Hardware.playSound('click'); Hardware.vibrate(30); 
-      this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); 
-  },
-  
-  renderDetailCard(anim, triggerTTS = false) {
-    let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper';
-    if(anim !== 'none') { 
-        wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); 
-        setTimeout(() => { 
-            this.updateDetailContent(w, triggerTTS); 
-            wrapper.className = 'detail-anim-wrapper'; 
-            wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); 
-        }, 200); 
-    } else { 
-        this.updateDetailContent(w, triggerTTS); 
-    }
-  },
-  
-  updateDetailContent(w, triggerTTS = false) { 
-      let visuals = View.getCardVisuals(w.type); 
-      document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
-      View.getEl('dt-watermark').innerText = visuals.wm; 
-      View.getEl('dt-word').innerText = w.word; 
-      View.getEl('dt-kana').innerText = w.kana; 
-      View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
-      View.getEl('dt-mean').innerText = w.meaning; 
-      View.renderExampleBox(w.example, 'dt-example-box'); 
-
-      let clearCount = Model.mtWordClears[w.word] || 0;
-      let badge = View.getEl('dt-hanko-badge');
-      if (badge) {
-          if(clearCount > 0) {
-              badge.style.display = 'block';
-              badge.className = 'card-hanko sakura-badge'; 
-              if (clearCount >= 10) { badge.classList.add('hanko-diamond'); }
-              else if (clearCount >= 5) { badge.classList.add('hanko-gold'); }
-              else if (clearCount >= 3) { badge.classList.add('hanko-silver'); }
-              else { badge.classList.add('hanko-bronze'); }
-          } else {
-              badge.style.display = 'none';
-          }
-      }
-
-      let isStarred = Model.stars.includes(w.word);
-      let starBtn = View.getEl('dt-star-btn');
-      let starIcon = View.getEl('dt-star-icon');
-      if (starBtn && starIcon) {
-          if (isStarred) {
-              starBtn.classList.add('active');
-              starIcon.style.fontVariationSettings = "'FILL' 1";
-          } else {
-              starBtn.classList.remove('active');
-              starIcon.style.fontVariationSettings = "'FILL' 0";
-          }
-      }
-
-      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') {
-          Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
-      }
-  }
+  openDetailModal(idx) { let currentFilter = View.getEl('wb-folder-filter').value; Model.state.detailArray = []; Model.db.forEach((w, i) => { let matchFolder = false; if (currentFilter === 'all') matchFolder = true; else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word); else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0); else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]); else matchFolder = (w.folder === currentFilter); if(matchFolder) Model.state.detailArray.push(i); }); Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); window.toggleModal('detail-overlay', true); this.renderDetailCard('none', true); },
+  navDetail(dir) { Model.state.activeDetailIdx += dir; let max = Model.state.detailArray.length; if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; Hardware.playSound('click'); Hardware.vibrate(30); this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); },
+  renderDetailCard(anim, triggerTTS = false) { let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let w = Model.db[realIdx]; let wrapper = View.getEl('dt-anim-wrapper'); wrapper.className = 'detail-anim-wrapper'; if(anim !== 'none') { wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); setTimeout(() => { this.updateDetailContent(w, triggerTTS); wrapper.className = 'detail-anim-wrapper'; wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); }, 200); } else { this.updateDetailContent(w, triggerTTS); } },
+  updateDetailContent(w, triggerTTS = false) { let visuals = View.getCardVisuals(w.type); document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; View.getEl('dt-watermark').innerText = visuals.wm; View.getEl('dt-word').innerText = w.word; View.getEl('dt-kana').innerText = w.kana; View.getEl('dt-type').innerHTML = visuals.tagsHTML; View.getEl('dt-mean').innerText = w.meaning; this.renderExampleBox(w.example, 'dt-example-box'); let clearCount = Model.mtWordClears[w.word] || 0; let badge = View.getEl('dt-hanko-badge'); if (badge) { if(clearCount > 0) { badge.style.display = 'block'; badge.className = 'card-hanko sakura-badge'; if (clearCount >= 10) { badge.classList.add('hanko-diamond'); } else if (clearCount >= 5) { badge.classList.add('hanko-gold'); } else if (clearCount >= 3) { badge.classList.add('hanko-silver'); } else { badge.classList.add('hanko-bronze'); } } else { badge.style.display = 'none'; } } let isStarred = Model.stars.includes(w.word); let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); if (starBtn && starIcon) { if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } } if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); } }
 };
 
 window.onload = () => Controller.init();

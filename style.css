@@ -15,7 +15,7 @@
     --on-surface: #38322c;
 
     /* 优化：稍微加深分割线颜色以适配新的底色 */
-    --outline: #d6cexc3; 
+    --outline: #d6cec3; 
     --tertiary: #6b847b;        
 
     --accent-red: #ba6b68; 

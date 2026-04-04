@@ -209,49 +209,6 @@
   .stat-number { font-size: 1.6rem; font-weight: 800; color: var(--primary); line-height: 1.2; font-family: var(--font-jp-sans);}
   .stat-label { font-size: 0.75rem; opacity: 0.8; margin-top: 6px; font-weight: 700;}
 
-  /* 🌟 新增：底部纯文字扁平虚线框，与词库词汇完全一致 */
-  .flat-stat-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 12px 8px; 
-      border-radius: var(--radius-sm);
-      box-shadow: none; 
-      transition: all 0.3s ease;
-  }
-  .box-cleared {
-      background: var(--accent-green-bg);
-      border: 2px dashed var(--tertiary);
-      color: var(--tertiary);
-  }
-  .box-uncleared {
-      background: var(--accent-red-bg);
-      border: 2px dashed var(--accent-red);
-      color: var(--accent-red);
-  }
-  .flat-stat-num {
-      font-family: var(--font-jp-sans);
-      font-size: 1.6rem;
-      font-weight: 800;
-      line-height: 1;
-      margin-bottom: 4px;
-  }
-  .flat-stat-label {
-      font-size: 0.75rem;
-      font-weight: 800;
-  }
-  [data-theme="dark"] .box-cleared {
-      background: #1c2e22; 
-      color: #87c7a5;
-      border-color: rgba(135,199,165,0.4);
-  }
-  [data-theme="dark"] .box-uncleared {
-      background: #3b0002; 
-      color: #ffb4a9;
-      border-color: rgba(255,180,169,0.4);
-  }
-
   /* ⚙️ 物理阻尼推钮 */
   .setting-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--outline); }
   [data-theme="dark"] .setting-item { border-bottom-color: rgba(255,255,255,0.05); }
@@ -443,7 +400,7 @@
   [data-theme="dark"] .btn-ft-green { color: #87c7a5 !important; background: #1c2e22 !important; }
 
   /* ==========================================
-     📦 全景词库网格体系
+     📦 全景词库网格体系 - 终极排版防碰撞 & 双子星完美对齐
      ========================================== */
   
   #wb-grid-container { width: 100%; position: relative; }
@@ -667,6 +624,7 @@
   [data-theme="dark"] .ex-item { border-bottom: 2px solid rgba(255,255,255,0.04); }
   .ex-item:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
   
+  /* 🌟 修复：给日文例句部分加上点击响应样式与动画 */
   .dt-ex-jp { 
       font-family: var(--font-jp-sans); 
       font-size: 1.1rem; font-weight: 500; margin-bottom: 10px; 
@@ -676,6 +634,7 @@
   }
   .dt-ex-jp:active { opacity: 0.6; transform: scale(0.99); }
   
+  /* 🌟 修复：新增迷你朗读喇叭样式 */
   .ex-speaker { 
       font-size: 1.15rem; opacity: 0.5; color: var(--primary); 
       vertical-align: sub; margin-right: 6px; 
@@ -783,13 +742,23 @@
   .theme-switching * { transition: none !important; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; display: block; will-change: transform, opacity, filter, clip-path; }
 
+  @keyframes shake-punch {
+      0%, 100% { transform: scale(0.95) translateX(0); }
+      25% { transform: scale(0.95) translateX(-4px) rotate(-1deg); }
+      75% { transform: scale(0.95) translateX(4px) rotate(1deg); }
+  }
+  .btn-long-press.pressing { 
+      animation: shake-punch 0.2s infinite; 
+      box-shadow: 0 0 0 transparent !important; 
+  }
+    /* 🌟 修复：长按打卡按钮的防冲突与进度条注水动画 */
   .btn-long-press {
       position: relative;
       overflow: hidden;
-      touch-action: none;
-      -webkit-user-select: none;
+      touch-action: none;          /* 禁用系统默认的滚动和缩放手势 */
+      -webkit-user-select: none;   /* 禁用长按选词 */
       user-select: none;
-      -webkit-touch-callout: none;
+      -webkit-touch-callout: none; /* 禁用长按弹出系统菜单 */
   }
 
   .btn-long-press .lp-bg {
@@ -803,6 +772,7 @@
 
   .btn-long-press.pressing .lp-bg {
       transform: scaleX(1);
+      /* 这里的 1.5s 完美匹配你 JS 里设定的 1500ms 长按判定时间 */
       transition: transform 1.5s linear; 
   }
 
@@ -821,12 +791,3 @@
       border-color: transparent !important;
   }
 
-  @keyframes shake-punch {
-      0%, 100% { transform: scale(0.95) translateX(0); }
-      25% { transform: scale(0.95) translateX(-4px) rotate(-1deg); }
-      75% { transform: scale(0.95) translateX(4px) rotate(1deg); }
-  }
-  .btn-long-press.pressing { 
-      animation: shake-punch 0.2s infinite; 
-      box-shadow: 0 0 0 transparent !important; 
-  }

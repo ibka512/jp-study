@@ -100,7 +100,7 @@ body::after {
 
 .app-container { 
   max-width: 500px; margin: 0 auto; position: relative;
-  padding-top: calc(100px + env(safe-area-inset-top));
+  padding-top: calc(104px + env(safe-area-inset-top));
   padding-bottom: calc(90px + env(safe-area-inset-bottom));
   padding-left: var(--space-sm); padding-right: var(--space-sm);
 }

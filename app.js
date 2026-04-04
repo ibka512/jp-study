@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 修复版 (详情卡片显示不完整 + 切换空白修复 + 数据同步)
+ * 修复版 (PWA 离线优化 + iOS TTS 唤醒强化 + MathJax 异步异常修复)
  */
 
 const escapeHTML = (str) => {
@@ -893,8 +893,9 @@ const View = {
 
         this.getEl('btn-speaker').style.display = showA || st === 'C' ? 'block' : 'none';
         
+        // 🚀 修复点：移除 setTimeout 延迟，改为同步直接调用以防止 iOS 拦截
         if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
-             setTimeout(() => Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')), 300);
+             Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
         }
 
         this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
@@ -998,8 +999,9 @@ const View = {
       this.renderMemoryTestUI(w, mode);
     }
     
+    // 🚀 修复点：移除 setTimeout 延迟，同步触发
     if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
-        setTimeout(() => Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')), 300);
+        Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
     } else {
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
         if (autoSpeak && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
@@ -1010,7 +1012,6 @@ const View = {
     let exBox = this.getEl(boxId);
     if (!exBox) return;
     
-    // 增加健壮性：检查 exString 有效性
     if (!exString || typeof exString !== 'string') {
         exBox.style.display = 'none';
         exBox.innerHTML = '';
@@ -1049,7 +1050,8 @@ const View = {
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
-    if (window.MathJax) { 
+    // 🚀 修复点：确保 MathJax API 已完全可用再进行调用
+    if (window.MathJax && window.MathJax.typesetPromise) { 
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
             .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
             .catch((err) => { console.warn('MathJax 排版被中断', err); });
@@ -1186,7 +1188,6 @@ const View = {
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
-      // 如果处于批量模式，自动退出并清空选中集，避免索引错乱
       if (Model.state.batchMode) {
           Controller.toggleBatchMode();
       }
@@ -1392,11 +1393,9 @@ const Controller = {
       Model.state.sessionSaved = true;
   },
 
-  // 辅助函数：在数据库变更时关闭详情模态框，避免 detailArray 不同步
   closeDetailIfOpen() {
       if (document.getElementById('detail-overlay').classList.contains('active')) {
           window.toggleModal('detail-overlay', false);
-          // 同时重置渲染索引以便刷新词库
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
               Model.state.renderedStartIndex = -1;
               View.renderVirtualGrid();
@@ -1465,15 +1464,16 @@ const Controller = {
     View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
     View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
 
-    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
-    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
+    // 🚀 修复点：添加 Hardware.unlockSpeech() 防止 iOS 静音
+    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
+    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
     let displayTrigger = View.getEl('btn-display-mode-trigger');
     if (displayTrigger) { displayTrigger.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span')); }); }
 
     let btnMtReplay = View.getEl('btn-mt-replay');
-    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }); }
+    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }); }
 
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
     if (btnMtShowHint) { btnMtShowHint.addEventListener('click', () => { Hardware.vibrate(10); if (Model.state.mode === 'filter-test') { Model.state.ftShowKanaHint = true; View.renderStudyCard('none'); } else { let wKana = View.getEl('w-kana'); if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); } } }); }
@@ -1498,7 +1498,7 @@ const Controller = {
     let searchInput = View.getEl('wb-search-input');
     if (searchInput) { 
         searchInput.addEventListener('input', () => { 
-            if (Model.state.batchMode) Controller.toggleBatchMode(); // 搜索时退出批量模式
+            if (Model.state.batchMode) Controller.toggleBatchMode(); 
             View.resetWordbankRenderer(); 
         }); 
     }
@@ -1514,7 +1514,6 @@ const Controller = {
     }
 
     window.addEventListener('keydown', (e) => {
-        // 如果当前聚焦在输入框或文本域，不处理音量键翻页
         const activeEl = document.activeElement;
         if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
             return;
@@ -1553,7 +1552,6 @@ const Controller = {
                     Model.state.mtStep = 1; 
                     View.renderStudyCard('none'); 
                 } else if(id.includes('wb')) { 
-                    // 切换列数或遮盖模式时，如果处于批量模式，退出
                     if (Model.state.batchMode) Controller.toggleBatchMode();
                     View.resetWordbankRenderer(); 
                 } 
@@ -1687,7 +1685,9 @@ const Controller = {
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
+  // 🚀 修复点：在每次答题操作的最顶端解锁音频
   processFilterTestResult(isCorrect) {
+      Hardware.unlockSpeech();
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
       if (isCorrect) { Model.mtWordClears[w.word] = (Model.mtWordClears[w.word] || 0) + 1; } 
       else { Model.mtWordClears[w.word] = Math.floor((Model.mtWordClears[w.word] || 0) / 2); }
@@ -1698,6 +1698,7 @@ const Controller = {
 
   handleDtSpellClick(btn, token) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
+      Hardware.unlockSpeech();
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
       if (token === targetChar) {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
@@ -1708,6 +1709,7 @@ const Controller = {
 
   handleDtChoiceClick(btn, isCorrect) {
       if (Model.state.isAnimating) return;
+      Hardware.unlockSpeech();
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
           document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0'; setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150); });
@@ -1717,6 +1719,7 @@ const Controller = {
 
   handleMtSpellClick(btn, token, wObj, displayMode) {
       if (Model.state.isAnimating || btn.classList.contains('used')) return;
+      Hardware.unlockSpeech();
       let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
       if (token === targetChar) {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
@@ -1731,6 +1734,7 @@ const Controller = {
 
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
+      Hardware.unlockSpeech();
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
           if (Model.state.mode === 'memory-test') {

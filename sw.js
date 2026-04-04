@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v50';
+const CACHE_NAME = 'pendulum-v46'; // 建议更新缓存版本号
 const ASSETS = [
   './',
   './index.html',
@@ -6,7 +6,9 @@ const ASSETS = [
   './logo.png',
   './style.css',
   './data.js',
-  './app.js'
+  './app.js',
+  // 🚀 修复点：强制预缓存核心数据库依赖，防止首次离线时应用崩溃
+  'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js'
 ];
 
 // 安装并强制缓存
@@ -65,9 +67,15 @@ self.addEventListener('fetch', (event) => {
         });
 
         return networkResponse;
+      }).catch(() => {
+        console.log('网络断开，且未找到缓存资源');
+        // 🚀 修复点：增加兜底返回，防止断网且无缓存时浏览器直接抛出底层错误导致白屏或卡死
+        return new Response('目前处于离线状态，且该资源未缓存。', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain; charset=utf-8' })
+        });
       });
-    }).catch(() => {
-      console.log('网络断开，且未找到缓存资源');
     })
   );
 });

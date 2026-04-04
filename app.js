@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (异步 IndexedDB 架构 + 动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化 + 长按防冲突)
+ * 终极进化版 (连击排行榜 + 数据懒加载 + 动态进度条映射 + 双轨Combo + 免选直开)
  */
 
 const escapeHTML = (str) => {
@@ -105,9 +105,9 @@ const Nav = {
 
         if (targetId === 'tab-home') {
             View.renderDashboard();
-        }
-
-        if (targetId === 'tab-wordbank') {
+        } else if (targetId === 'tab-records') {
+            View.renderLeaderboard();
+        } else if (targetId === 'tab-wordbank') {
             if(Model.state.renderedStartIndex === -1) {
                 View.resetWordbankRenderer();
             } else {
@@ -147,7 +147,8 @@ const BottomSheet = {
             'test-display-select': '默认显示模式',
             'next-display-mode': '遮盖模式',
             'wb-folder-filter': '选择词库',
-            'move-dest-select': '移动至目标文件夹'
+            'move-dest-select': '移动至目标文件夹',
+            'setting-lb-layout': '选择排行榜布局'
         };
         document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
         
@@ -171,6 +172,7 @@ const BottomSheet = {
                 if (selectEl.id === 'test-range-select') localStorage.setItem('lastTestRange', opt.value);
                 if (selectEl.id === 'test-display-select') localStorage.setItem('lastTestDisplay', opt.value);
                 if (selectEl.id === 'wb-folder-filter') localStorage.setItem('lastSelectedFolder', opt.value);
+                if (selectEl.id === 'setting-lb-layout') { localStorage.setItem('lbLayout', opt.value); View.renderLeaderboard(); }
                 
                 selectEl.dispatchEvent(new Event('facade-update'));
                 selectEl.dispatchEvent(new Event('change')); 
@@ -190,19 +192,25 @@ const Model = {
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
-    comboCount: 0, maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
+    
+    // 连击与记录追踪
+    comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
+    
+    maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
   },
   
-  async init() { 
-      await this.loadData(); 
+  lbState: {
+      singleMode: 'dual-track', 
+      page: { single: 1, triple_dt: 1, triple_mt: 1, triple_rt: 1 },
+      pageSize: 50
   },
+
+  async init() { await this.loadData(); },
   
   async loadData() {
-    // 1. 优先尝试从 IndexedDB 读取
     let storedDB = await idbKeyval.get('myWordDB_v3');
-    
     if (storedDB) {
         this.db = storedDB;
         this.folders = await idbKeyval.get('myFolders_v3') || ["默认词库"];
@@ -211,7 +219,6 @@ const Model = {
         this.mtGroupClears = await idbKeyval.get('mtGroupClears_v3') || {};
         this.mtWordClears = await idbKeyval.get('mtWordClears_v3') || {};
     } else {
-        // 2. 如果 IDB 是空的，检查 LocalStorage 是否有旧版本数据 (平滑迁移)
         let lsDB = localStorage.getItem('myWordDB_v3');
         if (lsDB) {
             this.db = JSON.parse(lsDB);
@@ -221,17 +228,12 @@ const Model = {
             this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
             this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
             
-            // 将读取到的旧数据存入 IndexedDB
             await Promise.all([
                 this.saveDB(), this.saveFolders(), this.saveStars(), 
                 this.saveRecords(), this.saveClears()
             ]);
-            
-            // 3. 删掉释放空间 (清理 localStorage)
             ['myWordDB_v3', 'myFolders_v3', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
-            console.log("数据已成功迁移至 IndexedDB 并清理本地空间");
         } else {
-            // 4. 全新安装：加载默认词库
             this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
             await this.saveDB(); 
         }
@@ -460,7 +462,7 @@ const View = {
       let badge = this.getEl('combo-badge');
       if (!badge) return;
 
-      if (Model.state.mode !== 'rote-learning' && Model.state.mode !== 'dual-track') {
+      if (Model.state.mode !== 'rote-learning' && Model.state.mode !== 'dual-track' && Model.state.mode !== 'memory-test') {
           badge.classList.remove('active', 'tier-2', 'tier-3');
           return;
       }
@@ -514,6 +516,12 @@ const View = {
     }
     
     if (displayCurrent > totalPixels) displayCurrent = totalPixels;
+
+    if (totalPixels <= 10) {
+        c.classList.add('compact-mode');
+    } else {
+        c.classList.remove('compact-mode');
+    }
 
     while (c.children.length < totalPixels) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
     while (c.children.length > totalPixels) { c.removeChild(c.lastChild); }
@@ -638,6 +646,106 @@ const View = {
             btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
         }
     }
+  },
+
+  // ✨ 连击排行榜渲染引擎
+  renderLeaderboard() {
+      let layout = localStorage.getItem('lbLayout') || 'single';
+      let layoutSel = this.getEl('setting-lb-layout');
+      if (layoutSel && layoutSel.value !== layout) {
+          layoutSel.value = layout; layoutSel.dispatchEvent(new Event('facade-update'));
+      }
+
+      let allComboRecords = Model.records.filter(r => r.type === 'combo_record');
+      
+      if (layout === 'single') {
+          this.getEl('lb-layout-single-wrap').style.display = 'block';
+          this.getEl('lb-layout-triple-wrap').style.display = 'none';
+
+          let mode = Model.lbState.singleMode;
+          document.querySelectorAll('#lb-tabs .g-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+          
+          let filtered = allComboRecords.filter(r => r.mode === mode);
+          // 双重排序：分数降序 -> 时间降序 (最新优先)
+          filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
+
+          let listEl = this.getEl('lb-single-list');
+          let limit = Model.lbState.page.single * Model.lbState.pageSize;
+          let displayList = filtered.slice(0, limit);
+          
+          let html = '';
+          if (filtered.length === 0) {
+              html = `<div style="text-align:center; padding: 40px 20px; opacity: 0.5;">暂无挑战记录</div>`;
+          } else {
+              displayList.forEach((r, idx) => {
+                  let rankHTML = '';
+                  if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+                  else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+                  else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">military_tech</span>`;
+                  else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
+
+                  html += `
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 12px; border-bottom: 1px solid var(--outline);">
+                     <div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 4px;">${r.combo} 连击</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7;">${r.dateStr} · ${r.group}</div>
+                     </div>
+                     <div style="display:flex; align-items:center; justify-content:center; width:40px;">${rankHTML}</div>
+                  </div>`;
+              });
+          }
+          listEl.innerHTML = html;
+          
+          let btnMore = this.getEl('btn-lb-load-more-single');
+          if (filtered.length > limit) { btnMore.style.display = 'block'; btnMore.onclick = () => { Model.lbState.page.single++; this.renderLeaderboard(); }; } 
+          else { btnMore.style.display = 'none'; }
+
+      } else {
+          this.getEl('lb-layout-single-wrap').style.display = 'none';
+          this.getEl('lb-layout-triple-wrap').style.display = 'block';
+
+          let renderCol = (modeId, colId, stateKey) => {
+              let filtered = allComboRecords.filter(r => r.mode === modeId);
+              filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
+              
+              let limit = Model.lbState.page[stateKey] * Model.lbState.pageSize;
+              let displayList = filtered.slice(0, limit);
+              
+              let html = '';
+              if (filtered.length === 0) { html = `<div style="text-align:center; padding: 20px 0; opacity: 0.4; font-size: 0.8rem;">无记录</div>`; }
+              else {
+                  displayList.forEach((r, idx) => {
+                      let dateShort = r.dateStr.split(' ')[0].slice(5); 
+                      let topStyle = '';
+                      if(idx===0) topStyle = 'color: #d4af37; font-size: 1.1rem; font-weight: 900;';
+                      else if(idx===1) topStyle = 'color: #C0C0C0; font-size: 1.05rem; font-weight: 900;';
+                      else if(idx===2) topStyle = 'color: #cd7f32; font-size: 1.05rem; font-weight: 900;';
+                      
+                      html += `<div style="display:flex; justify-content:space-between; padding: 10px 0; border-bottom: 1px dashed var(--outline); align-items: baseline;">
+                                  <span style="font-weight:800; color:var(--primary); ${topStyle}">${r.combo}</span>
+                                  <span style="opacity:0.6; font-size:0.75rem;">${dateShort}</span>
+                               </div>`;
+                  });
+              }
+              this.getEl(colId).innerHTML = html;
+              return filtered.length > limit;
+          };
+
+          let moreDt = renderCol('dual-track', 'lb-col-dt', 'triple_dt');
+          let moreMt = renderCol('memory-test', 'lb-col-mt', 'triple_mt');
+          let moreRt = renderCol('rote-learning', 'lb-col-rt', 'triple_rt');
+
+          let btnMore = this.getEl('btn-lb-load-more-triple');
+          if (moreDt || moreMt || moreRt) {
+              btnMore.style.display = 'block';
+              btnMore.onclick = () => {
+                  if(moreDt) Model.lbState.page.triple_dt++;
+                  if(moreMt) Model.lbState.page.triple_mt++;
+                  if(moreRt) Model.lbState.page.triple_rt++;
+                  this.renderLeaderboard();
+              };
+          } else { btnMore.style.display = 'none'; }
+      }
   },
   
   renderStudyCard(anim = 'none') {
@@ -1125,6 +1233,9 @@ const View = {
     
     grid.innerHTML = '';
     grid.appendChild(fragment);
+
+    let sentinel = this.getEl('wb-scroll-sentinel');
+    if (sentinel) sentinel.style.display = 'none';
   },
 
   updateWordbankUI() {
@@ -1166,10 +1277,7 @@ const Controller = {
   async init() {
     BottomSheet.init(); 
     Nav.init(); 
-    
-    // 等待核心词库数据加载完成
     await Model.init(); 
-    
     Hardware.init(); 
     View.renderDashboard(); 
     View.updateWordbankUI(); 
@@ -1190,24 +1298,55 @@ const Controller = {
   },
 
   setupVirtualScroll() {
-    let ticking = false;
-    window.addEventListener('scroll', () => {
-        if (document.getElementById('tab-wordbank').classList.contains('active')) {
-            if (!ticking) {
-                window.requestAnimationFrame(() => {
-                    View.renderVirtualGrid();
-                    ticking = false;
-                });
-                ticking = true;
-            }
-        }
-    }, { passive: true }); 
-
+    const sentinel = View.getEl('wb-scroll-sentinel');
+    const container = View.getEl('wb-grid-container');
+    
     window.addEventListener('resize', () => {
          if (document.getElementById('tab-wordbank').classList.contains('active')) {
              View.resetWordbankRenderer();
          }
     });
+
+    if (!window.IntersectionObserver || !sentinel) return;
+
+    const observer = new IntersectionObserver((entries) => {
+        let shouldRender = false;
+        entries.forEach(entry => {
+            if (entry.isIntersecting) shouldRender = true;
+        });
+
+        if (shouldRender && document.getElementById('tab-wordbank').classList.contains('active')) {
+            window.requestAnimationFrame(() => {
+                View.renderVirtualGrid();
+            });
+        }
+    }, {
+        rootMargin: '200px 0px', 
+        threshold: 0.1
+    });
+
+    observer.observe(container);
+    observer.observe(sentinel);
+  },
+
+  // ✨ 核心方法：保存对局最高连击记录
+  saveSessionRecord() {
+      if (Model.state.sessionSaved) return; 
+      let mode = Model.state.mode;
+      if (mode === 'dual-track' || mode === 'memory-test' || mode === 'rote-learning') {
+          let t = new Date();
+          let dateStr = t.toLocaleDateString('zh-CN') + ' ' + t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
+          Model.records.push({
+              type: 'combo_record',
+              mode: mode,
+              combo: Model.state.maxSessionCombo,
+              group: Model.state.currentGroupLabel || '默认词库',
+              timestamp: t.getTime(),
+              dateStr: dateStr
+          });
+          Model.saveRecords();
+      }
+      Model.state.sessionSaved = true;
   },
 
   bindEvents() {
@@ -1227,7 +1366,12 @@ const Controller = {
         btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); View.showPage('tab-home'); View.renderDashboard(); });
+    // 退出时：无论是否通关，都自动保存当前产生的连击记录
+    View.getEl('btn-exit-study').addEventListener('click', () => { 
+        Hardware.vibrate(20); window.speechSynthesis.cancel(); 
+        this.saveSessionRecord(); 
+        View.showPage('tab-home'); View.renderDashboard(); 
+    });
 
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
@@ -1242,6 +1386,15 @@ const Controller = {
             document.querySelectorAll('#gs-tabs .g-tab').forEach(t => t.classList.remove('active'));
             e.currentTarget.classList.add('active');
             View.renderGroupBottomSheet(e.currentTarget.dataset.cat);
+        });
+    });
+
+    // 记录页面内的选项卡切换
+    document.querySelectorAll('#lb-tabs .g-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            Hardware.playSound('click');
+            Model.lbState.singleMode = e.currentTarget.dataset.mode;
+            View.renderLeaderboard();
         });
     });
 
@@ -1407,6 +1560,15 @@ const Controller = {
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { View.getEl(id).addEventListener('change', (e) => { Hardware.playSound('click'); if(id === 'next-display-mode') { localStorage.setItem('displayMode', e.target.value); Model.state.mtStep = 1; View.renderStudyCard('none'); } else if(id.includes('wb')) { View.resetWordbankRenderer(); } }); });
     View.getEl('wb-folder-filter').addEventListener('change', () => { Hardware.playSound('click'); View.resetWordbankRenderer(); });
     
+    // 排版设置触发底栏点击，顺便复用
+    let lbLayoutTrigger = View.getEl('setting-lb-layout');
+    if (lbLayoutTrigger) {
+        let facade = lbLayoutTrigger.nextElementSibling;
+        if (facade && facade.classList.contains('bs-facade')) {
+            facade.addEventListener('click', () => { BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); });
+        }
+    }
+    
     View.getEl('btn-speaker').addEventListener('click', () => { Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
     
     View.getEl('star-btn').addEventListener('click', (e) => { 
@@ -1518,8 +1680,6 @@ const Controller = {
     View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
-    
-    // 异步重置数据并清理
     View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); await Model.saveDB(); await Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     
     View.getEl('detail-close').addEventListener('click', () => { 
@@ -1562,7 +1722,6 @@ const Controller = {
               if (data && data.db && data.folders) {
                   Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || [];
                   Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
-                  // 等待全部异步保存完毕再刷新
                   Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => {
                       Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
                   });
@@ -1600,6 +1759,8 @@ const Controller = {
     Model.state.mtStep = 1; 
     Model.state.currentWordFailed = false;
     Model.state.comboCount = 0;
+    Model.state.maxSessionCombo = 0;
+    Model.state.sessionSaved = false;
     Model.state.maxProgressSeen = 0;
     Model.state.uniqueWordCount = sourceWords.length;
 
@@ -1647,6 +1808,8 @@ const Controller = {
       Model.state.ftHint = null;
       Model.state.ftShowKanaHint = false; 
       Model.state.maxProgressSeen = 0;
+      Model.state.maxSessionCombo = 0;
+      Model.state.sessionSaved = false;
 
       Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
       
@@ -1687,7 +1850,9 @@ const Controller = {
           View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
               Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
-              Model.state.comboCount++; View.updateComboBadge();
+              Model.state.comboCount++; 
+              Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
+              View.updateComboBadge();
               setTimeout(() => this.dtAdvanceNext(), 300); 
           }
       } else { 
@@ -1700,7 +1865,9 @@ const Controller = {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          Model.state.comboCount++; View.updateComboBadge();
+          Model.state.comboCount++; 
+          Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
+          View.updateComboBadge();
           document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
               el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0';
               setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150);
@@ -1722,7 +1889,9 @@ const Controller = {
           
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
               Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); 
-              Model.state.comboCount++; View.updateComboBadge();
+              Model.state.comboCount++; 
+              Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
+              View.updateComboBadge();
               
               if (Model.state.mode === 'memory-test') {
                   View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block';
@@ -1746,7 +1915,9 @@ const Controller = {
       
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40);
-          Model.state.comboCount++; View.updateComboBadge();
+          Model.state.comboCount++; 
+          Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount);
+          View.updateComboBadge();
 
           if (Model.state.mode === 'memory-test') {
               let round = Model.state.mtRound;
@@ -1842,8 +2013,9 @@ const Controller = {
   finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
-    if(exist === -1) Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords();
-    showToast("任务完成"); View.getEl('btn-exit-study').click();
+    if(exist === -1) { Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords(); }
+    showToast("任务完成"); 
+    View.getEl('btn-exit-study').click();
   },
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },

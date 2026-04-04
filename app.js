@@ -1,6 +1,6 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 终极进化版 (动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化 + 长按防冲突)
+ * 终极进化版 (异步 IndexedDB 架构 + 动态进度条映射 + 双轨Combo + 免选直开 + 筛选检测听力优化 + 长按防冲突)
  */
 
 const escapeHTML = (str) => {
@@ -188,40 +188,65 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
-    
-    ftState: 'A', 
-    ftHint: null,
-    ftShowKanaHint: false,
-
-    comboCount: 0,
-    maxProgressSeen: 0,
-    uniqueWordCount: 0,
-    initialQueueLength: 0,
-
+    ftState: 'A', ftHint: null, ftShowKanaHint: false,
+    comboCount: 0, maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
-    isAnimating: false,
-    filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
+    isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
   },
-  init() { this.loadData(); },
-  loadData() {
-    this.folders = JSON.parse(localStorage.getItem('myFolders_v3')) || ["默认词库"];
-    let storedDB = localStorage.getItem('myWordDB_v3');
-    if (storedDB) this.db = JSON.parse(storedDB);
-    else { this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); this.saveDB(); }
-    this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
-    this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
-    this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
-    this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
+  
+  async init() { 
+      await this.loadData(); 
   },
-  saveDB() { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); },
-  saveFolders() { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); },
-  saveStars() { localStorage.setItem('starredWords', JSON.stringify(this.stars)); },
-  saveRecords() { localStorage.setItem('studyRecords', JSON.stringify(this.records)); },
+  
+  async loadData() {
+    // 1. 优先尝试从 IndexedDB 读取
+    let storedDB = await idbKeyval.get('myWordDB_v3');
+    
+    if (storedDB) {
+        this.db = storedDB;
+        this.folders = await idbKeyval.get('myFolders_v3') || ["默认词库"];
+        this.stars = await idbKeyval.get('starredWords') || [];
+        this.records = await idbKeyval.get('studyRecords') || [];
+        this.mtGroupClears = await idbKeyval.get('mtGroupClears_v3') || {};
+        this.mtWordClears = await idbKeyval.get('mtWordClears_v3') || {};
+    } else {
+        // 2. 如果 IDB 是空的，检查 LocalStorage 是否有旧版本数据 (平滑迁移)
+        let lsDB = localStorage.getItem('myWordDB_v3');
+        if (lsDB) {
+            this.db = JSON.parse(lsDB);
+            this.folders = JSON.parse(localStorage.getItem('myFolders_v3')) || ["默认词库"];
+            this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
+            this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
+            this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
+            this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
+            
+            // 将读取到的旧数据存入 IndexedDB
+            await Promise.all([
+                this.saveDB(), this.saveFolders(), this.saveStars(), 
+                this.saveRecords(), this.saveClears()
+            ]);
+            
+            // 3. 删掉释放空间 (清理 localStorage)
+            ['myWordDB_v3', 'myFolders_v3', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
+            console.log("数据已成功迁移至 IndexedDB 并清理本地空间");
+        } else {
+            // 4. 全新安装：加载默认词库
+            this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
+            await this.saveDB(); 
+        }
+    }
+  },
+
+  saveDB() { return idbKeyval.set('myWordDB_v3', this.db); },
+  saveFolders() { return idbKeyval.set('myFolders_v3', this.folders); },
+  saveStars() { return idbKeyval.set('starredWords', this.stars); },
+  saveRecords() { return idbKeyval.set('studyRecords', this.records); },
   saveClears() {
-      localStorage.setItem('mtGroupClears_v3', JSON.stringify(this.mtGroupClears));
-      localStorage.setItem('mtWordClears_v3', JSON.stringify(this.mtWordClears));
+      return Promise.all([
+          idbKeyval.set('mtGroupClears_v3', this.mtGroupClears),
+          idbKeyval.set('mtWordClears_v3', this.mtWordClears)
+      ]);
   },
   
   updateFilteredDb(searchQuery, currentFilter) {
@@ -1100,9 +1125,6 @@ const View = {
     
     grid.innerHTML = '';
     grid.appendChild(fragment);
-
-    let sentinel = this.getEl('wb-scroll-sentinel');
-    if (sentinel) sentinel.style.display = 'none';
   },
 
   updateWordbankUI() {
@@ -1141,10 +1163,13 @@ const View = {
 };
 
 const Controller = {
-  init() {
+  async init() {
     BottomSheet.init(); 
     Nav.init(); 
-    Model.init(); 
+    
+    // 等待核心词库数据加载完成
+    await Model.init(); 
+    
     Hardware.init(); 
     View.renderDashboard(); 
     View.updateWordbankUI(); 
@@ -1340,7 +1365,6 @@ const Controller = {
         if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else if (inStudy && (isPendulum || isRoteFirstTime)) { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
     }, { passive: false });
 
-    // 🌟 修复：重构长按打卡按钮的触控与防抖逻辑
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
     const clearPunch = () => { 
@@ -1494,7 +1518,9 @@ const Controller = {
     View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); View.getEl('btn-cancel-move').addEventListener('click', () => window.toggleModal('move-overlay', false));
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
-    View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); Model.saveDB(); Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
+    
+    // 异步重置数据并清理
+    View.getEl('btn-reset').addEventListener('click', () => { showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); await Model.saveDB(); await Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     
     View.getEl('detail-close').addEventListener('click', () => { 
         window.toggleModal('detail-overlay', false); 
@@ -1536,8 +1562,10 @@ const Controller = {
               if (data && data.db && data.folders) {
                   Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || [];
                   Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
-                  Model.saveDB(); Model.saveFolders(); Model.saveStars(); Model.saveRecords(); Model.saveClears();
-                  Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
+                  // 等待全部异步保存完毕再刷新
+                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => {
+                      Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); 
+                  });
               } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
           } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
       };

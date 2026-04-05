@@ -740,6 +740,25 @@ const View = {
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
+    // 🚀 新增：计算并渲染“通关进度”
+    let clearedWordsCount = Object.values(Model.mtWordClears).filter(count => count > 0).length;
+    let totalWordsCount = Model.db.length;
+    let masteryPercent = totalWordsCount === 0 ? 0 : ((clearedWordsCount / totalWordsCount) * 100).toFixed(1);
+
+    let masteryCountEl = this.getEl('mastery-count');
+    let masteryTotalEl = this.getEl('mastery-total');
+    let masteryPercentEl = this.getEl('mastery-percent');
+    let masteryBarEl = this.getEl('mastery-bar');
+
+    if (masteryCountEl) masteryCountEl.innerText = clearedWordsCount;
+    if (masteryTotalEl) masteryTotalEl.innerText = totalWordsCount;
+    if (masteryPercentEl) masteryPercentEl.innerText = `(${masteryPercent}%)`;
+    if (masteryBarEl) {
+        setTimeout(() => {
+            masteryBarEl.style.width = `${masteryPercent}%`;
+        }, 50);
+    }
+
     let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
     this.getEl('custom-group-text').innerText = lastTxt;
 

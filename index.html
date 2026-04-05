@@ -61,10 +61,24 @@
     <div id="total-words" style="display:none;"></div>
 
     <div class="card-panel">
-      <h3 style="margin-bottom: 16px; margin-top: 0;">
+      <h3 style="margin-bottom: 12px; margin-top: 0;">
         <span class="material-symbols-rounded">rocket_launch</span> 学习模式
       </h3>
       
+      <div class="mastery-progress-container">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
+              <div style="font-size: 0.85rem; font-weight: 800; color: var(--on-surface); opacity: 0.7;">当前已通关</div>
+              <div style="font-family: var(--font-jp-sans); font-weight: 900; color: var(--tertiary); font-size: 1.1rem; display: flex; align-items: baseline; gap: 4px;">
+                  <span id="mastery-count">0</span>
+                  <span style="font-size: 0.8rem; opacity: 0.5; color: var(--on-surface); font-weight: 700;">/ <span id="mastery-total">0</span> 词</span>
+                  <span id="mastery-percent" style="font-size: 0.95rem;">(0%)</span>
+              </div>
+          </div>
+          <div class="mastery-track">
+              <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
+          </div>
+      </div>
+
       <div class="filter-test-btn-group">
         <button id="btn-start-filter-test" class="ft-main icon-text-gap">
           <span class="material-symbols-rounded">psychology_alt</span> 筛选检验词汇

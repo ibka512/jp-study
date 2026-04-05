@@ -106,16 +106,17 @@ body::after {
 }
 
 /* ==========================================
-   顶栏 (Header) 样式及滚动阴影状态
-   ========================================== */
-.global-header {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-  background: rgba(251, 250, 245, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  display: flex; justify-content: space-between; align-items: center;
-  padding: calc(16px + env(safe-area-inset-top)) 20px 16px;
-  border-bottom: 1px solid rgba(139, 121, 103, 0.1);
-  transition: box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
-}
+     顶栏 (Header) 样式及滚动阴影状态
+     ========================================== */
+  .global-header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(251, 250, 245, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    display: flex; justify-content: space-between; align-items: center;
+    /* 🚀 修复：将写死的 20px 替换为 var(--space-sm)，实现全局控件边缘的像素级对齐 */
+    padding: calc(16px + env(safe-area-inset-top)) var(--space-sm) 16px;
+    border-bottom: 1px solid rgba(139, 121, 103, 0.1);
+    transition: box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
+  }
 
 /* 🚀 滚动时的阴影悬浮状态 (白天) */
 .global-header.scrolled {

@@ -1359,6 +1359,10 @@ const Controller = {
         if(darkBtnStyle) document.body.setAttribute('data-dark-btn', 'translucent');
     }
 
+    let postponeTested = localStorage.getItem('postponeTested') === 'true';
+    let postponeCheck = View.getEl('setting-postpone-tested');
+    if(postponeCheck) postponeCheck.checked = postponeTested;
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
 
@@ -1518,6 +1522,15 @@ const Controller = {
             if(e.target.checked) document.body.setAttribute('data-dark-btn', 'translucent');
             else document.body.removeAttribute('data-dark-btn');
             showToast(e.target.checked ? "已开启透明叠加质感" : "已恢复实色按钮质感");
+        });
+    }
+
+    let postponeCheck = View.getEl('setting-postpone-tested');
+    if (postponeCheck) {
+        postponeCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('postponeTested', e.target.checked);
+            showToast(e.target.checked ? "已开启未通关词汇后置" : "已关闭未通关词汇后置");
         });
     }
 
@@ -1714,7 +1727,24 @@ const Controller = {
       if (sourceWords.length === 0) return showToast("当前分类下没有词汇哦");
       Hardware.playSound('click'); 
       Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false;
-      Model.state.studyQueue = sourceWords.map(x => x.i).sort(() => Math.random() - 0.5);
+      
+      let rawQueue = sourceWords.map(x => x.i);
+      if (localStorage.getItem('postponeTested') === 'true') {
+          let front = []; let back = [];
+          rawQueue.forEach(idx => {
+              let clearCount = Model.mtWordClears[Model.db[idx].word];
+              // 状态1 (undefined/纯新词) 和 状态2 (>0/已通关熟词) 放在队伍前半段
+              if (clearCount === undefined || clearCount > 0) front.push(idx);
+              // 状态3 (===0/明确标记为忘记或打回原形的词) 发配到队伍最末尾
+              else back.push(idx);
+          });
+          // 分别打乱前后两截队伍，再拼接发牌
+          front.sort(() => Math.random() - 0.5); back.sort(() => Math.random() - 0.5);
+          Model.state.studyQueue = front.concat(back);
+      } else {
+          Model.state.studyQueue = rawQueue.sort(() => Math.random() - 0.5);
+      }
+      
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 

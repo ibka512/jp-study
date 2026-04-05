@@ -1073,55 +1073,53 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
 }
 
 /* =========================================
-   🚀 “确认导入新词” 按钮轻拟物修复
+   🚀 “确认导入新词” 按钮 (主页同款质感 + 自定义颜色)
 ========================================= */
 #btn-import {
-    width: 100%; /* 🚀 布局修复：满宽对齐 */
+    /* 🎨 👇 你可以在这里随意修改颜色 👇 🎨 */
+    --import-bg: #8b7967;         /* 白天模式：背景色  */
+    --import-text: #ffffff;       /* 白天模式：文字颜色 */
+    
+    --import-bg-dark: #65584b;    /* 夜间模式：背景色 */
+    --import-text-dark: #eae4db;  /* 夜间模式：文字颜色 */
+    /* ------------------------------------- */
+
+    width: 100%;
     margin-top: 12px; 
-    margin-bottom: 28px; /* 🚀 布局修复：统一卡片内呼吸感 */
+    margin-bottom: 28px;
     padding: 18px 24px;
     
-    /* 🚀 视觉修复：应用 tertiary 色调 */
-    background: var(--tertiary);
-    color: var(--on-primary);
-    
-    /* 🚀 拟物化核心 1：外阴影（悬浮感） */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    
-    /* 🚀 拟物化核心 2：质感边框 */
-    border: 2px solid rgba(0,0,0,0.1);
-    
-    border-radius: var(--radius-md) !important;
+    background: var(--import-bg);
+    color: var(--import-text);
     font-weight: 800;
     font-size: 1.1rem;
     letter-spacing: 1px;
+    border-radius: var(--radius-md) !important;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
     
-    /* 🚀 视觉修复：移除扁平过渡动画 */
-    transition: all 0.1s ease;
+    /* 🚀 视觉对齐：主页同款轻拟物光影 */
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-bottom-color: transparent; /* 顶部高光辅助 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3), 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
-[data-theme="dark"] #btn-import {
-    border-color: rgba(255,255,255,0.05);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-}
-
-#btn-import:hover {
-    opacity: 0.95;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
-    transform: translateY(-1px);
-}
-
-/* 🚀 拟物化核心 3：物理按下态 */
+/* 物理按下态 (主页同款下沉感) */
 #btn-import:active {
-    background: var(--tertiary);
-    /* 切换为内阴影 */
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.1);
-    /* 下沉 1px，模拟物理深度 */
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.1);
     transform: translateY(1px);
 }
 
+/* 🌙 夜间模式适配 */
+[data-theme="dark"] #btn-import {
+    background: var(--import-bg-dark);
+    color: var(--import-text-dark);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
 [data-theme="dark"] #btn-import:active {
-    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* =========================================

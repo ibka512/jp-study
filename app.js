@@ -378,25 +378,38 @@ const Hardware = {
           osc2.start(now + 0.15); osc2.stop(now + 0.6);
       } catch(e) {}
   },
-  unlockSpeech() {
-      try { 
-          if (!window.speechSynthesis) return; 
-          let unlock = new SpeechSynthesisUtterance('あ'); 
-          unlock.volume = 0.01; 
-          unlock.rate = 2.0;
-          window.speechSynthesis.speak(unlock); 
-      } catch(e) {}
-  },
-  speakText(text) {
-    try {
-        if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
-        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { window.speechSynthesis.cancel(); }
-        let utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
-        if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
-        window.speechSynthesis.speak(utterance);
-    } catch(e) {}
-  }
+isSpeechUnlocked: false,
+      unlockSpeech() {
+          try { 
+              // 🚀 修复1：如果已经解锁过，就直接 return，防止疯狂塞入无声队列
+              if (!window.speechSynthesis || this.isSpeechUnlocked) return; 
+              let unlock = new SpeechSynthesisUtterance(''); 
+              unlock.volume = 0; 
+              window.speechSynthesis.speak(unlock); 
+              this.isSpeechUnlocked = true; 
+          } catch(e) {}
+      },
+      speakText(text) {
+        try {
+            if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
+            
+            let doSpeak = () => {
+                let utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
+                if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
+                window.speechSynthesis.speak(utterance);
+            };
+
+            // 🚀 修复2：如果引擎正在播放，先 cancel，并且必须给浏览器一点时间清理
+            // 否则连续的 cancel() -> speak() 会直接导致底层 TTS 引擎崩溃锁死
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { 
+                window.speechSynthesis.cancel(); 
+                setTimeout(doSpeak, 50); 
+            } else {
+                doSpeak();
+            }
+        } catch(e) {}
+      }
 };
 
 const View = {

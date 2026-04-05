@@ -188,14 +188,16 @@ body::after {
 h3 { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-top: 0; padding-bottom: 12px; border-bottom: 2px solid var(--outline); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;}
 
 .glass-icon-btn {
-    width: 44px; height: 44px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background: transparent; color: var(--primary); flex-shrink: 0;
-    cursor: pointer; transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-    border: 1px solid var(--paper-highlight);
-    border-bottom-color: transparent;
-    box-shadow: inset 0 1px 1px var(--paper-highlight), 0 4px 10px var(--paper-shadow);
-}
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      /* 🚀 修复：将 transparent 改为 var(--surface-container)，赋予按钮实体厚度和高光底色 */
+      background: var(--surface-container); 
+      color: var(--primary); flex-shrink: 0;
+      cursor: pointer; transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+      border: 1px solid var(--paper-highlight);
+      border-bottom-color: transparent;
+      box-shadow: inset 0 1px 1px var(--paper-highlight), 0 4px 10px var(--paper-shadow);
+  }
 .glass-icon-btn .material-symbols-rounded { font-size: 1.3rem; opacity: 0.85; transition: transform 0.2s; }
 .glass-icon-btn:active {
     transform: scale(0.92);

@@ -660,7 +660,8 @@ const View = {
               let clears = Model.mtGroupClears[groupVal] || 0;
               let badgeHTML = '';
               
-              if (clears > 0 || catVal === 'virtual_cleared') {
+              // 🚀 修复：如果当前是「未通关」分类，强制不显示段位勋章
+              if (catVal !== 'virtual_uncleared' && (clears > 0 || catVal === 'virtual_cleared')) {
                   let badgeClass = 'hanko-bronze'; 
                   if (clears >= 10 || catVal === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
                   else if (clears >= 5) badgeClass = 'hanko-gold';

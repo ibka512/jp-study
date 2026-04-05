@@ -1032,12 +1032,14 @@ const View = {
     let exBox = this.getEl(boxId);
     if (!exBox) return;
     
-    // 增加健壮性：检查 exString 有效性
     if (!exString || typeof exString !== 'string') {
         exBox.style.display = 'none';
         exBox.innerHTML = '';
         return;
     }
+
+    // 🚀 获取用户设置的渲染引擎模式 (默认使用 Ruby)
+    let useRuby = localStorage.getItem('useRubyRender') !== 'false';
     
     let processedStr = exString;
     if (mode === 'spell' && targetWordObj) {
@@ -1054,6 +1056,12 @@ const View = {
         let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
         
         let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
+        
+        // 🚀 条件渲染：只有在开启 Ruby 模式时，才进行正则转换
+        if (useRuby) {
+            safeJpPart = safeJpPart.replace(/\$\\overset\{([^\}]+)\}\{([^\}]+)\}\$/g, '<ruby>$2<rt>$1</rt></ruby>');
+        }
+
         let safeCnPart = escapeHTML(cnPart);
         
         if (mode === 'choice' && cnPart) { 
@@ -1071,7 +1079,8 @@ const View = {
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
-    if (window.MathJax && window.MathJax.typesetPromise) { 
+    // 🚀 条件调用：只有在 MathJax 模式下（且 API 存在时），才调用沉重的渲染库
+    if (!useRuby && window.MathJax && window.MathJax.typesetPromise) { 
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
             .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
             .catch((err) => { console.warn('MathJax 排版被中断', err); });
@@ -1363,6 +1372,12 @@ const Controller = {
     let postponeCheck = View.getEl('setting-postpone-tested');
     if(postponeCheck) postponeCheck.checked = postponeTested;
 
+    // 🚀 新增：初始化 Ruby 渲染设置（默认开启，因为排版更好）
+    let useRuby = localStorage.getItem('useRubyRender');
+    if (useRuby === null) useRuby = 'true'; 
+    let rubyCheck = View.getEl('setting-ruby-render');
+    if(rubyCheck) rubyCheck.checked = (useRuby === 'true');
+
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
 
@@ -1531,6 +1546,22 @@ const Controller = {
             Hardware.playSound('click'); Hardware.vibrate(15);
             localStorage.setItem('postponeTested', e.target.checked);
             showToast(e.target.checked ? "已开启未通关词汇后置" : "已关闭未通关词汇后置");
+        });
+    }
+
+    // 🚀 新增：绑定 Ruby 排版切换事件
+    let rubyCheck = View.getEl('setting-ruby-render');
+    if (rubyCheck) {
+        rubyCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('useRubyRender', e.target.checked);
+            showToast(e.target.checked ? "已切换为原生 Ruby 排版" : "已切换为 MathJax 引擎");
+            // 即时刷新：如果当前有卡片打开，立刻重新渲染
+            if (!document.getElementById('detail-overlay').classList.contains('hidden') && document.getElementById('detail-overlay').classList.contains('active')) {
+                Controller.renderDetailCard('none', false);
+            } else if (!document.getElementById('study-area').classList.contains('hidden')) {
+                View.renderStudyCard('none');
+            }
         });
     }
 

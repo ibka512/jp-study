@@ -1427,7 +1427,11 @@ const Controller = {
     if(rubyCheck) rubyCheck.checked = (useRuby === 'true');
     let savedTTS = localStorage.getItem('ttsEngine') || 'youdao';
     let ttsSelect = View.getEl('setting-tts-engine');
-    if(ttsSelect) ttsSelect.value = savedTTS;
+    if(ttsSelect) {
+        ttsSelect.value = savedTTS;
+        // 🚀 关键修复：主动派发事件，通知外层的 UI 面板同步刷新文字！
+        ttsSelect.dispatchEvent(new Event('facade-update')); 
+    }
 
 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;

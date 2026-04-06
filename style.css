@@ -82,6 +82,16 @@ body.modal-open { overflow: hidden; }
 body { 
   font-family: var(--font-ui); background-color: var(--surface); color: var(--on-surface); 
   margin: 0; overflow-x: hidden;
+  
+  /* 🚀 终极防误触护城河 */
+  overscroll-behavior-y: none; /* 彻底封杀浏览器的下拉刷新，保护复习进度 */
+  -webkit-user-select: none; user-select: none; /* 全局禁止长按选中文字，保障极速连点的丝滑感 */
+  -webkit-touch-callout: none; /* 彻底禁用 iOS 长按弹出菜单 */
+}
+
+/* 🔓 给真正需要复制的文字（如大单词、详情页日文）开个绿灯 */
+.word-main, .dt-word, input, textarea {
+  -webkit-user-select: text; user-select: text;
 }
 
 /* 全局和纸噪点纹理 */
@@ -143,14 +153,20 @@ body::after {
 
 .bottom-nav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-  background: var(--surface-container);
+  /* 🚀 修复：引入 iOS 级毛玻璃透视效果 */
+  background: rgba(246, 244, 239, 0.85); 
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   display: flex; justify-content: space-around; align-items: center;
   padding-top: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom));
   box-shadow: 0 -4px 20px rgba(0,0,0,0.04);
   border-top: 1px solid rgba(139, 121, 103, 0.1);
   transition: transform 0.4s var(--spring);
 }
-[data-theme="dark"] .bottom-nav { border-top-color: rgba(255,255,255,0.05); }
+[data-theme="dark"] .bottom-nav { 
+  background: rgba(36, 33, 30, 0.85); /* 适配夜间模式的半透明度 */
+  border-top-color: rgba(255,255,255,0.05); 
+}
+
 
 .nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -542,7 +558,15 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
 
 .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-all; text-align: center; width: 100%;}
 .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: rgba(45, 40, 35, 0.9); text-align: center; word-break: break-all; width: 100%; font-weight: 600; line-height: 1.15;}
-.wb-c-mean { font-size: 0.85rem; font-weight: 700; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; color: rgba(45, 40, 35, 0.85); opacity: 0.9;}
+.wb-c-mean { 
+    font-size: 0.85rem; font-weight: 700; width: 100%; text-align: center; 
+    color: rgba(45, 40, 35, 0.85); 
+    opacity: 0.7; /* 🚀 降低释义的存在感，把视觉焦点让给日文单词 */
+    margin-top: 2px;
+    /* 🚀 核心：改为最多显示 2 行，超出再显示省略号，解决长释义溢出 */
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; 
+    overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+}
 
 [data-theme="dark"] .wb-c-word { color: rgba(240, 235, 230, 0.95); }
 [data-theme="dark"] .wb-c-kana, [data-theme="dark"] .wb-c-mean { color: #b5afa6; }
@@ -1143,4 +1167,20 @@ rt {
 [data-theme="dark"] rt {
     color: var(--on-surface);
     opacity: 0.7;
+}
+
+/* 🚀 滚动条美化（原生 App 质感） */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(139, 121, 103, 0.2); /* 使用你的主题咖色，降低透明度 */
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 121, 103, 0.5);
 }

@@ -393,20 +393,38 @@ isSpeechUnlocked: false,
         try {
             if (typeof text !== 'string' || text.trim() === '') return;
             
-            // 🚀 核心替换：调用有道真人发音 API
-            const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
-            const audio = new Audio(url);
-            
-            audio.play().catch(err => {
-                console.warn("[TTS] 真人发音请求失败，已自动切回系统备用引擎", err);
-                // 🛡️ 兜底防护：如果没网或者 API 卡顿，自动用回手机系统自带发音，绝不哑巴
-                if (window.speechSynthesis) {
-                    let fallbackMsg = new SpeechSynthesisUtterance(text);
-                    fallbackMsg.lang = 'ja-JP'; fallbackMsg.rate = 0.85;
-                    if (this.jaVoiceCache) fallbackMsg.voice = this.jaVoiceCache;
-                    window.speechSynthesis.speak(fallbackMsg);
-                }
-            });
+            // 🚀 核心判定：如果文本长度大于 12 个字，或者包含标点符号，就判定为「例句」
+            let isSentence = text.length > 12 || /[。？！，、]/.test(text);
+
+            if (isSentence) {
+                // 🗣️ 【例句模式】：强行接管，使用系统引擎，支持无限长度
+                if (!window.speechSynthesis) return;
+                window.speechSynthesis.cancel(); // 极速打断
+                setTimeout(() => {
+                    let msg = new SpeechSynthesisUtterance(text);
+                    msg.lang = 'ja-JP'; 
+                    msg.rate = 0.75; // 🐌 降速：0.75倍速，极其适合外语例句的听音辨词
+                    if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+                    window.speechSynthesis.speak(msg);
+                }, 50);
+            } else {
+                // 🗣️ 【单词模式】：使用有道真人 API，保证音调纯正
+                const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
+                const audio = new Audio(url);
+                
+                // 🐌 降速：强行把有道的真人录音播放速度放慢到 0.85 倍
+                audio.playbackRate = 0.85; 
+                
+                audio.play().catch(err => {
+                    // 🛡️ 兜底：如果没网，自动用系统引擎把单词读出来
+                    if (window.speechSynthesis) {
+                        let fallbackMsg = new SpeechSynthesisUtterance(text);
+                        fallbackMsg.lang = 'ja-JP'; fallbackMsg.rate = 0.8;
+                        if (this.jaVoiceCache) fallbackMsg.voice = this.jaVoiceCache;
+                        window.speechSynthesis.speak(fallbackMsg);
+                    }
+                });
+            }
         } catch(e) {}
       }
 };

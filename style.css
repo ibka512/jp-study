@@ -46,7 +46,14 @@
   /* 基础排版 */
   --font-ui: system-ui, -apple-system, "PingFang SC", sans-serif;
   --font-jp-serif: 'Noto Serif JP', serif; --font-jp-sans: 'Noto Sans JP', sans-serif;
-  --spring: cubic-bezier(0.2, 0.8, 0.2, 1.1); 
+  
+  /* 🚀 Apple 级物理非线性动画引擎 */
+  --spring-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1); /* 果冻回弹：带有明显的物理惯性，适合卡片滑入 */
+  --spring-snappy: cubic-bezier(0.22, 1, 0.36, 1);    /* 极速阻尼：起步极快、刹车极稳，适合疯狂连点 */
+  --spring-smooth: cubic-bezier(0.4, 0, 0.2, 1);      /* 丝滑过渡：适合颜色、透明度的渐变 */
+  
+  /* 兼容旧代码兜底 */
+  --spring: var(--spring-snappy);
 }
 
 [data-theme="dark"] {
@@ -376,7 +383,10 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
     text-align: center; padding: 64px 20px 48px 20px; margin: var(--space-sm) 0 var(--space-lg) 0; position: relative; z-index: 5; 
     background: var(--surface-container); border-radius: 20px;
     box-shadow: 0 16px 40px var(--paper-shadow);
-    transition: transform 0.4s var(--spring), opacity 0.4s ease;
+    /* 🚀 应用回弹非线性曲线，延长一点点时间让物理惯性充分释放 */
+    transition: transform 0.5s var(--spring-bouncy), opacity 0.3s var(--spring-smooth);
+    /* 🚀 开启 GPU 硬件加速：提前通知显卡分配资源 */
+    will-change: transform, opacity;
 }
 .flash-card::before, .flash-card::after { content: ''; position: absolute; top: 0; border-radius: 20px; background: var(--surface-container); border: 1px solid var(--paper-highlight); transition: all 0.5s var(--spring); }
 .flash-card::before { bottom: -10px; left: 12px; right: 12px; opacity: 0.8; z-index: -1; box-shadow: 0 8px 24px var(--paper-shadow); }
@@ -519,13 +529,17 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
     min-width: 0; border-radius: var(--radius-md); 
     padding: 40px 8px 36px; 
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
-    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s; 
+    /* 🚀 应用极速阻尼非线性曲线，手感干脆利落 */
+    transition: transform 0.25s var(--spring-snappy), box-shadow 0.25s var(--spring-smooth), opacity 0.2s var(--spring-smooth); 
     user-select: none; -webkit-user-select: none; overflow: hidden; cursor: pointer; opacity: 0;
     
     /* 移除廉价白光，换成干净的弥散投影 */
     box-shadow: 0 4px 16px var(--paper-shadow) !important;
     border: 1px solid rgba(255, 255, 255, 0.4);
     mix-blend-mode: normal; 
+    
+    /* 🚀 开启 GPU 硬件加速：保障多列网格滚动与点击极速响应 */
+    will-change: transform, opacity, box-shadow;
 }
 
 .wb-card:active, .wb-card.pressing { 

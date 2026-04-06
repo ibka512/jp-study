@@ -556,7 +556,7 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
 .wb-c-word, .wb-c-kana, .wb-c-mean { pointer-events: none; position: relative; z-index: 3;}
 .wb-blur-trigger { pointer-events: auto; }
 
-.wb-c-word { font-family: var(--font-jp-serif); font-size: 1.4rem; font-weight: 900; margin-bottom: 6px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-all; text-align: center; width: 100%;}
+.wb-c-word { font-family: var(--font-jp-serif); font-size: 1.85rem; font-weight: 900; margin-bottom: 8px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-all; text-align: center; width: 100%;}
 .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: rgba(45, 40, 35, 0.9); text-align: center; word-break: break-all; width: 100%; font-weight: 600; line-height: 1.15;}
 .wb-c-mean { 
     font-size: 0.85rem; font-weight: 700; width: 100%; text-align: center; 
@@ -571,13 +571,13 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
 [data-theme="dark"] .wb-c-word { color: rgba(240, 235, 230, 0.95); }
 [data-theme="dark"] .wb-c-kana, [data-theme="dark"] .wb-c-mean { color: #b5afa6; }
 
-#wb-grid[data-cols="3"] .wb-c-word { font-size: 1.1rem; margin-bottom: 4px; }
+#wb-grid[data-cols="3"] .wb-c-word { font-size: 1.45rem; margin-bottom: 6px; }
 #wb-grid[data-cols="3"] .wb-c-kana { font-size: 0.8rem; margin-bottom: 8px; }
 #wb-grid[data-cols="3"] .wb-c-mean { font-size: 0.75rem; }
 #wb-grid[data-cols="3"] .wb-card .watermark { font-size: 4.5rem; right: -5px; bottom: -5px; }
 
 #wb-grid[data-cols="4"] .wb-card { padding: 28px 4px 28px; border-radius: var(--radius-sm); gap: 4px;}
-#wb-grid[data-cols="4"] .wb-c-word { font-size: 0.95rem; margin-bottom: 2px;}
+#wb-grid[data-cols="4"] .wb-c-word { font-size: 1.15rem; margin-bottom: 4px;}
 #wb-grid[data-cols="4"] .wb-c-kana { font-size: 0.7rem; margin-bottom: 4px; opacity: 0.7;}
 #wb-grid[data-cols="4"] .wb-c-mean { font-size: 0.7rem; opacity: 0.8;}
 #wb-grid[data-cols="4"] .wb-c-speaker { display: none; }

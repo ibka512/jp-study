@@ -389,43 +389,61 @@ isSpeechUnlocked: false,
               this.isSpeechUnlocked = true; 
           } catch(e) {}
       },
-      speakText(text) {
+      // --- 新增一个专门用来兜底的辅助函数 ---
+      fallbackLocalTTS(text, isSentence = false) {
+          if (window.speechSynthesis) {
+              let msg = new SpeechSynthesisUtterance(text);
+              msg.lang = 'ja-JP'; 
+              msg.rate = isSentence ? 0.75 : 0.8; // 例句读慢点，单词正常
+              if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+              window.speechSynthesis.speak(msg);
+          }
+      },
+
+      // --- 核心发音控制器 ---
+      async speakText(text) {
         try {
             if (typeof text !== 'string' || text.trim() === '') return;
             
-            // 🚀 核心判定：如果文本长度大于 12 个字，或者包含标点符号，就判定为「例句」
             let isSentence = text.length > 12 || /[。？！，、]/.test(text);
+            let engine = localStorage.getItem('ttsEngine') || 'youdao';
 
-            if (isSentence) {
-                // 🗣️ 【例句模式】：强行接管，使用系统引擎，支持无限长度
-                if (!window.speechSynthesis) return;
-                window.speechSynthesis.cancel(); // 极速打断
-                setTimeout(() => {
-                    let msg = new SpeechSynthesisUtterance(text);
-                    msg.lang = 'ja-JP'; 
-                    msg.rate = 0.75; // 🐌 降速：0.75倍速，极其适合外语例句的听音辨词
-                    if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
-                    window.speechSynthesis.speak(msg);
-                }, 50);
-            } else {
-                // 🗣️ 【单词模式】：使用有道真人 API，保证音调纯正
+            // 🗣️ 1. 例句模式 或 强制本地：直接走系统自带引擎
+            if (isSentence || engine === 'local') {
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                setTimeout(() => this.fallbackLocalTTS(text, isSentence), 50);
+                return;
+            }
+
+            // 🗣️ 2. 网易有道模式 (默认)
+            if (engine === 'youdao') {
                 const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
                 const audio = new Audio(url);
-                
-                // 🐌 降速：强行把有道的真人录音播放速度放慢到 0.85 倍
-                audio.playbackRate = 0.85; 
-                
-                audio.play().catch(err => {
-                    // 🛡️ 兜底：如果没网，自动用系统引擎把单词读出来
-                    if (window.speechSynthesis) {
-                        let fallbackMsg = new SpeechSynthesisUtterance(text);
-                        fallbackMsg.lang = 'ja-JP'; fallbackMsg.rate = 0.8;
-                        if (this.jaVoiceCache) fallbackMsg.voice = this.jaVoiceCache;
-                        window.speechSynthesis.speak(fallbackMsg);
-                    }
-                });
+                audio.playbackRate = 0.85;
+                audio.play().catch(() => this.fallbackLocalTTS(text));
+                return;
             }
-        } catch(e) {}
+
+            // 🗣️ 3. 微软 Azure 模式 (云端节点)
+            if (engine === 'azure') {
+                const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
+                
+                const response = await fetch(workerUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ model: "tts-1", input: text, voice: "ja-JP-NanamiNeural" })
+                });
+
+                if (!response.ok) throw new Error("Azure API 请求失败");
+                const blob = await response.blob();
+                const audio = new Audio(URL.createObjectURL(blob));
+                audio.playbackRate = 0.85;
+                audio.play().catch(() => this.fallbackLocalTTS(text));
+            }
+        } catch(e) {
+            console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
+            this.fallbackLocalTTS(text);
+        }
       }
 };
 
@@ -1404,6 +1422,10 @@ const Controller = {
     if (useRuby === null) useRuby = 'true'; 
     let rubyCheck = View.getEl('setting-ruby-render');
     if(rubyCheck) rubyCheck.checked = (useRuby === 'true');
+    let savedTTS = localStorage.getItem('ttsEngine') || 'youdao';
+    let ttsSelect = View.getEl('setting-tts-engine');
+    if(ttsSelect) ttsSelect.value = savedTTS;
+
 
     let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
   },
@@ -1589,6 +1611,16 @@ const Controller = {
             } else if (!document.getElementById('study-area').classList.contains('hidden')) {
                 View.renderStudyCard('none');
             }
+        });
+    }
+    // 🚀 新增：发音引擎切换事件
+    let ttsSelectTrigger = View.getEl('setting-tts-engine');
+    if (ttsSelectTrigger) {
+        ttsSelectTrigger.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('ttsEngine', e.target.value);
+            let names = { 'local': '系统自带', 'youdao': '网易有道', 'azure': '微软七海' };
+            showToast(`已切换至 ${names[e.target.value]} 发音`);
         });
     }
 

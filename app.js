@@ -408,23 +408,24 @@ isSpeechUnlocked: false,
             let isSentence = text.length > 12 || /[。？！，、]/.test(text);
             let engine = localStorage.getItem('ttsEngine') || 'youdao';
 
-            // 🗣️ 1. 例句模式 或 强制本地：直接走系统自带引擎
-            if (isSentence || engine === 'local') {
+            // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
+            // 👉 注意：微软 Azure 不受此限制，它完美支持长例句，直接放行！
+            if (engine === 'local' || (engine === 'youdao' && isSentence)) {
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
                 setTimeout(() => this.fallbackLocalTTS(text, isSentence), 50);
                 return;
             }
 
-            // 🗣️ 2. 网易有道模式 (默认)
+            // 🗣️ 2. 网易有道模式 (只有短单词会走到这里)
             if (engine === 'youdao') {
                 const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
                 const audio = new Audio(url);
                 audio.playbackRate = 0.85;
-                audio.play().catch(() => this.fallbackLocalTTS(text));
+                audio.play().catch(() => this.fallbackLocalTTS(text, isSentence));
                 return;
             }
 
-            // 🗣️ 3. 微软 Azure 模式 (云端节点)
+            // 🗣️ 3. 微软 Azure 模式 (单词和长例句通吃！)
             if (engine === 'azure') {
                 const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
                 
@@ -437,12 +438,14 @@ isSpeechUnlocked: false,
                 if (!response.ok) throw new Error("Azure API 请求失败");
                 const blob = await response.blob();
                 const audio = new Audio(URL.createObjectURL(blob));
-                audio.playbackRate = 0.85;
-                audio.play().catch(() => this.fallbackLocalTTS(text));
+                
+                // 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
+                audio.playbackRate = isSentence ? 0.75 : 0.85;
+                audio.play().catch(() => this.fallbackLocalTTS(text, isSentence));
             }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
-            this.fallbackLocalTTS(text);
+            this.fallbackLocalTTS(text, isSentence);
         }
       }
 };

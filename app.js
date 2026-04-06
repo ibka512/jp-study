@@ -391,23 +391,22 @@ isSpeechUnlocked: false,
       },
       speakText(text) {
         try {
-            if (!window.speechSynthesis || typeof text !== 'string' || text.trim() === '') return; 
+            if (typeof text !== 'string' || text.trim() === '') return;
             
-            let doSpeak = () => {
-                let utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'ja-JP'; utterance.rate = 0.85; utterance.volume = 1; 
-                if (this.jaVoiceCache) utterance.voice = this.jaVoiceCache;
-                window.speechSynthesis.speak(utterance);
-            };
-
-            // 🚀 修复2：如果引擎正在播放，先 cancel，并且必须给浏览器一点时间清理
-            // 否则连续的 cancel() -> speak() 会直接导致底层 TTS 引擎崩溃锁死
-            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { 
-                window.speechSynthesis.cancel(); 
-                setTimeout(doSpeak, 50); 
-            } else {
-                doSpeak();
-            }
+            // 🚀 核心替换：调用有道真人发音 API
+            const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
+            const audio = new Audio(url);
+            
+            audio.play().catch(err => {
+                console.warn("[TTS] 真人发音请求失败，已自动切回系统备用引擎", err);
+                // 🛡️ 兜底防护：如果没网或者 API 卡顿，自动用回手机系统自带发音，绝不哑巴
+                if (window.speechSynthesis) {
+                    let fallbackMsg = new SpeechSynthesisUtterance(text);
+                    fallbackMsg.lang = 'ja-JP'; fallbackMsg.rate = 0.85;
+                    if (this.jaVoiceCache) fallbackMsg.voice = this.jaVoiceCache;
+                    window.speechSynthesis.speak(fallbackMsg);
+                }
+            });
         } catch(e) {}
       }
 };

@@ -1230,10 +1230,7 @@ const View = {
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
-      // 如果处于批量模式，自动退出并清空选中集，避免索引错乱
-      if (Model.state.batchMode) {
-          Controller.toggleBatchMode();
-      }
+      // 🚀 修复：移除了导致死循环的重复检查（触发点已单独处理）
       
       Model.updateFilteredDb(searchQuery, currentFilter);
       window.scrollTo({ top: 0, behavior: 'instant' }); 

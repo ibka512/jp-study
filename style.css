@@ -538,8 +538,10 @@ textarea { height: 120px; resize: none; font-size: 0.95rem;}
     border: 1px solid rgba(255, 255, 255, 0.4);
     mix-blend-mode: normal; 
     
-    /* 🚀 开启 GPU 硬件加速：保障多列网格滚动与点击极速响应 */
-    will-change: transform, opacity, box-shadow;
+    /* 🚀 安全的硬件加速：防止虚拟列表不断销毁/重建DOM时引发的 GPU 闪烁 */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
 }
 
 .wb-card:active, .wb-card.pressing { 

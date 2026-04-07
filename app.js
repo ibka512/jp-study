@@ -252,10 +252,15 @@ const Model = {
       if (filterName === 'virtual_starred') return this.stars.includes(w.word);
       if (filterName === 'virtual_cleared') return st.kanji && st.kana && st.meaning; // 必须三杠全满
       if (filterName === 'virtual_uncleared') return !(st.kanji && st.kana && st.meaning); // 只要差一杠就算未通关
-      // 🚀 正向筛选：筛选出我已经了解的维度
+      // 🚀 正向筛选：全景词库展示用的“已了解”
       if (filterName === 'virtual_know_kanji') return st.kanji;
       if (filterName === 'virtual_know_kana') return st.kana;
       if (filterName === 'virtual_know_meaning') return st.meaning;
+      // 🚀 反向筛选：学习和检验攻坚用的“未了解”
+      if (filterName === 'virtual_miss_kanji') return !st.kanji;
+      if (filterName === 'virtual_miss_kana') return !st.kana;
+      if (filterName === 'virtual_miss_meaning') return !st.meaning;
+      
       return w.folder === (filterName === 'default' ? '默认词库' : filterName);
   },
 
@@ -666,9 +671,9 @@ const View = {
       const virtuals = [
           { cat: 'virtual_cleared', text: '完全通关' },
           { cat: 'virtual_uncleared', text: '所有未通关' },
-          { cat: 'virtual_know_kanji', text: '汉字了解' },
-          { cat: 'virtual_know_kana', text: '读音了解' },
-          { cat: 'virtual_know_meaning', text: '释义了解' },
+          { cat: 'virtual_miss_kanji', text: '未了解汉字' },
+          { cat: 'virtual_miss_kana', text: '未了解读音' },
+          { cat: 'virtual_miss_meaning', text: '未了解释义' },
           { cat: 'virtual_starred', text: '收藏' }
       ];
       virtuals.forEach(v => {
@@ -693,10 +698,7 @@ const View = {
       try {
           let catVal = cat || 'default';
           let words = Model.db.map((w, i) => ({w, i})).filter(item => {
-              if (catVal === 'virtual_starred') return Model.stars.includes(item.w.word);
-              if (catVal === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
-              if (catVal === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
-              return item.w.folder === (catVal === 'default' ? '默认词库' : catVal);
+              return Model.checkFilter(item.w, catVal);
           });
 
           if (words.length === 0) {
@@ -878,9 +880,9 @@ const View = {
           { text: '收藏词汇', val: 'virtual_starred' },
           { text: '完全通关词汇', val: 'virtual_cleared' },
           { text: '所有未通关', val: 'virtual_uncleared' },
-          { text: '复习已点亮: 汉字了解', val: 'virtual_know_kanji' },
-          { text: '复习已点亮: 读音了解', val: 'virtual_know_kana' },
-          { text: '复习已点亮: 释义了解', val: 'virtual_know_meaning' }
+          { text: '专项攻坚: 未了解汉字(黄)', val: 'virtual_miss_kanji' },
+          { text: '专项攻坚: 未了解读音(红)', val: 'virtual_miss_kana' },
+          { text: '专项攻坚: 未了解释义(白)', val: 'virtual_miss_meaning' }
       ];
       Model.folders.forEach(f => {
           if(f !== '默认词库') options.push({ text: f, val: f });
@@ -1833,10 +1835,7 @@ const Controller = {
     let [prefix, catName, idxStr] = groupKey.split('|'); 
     let idx = parseInt(idxStr); let startIdx = idx * 7; let endIdx = startIdx + 10;
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-        if (catName === 'virtual_starred') return Model.stars.includes(item.w.word);
-        if (catName === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
-        if (catName === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
-        return item.w.folder === (catName === 'default' ? '默认词库' : catName);
+        return Model.checkFilter(item.w, catName);
     }).slice(startIdx, endIdx);
     if(sourceWords.length === 0) return showToast("所选范围内暂无词汇哦");
     Hardware.playSound('click'); 
@@ -1852,11 +1851,8 @@ const Controller = {
   startFilterTest() {
       let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
       let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-          if (cat === 'virtual_starred') return Model.stars.includes(item.w.word);
-          if (cat === 'virtual_cleared') return (Model.mtWordClears[item.w.word] || 0) > 0;
-          if (cat === 'virtual_uncleared') return !(Model.mtWordClears[item.w.word] > 0);
           if (cat === 'all') return true;
-          return item.w.folder === cat;
+          return Model.checkFilter(item.w, cat);
       });
       if (sourceWords.length === 0) return showToast("当前分类下没有词汇哦");
       Hardware.playSound('click'); 

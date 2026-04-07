@@ -838,9 +838,9 @@ const View = {
         if (this.getEl('prog-bar-kana')) this.getEl('prog-bar-kana').style.width = `${pKana}%`;
         if (this.getEl('prog-bar-meaning')) this.getEl('prog-bar-meaning').style.width = `${pMeaning}%`;
         
-        if (this.getEl('prog-txt-kanji')) this.getEl('prog-txt-kanji').innerText = `${pKanji}%`;
-        if (this.getEl('prog-txt-kana')) this.getEl('prog-txt-kana').innerText = `${pKana}%`;
-        if (this.getEl('prog-txt-meaning')) this.getEl('prog-txt-meaning').innerText = `${pMeaning}%`;
+        if (this.getEl('prog-txt-kanji')) this.getEl('prog-txt-kanji').innerHTML = `${kanjiCount} <span style="font-size:0.85em; opacity:0.6;">(${pKanji}%)</span>`;
+        if (this.getEl('prog-txt-kana')) this.getEl('prog-txt-kana').innerHTML = `${kanaCount} <span style="font-size:0.85em; opacity:0.6;">(${pKana}%)</span>`;
+        if (this.getEl('prog-txt-meaning')) this.getEl('prog-txt-meaning').innerHTML = `${meaningCount} <span style="font-size:0.85em; opacity:0.6;">(${pMeaning}%)</span>`;
     }, 50);
 
     let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';

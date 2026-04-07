@@ -74,8 +74,38 @@
                   <span id="mastery-percent" style="font-size: 0.95rem;">(0%)</span>
               </div>
           </div>
-          <div class="mastery-track">
+          <div class="mastery-track" style="margin-bottom: 12px;">
               <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
+          </div>
+          
+          <div class="sub-progress-group" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
+                  <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
+                      <div style="width: 8px; height: 8px; border-radius: 50%; background: #F5B041;"></div>汉字
+                  </div>
+                  <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
+                      <div id="prog-bar-kanji" style="height: 100%; background: #F5B041; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
+                  </div>
+                  <div style="width: 40px; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-kanji">0%</div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
+                  <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
+                      <div style="width: 8px; height: 8px; border-radius: 50%; background: #E74C3C;"></div>读音
+                  </div>
+                  <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
+                      <div id="prog-bar-kana" style="height: 100%; background: #E74C3C; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
+                  </div>
+                  <div style="width: 40px; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-kana">0%</div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
+                  <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
+                      <div style="width: 8px; height: 8px; border-radius: 50%; background: #D0D3D4;"></div>释义
+                  </div>
+                  <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
+                      <div id="prog-bar-meaning" style="height: 100%; background: #D0D3D4; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
+                  </div>
+                  <div style="width: 40px; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-meaning">0%</div>
+              </div>
           </div>
       </div>
 
@@ -98,13 +128,14 @@
           <span class="material-symbols-rounded" style="opacity:0.5;">keyboard_arrow_down</span>
       </button>
 
-      <select id="test-range-select" style="display:none;" class="no-bs"></select>
+            <select id="test-range-select" style="display:none;" class="no-bs"></select>
       <select id="test-display-select" style="display:none;" class="no-bs">
-          <option value="kana">默认显示假名</option>
-          <option value="word">默认显示汉字</option>
-          <option value="meaning">默认显示释义</option>
-          <option value="audio">默认播放读音</option>
+          <option value="word">专攻汉字辨认 (点亮黄杠)</option>
+          <option value="kana">专攻假名辨认 (点亮红杠)</option>
+          <option value="audio">专攻听力辨音 (点亮红杠)</option>
+          <option value="meaning">专攻释义默写 (点亮白杠)</option>
       </select>
+
       
       <div class="flex-row" style="margin-bottom: 8px; flex-wrap: wrap; gap: 12px;">
         <button id="btn-start-pendulum" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px; border-radius: var(--radius-md) !important;" class="icon-text-gap mode-btn-classic">
@@ -137,7 +168,8 @@
 
     <div class="flex-row" style="justify-content: space-between; margin-bottom: 24px; flex-wrap: nowrap; gap: 12px;">
       <div class="custom-select-wrapper" style="flex: 1;">
-          <select id="wb-folder-filter" style="display:none;"></select>
+          <select id="wb-folder-filter" style="display:none;">
+              </select>
       </div>
       <button id="btn-view-settings" class="glass-icon-btn" title="视图与排版设置">
           <span class="material-symbols-rounded">pageview</span>

@@ -243,6 +243,22 @@ const Model = {
   saveFolders() { return idbKeyval.set('myFolders_v3', this.folders); },
   saveStars() { return idbKeyval.set('starredWords', this.stars); },
   saveRecords() { return idbKeyval.set('studyRecords', this.records); },
+  
+  // 🚀 新增：三维靶向统一过滤器
+  checkFilter(w, filterName) {
+      let st = this.mtWordClears[w.word] || { kanji:false, kana:false, meaning:false };
+      if (typeof st === 'number') st = { kanji:false, kana:false, meaning:false }; // 清洗旧数据
+
+      if (filterName === 'virtual_starred') return this.stars.includes(w.word);
+      if (filterName === 'virtual_cleared') return st.kanji && st.kana && st.meaning; // 必须三杠全满
+      if (filterName === 'virtual_uncleared') return !(st.kanji && st.kana && st.meaning); // 只要差一杠就算未通关
+      // 🚀 正向筛选：筛选出我已经了解的维度
+      if (filterName === 'virtual_know_kanji') return st.kanji;
+      if (filterName === 'virtual_know_kana') return st.kana;
+      if (filterName === 'virtual_know_meaning') return st.meaning;
+      return w.folder === (filterName === 'default' ? '默认词库' : filterName);
+  },
+
   saveClears() {
       return Promise.all([
           idbKeyval.set('mtGroupClears_v3', this.mtGroupClears),
@@ -252,13 +268,7 @@ const Model = {
   
   updateFilteredDb(searchQuery, currentFilter) {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
-          let matchFolder = false;
-          if (currentFilter === 'all') matchFolder = true;
-          else if (currentFilter === 'virtual_starred') matchFolder = this.stars.includes(item.w.word);
-          else if (currentFilter === 'virtual_cleared') matchFolder = (this.mtWordClears[item.w.word] > 0);
-          else if (currentFilter === 'virtual_uncleared') matchFolder = (!this.mtWordClears[item.w.word]);
-          else matchFolder = (item.w.folder === currentFilter);
-
+          let matchFolder = currentFilter === 'all' ? true : this.checkFilter(item.w, currentFilter);
           let matchSearch = !searchQuery || 
                             item.w.word.toLowerCase().includes(searchQuery) ||
                             item.w.kana.toLowerCase().includes(searchQuery) ||
@@ -654,8 +664,11 @@ const View = {
       });
       
       const virtuals = [
-          { cat: 'virtual_cleared', text: '已通关' },
-          { cat: 'virtual_uncleared', text: '未通关' },
+          { cat: 'virtual_cleared', text: '完全通关' },
+          { cat: 'virtual_uncleared', text: '所有未通关' },
+          { cat: 'virtual_know_kanji', text: '汉字了解' },
+          { cat: 'virtual_know_kana', text: '读音了解' },
+          { cat: 'virtual_know_meaning', text: '释义了解' },
           { cat: 'virtual_starred', text: '收藏' }
       ];
       virtuals.forEach(v => {
@@ -768,8 +781,11 @@ const View = {
     selFilter.innerHTML = ''; 
     selFilter.add(new Option('查看所有词汇', 'all'));
     selFilter.add(new Option('收藏词汇', 'virtual_starred'));
-    selFilter.add(new Option('已通关词汇', 'virtual_cleared'));
-    selFilter.add(new Option('未通关词汇', 'virtual_uncleared'));
+    selFilter.add(new Option('完全通关词汇', 'virtual_cleared'));
+    selFilter.add(new Option('所有未通关', 'virtual_uncleared'));
+    selFilter.add(new Option('专项图鉴: 汉字了解(黄)', 'virtual_know_kanji'));
+    selFilter.add(new Option('专项图鉴: 读音了解(红)', 'virtual_know_kana'));
+    selFilter.add(new Option('专项图鉴: 释义了解(白)', 'virtual_know_meaning'));
     
     Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
     
@@ -792,24 +808,40 @@ const View = {
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
-    // 🚀 新增：计算并渲染“通关进度”
-    let clearedWordsCount = Object.values(Model.mtWordClears).filter(count => count > 0).length;
+    // 🚀 核心计算：三维技能树进度
+    let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
+    
+    Object.values(Model.mtWordClears).forEach(st => {
+        if (typeof st === 'object') {
+            if (st.kanji && st.kana && st.meaning) clearedWordsCount++;
+            if (st.kanji) kanjiCount++;
+            if (st.kana) kanaCount++;
+            if (st.meaning) meaningCount++;
+        }
+    });
+
     let totalWordsCount = Model.db.length;
     let masteryPercent = totalWordsCount === 0 ? 0 : ((clearedWordsCount / totalWordsCount) * 100).toFixed(1);
+    let pKanji = totalWordsCount === 0 ? 0 : ((kanjiCount / totalWordsCount) * 100).toFixed(1);
+    let pKana = totalWordsCount === 0 ? 0 : ((kanaCount / totalWordsCount) * 100).toFixed(1);
+    let pMeaning = totalWordsCount === 0 ? 0 : ((meaningCount / totalWordsCount) * 100).toFixed(1);
 
-    let masteryCountEl = this.getEl('mastery-count');
-    let masteryTotalEl = this.getEl('mastery-total');
-    let masteryPercentEl = this.getEl('mastery-percent');
-    let masteryBarEl = this.getEl('mastery-bar');
-
-    if (masteryCountEl) masteryCountEl.innerText = clearedWordsCount;
-    if (masteryTotalEl) masteryTotalEl.innerText = totalWordsCount;
-    if (masteryPercentEl) masteryPercentEl.innerText = `(${masteryPercent}%)`;
-    if (masteryBarEl) {
-        setTimeout(() => {
-            masteryBarEl.style.width = `${masteryPercent}%`;
-        }, 50);
-    }
+    if (this.getEl('mastery-count')) this.getEl('mastery-count').innerText = clearedWordsCount;
+    if (this.getEl('mastery-total')) this.getEl('mastery-total').innerText = totalWordsCount;
+    if (this.getEl('mastery-percent')) this.getEl('mastery-percent').innerText = `(${masteryPercent}%)`;
+    
+    // 触发动画渲染进度条
+    setTimeout(() => {
+        if (this.getEl('mastery-bar')) this.getEl('mastery-bar').style.width = `${masteryPercent}%`;
+        
+        if (this.getEl('prog-bar-kanji')) this.getEl('prog-bar-kanji').style.width = `${pKanji}%`;
+        if (this.getEl('prog-bar-kana')) this.getEl('prog-bar-kana').style.width = `${pKana}%`;
+        if (this.getEl('prog-bar-meaning')) this.getEl('prog-bar-meaning').style.width = `${pMeaning}%`;
+        
+        if (this.getEl('prog-txt-kanji')) this.getEl('prog-txt-kanji').innerText = `${pKanji}%`;
+        if (this.getEl('prog-txt-kana')) this.getEl('prog-txt-kana').innerText = `${pKana}%`;
+        if (this.getEl('prog-txt-meaning')) this.getEl('prog-txt-meaning').innerText = `${pMeaning}%`;
+    }, 50);
 
     let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
     this.getEl('custom-group-text').innerText = lastTxt;
@@ -844,8 +876,11 @@ const View = {
       let options = [
           { text: '默认词库', val: '默认词库' },
           { text: '收藏词汇', val: 'virtual_starred' },
-          { text: '已通关词汇', val: 'virtual_cleared' },
-          { text: '未通关词汇', val: 'virtual_uncleared' }
+          { text: '完全通关词汇', val: 'virtual_cleared' },
+          { text: '所有未通关', val: 'virtual_uncleared' },
+          { text: '复习已点亮: 汉字了解', val: 'virtual_know_kanji' },
+          { text: '复习已点亮: 读音了解', val: 'virtual_know_kana' },
+          { text: '复习已点亮: 释义了解', val: 'virtual_know_meaning' }
       ];
       Model.folders.forEach(f => {
           if(f !== '默认词库') options.push({ text: f, val: f });
@@ -1345,12 +1380,14 @@ const View = {
       card.style.background = visuals.bg; card.dataset.idx = idx; 
       card.style.opacity = '1'; 
 
-      let clearCount = Model.mtWordClears[w.word] || 0;
-      let hankoHTML = '';
-      if (clearCount >= 10) hankoHTML = `<div class="card-hanko hanko-diamond"></div>`;
-      else if (clearCount >= 5) hankoHTML = `<div class="card-hanko hanko-gold"></div>`;
-      else if (clearCount >= 3) hankoHTML = `<div class="card-hanko hanko-silver"></div>`;
-      else if (clearCount >= 1) hankoHTML = `<div class="card-hanko hanko-bronze"></div>`;
+      let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
+      if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+      let hankoHTML = `
+        <div class="card-tri-bar">
+          <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
+          <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
+          <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
+        </div>`;
 
       let starFilled = Model.stars.includes(w.word) ? 1 : 0;
       let starClass = starFilled ? 'active' : '';
@@ -1847,11 +1884,43 @@ const Controller = {
 
   processFilterTestResult(isCorrect) {
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-      if (isCorrect) { Model.mtWordClears[w.word] = (Model.mtWordClears[w.word] || 0) + 1; } 
-      else { Model.mtWordClears[w.word] = Math.floor((Model.mtWordClears[w.word] || 0) / 2); }
-      Model.saveClears(); Model.state.currentIndex++; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false;
-      if (Model.state.currentIndex >= Model.state.studyQueue.length) { Hardware.playSound('success'); Hardware.vibrate(1000); showToast("恭喜，全部检验完成！"); View.getEl('btn-exit-study').click(); } 
-      else { View.renderStudyCard('next'); }
+      let wordKey = w.word;
+      
+      // 初始化数据清洗
+      if (!Model.mtWordClears[wordKey] || typeof Model.mtWordClears[wordKey] !== 'object') {
+          Model.mtWordClears[wordKey] = { kanji: false, kana: false, meaning: false };
+      }
+
+      // 获取当前考试模式（靶向对位）
+      let mode = View.getEl('test-display-select').value || 'kana';
+      
+      if (isCorrect) {
+          if (mode === 'word') Model.mtWordClears[wordKey].kanji = true;
+          else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = true;
+          else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = true;
+
+          // 🚀 容错规则生效：红(假名)和白(释义)都过关，自动保送黄(汉字)
+          if (Model.mtWordClears[wordKey].kana && Model.mtWordClears[wordKey].meaning) {
+              Model.mtWordClears[wordKey].kanji = true;
+          }
+      } else {
+          // 答错的话，精准把当前测试维度打回原形
+          if (mode === 'word') Model.mtWordClears[wordKey].kanji = false;
+          else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = false;
+          else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = false;
+      }
+
+      Model.saveClears(); 
+      Model.state.currentIndex++; 
+      Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false;
+      
+      if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
+          Hardware.playSound('success'); Hardware.vibrate(1000); 
+          showToast("恭喜，全部靶向检验完成！"); 
+          View.getEl('btn-exit-study').click(); 
+      } else { 
+          View.renderStudyCard('next'); 
+      }
   },
 
   handleDtSpellClick(btn, token) {
@@ -2089,17 +2158,19 @@ const Controller = {
       View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
       View.getEl('dt-mean').innerText = w.meaning; 
       View.renderExampleBox(w.example, 'dt-example-box'); 
-      let clearCount = Model.mtWordClears[w.word] || 0; 
+      let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
+      if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
       let badge = View.getEl('dt-hanko-badge'); 
       if (badge) { 
-          if(clearCount > 0) { 
-              badge.style.display = 'block'; 
-              badge.className = 'card-hanko sakura-badge'; 
-              if (clearCount >= 10) { badge.classList.add('hanko-diamond'); } 
-              else if (clearCount >= 5) { badge.classList.add('hanko-gold'); } 
-              else if (clearCount >= 3) { badge.classList.add('hanko-silver'); } 
-              else { badge.classList.add('hanko-bronze'); } 
-          } else { badge.style.display = 'none'; } 
+          badge.style.display = 'flex'; 
+          badge.className = 'card-tri-bar'; 
+          badge.style.transform = 'scale(1.5)';
+          badge.style.transformOrigin = 'top left';
+          badge.innerHTML = `
+            <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
+            <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
+            <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
+          `;
       } 
       let isStarred = Model.stars.includes(w.word); 
       let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); 

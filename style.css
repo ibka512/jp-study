@@ -1200,3 +1200,33 @@ rt {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(139, 121, 103, 0.5);
 }
+
+/* ==========================================
+   🚀 终极版：三维靶向进度条 (黄-红-白)
+   ========================================== */
+.card-tri-bar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    gap: 3px;
+    z-index: 10;
+}
+
+.tri-bar-segment {
+    width: 14px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.1); /* 默认灰色（未掌握） */
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+/* 黄杠：看汉字知释义 */
+.tri-bar-segment.bar-y.active { background: #F5B041; box-shadow: 0 0 4px rgba(245, 176, 65, 0.6); }
+/* 红杠：听读音/看假名知释义 */
+.tri-bar-segment.bar-r.active { background: #E74C3C; box-shadow: 0 0 4px rgba(231, 76, 60, 0.6); }
+/* 白杠：看释义能写出 */
+.tri-bar-segment.bar-w.active { background: #FDFEFE; box-shadow: 0 0 4px rgba(253, 254, 254, 0.8); }
+
+/* 暗黑模式适配 */
+[data-theme="dark"] .tri-bar-segment { background: rgba(255, 255, 255, 0.15); }

@@ -1040,7 +1040,18 @@ const View = {
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
-    this.getEl('w-word').innerText = (!showWord && !isMemTest) ? mask(w.word) : w.word; 
+    // 🚀 核心优化 1：主卡片动态字号排版
+    let finalWord = (!showWord && !isMemTest) ? mask(w.word) : w.word;
+    let wWordEl = this.getEl('w-word');
+    wWordEl.innerText = finalWord;
+    
+    // 按字符长度阶梯式缩小字号
+    let wLen = Array.from(finalWord || '').length;
+    if (wLen >= 10) wWordEl.style.fontSize = '1.8rem';
+    else if (wLen >= 7) wWordEl.style.fontSize = '2.2rem';
+    else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
+    else wWordEl.style.fontSize = ''; // 恢复 CSS 默认的巨大字号
+
     this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
     this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
@@ -2149,7 +2160,16 @@ const Controller = {
       let visuals = View.getCardVisuals(w.type); 
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
       View.getEl('dt-watermark').innerText = visuals.wm; 
-      View.getEl('dt-word').innerText = w.word; 
+      
+      // 🚀 核心优化 2：详情页动态字号排版
+      let dtWordEl = View.getEl('dt-word');
+      dtWordEl.innerText = w.word; 
+      let dtLen = Array.from(w.word || '').length;
+      if (dtLen >= 10) dtWordEl.style.fontSize = '1.8rem';
+      else if (dtLen >= 7) dtWordEl.style.fontSize = '2.2rem';
+      else if (dtLen >= 5) dtWordEl.style.fontSize = '2.6rem';
+      else dtWordEl.style.fontSize = '';
+
       View.getEl('dt-kana').innerText = w.kana; 
       View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
       View.getEl('dt-mean').innerText = w.meaning; 

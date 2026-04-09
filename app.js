@@ -875,6 +875,8 @@ const View = {
       let currentTest = testSel.value || localStorage.getItem('lastTestRange') || '默认词库';
 
       testSel.innerHTML = '';
+      
+      // 🚀 核心增加：在这里补齐“已了解”的复习巩固选项
       let options = [
           { text: '默认词库', val: '默认词库' },
           { text: '收藏词汇', val: 'virtual_starred' },
@@ -882,8 +884,12 @@ const View = {
           { text: '所有未通关', val: 'virtual_uncleared' },
           { text: '专项攻坚: 未了解汉字(黄)', val: 'virtual_miss_kanji' },
           { text: '专项攻坚: 未了解读音(红)', val: 'virtual_miss_kana' },
-          { text: '专项攻坚: 未了解释义(白)', val: 'virtual_miss_meaning' }
+          { text: '专项攻坚: 未了解释义(白)', val: 'virtual_miss_meaning' },
+          { text: '复习巩固: 已了解汉字(黄)', val: 'virtual_know_kanji' },
+          { text: '复习巩固: 已了解读音(红)', val: 'virtual_know_kana' },
+          { text: '复习巩固: 已了解释义(白)', val: 'virtual_know_meaning' }
       ];
+      
       Model.folders.forEach(f => {
           if(f !== '默认词库') options.push({ text: f, val: f });
       });

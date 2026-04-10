@@ -1254,3 +1254,20 @@ rt {
 .speaker-loading .material-symbols-rounded {
     animation: sakuraSpin 1s infinite cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ==========================================
+   ♿ 无障碍焦点可见样式
+   ========================================== */
+button:focus-visible,
+[role="button"]:focus-visible,
+.nav-item:focus-visible,
+.glass-icon-btn:focus-visible,
+.btn-action:focus-visible,
+.wb-card:focus-visible,
+.dt-spell-key:focus-visible,
+.dt-choice-btn:focus-visible,
+.speaker-icon:focus-visible,
+.star-btn:focus-visible {
+    outline: 3px solid var(--tertiary);
+    outline-offset: 2px;
+}

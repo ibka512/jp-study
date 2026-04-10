@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v77'; // 建议更新缓存版本号
+const CACHE_NAME = 'pendulum-v61'; // 建议更新缓存版本号
 const ASSETS = [
   './',
   './index.html',
@@ -30,7 +30,14 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  self.clients.claim(); // 立即接管页面
+  // 立即接管页面，并通知客户端有新版本
+  self.clients.claim().then(() => {
+    self.clients.matchAll().then(clients => {
+      clients.forEach(client => {
+        client.postMessage({ type: 'SW_UPDATED' });
+      });
+    });
+  });
 });
 
 // 核心：拦截请求并动态缓存外部 CDN 资源
@@ -56,7 +63,9 @@ self.addEventListener('fetch', (event) => {
           // 修改部分：严格限制动态缓存的范围
           const url = new URL(event.request.url);
           const isSameOrigin = url.origin === location.origin;
-          const isAllowedCDN = url.hostname.includes('cdn.jsdelivr.net'); // 允许 MathJax 的 CDN
+          const isAllowedCDN = url.hostname.includes('cdn.jsdelivr.net') || 
+                     url.hostname.includes('fonts.googleapis.com') || 
+                     url.hostname.includes('fonts.gstatic.com'); // 允许字体CDN
 
           // 注意：不要缓存 POST 请求或 Chrome 扩展程序的请求，且必须是同源或白名单CDN
           if (event.request.method === 'GET' && 

@@ -232,13 +232,21 @@ const Model = {
                 this.saveRecords(), this.saveClears()
             ]);
             ['myWordDB_v3', 'myFolders_v3', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
-        } else {
-            this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
-            await this.saveDB(); 
-        }
-    }
-  },
-
+} else {
+          this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
+          await this.saveDB(); 
+      }
+  }
+  // 修复：清洗旧版 mtWordClears 中的数字值为三维对象
+  let needSave = false;
+  for (let word in this.mtWordClears) {
+      if (typeof this.mtWordClears[word] === 'number') {
+          this.mtWordClears[word] = { kanji: false, kana: false, meaning: false };
+          needSave = true;
+      }
+  }
+  if (needSave) await this.saveClears();
+},
   saveDB() { return idbKeyval.set('myWordDB_v3', this.db); },
   saveFolders() { return idbKeyval.set('myFolders_v3', this.folders); },
   saveStars() { return idbKeyval.set('starredWords', this.stars); },
@@ -307,7 +315,7 @@ const Model = {
 };
 
 const Hardware = {
-  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null,
+  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null, _currentAudio: null,
   init() {
     try {
         if (window.speechSynthesis) {
@@ -416,9 +424,16 @@ isSpeechUnlocked: false,
       },
 
       // --- 核心发音控制器 (带樱花微交互版) ---
-      async speakText(text, btnEl = null) {
-        try {
-            if (typeof text !== 'string' || text.trim() === '') return;
+async speakText(text, btnEl = null) {
+  try {
+      if (typeof text !== 'string' || text.trim() === '') return;
+      // 取消之前的所有 TTS 播放，防止重叠
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      // 同时停止任何正在播放的在线音频（简单处理：静默销毁）
+      if (this._currentAudio) {
+          this._currentAudio.pause();
+          this._currentAudio = null;
+      }
             
             // 🌸 接管按钮：将其变成樱花加载状态
             let iconEl = null; let originalIcon = '';
@@ -441,15 +456,17 @@ isSpeechUnlocked: false,
             }
 
             // 🗣️ 2. 网易有道模式 (只有短单词会走到这里)
-            if (engine === 'youdao') {
-                const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
-                const audio = new Audio(url);
-                audio.playbackRate = 0.85;
-                audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
-                audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
-                return;
-            }
-
+if (engine === 'youdao') {
+    const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
+    const audio = new Audio(url);
+    audio.playbackRate = 0.85;
+    audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
+    // 保存当前音频引用，以便下次切换时停止
+    if (this._currentAudio) this._currentAudio.pause();
+    this._currentAudio = audio;
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
+    return;
+}
             // 🗣️ 3. 微软 Azure 模式 (单词和长例句通吃！)
             if (engine === 'azure') {
                 const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
@@ -462,12 +479,15 @@ isSpeechUnlocked: false,
 
                 if (!response.ok) throw new Error("Azure API 请求失败");
                 const blob = await response.blob();
-                const audio = new Audio(URL.createObjectURL(blob));
-                
-                // 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
-                audio.playbackRate = isSentence ? 0.75 : 0.85;
-                audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
-                audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
+const audio = new Audio(URL.createObjectURL(blob));
+
+// 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
+audio.playbackRate = isSentence ? 0.75 : 0.85;
+audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
+// 保存当前音频引用
+if (this._currentAudio) this._currentAudio.pause();
+this._currentAudio = audio;
+audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
             }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
@@ -743,9 +763,9 @@ const View = {
           let activeTabEl = document.querySelector('#gs-tabs .active');
           let catLabel = activeTabEl ? activeTabEl.innerText : (catVal === 'default' ? '默认词库' : catVal);
 
-          while (i * 7 < total) {
-              let startIdx = i * 7;
-              let endIdx = Math.min(startIdx + 10, total);
+while (i * 10 < total) {
+    let startIdx = i * 10;
+    let endIdx = Math.min(startIdx + 10, total);
               let btn = document.createElement('div');
               btn.className = 'bs-option';
               
@@ -938,9 +958,13 @@ const View = {
     
     let forceRoteFull = false;
     if (isRote) {
-        let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
-        if (isFirstAppearance) { forceRoteFull = true; mode = 'all'; }
+    let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
+    if (isFirstAppearance) { 
+        forceRoteFull = true; 
+        mode = 'all'; 
+        Model.state.mtStep = 1; // 重置遮盖步骤
     }
+}
 
     if (Model.state.mode === 'dual-track') {
         Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
@@ -1384,12 +1408,14 @@ const View = {
     let rowHeight = baseRowHeights[cols];
     
     if (grid.children.length > 0) {
-        let gap = cols === 4 ? 8 : 12;
-        let actualHeight = grid.children[0].offsetHeight + gap;
-        if (actualHeight > 50) { 
-            rowHeight = actualHeight;
-        }
+    let gap = cols === 4 ? 8 : 12;
+    let actualHeight = grid.children[0].offsetHeight + gap;
+    if (actualHeight > 50) { 
+        rowHeight = actualHeight;
+    } else {
+        rowHeight = baseRowHeights[cols]; // 回退到预设值
     }
+}
 
     const totalRows = Math.ceil(filteredData.length / cols);
     const rect = container.getBoundingClientRect();
@@ -1522,25 +1548,42 @@ const Controller = {
     }
 
 
-    let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
-  },
+let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
 
-  setupVirtualScroll() {
-    const container = View.getEl('wb-grid-container');
-    if (!container) return;
-    
-    window.addEventListener('scroll', () => { 
-        if (document.getElementById('tab-wordbank').classList.contains('active')) { 
-            window.requestAnimationFrame(() => { View.renderVirtualGrid(); }); 
-        } 
-    }, { passive: true });
-    
-    window.addEventListener('resize', () => { 
-        if (document.getElementById('tab-wordbank').classList.contains('active')) { 
-            View.resetWordbankRenderer(); 
-        } 
+  // 监听 Service Worker 更新消息
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'SW_UPDATED') {
+        showConfirm('✨ 版本更新', '应用已有新版本，是否立即刷新以体验最新功能？', () => {
+          window.location.reload();
+        });
+      }
     });
-  },
+  }
+},
+
+setupVirtualScroll() {
+  const container = View.getEl('wb-grid-container');
+  if (!container) return;
+  
+  let ticking = false;
+  window.addEventListener('scroll', () => { 
+      if (!document.getElementById('tab-wordbank').classList.contains('active')) return;
+      if (!ticking) {
+          window.requestAnimationFrame(() => {
+              View.renderVirtualGrid();
+              ticking = false;
+          });
+          ticking = true;
+      }
+  }, { passive: true });
+  
+  window.addEventListener('resize', () => { 
+      if (document.getElementById('tab-wordbank').classList.contains('active')) { 
+          View.resetWordbankRenderer(); 
+      } 
+  });
+},
 
   setupHeaderScrollShadow() {
       const header = View.getEl('global-header');
@@ -1737,22 +1780,51 @@ const Controller = {
         fileImport.addEventListener('change', (e) => { if(e.target.files.length > 0) this.importBackup(e.target.files[0]); e.target.value = ''; });
     }
 
-    window.addEventListener('keydown', (e) => {
-        // 如果当前聚焦在输入框或文本域，不处理音量键翻页
-        const activeEl = document.activeElement;
-        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-            return;
+window.addEventListener('keydown', (e) => {
+    // 如果当前聚焦在输入框或文本域，不处理音量键翻页
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+        return;
+    }
+    if (localStorage.getItem('volNav') !== 'true') return;
+    let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
+    let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
+    if (!isVolUp && !isVolDown) return;
+    let inDetail = document.getElementById('detail-overlay').classList.contains('active');
+    let inStudy = !document.getElementById('study-area').classList.contains('hidden');
+    // 修复：允许所有学习模式使用音量键翻页，而不仅限于pendulum
+    if (!inDetail && !inStudy) return;
+    e.preventDefault(); 
+    if (inDetail) { 
+        if (isVolDown) Controller.navDetail(1); 
+        else if (isVolUp) Controller.navDetail(-1); 
+    } else { 
+        // 学习页：根据当前模式判断是否有下一个/上一个按钮可用
+        let hasNext = Model.state.currentIndex < Model.state.studyQueue.length - 1;
+        let hasPrev = Model.state.currentIndex > 0;
+        // 对于filter-test和dual-track等模式，同样有currentIndex，直接使用
+        if (isVolDown && hasNext) { 
+            let nextBtn = document.getElementById('btn-next');
+            if (nextBtn && nextBtn.style.display !== 'none') nextBtn.click();
+            else {
+                // 部分模式没有显式next按钮，手动推进
+                if (Model.state.mode === 'filter-test' || Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') {
+                    Model.state.currentIndex++;
+                    View.renderStudyCard('next');
+                }
+            }
+        } else if (isVolUp && hasPrev) { 
+            let prevBtn = document.getElementById('btn-prev');
+            if (prevBtn && prevBtn.style.display !== 'none') prevBtn.click();
+            else {
+                if (Model.state.mode === 'filter-test' || Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') {
+                    Model.state.currentIndex--;
+                    View.renderStudyCard('prev');
+                }
+            }
         }
-        if (localStorage.getItem('volNav') !== 'true') return;
-        let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
-        let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
-        if (!isVolUp && !isVolDown) return;
-        let inDetail = document.getElementById('detail-overlay').classList.contains('active');
-        let inStudy = !document.getElementById('study-area').classList.contains('hidden');
-        if (!inDetail && !(inStudy && (Model.state.mode === 'pendulum' || (Model.state.mode === 'rote-learning' && !document.getElementById('capsule-pendulum').classList.contains('hidden'))))) return;
-        e.preventDefault(); 
-        if (inDetail) { if (isVolDown) Controller.navDetail(1); else if (isVolUp) Controller.navDetail(-1); } else { if (isVolDown && Model.state.currentIndex < Model.state.studyQueue.length - 1) { document.getElementById('btn-next').click(); } else if (isVolUp && Model.state.currentIndex > 0) { document.getElementById('btn-prev').click(); } }
-    }, { passive: false });
+    }
+}, { passive: false });
 
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
@@ -1813,7 +1885,7 @@ const Controller = {
 
     document.addEventListener('click', (e) => { 
         let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } 
-        let exJp = e.target.closest('.dt-ex-jp'); if (exJp) { let textToSpeak = exJp.getAttribute('data-speak'); if (textToSpeak) { Hardware.unlockSpeech(); Hardware.speakText(textToSpeak); Hardware.vibrate(10); } }
+        let exJp = e.target.closest('.dt-ex-jp'); if (exJp) { let textToSpeak = exJp.getAttribute('data-speak'); if (textToSpeak) { Hardware.unlockSpeech(); Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp); Hardware.vibrate(10); } }
     });
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
@@ -1982,7 +2054,21 @@ const Controller = {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
           Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
-          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0'; setTimeout(() => { el.innerText = el.dataset.text; el.className = 'dt-ex-cn revealed-translation'; el.style.transform = 'rotateX(-90deg)'; void el.offsetWidth; el.style.transform = 'rotateX(0)'; el.style.opacity = '1'; }, 150); });
+          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
+    el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0'; 
+    setTimeout(() => { 
+        el.innerText = el.dataset.text; 
+        el.className = 'dt-ex-cn revealed-translation'; 
+        el.style.transform = 'rotateX(-90deg)'; 
+        void el.offsetWidth; 
+        el.style.transform = 'rotateX(0)'; 
+        el.style.opacity = '1'; 
+        // 如果未使用Ruby模式，调用MathJax重新渲染
+        if (localStorage.getItem('useRubyRender') === 'false' && window.MathJax) {
+            MathJax.typesetPromise([el]);
+        }
+    }, 150); 
+});
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
       } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); }
   },
@@ -2024,7 +2110,22 @@ const Controller = {
           Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
           if (Model.state.studyQueue.length === 0) {
               if (Model.state.mtRound < 3) { Model.state.mtRound++; Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Hardware.playSound('success'); Hardware.vibrate(200); showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`); setTimeout(() => View.renderStudyCard('next'), 500); } 
-              else { let gk = Model.state.currentGroupKey; Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1; Model.state.mtBaseQueue.forEach(idx => { let wWord = Model.db[idx].word; Model.mtWordClears[wWord] = (Model.mtWordClears[wWord] || 0) + 1; }); Model.saveClears(); this.finishPendulum(); }
+              else { 
+    let gk = Model.state.currentGroupKey; 
+    Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1; 
+    Model.state.mtBaseQueue.forEach(idx => { 
+        let wWord = Model.db[idx].word; 
+        // 修复：改为三维对象全部掌握，而非累加数字
+        if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
+            Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
+        }
+        Model.mtWordClears[wWord].kanji = true;
+        Model.mtWordClears[wWord].kana = true;
+        Model.mtWordClears[wWord].meaning = true;
+    }); 
+    Model.saveClears(); 
+    this.finishPendulum(); 
+}
           } else { View.renderStudyCard('next'); }
       } else { if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.state.studyQueue.push(failedIdx); Model.state.currentWordFailed = false; } Model.state.currentIndex++; Model.state.mtStep = 1; if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); }
   },
@@ -2058,35 +2159,44 @@ const Controller = {
   },
   openMoveModal(idx) { if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); Model.state.moveTargetIdx = idx; let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = ''; Model.folders.forEach(f => { destSelect.add(new Option(f, f)); }); destSelect.dispatchEvent(new Event('facade-update')); window.toggleModal('move-overlay', true); },
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
-  batchDelete() { 
-      Hardware.playSound('click'); Hardware.vibrate(30); 
-      if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); 
-      showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
-          // 删除前关闭详情卡片，避免 detailArray 失效
-          this.closeDetailIfOpen();
-          Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
-          Model.saveDB(); 
-          this.toggleBatchMode(); 
-          showToast("已批量删除"); 
-      }); 
-  },
+batchDelete() { 
+    Hardware.playSound('click'); Hardware.vibrate(30); 
+    if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); 
+    showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
+        // 删除前关闭详情卡片，避免 detailArray 失效
+        this.closeDetailIfOpen();
+        Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
+        Model.saveDB(); 
+        this.toggleBatchMode();
+        // 确保词库网格立即刷新（关闭详情页后可能未刷新）
+        if (document.getElementById('tab-wordbank').classList.contains('active')) {
+            Model.state.renderedStartIndex = -1;
+            View.renderVirtualGrid();
+        }
+        showToast("已批量删除"); 
+    }); 
+},
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
-  deleteWord(idx) { 
-      showConfirm('删除单词', '彻底删除该词？', () => { 
-          // 删除前关闭详情卡片
-          this.closeDetailIfOpen();
-          const word = Model.db[idx].word;
-          Model.db.splice(idx,1); 
-          Model.saveDB();
-          // 清理关联数据
-          Model.stars = Model.stars.filter(w => w !== word);
-          delete Model.mtWordClears[word];
-          Model.saveStars();
-          Model.saveClears();
-          View.resetWordbankRenderer(); 
-          showToast("已删除"); 
-      }); 
-  },
+deleteWord(idx) { 
+    showConfirm('删除单词', '彻底删除该词？', () => { 
+        // 删除前关闭详情卡片
+        this.closeDetailIfOpen();
+        const word = Model.db[idx].word;
+        Model.db.splice(idx,1); 
+        Model.saveDB();
+        // 清理关联数据
+        Model.stars = Model.stars.filter(w => w !== word);
+        delete Model.mtWordClears[word];
+        Model.saveStars();
+        Model.saveClears();
+        // 确保词库网格立即刷新
+        if (document.getElementById('tab-wordbank').classList.contains('active')) {
+            Model.state.renderedStartIndex = -1;
+        }
+        View.resetWordbankRenderer(); 
+        showToast("已删除"); 
+    }); 
+},
   importWords() { 
       Hardware.playSound('click'); Hardware.vibrate(15);
       let text = View.getEl('custom-input').value.trim(); 
@@ -2127,8 +2237,15 @@ const Controller = {
           let matchFolder = false; 
           if (currentFilter === 'all') matchFolder = true; 
           else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word); 
-          else if (currentFilter === 'virtual_cleared') matchFolder = (Model.mtWordClears[w.word] > 0); 
-          else if (currentFilter === 'virtual_uncleared') matchFolder = (!Model.mtWordClears[w.word]); 
+   else if (currentFilter === 'virtual_cleared') {
+    let st = Model.mtWordClears[w.word];
+    if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+    matchFolder = st.kanji && st.kana && st.meaning;
+} else if (currentFilter === 'virtual_uncleared') {
+    let st = Model.mtWordClears[w.word];
+    if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+    matchFolder = !(st.kanji && st.kana && st.meaning);
+}
           else matchFolder = (w.folder === currentFilter); 
           if(matchFolder) Model.state.detailArray.push(i); 
       }); 

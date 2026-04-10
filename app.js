@@ -1793,6 +1793,12 @@ setupVirtualScroll() {
             if (Model.state.batchMode) Controller.toggleBatchMode(); 
             View.resetWordbankRenderer(); 
         }); 
+        // 🚀 新增修复：监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                searchInput.blur();
+            }
+        });
     }
 
     let btnExport = View.getEl('btn-export-backup');

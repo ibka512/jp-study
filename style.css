@@ -1230,3 +1230,27 @@ rt {
 
 /* 暗黑模式适配 */
 [data-theme="dark"] .tri-bar-segment { background: rgba(255, 255, 255, 0.15); }
+
+/* 🚀 防止超长单词/外来语撑爆屏幕边界 */
+.word-main, .dt-word {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word; 
+    max-width: 100%;
+    line-height: 1.2;
+}
+
+/* ==========================================
+   🌸 樱花加载微交互动画 (TTS 网络延迟缓冲)
+   ========================================== */
+@keyframes sakuraSpin {
+    0% { transform: rotate(0deg) scale(1); opacity: 0.7; color: inherit; }
+    50% { transform: rotate(180deg) scale(1.1); opacity: 1; color: #E74C3C; } /* 旋转时泛起一抹微红 */
+    100% { transform: rotate(360deg) scale(1); opacity: 0.7; color: inherit; }
+}
+.speaker-loading {
+    pointer-events: none; /* 加载时禁止重复狂点 */
+}
+.speaker-loading .material-symbols-rounded {
+    animation: sakuraSpin 1s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}

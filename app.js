@@ -415,19 +415,28 @@ isSpeechUnlocked: false,
           }
       },
 
-      // --- 核心发音控制器 ---
-      async speakText(text) {
+      // --- 核心发音控制器 (带樱花微交互版) ---
+      async speakText(text, btnEl = null) {
         try {
             if (typeof text !== 'string' || text.trim() === '') return;
             
+            // 🌸 接管按钮：将其变成樱花加载状态
+            let iconEl = null; let originalIcon = '';
+            if (btnEl) {
+                btnEl.classList.add('speaker-loading');
+                iconEl = btnEl.querySelector('.material-symbols-rounded');
+                if (iconEl) { originalIcon = iconEl.innerText; iconEl.innerText = 'spa'; }
+            }
+            // 🌸 恢复按钮状态的辅助闭包
+            const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
+
             let isSentence = text.length > 12 || /[。？！，、]/.test(text);
             let engine = localStorage.getItem('ttsEngine') || 'youdao';
 
             // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
-            // 👉 注意：微软 Azure 不受此限制，它完美支持长例句，直接放行！
             if (engine === 'local' || (engine === 'youdao' && isSentence)) {
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
-                setTimeout(() => this.fallbackLocalTTS(text, isSentence), 50);
+                setTimeout(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); }, 50);
                 return;
             }
 
@@ -436,7 +445,8 @@ isSpeechUnlocked: false,
                 const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
                 const audio = new Audio(url);
                 audio.playbackRate = 0.85;
-                audio.play().catch(() => this.fallbackLocalTTS(text, isSentence));
+                audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
+                audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
                 return;
             }
 
@@ -456,10 +466,13 @@ isSpeechUnlocked: false,
                 
                 // 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
                 audio.playbackRate = isSentence ? 0.75 : 0.85;
-                audio.play().catch(() => this.fallbackLocalTTS(text, isSentence));
+                audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
+                audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
             }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
+            // 发生错误时也要记得把樱花变回小喇叭
+            if (btnEl) { btnEl.classList.remove('speaker-loading'); let i = btnEl.querySelector('.material-symbols-rounded'); if(i) i.innerText = 'volume_up'; }
             this.fallbackLocalTTS(text, isSentence);
         }
       }
@@ -701,12 +714,26 @@ const View = {
               return Model.checkFilter(item.w, catVal);
           });
 
+          // 🚀 智能识别胜利状态的禅意缺省页
           if (words.length === 0) {
-              let emptyText = "暂无词汇";
-              if(catVal === 'virtual_starred') emptyText = "暂无收藏词汇";
-              if(catVal === 'virtual_cleared') emptyText = "暂无已通关词汇";
-              if(catVal === 'virtual_uncleared') emptyText = "太棒了，没有未通关词汇！";
-              container.innerHTML = `<div style="text-align:center; padding: 40px 20px; color: var(--outline); font-weight: 700; font-size: 1.1rem;">${emptyText}</div>`;
+              let emptyText = "当前空空如也";
+              let iconStr = "spa"; // 基础禅意莲花
+              let jpTitle = "【 空 無 】";
+              
+              if(catVal === 'virtual_starred') { emptyText = "暂无收藏，去发现心动词汇吧"; }
+              if(catVal === 'virtual_cleared') { emptyText = "路漫漫其修远兮，继续攀登吧"; }
+              if(catVal === 'virtual_uncleared' || catVal.includes('virtual_miss_')) { 
+                  // 攻坚完成的胜利状态！
+                  emptyText = "此维度盲区已彻底扫清！"; 
+                  iconStr = "radio_button_unchecked"; // 禅宗圆相 ⭕️，代表绝对的圆满
+                  jpTitle = "【 円 相 】";
+              }
+              
+              container.innerHTML = `<div style="text-align:center; padding: 60px 20px;">
+                  <span class="material-symbols-rounded" style="font-size: 4.5rem; opacity: 0.4; margin-bottom: 20px; color: #8F9779;">${iconStr}</span>
+                  <div style="font-size: 1.2rem; font-weight: 800; color: var(--on-surface); opacity: 0.8; font-family: var(--font-jp-serif), serif; letter-spacing: 2px;">${jpTitle}</div>
+                  <div style="font-weight: 500; font-size: 0.95rem; opacity: 0.6; color: var(--on-surface); margin-top: 12px;">${emptyText}</div>
+              </div>`;
               return;
           }
 
@@ -1342,8 +1369,13 @@ const View = {
     
     const filteredData = Model.state.filteredDb;
 
+    // 🚀 折纸鹤 (Origami) 禅意缺省页
     if (filteredData.length === 0) {
-        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 80px 20px; color: var(--outline);"><span class="material-symbols-rounded" style="font-size: 4rem; margin-bottom: 16px; opacity: 0.6;">search_off</span><div style="font-size: 1.1rem; font-weight: 700; color: var(--on-surface); opacity: 0.5;">没有找到匹配的词汇</div></div>`;
+        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 100px 20px;">
+            <span class="material-symbols-rounded" style="font-size: 5rem; margin-bottom: 24px; color: #8F9779; opacity: 0.4;">spa</span>
+            <div style="font-size: 1.3rem; font-weight: 800; color: var(--on-surface); opacity: 0.7; font-family: var(--font-jp-serif), serif; letter-spacing: 2px;">【 一期一会 】</div>
+            <div style="font-size: 0.95rem; margin-top: 12px; opacity: 0.5; color: var(--on-surface);">缘分未到，换个关键词再试一次吧</div>
+        </div>`;
         grid.style.paddingTop = '0px'; grid.style.paddingBottom = '0px';
         return;
     }
@@ -1766,7 +1798,7 @@ const Controller = {
     let lbLayoutTrigger = View.getEl('setting-lb-layout');
     if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { Hardware.vibrate(15); BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
-    View.getEl('btn-speaker').addEventListener('click', () => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); });
+    View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''), e.currentTarget); });
     View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); let icon = View.getEl('star-icon'); if(idx > -1) { Model.stars.splice(idx, 1); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); icon.style.fontVariationSettings = "'FILL' 1"; } Model.saveStars(); });
 
     let dtStarBtn = View.getEl('dt-star-btn');
@@ -1794,7 +1826,7 @@ const Controller = {
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
-      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); return; }
+      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,''), e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); Hardware.vibrate(15); this.openMoveModal(idx); return; }
       if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); Hardware.vibrate(15); this.editWord(idx); return; }
       if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); Hardware.vibrate(15); this.deleteWord(idx); return; }

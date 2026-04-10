@@ -418,20 +418,34 @@ isSpeechUnlocked: false,
     } catch(e) {}
 },
       // --- 新增一个专门用来兜底的辅助函数 ---
-fallbackLocalTTS(text, isSentence = false) {
-    if (!window.speechSynthesis) return;
+fallbackLocalTTS(text, isSentence = false, onComplete = null) {
+    if (!window.speechSynthesis) {
+        if (onComplete) onComplete();
+        return;
+    }
     // 若语音缓存不存在，尝试再次获取
     if (!this.jaVoiceCache) {
         let voices = window.speechSynthesis.getVoices();
         this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
     }
-    let msg = new SpeechSynthesisUtterance(text);
-    msg.lang = 'ja-JP';
-    msg.rate = isSentence ? 0.75 : 0.8;
-    if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
-    // 某些浏览器需要确保 speechSynthesis 未处于暂停状态
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    window.speechSynthesis.speak(msg);
+    
+    // 用 50ms 延迟避开 cancel() 的清空判定期
+    setTimeout(() => {
+        let msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'ja-JP';
+        msg.rate = isSentence ? 0.75 : 0.8;
+        if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+        
+        // 绑定语音结束或出错的回调，用来恢复樱花按钮状态
+        if (onComplete) {
+            msg.onend = onComplete;
+            msg.onerror = onComplete;
+        }
+        
+        // 某些浏览器需要确保 speechSynthesis 未处于暂停状态
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.speak(msg);
+    }, 50);
 },
 
       // --- 核心发音控制器 (带樱花微交互版) ---
@@ -461,10 +475,8 @@ async speakText(text, btnEl = null) {
 
             // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
  if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    // 移除延迟，直接在当前手势上下文中执行
-    this.fallbackLocalTTS(text, isSentence);
-    revertBtn();
+    // 将恢复按钮的闭包传给底层，等真的读完了再把樱花变回喇叭
+    this.fallbackLocalTTS(text, isSentence, revertBtn);
     return;
 }
 
@@ -1567,7 +1579,7 @@ let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-d
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'SW_UPDATED') {
-        showConfirm('✨ 版本更新', '应用已有新版本，是否立即刷新以体验最新功能？', () => {
+        showConfirm('版本更新', '应用已有新版本，是否立即刷新以体验最新功能？', () => {
           window.location.reload();
         });
       }

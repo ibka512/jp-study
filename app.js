@@ -403,25 +403,36 @@ const Hardware = {
   },
 isSpeechUnlocked: false,
       unlockSpeech() {
-          try { 
-              // 🚀 修复1：如果已经解锁过，就直接 return，防止疯狂塞入无声队列
-              if (!window.speechSynthesis || this.isSpeechUnlocked) return; 
-              let unlock = new SpeechSynthesisUtterance(''); 
-              unlock.volume = 0; 
-              window.speechSynthesis.speak(unlock); 
-              this.isSpeechUnlocked = true; 
-          } catch(e) {}
-      },
+    try { 
+        if (!window.speechSynthesis) return;
+        // 预加载日语语音列表
+        if (!this.jaVoiceCache) {
+            let voices = window.speechSynthesis.getVoices();
+            this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
+        }
+        if (this.isSpeechUnlocked) return;
+        let unlock = new SpeechSynthesisUtterance(''); 
+        unlock.volume = 0; 
+        window.speechSynthesis.speak(unlock); 
+        this.isSpeechUnlocked = true; 
+    } catch(e) {}
+},
       // --- 新增一个专门用来兜底的辅助函数 ---
-      fallbackLocalTTS(text, isSentence = false) {
-          if (window.speechSynthesis) {
-              let msg = new SpeechSynthesisUtterance(text);
-              msg.lang = 'ja-JP'; 
-              msg.rate = isSentence ? 0.75 : 0.8; // 例句读慢点，单词正常
-              if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
-              window.speechSynthesis.speak(msg);
-          }
-      },
+fallbackLocalTTS(text, isSentence = false) {
+    if (!window.speechSynthesis) return;
+    // 若语音缓存不存在，尝试再次获取
+    if (!this.jaVoiceCache) {
+        let voices = window.speechSynthesis.getVoices();
+        this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
+    }
+    let msg = new SpeechSynthesisUtterance(text);
+    msg.lang = 'ja-JP';
+    msg.rate = isSentence ? 0.75 : 0.8;
+    if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+    // 某些浏览器需要确保 speechSynthesis 未处于暂停状态
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    window.speechSynthesis.speak(msg);
+},
 
       // --- 核心发音控制器 (带樱花微交互版) ---
 async speakText(text, btnEl = null) {
@@ -449,11 +460,13 @@ async speakText(text, btnEl = null) {
             let engine = localStorage.getItem('ttsEngine') || 'youdao';
 
             // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
-            if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-                if (window.speechSynthesis) window.speechSynthesis.cancel();
-                setTimeout(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); }, 50);
-                return;
-            }
+ if (engine === 'local' || (engine === 'youdao' && isSentence)) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    // 移除延迟，直接在当前手势上下文中执行
+    this.fallbackLocalTTS(text, isSentence);
+    revertBtn();
+    return;
+}
 
             // 🗣️ 2. 网易有道模式 (只有短单词会走到这里)
 if (engine === 'youdao') {

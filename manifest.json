@@ -1,6 +1,6 @@
 {
-  "name": "钟摆日语",
-  "short_name": "钟摆日语",
+  "name": "鐘日",
+  "short_name": "鐘日",
   "description": "基于离散重复机制的日语突击工具",
   "start_url": "index.html",
   "display": "standalone",

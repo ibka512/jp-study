@@ -325,7 +325,16 @@ const Hardware = {
         }
     } catch(e) {}
   },
-  vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {} },
+  vibrate(pattern) { 
+  try { 
+    if (navigator.vibrate) {
+      return navigator.vibrate(pattern);
+    }
+    return false;
+  } catch(e) {
+    return false;
+  }
+},
   playSound(type) {
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -483,37 +492,49 @@ async speakText(text, btnEl = null) {
             // 🗣️ 2. 网易有道模式 (只有短单词会走到这里)
 if (engine === 'youdao') {
     const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
+    // 彻底清理上一个音频实例
+    if (this._currentAudio) {
+        this._currentAudio.pause();
+        this._currentAudio.src = '';
+        this._currentAudio.load();
+        this._currentAudio = null;
+    }
     const audio = new Audio(url);
     audio.playbackRate = 0.85;
-    audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
-    // 保存当前音频引用，以便下次切换时停止
-    if (this._currentAudio) this._currentAudio.pause();
+    audio.oncanplaythrough = revertBtn; 
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence); revertBtn(); };
     this._currentAudio = audio;
     audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
     return;
 }
             // 🗣️ 3. 微软 Azure 模式 (单词和长例句通吃！)
-            if (engine === 'azure') {
-                const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
-                
-                const response = await fetch(workerUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ model: "tts-1", input: text, voice: "ja-JP-NanamiNeural" })
-                });
+if (engine === 'azure') {
+    const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
+    
+    const response = await fetch(workerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "tts-1", input: text, voice: "ja-JP-NanamiNeural" })
+    });
 
-                if (!response.ok) throw new Error("Azure API 请求失败");
-                const blob = await response.blob();
-const audio = new Audio(URL.createObjectURL(blob));
+    if (!response.ok) throw new Error("Azure API 请求失败");
+    const blob = await response.blob();
+    
+    // 彻底清理上一个音频实例
+    if (this._currentAudio) {
+        this._currentAudio.pause();
+        if (this._currentAudio.src) URL.revokeObjectURL(this._currentAudio.src);
+        this._currentAudio = null;
+    }
 
-// 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
-audio.playbackRate = isSentence ? 0.75 : 0.85;
-audio.oncanplaythrough = revertBtn; audio.onerror = revertBtn;
-// 保存当前音频引用
-if (this._currentAudio) this._currentAudio.pause();
-this._currentAudio = audio;
-audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
-            }
+    const audio = new Audio(URL.createObjectURL(blob));
+    // 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
+    audio.playbackRate = isSentence ? 0.75 : 0.85;
+    audio.oncanplaythrough = revertBtn; 
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence); revertBtn(); };
+    this._currentAudio = audio;
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
+}
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
             // 发生错误时也要记得把樱花变回小喇叭
@@ -1778,14 +1799,31 @@ setupVirtualScroll() {
     }
     // 🚀 新增：发音引擎切换事件
     let ttsSelectTrigger = View.getEl('setting-tts-engine');
-    if (ttsSelectTrigger) {
-        ttsSelectTrigger.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('ttsEngine', e.target.value);
-            let names = { 'local': '系统自带', 'youdao': '网易有道', 'azure': '微软七海' };
-            showToast(`已切换至 ${names[e.target.value]} 发音`);
-        });
-    }
+if (ttsSelectTrigger) {
+    ttsSelectTrigger.addEventListener('change', (e) => {
+        Hardware.playSound('click'); Hardware.vibrate(15);
+        localStorage.setItem('ttsEngine', e.target.value);
+        let names = { 'local': '系统自带', 'youdao': '网易有道', 'azure': '微软七海' };
+        showToast(`已切换至 ${names[e.target.value]} 发音`);
+    });
+}
+
+// 🚀 新增：测试震动按钮
+let testVibrateBtn = View.getEl('btn-test-vibrate');
+if (testVibrateBtn) {
+    testVibrateBtn.addEventListener('click', () => {
+        Hardware.playSound('click');
+        // 尝试震动 300ms（较长，便于感知）
+        const vibrated = Hardware.vibrate(300);
+        // 给出相应提示
+        if (navigator.vibrate) {
+            // 有些浏览器即使支持也可能返回 false，但仍会尝试震动
+            showToast('震动测试已触发，请感受设备震动');
+        } else {
+            showToast('您的浏览器不支持震动 API（iOS 系统或桌面浏览器）');
+        }
+    });
+}
 
     let searchInput = View.getEl('wb-search-input');
     if (searchInput) { 

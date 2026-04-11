@@ -155,8 +155,9 @@ body::after {
 }
 
 .global-header h2 { 
-  color: var(--primary); font-weight: 800; margin: 0; font-size: 1.3rem; 
+  color: var(--primary); font-weight: 800; margin: 0; font-size: 1.6rem; 
   display: flex; align-items: center;
+  line-height: 1;
 }
 
 .bottom-nav {

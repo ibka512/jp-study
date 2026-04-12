@@ -1580,6 +1580,10 @@ const Controller = {
     let postponeCheck = View.getEl('setting-postpone-tested');
     if(postponeCheck) postponeCheck.checked = postponeTested;
 
+    let skipMastered = localStorage.getItem('skipMastered') === 'true';
+    let skipCheck = View.getEl('setting-skip-mastered');
+    if(skipCheck) skipCheck.checked = skipMastered;
+
     // 🚀 新增：初始化 Ruby 渲染设置（默认开启，因为排版更好）
     let useRuby = localStorage.getItem('useRubyRender');
     if (useRuby === null) useRuby = 'true'; 
@@ -1779,6 +1783,15 @@ setupVirtualScroll() {
             Hardware.playSound('click'); Hardware.vibrate(15);
             localStorage.setItem('postponeTested', e.target.checked);
             showToast(e.target.checked ? "已开启未通关词汇后置" : "已关闭未通关词汇后置");
+        });
+    }
+
+    let skipCheck = View.getEl('setting-skip-mastered');
+    if (skipCheck) {
+        skipCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('skipMastered', e.target.checked);
+            showToast(e.target.checked ? "已开启智能跳过已亮维度" : "已关闭智能跳过已亮维度");
         });
     }
 
@@ -2040,11 +2053,31 @@ window.addEventListener('keydown', (e) => {
 
   startFilterTest() {
       let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
+      let displayMode = View.getEl('test-display-select').value || 'kana';
+      let isSkipEnabled = localStorage.getItem('skipMastered') === 'true';
+
       let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-          if (cat === 'all') return true;
-          return Model.checkFilter(item.w, cat);
+          // 基础范围过滤
+          let inRange = (cat === 'all') ? true : Model.checkFilter(item.w, cat);
+          if (!inRange) return false;
+
+          // 智能维度拦截逻辑
+          if (isSkipEnabled) {
+              let st = Model.mtWordClears[item.w.word] || { kanji: false, kana: false, meaning: false };
+              if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+
+              if (displayMode === 'word' && st.kanji) return false;
+              if ((displayMode === 'kana' || displayMode === 'audio') && st.kana) return false;
+              if (displayMode === 'meaning' && st.meaning) return false;
+          }
+          return true;
       });
-      if (sourceWords.length === 0) return showToast("当前分类下没有词汇哦");
+      
+      if (sourceWords.length === 0) {
+          return showConfirm('此维度已圆满', '当前范围内该模式对应的「维度杠」已全部点亮。是否前往设置关闭「智能跳过」？', () => {
+              Nav.switchTab('tab-settings', ' |【環境設定】', document.querySelector('[data-target="tab-settings"]'));
+          });
+      }
       Hardware.playSound('click'); 
       Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false;
       

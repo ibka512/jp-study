@@ -469,13 +469,15 @@ async speakText(text, btnEl = null) {
           this._currentAudio = null;
       }
             
-            // 🌸 接管按钮：将其变成樱花加载状态
+                        // 🌸 接管按钮：将其变成樱花加载状态
             let iconEl = null; let originalIcon = '';
             if (btnEl) {
                 btnEl.classList.add('speaker-loading');
-                iconEl = btnEl.querySelector('.material-symbols-rounded');
+                // 🚀 智能感知：若元素自身即为图标，则直接接管；若是容器，则向下寻幽探微
+                iconEl = btnEl.classList.contains('material-symbols-rounded') ? btnEl : btnEl.querySelector('.material-symbols-rounded');
                 if (iconEl) { originalIcon = iconEl.innerText; iconEl.innerText = 'spa'; }
             }
+
             // 🌸 恢复按钮状态的辅助闭包
             const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
 

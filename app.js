@@ -1841,13 +1841,13 @@ if (testVibrateBtn) {
     });
 }
 
-    let searchInput = View.getEl('wb-search-input');
+        let searchInput = View.getEl('wb-search-input');
     if (searchInput) { 
         searchInput.addEventListener('input', () => { 
             if (Model.state.batchMode) Controller.toggleBatchMode(); 
             View.resetWordbankRenderer(); 
         }); 
-        // 🚀 新增修复：监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
+        // 🚀 监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 searchInput.blur();
@@ -1855,7 +1855,18 @@ if (testVibrateBtn) {
         });
     }
 
+    // 🚀 流体交互：赋予底板感知力。触碰词库网格即刻收起软键盘，无缝唤回底栏
+    let wbGridContainer = View.getEl('wb-grid-container');
+    if (wbGridContainer) {
+        wbGridContainer.addEventListener('pointerdown', () => {
+            if (document.activeElement && document.activeElement.id === 'wb-search-input') {
+                document.activeElement.blur();
+            }
+        }, { passive: true });
+    }
+
     let btnExport = View.getEl('btn-export-backup');
+
     if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
     
     let btnImport = View.getEl('btn-import-backup');
@@ -2336,25 +2347,17 @@ deleteWord(idx) {
   },
   
   openDetailModal(idx) { 
-      let currentFilter = View.getEl('wb-folder-filter').value; 
-      Model.state.detailArray = []; 
-      Model.db.forEach((w, i) => { 
-          let matchFolder = false; 
-          if (currentFilter === 'all') matchFolder = true; 
-          else if (currentFilter === 'virtual_starred') matchFolder = Model.stars.includes(w.word); 
-   else if (currentFilter === 'virtual_cleared') {
-    let st = Model.mtWordClears[w.word];
-    if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-    matchFolder = st.kanji && st.kana && st.meaning;
-} else if (currentFilter === 'virtual_uncleared') {
-    let st = Model.mtWordClears[w.word];
-    if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-    matchFolder = !(st.kanji && st.kana && st.meaning);
-}
-          else matchFolder = (w.folder === currentFilter); 
-          if(matchFolder) Model.state.detailArray.push(i); 
-      }); 
+      // 🚀 核心重构：彻底抛弃笨重的二次遍历，直接对接高度精准的“已过滤数据池”
+      // 无论用户是做了分类筛选，还是文字搜索，滑动轨道都将与之绝对统一
+      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx); 
       Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
+      
+      // 极端边界兜底：若未命中（理论上不可能），则降级为只展示当前单张卡片
+      if (Model.state.activeDetailIdx === -1) {
+          Model.state.detailArray = [idx];
+          Model.state.activeDetailIdx = 0;
+      }
+
       window.toggleModal('detail-overlay', true); 
       this.renderDetailCard('none', true); 
   },

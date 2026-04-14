@@ -1307,7 +1307,13 @@ while (i * 10 < total) {
           let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
           
           let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
-          allTokens.forEach((token) => { let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; btn.onclick = () => Controller.handleDtSpellClick(btn, token); kb.appendChild(btn); });
+                    allTokens.forEach((token) => { 
+              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
+              // 🚀 升维：触碰即发，在按钮缩放逃逸前捕获判定
+              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtSpellClick(btn, token); }; 
+              kb.appendChild(btn); 
+          });
+
       } else if (Model.state.dtSubMode === 'choice') {
           this.getEl('dt-spell-area').classList.add('hidden'); this.getEl('dt-choice-area').classList.remove('hidden');
           let targetMeaning = wObj.meaning;
@@ -1317,7 +1323,12 @@ while (i * 10 < total) {
           let choices = [{text: targetMeaning, correct: true}];
           pool.forEach(x => choices.push({text: x.meaning, correct: false})); choices.sort(() => Math.random() - 0.5); 
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => { let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; btn.onclick = () => Controller.handleDtChoiceClick(btn, c.correct); cb.appendChild(btn); });
+          choices.forEach(c => { 
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; 
+              // 🚀 升维：零延迟响应，封杀 300ms 点击犹豫期
+              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtChoiceClick(btn, c.correct); }; 
+              cb.appendChild(btn); 
+          });
       }
   },
   
@@ -1397,7 +1408,8 @@ while (i * 10 < total) {
           let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
           allTokens.forEach((token) => { 
               let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
-              btn.onclick = () => Controller.handleMtSpellClick(btn, token, wObj, displayMode); 
+              // 🚀 升维：判定前置，无视物理动效位移
+              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtSpellClick(btn, token, wObj, displayMode); }; 
               kb.appendChild(btn); 
           });
       } else if (currentTestType.startsWith('choice')) {
@@ -1411,7 +1423,8 @@ while (i * 10 < total) {
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
           choices.forEach(c => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; btn.innerText = c.text; 
-              btn.onclick = () => Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); 
+              // 🚀 升维：音效与逻辑同步强耦合，触碰瞬间定胜负
+              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); }; 
               cb.appendChild(btn); 
           });
       }
@@ -2163,7 +2176,16 @@ window.addEventListener('keydown', (e) => {
           Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
           View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge(); setTimeout(() => this.dtAdvanceNext(), 300); }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); }
+      } else { 
+          // 🚀 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
+          Hardware.playSound('error'); Hardware.vibrate(50); 
+          btn.classList.remove('shake-anim', 'wrong'); 
+          requestAnimationFrame(() => {
+              void btn.offsetWidth; 
+              btn.classList.add('shake-anim', 'wrong'); 
+          });
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); 
+      }
   },
 
   handleDtChoiceClick(btn, isCorrect) {
@@ -2186,7 +2208,16 @@ window.addEventListener('keydown', (e) => {
     }, 150); 
 });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); }
+      } else { 
+          // 🚀 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
+          Hardware.playSound('error'); Hardware.vibrate(50); 
+          btn.classList.remove('shake-anim', 'wrong'); 
+          requestAnimationFrame(() => {
+              void btn.offsetWidth; 
+              btn.classList.add('shake-anim', 'wrong'); 
+          });
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); 
+      }
   },
 
   handleMtSpellClick(btn, token, wObj, displayMode) {

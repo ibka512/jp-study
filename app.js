@@ -705,12 +705,13 @@ const View = {
       if (filtered.length === 0) {
           html = `<div style="text-align:center; padding: 40px 20px; opacity: 0.5;">暂无挑战记录</div>`;
       } else {
-          displayList.forEach((r, idx) => {
-              let rankHTML = '';
-              if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 1;">filter_vintage</span>`;
-              else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">filter_vintage</span>`;
-              else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 1;">filter_vintage</span>`;
-              else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
+              displayList.forEach((r, idx) => {
+                  let rankHTML = '';
+                  if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(212,175,55,0.3));">trip_origin</span>`;
+                  else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(192,192,192,0.3));">trip_origin</span>`;
+                  else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(205,127,50,0.3));">trip_origin</span>`;
+                  else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
+
 
               html += `
               <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 12px; border-bottom: 1px solid var(--outline);">

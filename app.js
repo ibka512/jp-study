@@ -1,6 +1,5 @@
 /**
  * 钟摆日语 - 核心控制逻辑
- * 修复版 (PWA 离线优化 + iOS TTS 唤醒强化 + 全局马达振动覆盖)
  */
 
 const escapeHTML = (str) => {
@@ -82,9 +81,24 @@ const Nav = {
             el.addEventListener('blur', () => { if(nav) nav.style.transform = 'translateY(0)'; });
         });
     },
-    switchTab(targetId, titleData, navItemEl) {
+        switchTab(targetId, titleData, navItemEl) {
+        // 🚀 核心美学优化：Native 级上下文隔离。切换 Tab 时强制卸载局部的管理/多选状态，消除幽灵浮岛
+        if (Model.state.batchMode || Model.state.manageMode) {
+            Model.state.batchMode = false;
+            Model.state.manageMode = false;
+            Model.state.selectedSet.clear();
+            
+            // 收起底部浮岛，复原按钮高亮色
+            View.updateWordbankUI(); 
+            // 剥离当前屏幕上残留的卡片编辑遮罩
+            document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.remove('active'));
+            // 注入脏标记：确保下次切回词库时，渲染引擎重新铺设干净的网格
+            Model.state.renderedStartIndex = -1; 
+        }
+
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         if(navItemEl) navItemEl.classList.add('active');
+
 
         document.querySelectorAll('.tab-content').forEach(el => {
             el.classList.add('hidden');
@@ -457,7 +471,7 @@ fallbackLocalTTS(text, isSentence = false, onComplete = null) {
     }, 50);
 },
 
-      // --- 核心发音控制器 (带樱花微交互版) ---
+      // --- 核心发音控制器 ---
 async speakText(text, btnEl = null) {
   try {
       if (typeof text !== 'string' || text.trim() === '') return;
@@ -469,16 +483,16 @@ async speakText(text, btnEl = null) {
           this._currentAudio = null;
       }
             
-                        // 🌸 接管按钮：将其变成樱花加载状态
+                        //  接管按钮：将其变成花朵加载状态
             let iconEl = null; let originalIcon = '';
             if (btnEl) {
                 btnEl.classList.add('speaker-loading');
-                // 🚀 智能感知：若元素自身即为图标，则直接接管；若是容器，则向下寻幽探微
+                //  智能感知：若元素自身即为图标，则直接接管；若是容器，则向下寻幽探微
                 iconEl = btnEl.classList.contains('material-symbols-rounded') ? btnEl : btnEl.querySelector('.material-symbols-rounded');
                 if (iconEl) { originalIcon = iconEl.innerText; iconEl.innerText = 'spa'; }
             }
 
-            // 🌸 恢复按钮状态的辅助闭包
+            //  恢复按钮状态的辅助闭包
             const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
 
             let isSentence = text.length > 12 || /[。？！，、]/.test(text);
@@ -486,7 +500,7 @@ async speakText(text, btnEl = null) {
 
             // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
  if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-    // 将恢复按钮的闭包传给底层，等真的读完了再把樱花变回喇叭
+    // 将恢复按钮的闭包传给底层，等真的读完了再把花朵变回喇叭
     this.fallbackLocalTTS(text, isSentence, revertBtn);
     return;
 }
@@ -530,7 +544,7 @@ if (engine === 'azure') {
     }
 
     const audio = new Audio(URL.createObjectURL(blob));
-    // 🐌 智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
+    //  智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
     audio.playbackRate = isSentence ? 0.75 : 0.85;
     audio.oncanplaythrough = revertBtn; 
     audio.onerror = () => { this.fallbackLocalTTS(text, isSentence); revertBtn(); };
@@ -539,7 +553,7 @@ if (engine === 'azure') {
 }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
-            // 发生错误时也要记得把樱花变回小喇叭
+            // 发生错误时也要记得把花朵变回小喇叭
             if (btnEl) { btnEl.classList.remove('speaker-loading'); let i = btnEl.querySelector('.material-symbols-rounded'); if(i) i.innerText = 'volume_up'; }
             this.fallbackLocalTTS(text, isSentence);
         }
@@ -783,10 +797,10 @@ const View = {
               return Model.checkFilter(item.w, catVal);
           });
 
-          // 🚀 智能识别胜利状态的禅意缺省页
+          // 🚀 智能识别胜利状态的缺省页
           if (words.length === 0) {
               let emptyText = "当前空空如也";
-              let iconStr = "spa"; // 基础禅意莲花
+              let iconStr = "spa"; // 基础莲花
               let jpTitle = "【 空 無 】";
               
               if(catVal === 'virtual_starred') { emptyText = "暂无收藏，去发现心动词汇吧"; }
@@ -794,7 +808,7 @@ const View = {
               if(catVal === 'virtual_uncleared' || catVal.includes('virtual_miss_')) { 
                   // 攻坚完成的胜利状态！
                   emptyText = "此维度盲区已彻底扫清！"; 
-                  iconStr = "radio_button_unchecked"; // 禅宗圆相 ⭕️，代表绝对的圆满
+                  iconStr = "radio_button_unchecked"; //  ⭕️，代表完整
                   jpTitle = "【 円 相 】";
               }
               
@@ -822,7 +836,7 @@ while (i * 10 < total) {
               let clears = Model.mtGroupClears[groupVal] || 0;
               let badgeHTML = '';
               
-              // 🚀 修复：如果当前是「未通关」分类，强制不显示段位勋章
+              // 修复：如果当前是「未通关」分类，强制不显示段位勋章
               if (catVal !== 'virtual_uncleared' && (clears > 0 || catVal === 'virtual_cleared')) {
                   let badgeClass = 'hanko-bronze'; 
                   if (clears >= 10 || catVal === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
@@ -906,7 +920,7 @@ while (i * 10 < total) {
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
-    // 🚀 核心计算：三维技能树进度
+    // 核心计算：三维进度
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
     Object.values(Model.mtWordClears).forEach(st => {
@@ -972,7 +986,7 @@ while (i * 10 < total) {
 
       testSel.innerHTML = '';
       
-      // 🚀 核心增加：在这里补齐“已了解”的复习巩固选项
+      // 核心增加：在这里补齐“已了解”的复习巩固选项
       let options = [
           { text: '默认词库', val: '默认词库' },
           { text: '收藏词汇', val: 'virtual_starred' },
@@ -1146,7 +1160,7 @@ while (i * 10 < total) {
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
-    // 🚀 核心优化 1：主卡片动态字号排版
+    // 核心优化 1：主卡片动态字号排版
     let finalWord = (!showWord && !isMemTest) ? mask(w.word) : w.word;
     let wWordEl = this.getEl('w-word');
     wWordEl.innerText = finalWord;
@@ -1243,7 +1257,7 @@ while (i * 10 < total) {
         return;
     }
 
-    // 🚀 获取用户设置的渲染引擎模式 (默认使用 Ruby)
+    // 获取用户设置的渲染引擎模式 (默认使用 Ruby)
     let useRuby = localStorage.getItem('useRubyRender') !== 'false';
     
     let processedStr = exString;
@@ -1262,7 +1276,7 @@ while (i * 10 < total) {
         
         let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
         
-        // 🚀 条件渲染：只有在开启 Ruby 模式时，才进行正则转换
+        // 条件渲染：只有在开启 Ruby 模式时，才进行正则转换
         if (useRuby) {
             safeJpPart = safeJpPart.replace(/\$\\overset\{([^\}]+)\}\{([^\}]+)\}\$/g, '<ruby>$2<rt>$1</rt></ruby>');
         }
@@ -1284,7 +1298,7 @@ while (i * 10 < total) {
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
-    // 🚀 条件调用：只有在 MathJax 模式下（且 API 存在时），才调用沉重的渲染库
+    // 条件调用：只有在 MathJax 模式下（且 API 存在时），才调用沉重的渲染库
     if (!useRuby && window.MathJax && window.MathJax.typesetPromise) { 
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
             .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
@@ -1309,7 +1323,7 @@ while (i * 10 < total) {
           let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
                     allTokens.forEach((token) => { 
               let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
-              // 🚀 升维：触碰即发，在按钮缩放逃逸前捕获判定
+              // 升维：触碰即发，在按钮缩放逃逸前捕获判定
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtSpellClick(btn, token); }; 
               kb.appendChild(btn); 
           });
@@ -1325,7 +1339,7 @@ while (i * 10 < total) {
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
           choices.forEach(c => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; 
-              // 🚀 升维：零延迟响应，封杀 300ms 点击犹豫期
+              // 升维：零延迟响应，封杀 300ms 点击犹豫期
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtChoiceClick(btn, c.correct); }; 
               cb.appendChild(btn); 
           });
@@ -1408,7 +1422,7 @@ while (i * 10 < total) {
           let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
           allTokens.forEach((token) => { 
               let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
-              // 🚀 升维：判定前置，无视物理动效位移
+              // 升维：判定前置，无视物理动效位移
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtSpellClick(btn, token, wObj, displayMode); }; 
               kb.appendChild(btn); 
           });
@@ -1423,7 +1437,7 @@ while (i * 10 < total) {
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
           choices.forEach(c => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; btn.innerText = c.text; 
-              // 🚀 升维：音效与逻辑同步强耦合，触碰瞬间定胜负
+              // 升维：音效与逻辑同步强耦合，触碰瞬间定胜负
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); }; 
               cb.appendChild(btn); 
           });
@@ -1435,7 +1449,7 @@ while (i * 10 < total) {
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
-      // 🚀 修复：移除了导致死循环的重复检查（触发点已单独处理）
+      // 修复：移除了导致死循环的重复检查（触发点已单独处理）
       
       Model.updateFilteredDb(searchQuery, currentFilter);
       window.scrollTo({ top: 0, behavior: 'instant' }); 
@@ -1455,7 +1469,7 @@ while (i * 10 < total) {
     
     const filteredData = Model.state.filteredDb;
 
-    // 🚀 折纸鹤 (Origami) 禅意缺省页
+    // 折纸鹤 (Origami) 缺省页
     if (filteredData.length === 0) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 100px 20px;">
             <span class="material-symbols-rounded" style="font-size: 5rem; margin-bottom: 24px; color: #8F9779; opacity: 0.4;">spa</span>
@@ -1600,7 +1614,7 @@ const Controller = {
     let skipCheck = View.getEl('setting-skip-mastered');
     if(skipCheck) skipCheck.checked = skipMastered;
 
-    // 🚀 新增：初始化 Ruby 渲染设置（默认开启，因为排版更好）
+    // 新增：初始化 Ruby 渲染设置（默认开启，因为排版更好）
     let useRuby = localStorage.getItem('useRubyRender');
     if (useRuby === null) useRuby = 'true'; 
     let rubyCheck = View.getEl('setting-ruby-render');
@@ -1609,7 +1623,7 @@ const Controller = {
     let ttsSelect = View.getEl('setting-tts-engine');
     if(ttsSelect) {
         ttsSelect.value = savedTTS;
-        // 🚀 关键修复：主动派发事件，通知外层的 UI 面板同步刷新文字！
+        // 关键修复：主动派发事件，通知外层的 UI 面板同步刷新文字！
         ttsSelect.dispatchEvent(new Event('facade-update')); 
     }
 
@@ -1811,7 +1825,7 @@ setupVirtualScroll() {
         });
     }
 
-    // 🚀 新增：绑定 Ruby 排版切换事件
+    // 新增：绑定 Ruby 排版切换事件
     let rubyCheck = View.getEl('setting-ruby-render');
     if (rubyCheck) {
         rubyCheck.addEventListener('change', (e) => {
@@ -1826,7 +1840,7 @@ setupVirtualScroll() {
             }
         });
     }
-    // 🚀 新增：发音引擎切换事件
+    // 新增：发音引擎切换事件
     let ttsSelectTrigger = View.getEl('setting-tts-engine');
 if (ttsSelectTrigger) {
     ttsSelectTrigger.addEventListener('change', (e) => {
@@ -1837,7 +1851,7 @@ if (ttsSelectTrigger) {
     });
 }
 
-// 🚀 新增：测试震动按钮
+// 新增：测试震动按钮
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
@@ -1860,7 +1874,7 @@ if (testVibrateBtn) {
             if (Model.state.batchMode) Controller.toggleBatchMode(); 
             View.resetWordbankRenderer(); 
         }); 
-        // 🚀 监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
+        // 监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 searchInput.blur();
@@ -1868,7 +1882,7 @@ if (testVibrateBtn) {
         });
     }
 
-    // 🚀 流体交互：赋予底板感知力。触碰词库网格即刻收起软键盘，无缝唤回底栏
+    // 流体交互：赋予底板感知力。触碰词库网格即刻收起软键盘，无缝唤回底栏
     let wbGridContainer = View.getEl('wb-grid-container');
     if (wbGridContainer) {
         wbGridContainer.addEventListener('pointerdown', () => {
@@ -1945,7 +1959,12 @@ window.addEventListener('keydown', (e) => {
             lpBtn.classList.add('pressing'); Hardware.playChargeSound(); vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
             punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
         });
-        lpBtn.addEventListener('pointerup', clearPunch); lpBtn.addEventListener('pointercancel', clearPunch); lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); clearPunch(); });
+                // 🚀 交互重构：增加 pointerleave 防逸出；致命 Bug 修复：拦截 contextmenu 时绝不执行 clearPunch，保护蓄力进程
+        lpBtn.addEventListener('pointerup', clearPunch); 
+        lpBtn.addEventListener('pointercancel', clearPunch); 
+        lpBtn.addEventListener('pointerleave', clearPunch); 
+        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); }); 
+
     }
 
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { 
@@ -2145,7 +2164,7 @@ window.addEventListener('keydown', (e) => {
           else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = true;
           else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = true;
 
-          // 🚀 容错规则生效：红(假名)和白(释义)都过关，自动保送黄(汉字)
+          // 容错规则生效：红(假名)和白(释义)都过关，自动保送黄(汉字)
           if (Model.mtWordClears[wordKey].kana && Model.mtWordClears[wordKey].meaning) {
               Model.mtWordClears[wordKey].kanji = true;
           }
@@ -2177,7 +2196,7 @@ window.addEventListener('keydown', (e) => {
           View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
           if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge(); setTimeout(() => this.dtAdvanceNext(), 300); }
       } else { 
-          // 🚀 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
+          // 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); 
           requestAnimationFrame(() => {
@@ -2209,7 +2228,7 @@ window.addEventListener('keydown', (e) => {
 });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
       } else { 
-          // 🚀 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
+          // 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); 
           requestAnimationFrame(() => {
@@ -2277,13 +2296,33 @@ window.addEventListener('keydown', (e) => {
       } else { if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.state.studyQueue.push(failedIdx); Model.state.currentWordFailed = false; } Model.state.currentIndex++; Model.state.mtStep = 1; if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); }
   },
 
-  finishPendulum() {
+    finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     this.saveSessionRecord(); 
+
+    // 核心升维：让所有模式（突击/闯关/死记）完整结束后都能直接通关
+    let gk = Model.state.currentGroupKey;
+    Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
+    
+    // 智能提取当前练习过的所有独立单词（记忆检测模式由于队列会被清空，使用备用队列提取）
+    let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
+    uniqueIndices.forEach(idx => {
+        let wWord = Model.db[idx].word;
+        if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
+            Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
+        }
+        // 瞬间点亮黄(汉字)、红(读音)、白(释义)三维靶向杠
+        Model.mtWordClears[wWord].kanji = true;
+        Model.mtWordClears[wWord].kana = true;
+        Model.mtWordClears[wWord].meaning = true;
+    });
+    Model.saveClears();
+
     let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
     if(exist === -1) { Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords(); }
-    showToast("任务完成"); View.getEl('btn-exit-study').click();
+    showToast("任务完成！该组词汇已全部通关"); View.getEl('btn-exit-study').click();
   },
+
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
   createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
@@ -2378,7 +2417,7 @@ deleteWord(idx) {
   },
   
   openDetailModal(idx) { 
-      // 🚀 核心重构：彻底抛弃笨重的二次遍历，直接对接高度精准的“已过滤数据池”
+      // 核心重构：抛弃笨重的二次遍历，直接对接高度精准的“已过滤数据池”
       // 无论用户是做了分类筛选，还是文字搜索，滑动轨道都将与之绝对统一
       Model.state.detailArray = Model.state.filteredDb.map(item => item.idx); 
       Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
@@ -2455,7 +2494,7 @@ deleteWord(idx) {
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
       View.getEl('dt-watermark').innerText = visuals.wm; 
       
-      // 🚀 核心优化 2：详情页动态字号排版
+      // 核心优化 2：详情页动态字号排版
       let dtWordEl = View.getEl('dt-word');
       dtWordEl.innerText = w.word; 
       let dtLen = Array.from(w.word || '').length;

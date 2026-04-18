@@ -386,36 +386,40 @@ button.btn-setting-action:active {
 
 /* 🚀 视觉优化：震动测试按钮专属物理强化 (Haptic Button Prominence) */
 button#btn-test-vibrate {
-    height: 74px !important; /* 🚀 突破常规，拔高至重型机械开关的物理体量 */
-    min-width: 140px !important; 
-    background: #d6b29a !important; 
-    color: #4a3625 !important; 
-    font-size: 1.1rem !important; /* 字号等比放大，镇住更大的底盘 */
-    font-weight: 900 !important;
-    letter-spacing: 2px !important; /* 扩大字间距，注入高级留白呼吸感 */
-    border: 2px solid rgba(255, 255, 255, 0.4) !important; 
-    box-shadow: 0 8px 20px rgba(214, 178, 154, 0.4), 0 2px 6px rgba(214, 178, 154, 0.2) !important; 
+    height: 46px !important; /* 恢复正常体量，与同级列表控件高度严格平齐 */
+    min-width: 110px !important; 
+    background: rgba(139, 121, 103, 0.08) !important; /* 采用与主题融合的幽灵胶囊底色 */
+    color: var(--primary) !important; 
+    font-size: 0.95rem !important; 
+    font-weight: 800 !important;
+    letter-spacing: 1px !important;
+    border: 1px solid rgba(139, 121, 103, 0.1) !important; /* 纤细同色系轮廓勾勒实体感 */
+    border-radius: var(--radius-full) !important;
+    box-shadow: 0 2px 8px rgba(115, 102, 88, 0.04) !important; /* 极弱的基础微弥散光 */
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
 }
 
 button#btn-test-vibrate:active {
     transform: scale(0.92) !important;
-    background: #ceaa91 !important; /* 按下时加深色值 */
-    box-shadow: 0 2px 4px rgba(214, 178, 154, 0.3) !important; /* 阴影收束，模拟真实按压阻尼 */
+    background: rgba(139, 121, 103, 0.15) !important; 
+    box-shadow: inset 0 2px 6px rgba(115, 102, 88, 0.15) !important; /* 物理重构：引入内阴影(Deboss)模拟硬件按压的凹陷阻尼 */
+    border-color: transparent !important;
 }
 
 /* 🚀 视觉优化：震动测试按钮 - 夜间沉浸式适配 (Moonlit Wood Adaptation) */
 [data-theme="dark"] button#btn-test-vibrate {
-    background: #5c4d3e !important; /* 进化为低明度“古木黑茶色”，杜绝暗光环境下的视觉刺眼 */
-    color: #d6c3b0 !important; /* 采用暗色主调柔光文字，呈现高级的“月光反射”质感 */
-    border: 1px solid rgba(214, 195, 176, 0.1) !important; /* 极其纤细的丝绸边缘勾勒 */
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3) !important; /* 物理重心下沉，增强黑夜中的实体体量 */
+    background: rgba(214, 195, 176, 0.1) !important; 
+    color: var(--primary) !important; 
+    border: 1px solid rgba(214, 195, 176, 0.1) !important; 
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important; 
 }
 
 [data-theme="dark"] button#btn-test-vibrate:active {
-    background: #4a3e32 !important; /* 按下时产生如同深色木料被深压的物理回响 */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6) !important;
+    background: rgba(214, 195, 176, 0.18) !important; 
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4) !important;
     transform: scale(0.92) !important;
 }
+
 
 
 .setting-item .bs-facade-text {

@@ -956,8 +956,59 @@ button#btn-test-vibrate:active {
 
 [data-theme="dark"] .card-hanko { opacity: 0.95; }
 
-.batch-bar { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px; background: rgba(255,255,255,0.85); border-radius: var(--radius-full); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 100; border: 1px solid rgba(255,255,255,0.4); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);}
-[data-theme="dark"] .batch-bar { background: rgba(30,28,26,0.85); border-color: rgba(255,255,255,0.1); }
+/* 🚀 灵动岛浮层：全透视琉璃舱 (VisionOS Glassmorphism) */
+.batch-bar { 
+    position: fixed; 
+    bottom: calc(90px + env(safe-area-inset-bottom)); 
+    left: 50%; 
+    width: 90%; 
+    max-width: 420px; 
+    /* 极致毛玻璃透视：降低底色浓度，大幅提升折射率 */
+    background: rgba(246, 244, 239, 0.35) !important; 
+    backdrop-filter: blur(32px) saturate(1.2); 
+    -webkit-backdrop-filter: blur(32px) saturate(1.2);
+    border-radius: var(--radius-full); 
+    padding: 10px 14px 10px 24px; /* 排版纵深：右侧操作区紧凑，左侧数据区呼吸留白 */
+    display: flex; justify-content: space-between; align-items: center; 
+    z-index: 100; 
+    border: 1px solid rgba(139, 121, 103, 0.08) !important; 
+    box-shadow: 0 16px 40px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8) !important; /* 增加 1px 内切高光赋予厚度 */
+    /* 🚀 磁吸式物理入场引擎 */
+    animation: magnetic-island-entry 0.6s var(--spring-bouncy) forwards;
+}
+
+@keyframes magnetic-island-entry {
+    from { transform: translateX(-50%) translateY(80px) scale(0.9); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+
+[data-theme="dark"] .batch-bar { 
+    background: rgba(30, 28, 26, 0.3) !important; 
+    border-color: rgba(255, 255, 255, 0.05) !important; 
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 🚀 LED 级状态指示器排版 */
+.batch-count {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--on-surface);
+    opacity: 0.7;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+#batch-count-num {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--primary);
+    font-family: var(--font-jp-sans);
+    text-shadow: 0 2px 8px rgba(139, 121, 103, 0.3); /* 发光光晕 */
+}
+
+[data-theme="dark"] #batch-count-num { text-shadow: 0 2px 8px rgba(214, 195, 176, 0.2); }
+
 
 .wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: inherit;}
 .wb-manage-overlay.active { opacity: 1; pointer-events: auto;}
@@ -1128,7 +1179,40 @@ button#btn-test-vibrate:active {
 .loading-dots div:nth-child(2) { animation-delay: -0.16s; }
 @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 
-.edit-modal-content { text-align: left; }
+/* 🚀 移动列表条目：高热区触感设计 */
+.move-folder-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    background: rgba(139, 121, 103, 0.05);
+    border-radius: var(--radius-md);
+    transition: all 0.3s var(--spring-smooth);
+    cursor: pointer;
+}
+
+.move-folder-item:active {
+    background: rgba(139, 121, 103, 0.15);
+    transform: scale(0.97);
+}
+
+.move-folder-item .folder-icon {
+    color: var(--primary);
+    opacity: 0.7;
+    font-size: 1.4rem;
+}
+
+.move-folder-item .folder-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--on-surface);
+}
+
+[data-theme="dark"] .move-folder-item {
+    background: rgba(255, 255, 255, 0.05);
+}
+
 .edit-input-group { margin-bottom: var(--space-sm); }
 .edit-input-group label { display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: var(--primary); padding-left: 12px;}
 .edit-input-group input { margin-bottom: 0; padding: 14px 20px; border-radius: var(--radius-full); }
@@ -1182,7 +1266,37 @@ button#btn-test-vibrate:active {
 #wb-grid[data-cols="3"] .wb-btn-move, #wb-grid[data-cols="3"] .wb-btn-edit, #wb-grid[data-cols="3"] .wb-btn-del { width: 36px !important; height: 36px !important; }
 #wb-grid[data-cols="4"] .wb-btn-move, #wb-grid[data-cols="4"] .wb-btn-edit, #wb-grid[data-cols="4"] .wb-btn-del { width: 30px !important; height: 30px !important; }
 
-.batch-bar button { width: auto !important; padding: 10px 16px !important; border-radius: var(--radius-full) !important; box-shadow: 0 4px 12px var(--paper-shadow) !important;}
+/* 🚀 视觉减负：幽灵态操作组 (Ghost Buttons) */
+.batch-bar button { 
+    width: auto !important; 
+    padding: 10px 16px !important; 
+    border-radius: var(--radius-full) !important; 
+    /* 强制剥离 HTML 中残留的 inline 内联样式污染（背景色、廉价投影、生硬边框） */
+    box-shadow: none !important; 
+    border: none !important;
+    background: transparent !important; 
+    font-weight: 800 !important;
+    font-size: 0.95rem !important;
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+/* 独立情绪色彩赋予，仅依靠文字/图标传达功能 */
+#btn-batch-move { color: var(--primary) !important; }
+#btn-batch-del { color: var(--accent-red) !important; }
+#btn-batch-cancel { 
+    color: var(--on-surface) !important; 
+    opacity: 0.5 !important; 
+    padding: 10px 12px !important; 
+    font-weight: 600 !important; 
+}
+
+/* 按压瞬间的物理坍缩与微量阻尼底色 */
+.batch-bar button:active { transform: scale(0.92) !important; }
+#btn-batch-move:active { background: rgba(139, 121, 103, 0.15) !important; }
+#btn-batch-del:active { background: rgba(186, 107, 104, 0.15) !important; }
+#btn-batch-cancel:active { opacity: 1 !important; background: rgba(0, 0, 0, 0.05) !important; }
+
+[data-theme="dark"] #btn-batch-cancel:active { background: rgba(255, 255, 255, 0.08) !important; }
 
 .theme-switching * { transition: none !important; }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; display: block; will-change: transform, opacity, filter, clip-path; }

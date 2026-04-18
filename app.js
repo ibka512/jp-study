@@ -1122,7 +1122,7 @@ while (i * 10 < total) {
              el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
         });
 
-        let blindAudioUi = this.getEl('mt-blind-audio-ui');
+                let blindAudioUi = this.getEl('mt-blind-audio-ui');
         if (st === 'C') {
             blindAudioUi.classList.add('hidden');
             this.getEl('w-word').style.display = 'block';
@@ -1133,9 +1133,11 @@ while (i * 10 < total) {
             }
         }
 
-        this.getEl('btn-speaker').style.display = showA || st === 'C' ? 'block' : 'none';
+        // 🚀 视觉净化：声学焦点重聚 (Acoustic Focus) - 隐去角落冗余的微型喇叭，将 100% 的视觉重心交还给中央的巨大播放器
+        this.getEl('btn-speaker').style.display = (st === 'C' || (showA && displayMode !== 'audio')) ? 'block' : 'none';
         
         if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
+
              Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
         }
 
@@ -2052,7 +2054,7 @@ window.addEventListener('keydown', (e) => {
     View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
     View.getEl('btn-batch-move').addEventListener('click', () => { Hardware.vibrate(15); this.openMoveModal(-2); }); 
     View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
-    View.getEl('btn-confirm-move').addEventListener('click', () => this.confirmMove()); 
+    // 原确认按钮逻辑已由 executeMove 接管，此处保持精简
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
@@ -2355,7 +2357,48 @@ window.addEventListener('keydown', (e) => {
           showToast("已删除"); 
       }); 
   },
-  openMoveModal(idx) { if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); Model.state.moveTargetIdx = idx; let destSelect = View.getEl('move-dest-select'); destSelect.innerHTML = ''; Model.folders.forEach(f => { destSelect.add(new Option(f, f)); }); destSelect.dispatchEvent(new Event('facade-update')); window.toggleModal('move-overlay', true); },
+    openMoveModal(idx) { 
+      if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); 
+      Model.state.moveTargetIdx = idx; 
+      
+      // 🚀 动态构建触感列表，取代死板的 select
+      const container = View.getEl('move-folder-list');
+      container.innerHTML = '';
+      
+      Model.folders.forEach(folderName => {
+          const item = document.createElement('div');
+          item.className = 'move-folder-item';
+          item.innerHTML = `
+              <span class="material-symbols-rounded folder-icon">folder</span>
+              <span class="folder-name">${folderName}</span>
+          `;
+          
+          // 🚀 一键式逻辑：选中即移动，消灭确认按钮
+          item.onclick = () => {
+              Hardware.playSound('success');
+              Hardware.vibrate(40);
+              this.executeMove(folderName);
+          };
+          container.appendChild(item);
+      });
+      
+      window.toggleModal('move-overlay', true); 
+  },
+
+  // 🚀 核心逻辑解耦：执行移动并收尾
+  executeMove(destFolder) {
+      if (Model.state.moveTargetIdx === -2) { 
+          Model.state.selectedSet.forEach(idx => Model.db[idx].folder = destFolder); 
+          this.toggleBatchMode(); 
+      } else { 
+          Model.db[Model.state.moveTargetIdx].folder = destFolder; 
+      }
+      Model.saveDB(); 
+      window.toggleModal('move-overlay', false); 
+      View.resetWordbankRenderer(); 
+      showToast(`已移至 ${destFolder}`);
+  },
+
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
 batchDelete() { 
     Hardware.playSound('click'); Hardware.vibrate(30); 

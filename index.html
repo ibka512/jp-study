@@ -526,16 +526,18 @@
     </div>
 </div>
 
-<div id="move-overlay" class="modal-overlay">
-  <div class="move-modal-content">
-    <h3 style="border: none; padding: 0; margin-bottom: 20px; justify-content:center;"><span class="material-symbols-rounded">move_item</span> 移动至文件夹</h3>
-    <select id="move-dest-select" style="display:none;"></select>
-    <div class="flex-row" style="margin-bottom: 0;">
-      <button id="btn-confirm-move" style="flex: 1;">确认移动</button>
-      <button id="btn-cancel-move" class="btn-outline" style="flex: 1;">取消</button>
+<div id="move-overlay" class="modal-overlay" style="align-items: flex-end;">
+  <div class="bottom-sheet">
+    <div class="bs-handle"></div>
+    <div class="bs-scrollable-content">
+      <h3 style="border: none; margin-bottom: 24px; justify-content:center; color: var(--on-surface);">移动至文件夹</h3>
+      <div id="move-folder-list" class="bs-options"></div>
+      
+      <button id="btn-cancel-move" class="btn-outline" style="margin-top: 16px; border:none !important; opacity:0.5; box-shadow:none !important;">取消</button>
     </div>
   </div>
 </div>
+
 
 <div id="detail-overlay" class="modal-overlay">
   <div class="detail-card-container" id="detail-card-container">

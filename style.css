@@ -1,88 +1,85 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 :root {
-  /* ================= 🎨 核心色彩 (白天模式) ================= */
+  /* ================= 🎨 核心色彩 (暖阳纸张 - Day Mode) ================= */
   --primary: #8b7967; 
-  /* 数字方块底色 */
   --primary-container: #ede7de; 
   --on-primary: #ffffff;
 
-  /* 网页最底层的底色（燕麦色/浅卡其） */
   --surface: #eae4db; 
-  /* 全局卡片底色（羊皮纸/象牙白） */
   --surface-container: #f6f4ef; 
-  /* 文字颜色偏向深咖啡色，模拟真实的墨迹 */
   --on-surface: #38322c;
 
-  /* 修复：移除了多余的 'x' 字符 */
   --outline: #d6cec3; 
   --tertiary: #6b847b;        
 
   --accent-red: #ba6b68; 
-  /* 让出错时的红色背景与暖色纸张更融合 */
   --accent-red-bg: #f5eaea; 
-  /* 让成功时的绿色背景更柔和 */
   --accent-green-bg: #e8f0ea;
 
-  /* =================  词性胶囊专属背景色 (白天模式)  ================= */
-  --bg-verb: #d6e8f0;       
-  --bg-noun: #f2e2d5;       
-  --bg-adj: #f2dadf;        
-  --bg-adj-na: #f2ebd5;     
-  --bg-adv: #d5eedc;        
-  --bg-pronoun: #d5ecec;    
-  --bg-other: #e3e4e3;      
+  /* =================  词性胶囊 (Day Mode)  ================= */
+  --bg-verb: #d6e8f0; --bg-noun: #f2e2d5; --bg-adj: #f2dadf; --bg-adj-na: #f2ebd5; --bg-adv: #d5eedc; --bg-pronoun: #d5ecec; --bg-other: #e3e4e3;      
 
-  /* UI 悬浮控件的厚度变量 */
-  --paper-highlight: rgba(255, 255, 255, 0.9);
-  --paper-shadow: rgba(115, 102, 88, 0.12);
+  /* 🚀 物理材质引擎 (Day Mode) */
+  /* 六层缓动弥散阴影，消除线性感 */
+  --paper-shadow: 
+    0 2px 4px rgba(115, 102, 88, 0.02),
+    0 4px 8px rgba(115, 102, 88, 0.02),
+    0 8px 16px rgba(115, 102, 88, 0.04),
+    0 16px 32px rgba(115, 102, 88, 0.04),
+    0 32px 64px rgba(115, 102, 88, 0.04);
+  
+  /* 边缘高光：赋予卡片 1px 的厚度感 */
+  --inner-sheen: inset 0 1px 1px rgba(255, 255, 255, 0.8);
   --ink-emboss: rgba(255, 255, 255, 0.7);
   --ink-deboss: rgba(0, 0, 0, 0.08);
 
-  /* 空间与圆角 */
   --space-xs: 8px; --space-sm: 16px; --space-md: 24px; --space-lg: 32px;
-  --radius-sm: 12px; --radius-md: 16px; --radius-lg: 24px; --radius-full: 999px; 
+  --radius-sm: 14px; --radius-md: 20px; --radius-lg: 28px; --radius-full: 999px; 
   
-  /* 基础排版 */
   --font-ui: system-ui, -apple-system, "PingFang SC", sans-serif;
   --font-jp-serif: 'Noto Serif JP', serif; --font-jp-sans: 'Noto Sans JP', sans-serif;
   
-  /* 非线性动画引擎 */
-  --spring-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1); /* 果冻回弹：带有明显的物理惯性，适合卡片滑入 */
-  --spring-snappy: cubic-bezier(0.22, 1, 0.36, 1);    /* 极速阻尼：起步极快、刹车极稳，适合疯狂连点 */
-  --spring-smooth: cubic-bezier(0.4, 0, 0.2, 1);      /* 丝滑过渡：适合颜色、透明度的渐变 */
-  
-  /* 兼容旧代码兜底 */
+  --spring-bouncy: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --spring: var(--spring-snappy);
 }
 
 [data-theme="dark"] {
-  /* =================  核心色彩 (夜间模式) ================= */
+  /* =================  核心色彩 (极夜墨迹 - Dark Mode) ================= */
   --primary: #d6c3b0; 
-  --primary-container: #503f2f; 
-  --on-primary: #3b2e21;      
+  --primary-container: #3d352e; 
+  --on-primary: #1a1816;      
 
-  --surface: #1a1816; 
-  --surface-container: #24211e; 
+  /* 采用深褐黑，增加视觉深度而非死黑 */
+  --surface: #141210; 
+  --surface-container: #1c1a18; 
   --on-surface: #e8e2d9;      
 
-  --outline: #79726a; 
+  --outline: #4a443f; 
   --tertiary: #a4c7b6;        
 
   --accent-red: #ffb4a9; 
-  --accent-red-bg: #690005; 
-  --accent-green-bg: #1c3829; 
+  --accent-red-bg: #3d1416; 
+  --accent-green-bg: #142b1f; 
 
-  /* =================  词性胶囊专属背景色 (夜间模式) ================= */
-  --bg-verb: #113B4D; --bg-noun: #4D280B; --bg-adj: #47152A;        
-  --bg-adj-na: #4A401A; --bg-adv: #163E23; --bg-pronoun: #14404A; --bg-other: #292B2B;      
-
-  /* 夜间的 UI 阴影与高光透明度 */
-  --paper-highlight: rgba(255, 255, 255, 0.06);
-  --paper-shadow: rgba(0, 0, 0, 0.6);
+  /* 🚀 物理材质引擎 (Dark Mode) */
+  --paper-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 12px 24px rgba(0, 0, 0, 0.4),
+    0 24px 48px rgba(0, 0, 0, 0.5);
+  
+  /* 暗色模式下的微弱切光，模拟月光下的书脊效果 */
+  --inner-sheen: inset 0 1px 1px rgba(255, 255, 255, 0.04);
   --ink-emboss: rgba(255, 255, 255, 0.03);
-  --ink-deboss: rgba(0, 0, 0, 0.8);
+  --ink-deboss: rgba(0, 0, 0, 0.6);
+
+  /* =================  词性胶囊 (Dark Mode) ================= */
+  --bg-verb: #1a3a4a; --bg-noun: #4a2a1a; --bg-adj: #4a1a2a;        
+  --bg-adj-na: #433d1a; --bg-adv: #1a3d2a; --bg-pronoun: #1a3d3d; --bg-other: #2a2a2a;      
 }
+
 
 body.modal-open { overflow: hidden; }
 
@@ -141,14 +138,20 @@ body.modal-open .app-container {
      ========================================== */
   .global-header {
     position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-    background: rgba(251, 250, 245, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    /* 🚀 VisionOS 级琉璃层：引入 saturate 增强通透感 */
+    background: rgba(251, 250, 245, 0.75); 
+    backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
     display: flex; justify-content: space-between; align-items: center;
-    padding: calc(16px + env(safe-area-inset-top)) var(--space-sm) 16px;
-    border-bottom: 1px solid rgba(139, 121, 103, 0.1);
-    /* 🚀 景深联动：增加 transform 监控 */
-    transition: transform 0.5s var(--spring-snappy), filter 0.5s var(--spring-smooth), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease, background-color 0.3s ease;
+    padding: calc(14px + env(safe-area-inset-top)) var(--space-sm) 14px;
+    border-bottom: 0.5px solid rgba(139, 121, 103, 0.1);
+    transition: transform 0.5s var(--spring-snappy), filter 0.5s var(--spring-smooth), box-shadow 0.3s var(--spring-smooth);
     transform-origin: center top;
   }
+
+[data-theme="dark"] .global-header { 
+    background: rgba(20, 18, 16, 0.75); 
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
 
   /* 景深同步：顶栏随背景层级缩小 */
   body.modal-open .global-header {
@@ -285,9 +288,11 @@ body.modal-open .bottom-nav {
     border-radius: var(--radius-lg); 
     padding: var(--space-md); 
     margin-bottom: var(--space-md); 
-    /* 极微弱的同色轮廓线，保持哑光质感 */
-    box-shadow: 0 8px 24px rgba(115, 102, 88, 0.05), 0 2px 6px rgba(115, 102, 88, 0.03);
-    border: 1px solid rgba(139, 121, 103, 0.04);
+    /* 🚀 材质升维：结合多层弥散阴影与 1px 切光 */
+    box-shadow: var(--inner-sheen), var(--paper-shadow);
+    border: 1px solid rgba(139, 121, 103, 0.06);
+    /* 硬件加速：确保缩放时的抗锯齿表现 */
+    transform: translateZ(0);
 }
 
 
@@ -321,13 +326,25 @@ h3 { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-top:
 
 button:not(.glass-icon-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn {
     background: var(--primary); color: var(--on-primary); font-family: var(--font-ui); 
-    border-radius: var(--radius-sm); font-weight: 700; font-size: 1.05rem; cursor: pointer; 
+    border-radius: var(--radius-md); font-weight: 800; font-size: 1.05rem; cursor: pointer; 
     display: flex; align-items: center; justify-content: center; gap: var(--space-xs);
     padding: var(--space-sm) var(--space-md); width: 100%;
-    /* 使用沉稳的实体弥散光影 */
-    box-shadow: 0 4px 12px rgba(115, 102, 88, 0.08), 0 1px 3px rgba(115, 102, 88, 0.04);
-    border: 1px solid rgba(139, 121, 103, 0.05); /* 仅作微弱物理边缘界定 */
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, filter 0.25s;
+    /* 🚀 物理反馈引擎：增加内部切光赋予“机械按键”厚度 */
+    box-shadow: 
+      inset 0 1px 0 rgba(255,255,255,0.2), 
+      0 6px 16px rgba(0,0,0,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: transform 0.4s var(--spring-bouncy), box-shadow 0.4s var(--spring-bouncy), background 0.3s;
+}
+
+button:not(.glass-icon-btn):active, .btn-action:active, .dt-choice-btn:active {
+    transform: scale(0.94);
+    /* 🚀 坍缩动效：按压时高光消失，投影内缩，模拟物理深度变化 */
+    box-shadow: 
+      inset 0 2px 4px rgba(0,0,0,0.15),
+      0 2px 4px rgba(0,0,0,0.05);
+    background: var(--primary);
+    filter: brightness(0.92);
 }
 button:not(.glass-icon-btn):active, .btn-action:active:not(:disabled), .bs-facade:active, .vs-btn:active, .dt-spell-key:active, .dt-choice-btn:active {
     transform: scale(0.96); 
@@ -631,17 +648,25 @@ button#btn-test-vibrate:active {
 .flash-card { 
     text-align: center; padding: 64px 20px 48px 20px; margin: var(--space-sm) 0 var(--space-lg) 0; position: relative; z-index: 5; 
     background: var(--surface-container); border-radius: var(--radius-lg);
-    /* 🚀 物理材质升级：注入顶部边缘高光 (Inner Sheen) 与多层深度阴影 */
+    /* 🚀 物理材质升级：去除内阴影（转移至子层防止被底色遮挡），采用纯粹的多层弥散阴影 */
     box-shadow: 
       0 24px 48px rgba(115, 102, 88, 0.08), 
-      0 8px 16px rgba(115, 102, 88, 0.04),
-      inset 0 1px 1px rgba(255, 255, 255, 0.7); /* 精细边缘切光 */
+      0 8px 16px rgba(115, 102, 88, 0.04);
     border: 1px solid rgba(139, 121, 103, 0.06);
     transition: transform 0.6s var(--spring-bouncy), opacity 0.3s var(--spring-smooth);
     will-change: transform, opacity;
     /* 🚀 移除 overflow: hidden; 允许 Combo Badge 突破卡片结界自由悬浮 */
     perspective: 1000px; /* 开启 3D 透视视距 */
 }
+
+/* 🚀 极夜墨迹：深色模式下的主卡片投影与边框自适应 */
+[data-theme="dark"] .flash-card {
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow: 
+      0 24px 48px rgba(0, 0, 0, 0.6), 
+      0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
 
 
 /* 🚀 丝绸扫光折射层：物理扫光动画 */
@@ -695,6 +720,15 @@ button#btn-test-vibrate:active {
 .flash-card::before, .flash-card::after { content: ''; position: absolute; top: 0; border-radius: var(--radius-lg); background: var(--surface-container); border: 1px solid rgba(139, 121, 103, 0.04); transition: all 0.5s var(--spring); }
 .flash-card::before { bottom: -10px; left: 12px; right: 12px; opacity: 0.8; z-index: -1; box-shadow: 0 12px 24px rgba(115, 102, 88, 0.06); }
 .flash-card::after { bottom: -20px; left: 24px; right: 24px; opacity: 0.4; z-index: -2; box-shadow: 0 6px 12px rgba(115, 102, 88, 0.04); }
+
+/* 🚀 极夜墨迹：深色模式下堆叠卡片的阴影与边框重塑，消除违和的棕色系边框 */
+[data-theme="dark"] .flash-card::before, 
+[data-theme="dark"] .flash-card::after {
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    background: var(--surface-container);
+}
+[data-theme="dark"] .flash-card::before { box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4); opacity: 0.6; }
+[data-theme="dark"] .flash-card::after { box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); opacity: 0.3; }
 
 .combo-badge {
     position: absolute; top: -16px; left: 50%; transform: translateX(-50%) scale(0.9);
@@ -752,10 +786,16 @@ button#btn-test-vibrate:active {
 
 .watermark-layer { 
     position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; transition: background 0.4s ease; 
-    /*   视觉：让底部高级阴影透出来 */
-    box-shadow: none;
+    /* 🚀 材质升维：将高光切角转移到水印层之上，因为背景色在此层，确保切光不被遮挡 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
     border: none;
 }
+
+/* 🚀 极夜墨迹：夜间模式下的内切高光处理，赋予暗黑卡片顶端一丝微弱的月光折射感 */
+[data-theme="dark"] .watermark-layer { 
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08); 
+}
+
 .watermark { position: absolute; bottom: -15px; right: -10px; font-family: var(--font-jp-serif); color: var(--on-surface); opacity: 0.05; font-weight: 900; white-space: nowrap; line-height: 1; font-size: 10rem; }
 [data-theme="dark"] .watermark { opacity: 0.08; color: #ffffff; }
 

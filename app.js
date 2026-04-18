@@ -1535,17 +1535,16 @@ while (i * 10 < total) {
     grid.style.paddingBottom = `${paddingBottom}px`;
     grid.setAttribute('data-cols', cols);
 
-    let slice = filteredData.slice(startIndex, endIndex);
-    let fragment = document.createDocumentFragment();
+        let slice = filteredData.slice(startIndex, endIndex);
     
-    slice.forEach((item) => {
+    // 🚀 DOM Recycling Engine: 杜绝 innerHTML='' 带来的毁灭性 GC 停顿，实现 120Hz 级流体滚动
+    let existingCards = Array.from(grid.children);
+    let neededCount = slice.length;
+
+    slice.forEach((item, index) => {
       let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);
       let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
       let isChecked = Model.state.selectedSet.has(idx);
-      
-      let card = document.createElement('div'); card.className = 'wb-card'; 
-      card.style.background = visuals.bg; card.dataset.idx = idx; 
-      card.style.opacity = '1'; 
 
       let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
       if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
@@ -1567,7 +1566,7 @@ while (i * 10 < total) {
       }
 
       let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
-      card.innerHTML = `
+      let contentHTML = `
         ${hankoHTML}
         <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
         ${topRightHTML}
@@ -1580,11 +1579,37 @@ while (i * 10 < total) {
             <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
             <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
         </div>`;
-      fragment.appendChild(card);
+
+      // 视觉指纹：用于精准比对状态，避免同一张纸被重复泼墨
+      let renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
+
+      if (index < existingCards.length) {
+          // 物理复用：直接抽调复用池中的现有卡片
+          let card = existingCards[index];
+          if (card.dataset.fingerprint !== renderFingerprint) {
+              card.style.background = visuals.bg;
+              card.dataset.idx = idx;
+              card.dataset.fingerprint = renderFingerprint;
+              card.innerHTML = contentHTML;
+          }
+      } else {
+          // 拓荒注入：仅在池子不够时才创建新实体
+          let card = document.createElement('div');
+          card.className = 'wb-card';
+          card.style.background = visuals.bg;
+          card.dataset.idx = idx;
+          card.dataset.fingerprint = renderFingerprint;
+          card.style.opacity = '1';
+          card.innerHTML = contentHTML;
+          grid.appendChild(card);
+      }
     });
-    
-    grid.innerHTML = '';
-    grid.appendChild(fragment);
+
+    // 空间收束：无痕剔除多余的幽灵节点
+    while (grid.children.length > neededCount) {
+        grid.removeChild(grid.lastChild);
+    }
+
 
     let sentinel = this.getEl('wb-scroll-sentinel');
     if (sentinel) sentinel.style.display = 'none';

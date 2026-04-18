@@ -1055,16 +1055,28 @@ while (i * 10 < total) {
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
-    if (anim !== 'none') {
+        if (anim !== 'none') {
         Model.state.isAnimating = true;
+
+        // 🚀 注入交互反馈：触发材质扫光动画
+        card.classList.remove('shimmering');
+        void card.offsetWidth; /* 强制重绘，确保连点时动画能重复触发 */
+        card.classList.add('shimmering');
+
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
             this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
-            setTimeout(() => { Model.state.isAnimating = false; }, 200); 
-        }, 200); 
+            
+            // 物理冷却期：确保 3D 动画与扫光动画完整释放
+            setTimeout(() => { 
+                Model.state.isAnimating = false;
+                card.classList.remove('shimmering');
+            }, 600); 
+        }, 300); /* 增加物理缓冲时间，让滑出与滑入的 3D 转动更自然 */
     } else {
+
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
         Model.state.isAnimating = false; 
     }

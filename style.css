@@ -29,8 +29,9 @@
     0 16px 32px rgba(115, 102, 88, 0.04),
     0 32px 64px rgba(115, 102, 88, 0.04);
   
-  /* 边缘高光：赋予卡片 1px 的厚度感 */
-  --inner-sheen: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    /* 🚀 边缘高光：剥离塑料反光，采用 30% 低透明度与 2px 漫反射还原哑光纸张厚度 */
+  --inner-sheen: inset 0 1px 2px rgba(255, 255, 255, 0.3);
+
   --ink-emboss: rgba(255, 255, 255, 0.7);
   --ink-deboss: rgba(0, 0, 0, 0.08);
 
@@ -70,8 +71,8 @@
     0 12px 24px rgba(0, 0, 0, 0.4),
     0 24px 48px rgba(0, 0, 0, 0.5);
   
-  /* 暗色模式下的微弱切光，模拟月光下的书脊效果 */
-  --inner-sheen: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+  /* 暗色模式下的微弱切光，配合漫反射柔化 */
+  --inner-sheen: inset 0 1px 2px rgba(255, 255, 255, 0.05);
   --ink-emboss: rgba(255, 255, 255, 0.03);
   --ink-deboss: rgba(0, 0, 0, 0.6);
 
@@ -863,15 +864,18 @@ button#btn-test-vibrate:active {
 
 .watermark-layer { 
     position: absolute; inset: 0; overflow: hidden; border-radius: inherit; z-index: 0; pointer-events: none; transition: background 0.4s ease; 
-    /* 🚀 材质升维：将高光切角转移到水印层之上，因为背景色在此层，确保切光不被遮挡 */
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    /* 🚀 材质重塑：剥离塑料高光，采用 30% 低透明度与 2px 漫反射，还原顶级哑光纸张的温润切边 */
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3);
     border: none;
+    /* 🚀 硬件防抖：保障开启物理混合模式后，滚动与拖拽时的极致帧率 */
+    will-change: background;
 }
 
-/* 🚀 极夜墨迹：夜间模式下的内切高光处理，赋予暗黑卡片顶端一丝微弱的月光折射感 */
+/* 🚀 极夜墨迹：夜间模式下的内切高光处理，配合漫反射柔化 */
 [data-theme="dark"] .watermark-layer { 
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08); 
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05); 
 }
+
 
 .watermark { position: absolute; bottom: -15px; right: -10px; font-family: var(--font-jp-serif); color: var(--on-surface); opacity: 0.05; font-weight: 900; white-space: nowrap; line-height: 1; font-size: 10rem; }
 [data-theme="dark"] .watermark { opacity: 0.08; color: #ffffff; }
@@ -1090,7 +1094,8 @@ button#btn-test-vibrate:active {
     display: flex; justify-content: space-between; align-items: center; 
     z-index: 100; 
     border: 1px solid rgba(139, 121, 103, 0.08) !important; 
-    box-shadow: 0 16px 40px rgba(0,0,0,0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8) !important; /* 增加 1px 内切高光赋予厚度 */
+    /* 🚀 材质重塑：灵动岛虽然是琉璃材质，但也需压低高光以融合宣纸体系 */
+    box-shadow: 0 16px 40px rgba(0,0,0,0.08), inset 0 1px 2px rgba(255, 255, 255, 0.4) !important; 
     /* 🚀 磁吸式物理入场引擎 */
     animation: magnetic-island-entry 0.6s var(--spring-bouncy) forwards;
 }
@@ -1103,7 +1108,7 @@ button#btn-test-vibrate:active {
 [data-theme="dark"] .batch-bar { 
     background: rgba(30, 28, 26, 0.3) !important; 
     border-color: rgba(255, 255, 255, 0.05) !important; 
-    box-shadow: 0 16px 40px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255, 255, 255, 0.05) !important;
 }
 
 /* 🚀 LED 级状态指示器排版 */
@@ -1173,8 +1178,8 @@ button#btn-test-vibrate:active {
     background: #fcfbfa; /* 海拔 3：系统最亮层 */
     width: 85%; max-width: 340px; border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-md); text-align: center; color: var(--on-surface); 
     transform: scale(0.95); transition: transform 0.4s var(--spring); 
-    /* 剥离黑色死影，拥抱同色系环境漫反射与 1px 实体切光 */
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 24px 48px rgba(115, 102, 88, 0.08), 0 4px 12px rgba(115, 102, 88, 0.04); 
+    /* 🚀 材质重塑：剥离高达 90% 的硬切光，还原 30% 漫反射哑光实体边缘 */
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 24px 48px rgba(115, 102, 88, 0.08), 0 4px 12px rgba(115, 102, 88, 0.04); 
     max-height: 90vh; overflow-y: auto;
 }
 .modal-overlay.active .dialog-content { transform: scale(1); }
@@ -1185,8 +1190,8 @@ button#btn-test-vibrate:active {
     width: 100%; max-width: 500px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; 
     padding: var(--space-md) 20px calc(var(--space-md) + env(safe-area-inset-bottom)); 
     transform: translateY(100%); transition: transform 0.4s var(--spring); 
-    /* 弱化逆向投影，依靠高光与环境色托起悬浮态 */
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 -8px 32px rgba(115, 102, 88, 0.06); 
+    /* 🚀 材质重塑：哑光化处理底部抽屉的高光切边 */
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 -8px 32px rgba(115, 102, 88, 0.06); 
     display: flex; flex-direction: column; max-height: 85vh;
 }
 
@@ -1195,10 +1200,10 @@ button#btn-test-vibrate:active {
 [data-theme="dark"] .dialog-content,
 [data-theme="dark"] .bottom-sheet {
     background: #282624; /* 在深色背景 1c1a18 基础上提亮，呈现高级玄灰 */
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
 }
 [data-theme="dark"] .bottom-sheet {
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 -8px 32px rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 -8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .modal-overlay.active .bottom-sheet { transform: translateY(0); }

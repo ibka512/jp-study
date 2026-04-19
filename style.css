@@ -324,18 +324,27 @@ h3 { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-top:
     border-color: rgba(255, 255, 255, 0.06);
 }
 
+/* 基础公共样式池（剥离 border-radius，交由形态家族管理） */
 button:not(.glass-icon-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn {
     background: var(--primary); color: var(--on-primary); font-family: var(--font-ui); 
-    border-radius: var(--radius-md); font-weight: 800; font-size: 1.05rem; cursor: pointer; 
+    font-weight: 800; font-size: 1.05rem; cursor: pointer; 
     display: flex; align-items: center; justify-content: center; gap: var(--space-xs);
     padding: var(--space-sm) var(--space-md); width: 100%;
-    /* 🚀 物理反馈引擎：增加内部切光赋予“机械按键”厚度 */
     box-shadow: 
       inset 0 1px 0 rgba(255,255,255,0.2), 
       0 6px 16px rgba(0,0,0,0.1);
     border: 1px solid rgba(0, 0, 0, 0.1);
     transition: transform 0.4s var(--spring-bouncy), box-shadow 0.4s var(--spring-bouncy), background 0.3s;
 }
+
+/* 🚀 MD3 形态家族 (Shape Families) 强语义收束 */
+/* 1. 基础操作指令 -> 药丸全圆角 (Pill Shape)，强力引导点击 */
+button:not(.glass-icon-btn) { border-radius: var(--radius-full); }
+/* 2. 核心功能矩阵 (学习四大模式、排版视图选项) -> 大圆角容器，传达“包裹区块”概念 */
+.btn-action, .vs-btn { border-radius: var(--radius-lg) !important; }
+/* 3. 键盘与答题卡 -> 中度圆角，维持实体打字机按键的段落感 */
+.dt-spell-key, .dt-choice-btn { border-radius: var(--radius-md); }
+
 
 button:not(.glass-icon-btn):active, .btn-action:active, .dt-choice-btn:active {
     transform: scale(0.94);
@@ -354,6 +363,31 @@ button:not(.glass-icon-btn):active, .btn-action:active:not(:disabled), .bs-facad
     filter: brightness(0.96); /*控制变暗幅度，保持色彩干净 */
 }
 
+/* 🚀 极夜高光熔断 (Dark Mode Highlight De-glaring) */
+[data-theme="dark"] button:not(.glass-icon-btn), 
+[data-theme="dark"] .btn-action, 
+[data-theme="dark"] .dt-spell-key, 
+[data-theme="dark"] .dt-choice-btn {
+    /* 彻底剥离刺眼的 20% 纯白内切光，降维成 3% 的极弱月光边缘 */
+    box-shadow: 
+      inset 0 1px 0 rgba(255, 255, 255, 0.03), 
+      0 4px 12px rgba(0, 0, 0, 0.3) !important;
+    border: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 极夜模式下按压物理坍缩：切光消失，深陷感增强 */
+[data-theme="dark"] button:not(.glass-icon-btn):active, 
+[data-theme="dark"] .btn-action:active:not(:disabled), 
+[data-theme="dark"] .dt-choice-btn:active,
+[data-theme="dark"] .dt-spell-key:active {
+    box-shadow: 
+      inset 0 2px 4px rgba(0, 0, 0, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.4) !important;
+    border-color: transparent !important;
+    filter: brightness(0.92);
+}
+
+
 
 .filter-test-btn-group {
     display: flex !important;
@@ -362,7 +396,9 @@ button:not(.glass-icon-btn):active, .btn-action:active:not(:disabled), .bs-facad
     align-items: stretch !important; 
     width: 100% !important; 
     margin-bottom: 16px;
-    background: var(--tertiary); border-radius: var(--radius-md); 
+    background: var(--tertiary); 
+    /* 🚀 MD3 组合容器：提升至大圆角，呼应同为大圆角的学习模式卡片 */
+    border-radius: var(--radius-lg); 
     box-shadow: 0 4px 12px var(--paper-shadow); overflow: hidden;
 }
 
@@ -381,14 +417,15 @@ button:not(.glass-icon-btn):active, .btn-action:active:not(:disabled), .bs-facad
 .ft-divider { width: 1px; background: rgba(255,255,255,0.3); margin: 12px 0; flex-shrink: 0; }
 
 .btn-outline { background: transparent !important; border: 2px solid var(--outline) !important; color: var(--on-surface) !important; box-shadow: 0 4px 12px var(--paper-shadow) !important; }
-.btn-small { padding: 10px var(--space-sm); font-size: 0.95rem; width: auto; border-radius: var(--radius-sm); }
+.btn-small { padding: 10px var(--space-sm); font-size: 0.95rem; width: auto; border-radius: var(--radius-full); }
 
-.btn-srs { background: var(--tertiary) !important; color: #fff !important; border-radius: var(--radius-md) !important;}
+.btn-srs { background: var(--tertiary) !important; color: #fff !important; border-radius: var(--radius-full) !important;}
 [data-theme="dark"] .btn-srs { color: #1a2a22 !important; }
 
-textarea, input[type="text"] { background: transparent; border: 2px solid var(--outline); border-radius: var(--radius-sm); padding: var(--space-sm) 20px; font-size: 0.95rem; width: 100%; margin-bottom: 20px; color: var(--on-surface); font-family: var(--font-ui); outline: none; transition: border-color 0.3s; }
+/* 🚀 MD3 文本域重塑：抛弃小圆角，强化饱满的物理凹槽 */
+textarea, input[type="text"] { background: transparent; border: 2px solid var(--outline); border-radius: var(--radius-md); padding: var(--space-sm) 20px; font-size: 0.95rem; width: 100%; margin-bottom: 20px; color: var(--on-surface); font-family: var(--font-ui); outline: none; transition: border-color 0.3s; }
 textarea:focus, input[type="text"]:focus { border-color: var(--primary); }
-textarea { height: 120px; resize: none; font-size: 0.95rem;}
+textarea { height: 120px; resize: none; font-size: 0.95rem; border-radius: var(--radius-lg); }
 
 .custom-select-wrapper { position: relative; display: flex; align-items: center; width: 100%; min-width: 0;}
 
@@ -839,6 +876,7 @@ button#btn-test-vibrate:active {
 .watermark { position: absolute; bottom: -15px; right: -10px; font-family: var(--font-jp-serif); color: var(--on-surface); opacity: 0.05; font-weight: 900; white-space: nowrap; line-height: 1; font-size: 10rem; }
 [data-theme="dark"] .watermark { opacity: 0.08; color: #ffffff; }
 
+
 .word-main, .info-row-group, .dt-example-box, .dt-word { position: relative; z-index: 1; }
 
 .speaker-icon { position: absolute; top: 20px; left: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; opacity: 0.8; z-index: 10; padding: 8px; margin: -8px;}
@@ -1130,13 +1168,59 @@ button#btn-test-vibrate:active {
 }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
 
-.dialog-content { background: var(--surface-container); width: 85%; max-width: 340px; border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-md); text-align: center; color: var(--on-surface); transform: scale(0.95); transition: transform 0.4s var(--spring); box-shadow: 0 16px 40px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;}
+/* 🚀 MD3 色调海拔 (Tonal Elevation)：通过提亮底色宣告 Z 轴主权 */
+.dialog-content { 
+    background: #fcfbfa; /* 海拔 3：系统最亮层 */
+    width: 85%; max-width: 340px; border-radius: var(--radius-lg); padding: var(--space-lg) var(--space-md); text-align: center; color: var(--on-surface); 
+    transform: scale(0.95); transition: transform 0.4s var(--spring); 
+    /* 剥离黑色死影，拥抱同色系环境漫反射与 1px 实体切光 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 24px 48px rgba(115, 102, 88, 0.08), 0 4px 12px rgba(115, 102, 88, 0.04); 
+    max-height: 90vh; overflow-y: auto;
+}
 .modal-overlay.active .dialog-content { transform: scale(1); }
 
 #bs-overlay, #view-settings-overlay, #group-select-overlay { align-items: flex-end; }
-.bottom-sheet { background: var(--surface-container); width: 100%; max-width: 500px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: var(--space-md) 20px calc(var(--space-md) + env(safe-area-inset-bottom)); transform: translateY(100%); transition: transform 0.4s var(--spring); box-shadow: 0 -8px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; max-height: 85vh;}
+.bottom-sheet { 
+    background: #fcfbfa; /* 海拔 3：系统最亮层 */
+    width: 100%; max-width: 500px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; 
+    padding: var(--space-md) 20px calc(var(--space-md) + env(safe-area-inset-bottom)); 
+    transform: translateY(100%); transition: transform 0.4s var(--spring); 
+    /* 弱化逆向投影，依靠高光与环境色托起悬浮态 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 -8px 32px rgba(115, 102, 88, 0.06); 
+    display: flex; flex-direction: column; max-height: 85vh;
+}
+
+/* 🚀 极夜墨迹：深色模式的海拔映射 (Dark Mode Tonal Elevation) */
+/* 深色模式下，海拔越高底色越浅，而非加重压抑的黑影 */
+[data-theme="dark"] .dialog-content,
+[data-theme="dark"] .bottom-sheet {
+    background: #282624; /* 在深色背景 1c1a18 基础上提亮，呈现高级玄灰 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .bottom-sheet {
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 -8px 32px rgba(0, 0, 0, 0.4);
+}
+
 .modal-overlay.active .bottom-sheet { transform: translateY(0); }
-.bs-handle { width: 48px; height: 6px; background: var(--outline); border-radius: 6px; margin: 0 auto var(--space-md); opacity: 0.6; flex-shrink: 0;}
+/* 🚀 MD3 底部抽屉：超短粗物理把手 (Heavy Pill Handle)，强化拖拽的触觉心理暗示 */
+.bs-handle { 
+    width: 32px; 
+    height: 6px; 
+    background: var(--outline); 
+    border-radius: var(--radius-full); 
+    margin: 0 auto var(--space-md); 
+    opacity: 0.85; 
+    flex-shrink: 0;
+    /* 注入微弱高光，赋予横条“实体橡胶把手”的精密质感 */
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* 🚀 极夜墨迹：深色模式下的把手材质映射 */
+[data-theme="dark"] .bs-handle {
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0,0,0,0.3);
+}
+
 .bs-scrollable-content { overflow-y: auto; padding-bottom: var(--space-sm);}
 #bs-title { text-align: center; margin-bottom: 20px; font-size: 1.15rem; font-weight: 800; color: var(--on-surface); opacity: 0.8;}
 .bs-option { padding: 18px var(--space-md); border-radius: var(--radius-full); font-weight: 700; font-size: 1.05rem; color: var(--on-surface); margin-bottom: 12px; background: var(--surface); text-align: center; transition: transform 0.1s, background 0.3s; box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor: pointer;}
@@ -1155,16 +1239,34 @@ button#btn-test-vibrate:active {
 .g-tab { padding: 14px 16px; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.5; white-space: nowrap; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s; }
 .g-tab.active { opacity: 1; color: var(--primary); border-bottom-color: var(--primary); }
 
-.toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: var(--on-surface); color: var(--surface); padding: 14px 28px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.95rem; z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.15); transition: top 0.4s var(--spring), opacity 0.4s; opacity: 0; pointer-events: none; white-space: nowrap;}
+.toast { 
+    position: fixed; top: -100px; left: 50%; transform: translateX(-50%); 
+    background: var(--on-surface); color: var(--surface); 
+    padding: 14px 28px; border-radius: var(--radius-full); font-weight: 700; font-size: 0.95rem; z-index: 9999; 
+    /* 🚀 MD3 最高海拔 (Inverse Surface)：用环境色光晕柔和托起 */
+    box-shadow: 0 12px 32px rgba(115, 102, 88, 0.15), 0 4px 12px rgba(115, 102, 88, 0.08); 
+    transition: top 0.4s var(--spring), opacity 0.4s; opacity: 0; pointer-events: none; white-space: nowrap;
+}
+
+[data-theme="dark"] .toast {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
 .toast.show { top: calc(80px + env(safe-area-inset-top)); opacity: 1; }
 
-/*  大单词详情卡片 */
+/* 大单词详情卡片 */
 .detail-card-container { 
     width: 85%; max-width: 380px; border-radius: var(--radius-lg); 
     padding: 60px var(--space-md) 60px; 
     position: relative; transform: scale(0.95); transition: transform 0.4s var(--spring); 
-    box-shadow: 0 16px 40px rgba(0,0,0,0.2); text-align: center; background: transparent;
+    /* 🚀 MD3 色调海拔：由于其背景依托内部图层，彻底净化外层容器的黑影污染 */
+    box-shadow: 0 24px 48px rgba(115, 102, 88, 0.08), 0 8px 16px rgba(115, 102, 88, 0.04); 
+    text-align: center; background: transparent;
 }
+
+[data-theme="dark"] .detail-card-container {
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
 .modal-overlay.active .detail-card-container { transform: scale(1); }
 .detail-card-container .watermark { font-size: 9rem; opacity: 0.04; right: -15px; bottom: -20px;}
 
@@ -1407,11 +1509,12 @@ button#btn-test-vibrate:active {
     user-select: none;
     -webkit-touch-callout: none; 
     
-    /* 核心形体进化 */
-    min-height: 72px; 
-    padding: 12px 32px !important;
-    border-radius: var(--radius-full) !important; /* 进化为胶囊 Pill 形态 */
-    font-size: 1.2rem !important;
+    /* 🚀 MD3 Extended FAB 排版重构：张弛有度的内部呼吸空间 */
+    min-height: 66px; /* 微收垂直高度，配合更宽的左右 Padding 形成修长的药丸浮岛感 */
+    padding: 16px 36px !important; 
+    border-radius: var(--radius-full) !important; 
+    font-size: 1.15rem !important; /* 字号微缩，让位给 Icon 的视觉重心，形成主次张力 */
+    letter-spacing: 0.05em !important;
     
     /* 物理深度增强 */
     border: 2px solid rgba(139, 121, 103, 0.1) !important;
@@ -1456,8 +1559,14 @@ button#btn-test-vibrate:active {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 12px; /* 增大图标文字间距 */
+    gap: 10px; /* 🚀 MD3 规范：图标与文字间距收紧，形成紧凑的图文单元 */
     font-weight: 900;
+}
+
+/* 🚀 强制统一覆盖内部图标的 Inline 样式，锁定 Extended FAB 的视觉重心比例 */
+.btn-long-press .lp-text .material-symbols-rounded {
+    font-size: 1.7rem !important; /* 确立 Icon 作为绝对的视觉锚点 */
+    margin-right: 0 !important; /* 剥离历史遗留的无序 Margin，完全交由 flex gap 管理 */
 }
 
 /* 兼容：已完成状态保持沉稳 */
@@ -1569,7 +1678,8 @@ button#btn-test-vibrate:active {
     height: 10px;
     background: rgba(0, 0, 0, 0.06); 
     border-radius: 999px;
-    overflow: hidden;
+    /* 🚀 物理光学：移除轨道剪裁，允许内部荧光光晕向外发散 */
+    overflow: visible; 
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
 }
 
@@ -1584,7 +1694,15 @@ button#btn-test-vibrate:active {
     border-radius: 999px;
     transition: width 1s cubic-bezier(0.2, 0.8, 0.2, 1);
     position: relative;
+    /* 内部必须保留 hidden 以容纳扫光动画，光晕交由 box-shadow 向外延展 */
     overflow: hidden;
+    /* 🚀 主进度条发光：提取主题绿色作为荧光发散基底 */
+    box-shadow: 0 0 12px rgba(107, 132, 123, 0.6), 0 0 4px rgba(107, 132, 123, 0.4);
+}
+
+/* 🚀 极夜荧光：深色模式下的穿透力增强 */
+[data-theme="dark"] .mastery-fill {
+    box-shadow: 0 0 16px rgba(164, 199, 182, 0.5), 0 0 6px rgba(164, 199, 182, 0.3);
 }
 
 /* 进度条扫光动画，增加高级感 */
@@ -1600,6 +1718,40 @@ button#btn-test-vibrate:active {
     0% { transform: translateX(-150%); }
     100% { transform: translateX(150%); }
 }
+
+/* 🚀 生命力呼吸动画：专为光晕进度条定制 */
+@keyframes bar-glow-breathe {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.2); }
+}
+
+/* 🚀 荧光指示条矩阵 (Neon Sub-Progress Bars) */
+/* 1. 强制破解 HTML 中内联的 overflow: hidden，释放被压抑的色彩光晕 */
+.sub-progress-group > div > div:nth-child(2) {
+    overflow: visible !important;
+}
+
+/* 2. 注入三维靶向的高频荧光与错峰呼吸律动 */
+#prog-bar-kanji {
+    box-shadow: 0 0 10px rgba(245, 176, 65, 0.7), 0 0 3px rgba(245, 176, 65, 0.5) !important;
+    border-radius: 999px !important;
+    animation: bar-glow-breathe 2.5s infinite ease-in-out;
+}
+#prog-bar-kana {
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.7), 0 0 3px rgba(231, 76, 60, 0.5) !important;
+    border-radius: 999px !important;
+    animation: bar-glow-breathe 2.5s infinite ease-in-out 0.8s; /* 错开呼吸频率，增加有机感 */
+}
+#prog-bar-meaning {
+    box-shadow: 0 0 10px rgba(208, 211, 212, 0.8), 0 0 3px rgba(208, 211, 212, 0.6) !important;
+    border-radius: 999px !important;
+    animation: bar-glow-breathe 2.5s infinite ease-in-out 1.6s;
+}
+
+/* 🚀 极夜荧光映射：增强暗黑模式下的赛博朋克光影深度 */
+[data-theme="dark"] #prog-bar-kanji { box-shadow: 0 0 12px rgba(245, 176, 65, 0.5), 0 0 4px rgba(245, 176, 65, 0.3) !important; }
+[data-theme="dark"] #prog-bar-kana { box-shadow: 0 0 12px rgba(231, 76, 60, 0.6), 0 0 4px rgba(231, 76, 60, 0.3) !important; }
+[data-theme="dark"] #prog-bar-meaning { box-shadow: 0 0 12px rgba(255, 255, 255, 0.4), 0 0 4px rgba(255, 255, 255, 0.2) !important; }
 
 /* 防止 iOS 快速点击导致的意外缩放 */
 .btn-action, .dt-spell-key, .dt-choice-btn, .wb-card, button {
@@ -1626,7 +1778,8 @@ button#btn-test-vibrate:active {
     font-weight: 800;
     font-size: 1.1rem;
     letter-spacing: 1px;
-    border-radius: var(--radius-md) !important;
+    /* 🚀 MD3 顶级指令：变身全圆角 */
+    border-radius: var(--radius-full) !important;
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
     

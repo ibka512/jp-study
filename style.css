@@ -391,8 +391,40 @@ textarea:focus, input[type="text"]:focus { border-color: var(--primary); }
 textarea { height: 120px; resize: none; font-size: 0.95rem;}
 
 .custom-select-wrapper { position: relative; display: flex; align-items: center; width: 100%; min-width: 0;}
-.bs-facade { background: var(--surface-container) !important; border: 2px solid var(--outline) !important; color: var(--primary) !important; border-radius: var(--radius-full) !important; padding: 0 16px 0 20px !important; font-size: 0.95rem !important; font-weight: 700 !important; height: 52px !important; display: inline-flex !important; justify-content: space-between !important; min-width: 0;}
+
+.bs-facade { 
+    background: var(--surface-container) !important; 
+    border: 2px solid var(--outline) !important; 
+    color: var(--primary) !important; 
+    border-radius: var(--radius-full) !important; 
+    padding: 0 16px 0 20px !important; 
+    font-size: 0.95rem !important; 
+    font-weight: 700 !important; 
+    height: 52px !important; 
+    display: inline-flex !important; 
+    justify-content: space-between !important; 
+    min-width: 0;
+    /* 🚀 视觉降噪：强制抹除全局按钮的凸起投影，克隆搜索框的微弱内嵌凹槽 */
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02) !important;
+}
+
+/* 🚀 扁平化按压反馈：阻止继承全局大按钮的夸张缩放，改为略微加深的凹槽感 */
+.bs-facade:active {
+    transform: scale(0.98) !important;
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.05) !important;
+}
+
+/* 🚀 极夜墨迹：深色模式下的抗噪点适配 */
+[data-theme="dark"] .bs-facade {
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2) !important;
+}
+
+[data-theme="dark"] .bs-facade:active {
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.4) !important;
+}
+
 .bs-facade-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: flex; align-items: center; gap: 4px;}
+
 
 .flex-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;}
 
@@ -541,6 +573,14 @@ button#btn-test-vibrate:active {
 
 .vs-btn { display:flex !important; flex-direction:column !important; background: var(--surface) !important; color: var(--on-surface) !important; padding: 14px 0 !important; font-size: 0.95rem !important;}
 .vs-btn.selected { background: var(--tertiary) !important; border-color: transparent !important; color: var(--on-primary) !important; }
+
+/* 🚀 极夜幽灵态：视图与排版设置按钮的去高光处理 */
+[data-theme="dark"] .vs-btn.selected {
+    background: rgba(74, 99, 85, 0.4) !important; 
+    color: #b0d6c1 !important;
+    box-shadow: none !important;
+}
+
 
 /* 🚀 学习进度方块：有机生命力重构 (Organic Pixel Matrix) */
 #pixel-matrix { 
@@ -1102,6 +1142,13 @@ button#btn-test-vibrate:active {
 .bs-option { padding: 18px var(--space-md); border-radius: var(--radius-full); font-weight: 700; font-size: 1.05rem; color: var(--on-surface); margin-bottom: 12px; background: var(--surface); text-align: center; transition: transform 0.1s, background 0.3s; box-shadow: 0 2px 0 rgba(0,0,0,0.05); cursor: pointer;}
 .bs-option:active { transform: scale(0.96); }
 .bs-option.selected { background: var(--tertiary); color: var(--on-primary); box-shadow: 0 4px 12px rgba(107,132,123,0.3);}
+
+/* 🚀 极夜幽灵态：底部抽屉选项（如词库选择、检验范围）的去高光处理 */
+[data-theme="dark"] .bs-option.selected {
+    background: rgba(74, 99, 85, 0.4) !important;
+    color: #b0d6c1 !important;
+    box-shadow: none !important;
+}
 
 .group-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--outline); margin-bottom: 16px; padding: 0 12px; }
 .group-tabs::-webkit-scrollbar { display: none; }

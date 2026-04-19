@@ -1535,11 +1535,20 @@ while (i * 10 < total) {
     grid.style.paddingBottom = `${paddingBottom}px`;
     grid.setAttribute('data-cols', cols);
 
-        let slice = filteredData.slice(startIndex, endIndex);
+            let slice = filteredData.slice(startIndex, endIndex);
     
     // 🚀 DOM Recycling Engine: 杜绝 innerHTML='' 带来的毁灭性 GC 停顿，实现 120Hz 级流体滚动
+    
+    // 🛡️ 基因锁防线：在提取复用池前，冷酷剔除“空状态”等异形节点，彻底杜绝内联样式污染
+    Array.from(grid.children).forEach(child => {
+        if (!child.classList.contains('wb-card')) {
+            grid.removeChild(child);
+        }
+    });
+
     let existingCards = Array.from(grid.children);
     let neededCount = slice.length;
+
 
     slice.forEach((item, index) => {
       let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);

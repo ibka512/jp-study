@@ -600,8 +600,21 @@ const View = {
   
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
-    let wm = '';
-    if (typeStr.includes('自他')) wm = 'が / を'; else if (typeStr.includes('自')) wm = 'が'; else if (typeStr.includes('他')) wm = 'を';
+    
+    // 🚥 精密数据流：构建语义支架拦截池
+    let wmSet = new Set();
+    if (typeStr.includes('自他')) { wmSet.add('が'); wmSet.add('を'); }
+    else {
+        if (typeStr.includes('自')) wmSet.add('が');
+        if (typeStr.includes('他')) wmSet.add('を');
+    }
+    if (typeStr.includes('形动') || typeStr.includes('形容动词')) wmSet.add('な');
+    if (typeStr.includes('名')) wmSet.add('の');
+
+    // ✂️ 光学排版重构：设立阈值，最多展示两个核心图腾，触发动态降维标签
+    let wmArray = Array.from(wmSet).slice(0, 2);
+    let wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('・')}</span>` : wmArray.join('');
+
     const getCat = (t) => {
         if (t.includes('形容动词') || t.includes('形动')) return { color: 'var(--bg-adj-na)' };
         if (t.includes('形')) return { color: 'var(--bg-adj)' };
@@ -1051,7 +1064,7 @@ while (i * 10 < total) {
     let card = this.getEl('flash-card');
     let visuals = this.getCardVisuals(w.type);
     card.querySelector('.watermark-layer').style.background = visuals.bg;
-    this.getEl('flash-watermark').innerText = visuals.wm;
+    this.getEl('flash-watermark').innerHTML = visuals.wm; // 允许解析光学缩放标签
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
@@ -1820,7 +1833,23 @@ setupVirtualScroll() {
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
     View.getEl('ft-forget').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
-    View.getEl('ft-blur').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); let currentDisplay = View.getEl('test-display-select').value || 'kana'; let pool = ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay); Model.state.ftHint = pool[Math.floor(Math.random() * pool.length)]; Model.state.ftState = 'B'; View.renderStudyCard('none'); });
+    View.getEl('ft-blur').addEventListener('click', () => { 
+        Hardware.playSound('click'); Hardware.vibrate(20); 
+        let currentDisplay = View.getEl('test-display-select').value || 'kana'; 
+        
+        // 认知防剧透：精确映射合法提示池 (Lateral Scaffolding Pool)
+        let poolMap = {
+            'word': ['kana', 'audio'],       // 考汉字：封锁释义，逼迫用发音回忆
+            'kana': ['word', 'meaning'],     // 考假名：封锁发音（原音剧透），给汉字或释义
+            'meaning': ['kana', 'audio'],    // 考释义：封锁汉字（形旁剧透），给发音
+            'audio': ['meaning']             // 考听力：极致盲考，封锁文字载体，只给释义
+        };
+        
+        let pool = poolMap[currentDisplay] || ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay);
+        Model.state.ftHint = pool[Math.floor(Math.random() * pool.length)]; 
+        Model.state.ftState = 'B'; 
+        View.renderStudyCard('none'); 
+    });
     View.getEl('ft-know').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.ftState = 'C'; View.renderStudyCard('none'); });
     View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
     View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
@@ -2581,7 +2610,7 @@ deleteWord(idx) {
   updateDetailContent(w, triggerTTS = false) { 
       let visuals = View.getCardVisuals(w.type); 
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
-      View.getEl('dt-watermark').innerText = visuals.wm; 
+      View.getEl('dt-watermark').innerHTML = visuals.wm; // 允许解析光学缩放标签 
       
       // 核心优化 2：详情页动态字号排版
       let dtWordEl = View.getEl('dt-word');

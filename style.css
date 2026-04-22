@@ -1,26 +1,39 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 :root {
-  /* ================= 🎨 核心色彩 (暖阳纸张 - Day Mode) ================= */
-  --primary: #8b7967; 
-  --primary-container: #ede7de; 
-  --on-primary: #ffffff;
+  /* ================= 🎨 核心色彩引擎 Design Tokens (暖阳纸张 - Day Mode) ================= */
+  
+  /* 🌈 主色调 (Primary) - 视觉焦点与主导操作 */
+  --primary: #8b7967;            /* 作用：全局标题、底部导航激活图标、主统计数字、强调性文本、喇叭/星星图标、打卡按钮边框/文字 */
+  --primary-container: #ede7de;  /* 作用：底部导航激活后的胶囊底色、统计方块底色、“下一个/新建夹”等次级主导按钮的底色 */
+  --on-primary: #ffffff;         /* 作用：位于 Primary 高亮背景上的文字（如长按打卡完成后的文字、核心深色按钮文字） */
 
-  --surface: #eae4db; 
-  --surface-container: #f6f4ef; 
-  --on-surface: #38322c;
+  /* 🏞️ 表面与容器 (Surface & Container) - 空间层级与背景基底 */
+  --surface: #eae4db;            /* 作用：App最底层的全局背景色、全屏沉浸式学习模式的背景底色 */
+  --surface-container: #f6f4ef;  /* 作用：所有卡片便当盒(Card Panel)、主单词闪卡本体、打字机键盘按键、圆形玻璃小按钮的底色 */
+  --on-surface: #38322c;         /* 作用：全局标准正文、单词/释义文本、常规描述文字、未激活状态的导航/按钮文字 */
 
-  --outline: #d6cec3; 
-  --tertiary: #6b847b;        
+  /* 🔲 边界与次级焦点 (Outline & Tertiary) - 结构划分与正面反馈 */
+  --outline: #d6cec3;            /* 作用：卡片微弱的物理描边、列表分割线、输入框默认边框、未激活开关轨道的底色 */
+  --tertiary: #6b847b;           /* 作用：成功/通关的标识色、“认识/完成”等正向按钮背景、进度条荧光点、当前学习进度像素块的发光色 */
 
-  --accent-red: #ba6b68; 
-  --accent-red-bg: #f5eaea; 
-  --accent-green-bg: #e8f0ea;
+  /* 🚨 情绪语义色 (Accent / Semantic) - 警示、错误与危险操作 */
+  --accent-red: #ba6b68;         /* 作用：危险操作文字（如“删除夹”）、拼写/答题错误的变红警示文本、未掌握维度的红杠 */
+  --accent-red-bg: #f5eaea;      /* 作用：危险操作按钮的底色、错误答题按键的浅红色晕染反馈底色 */
+  --accent-green-bg: #e8f0ea;    /* 作用：正确答题反馈的浅绿色晕染底色（配合 tertiary 使用） */
 
-  /* =================  词性胶囊 (Day Mode)  ================= */
-  --bg-verb: #d6e8f0; --bg-noun: #f2e2d5; --bg-adj: #f2dadf; --bg-adj-na: #f2ebd5; --bg-adv: #d5eedc; --bg-pronoun: #d5ecec; --bg-other: #e3e4e3;      
+  /* ================= 💊 词性胶囊系统 (Day Mode) ================= */
+  /* 作用：全景词库与单词详情页中，紧跟在单词下方的小型彩色圆角标签底色，用于快速视觉归类 */
+  --bg-verb: #d6e8f0;            /* 作用：动词类 (包含：段、变、动、自、他、サ) */
+  --bg-noun: #f2e2d5;            /* 作用：名词类 (名) */
+  --bg-adj: #f2dadf;             /* 作用：形容词类 (形) */
+  --bg-adj-na: #f2ebd5;          /* 作用：形容动词类 (形动) */
+  --bg-adv: #d5eedc;             /* 作用：副词/接续词类 (副、接) */
+  --bg-pronoun: #d5ecec;         /* 作用：代词类 (代) */
+  --bg-other: #e3e4e3;           /* 作用：无匹配项时的兜底灰色标签 */
 
   /* 物理材质引擎 (Day Mode) */
+
   /* 六层缓动弥散阴影 */
   --paper-shadow: 
     0 2px 4px rgba(115, 102, 88, 0.02),
@@ -48,22 +61,26 @@
 }
 
 [data-theme="dark"] {
-  /* =================  核心色彩 (极夜墨迹 - Dark Mode) ================= */
-  --primary: #d6c3b0; 
-  --primary-container: #3d352e; 
-  --on-primary: #1a1816;      
+  /* ================= 🎨 核心色彩引擎 Design Tokens (极夜墨迹 - Dark Mode) ================= */
+  
+  /* 🌈 主色调 (Primary Dark) - 确保暗场下的文字具备高可读性而不过曝 */
+  --primary: #d6c3b0;            /* 作用：暗色模式下的高光焦点，如主标题、激活图标、星星与喇叭元件 */
+  --primary-container: #3d352e;  /* 作用：底部激活胶囊、统计方块底色，提供比纯黑稍亮的层次感 */
+  --on-primary: #1a1816;         /* 作用：高亮按钮上的反色文字，确保对比度 */
 
-  /* 采用深褐黑，增加视觉深度而非死黑 */
-  --surface: #141210; 
-  --surface-container: #1c1a18; 
-  --on-surface: #e8e2d9;      
+  /* 🏞️ 表面与容器 (Surface Dark) - 采用深褐黑增加视觉深度而非死黑，减轻视觉疲劳 */
+  --surface: #141210;            /* 作用：极夜模式全局最底层的背景空洞色 */
+  --surface-container: #1c1a18;  /* 作用：承载内容的实体卡片(Card Panel)、弹窗、底部抽屉及闪卡本体 */
+  --on-surface: #e8e2d9;         /* 作用：全局正文、描述与标题的温和亮灰色，避免纯白刺眼 */
 
-  --outline: #4a443f; 
-  --tertiary: #a4c7b6;        
+  /* 🔲 边界与次级焦点 (Outline Dark) */
+  --outline: #4a443f;            /* 作用：暗夜中的极细分割线、弱化容器的边界线 */
+  --tertiary: #a4c7b6;           /* 作用：深色模式下的高级翡翠绿，用于成功反馈、已通关徽章及高频发光点 */
 
-  --accent-red: #ffb4a9; 
-  --accent-red-bg: #3d1416; 
-  --accent-green-bg: #142b1f; 
+  /* 🚨 情绪语义色 (Accent Dark) - 在低对比度中提供强烈的警示 */
+  --accent-red: #ffb4a9;         /* 作用：暗夜中的警示红，用于删除图标、答错变色、危险文本 */
+  --accent-red-bg: #3d1416;      /* 作用：深红色底色晕染，用于危险操作按钮背景 */
+  --accent-green-bg: #142b1f;    /* 作用：深绿色底色晕染，用于正确反馈的低调背景 */
 
   /* 物理材质引擎 (Dark Mode) */
   --paper-shadow: 
@@ -76,9 +93,15 @@
   --ink-emboss: rgba(255, 255, 255, 0.03);
   --ink-deboss: rgba(0, 0, 0, 0.6);
 
-  /* =================  词性胶囊 (Dark Mode) ================= */
-  --bg-verb: #1a3a4a; --bg-noun: #4a2a1a; --bg-adj: #4a1a2a;        
-  --bg-adj-na: #433d1a; --bg-adv: #1a3d2a; --bg-pronoun: #1a3d3d; --bg-other: #2a2a2a;      
+  /* ================= 💊 词性胶囊系统 (Dark Mode) ================= */
+  /* 作用：暗色模式下大幅度压低饱和度的标签底色，避免高亮色块在暗场产生视觉刺眼感 */
+  --bg-verb: #1a3a4a;            /* 动词类 */
+  --bg-noun: #4a2a1a;            /* 名词类 */
+  --bg-adj: #4a1a2a;             /* 形容词类 */
+  --bg-adj-na: #433d1a;          /* 形容动词类 */
+  --bg-adv: #1a3d2a;             /* 副词/接续词类 */
+  --bg-pronoun: #1a3d3d;         /* 代词类 */
+  --bg-other: #2a2a2a;           /* 其他兜底 */
 }
 
 
@@ -904,6 +927,14 @@ button#btn-test-vibrate:active {
 
 .watermark { position: absolute; bottom: -15px; right: -10px; font-family: var(--font-jp-serif); color: var(--on-surface); opacity: 0.05; font-weight: 900; white-space: nowrap; line-height: 1; font-size: 10rem; }
 [data-theme="dark"] .watermark { opacity: 0.08; color: #ffffff; }
+
+/* 🖋️ 光学排版锁 (Typographic Lockup)：多轨水印的精密降维与负间距咬合 */
+.wm-multi {
+    font-size: 0.75em; /* 相对体积降级：跨组件自适应缩小至 75% */
+    letter-spacing: -0.05em; /* 光学字距微调：消除中点的松散感，使符号紧密相连 */
+    position: relative;
+    bottom: 0.05em; /* 微调基线重心，确保双字符不会过度沉底 */
+}
 
 
 .word-main, .info-row-group, .dt-example-box, .dt-word { position: relative; z-index: 1; }

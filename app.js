@@ -1204,9 +1204,14 @@ while (i * 10 < total) {
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
     
     let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
+    let starBtn = this.getEl('star-btn');
     let starIcon = this.getEl('star-icon');
-    if (starIcon) starIcon.style.fontVariationSettings = isStarred ? "'FILL' 1" : "'FILL' 0";
-    this.getEl('star-btn').style.display = 'block';
+    if (starBtn && starIcon) {
+        starIcon.style.fontVariationSettings = isStarred ? "'FILL' 1" : "'FILL' 0";
+        if (isStarred) starBtn.classList.add('active');
+        else starBtn.classList.remove('active');
+        starBtn.style.display = 'block';
+    }
 
     let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
     let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
@@ -1656,9 +1661,7 @@ const Controller = {
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if(autoSpeakCheck) autoSpeakCheck.checked = autoSpeak;
 
-    let volNavEnabled = localStorage.getItem('volNav') === 'true'; 
-    let volCheck = View.getEl('setting-vol-nav');
-    if(volCheck) volCheck.checked = volNavEnabled;
+    
 
     let darkBtnStyle = localStorage.getItem('darkBtnStyle') === 'translucent';
     let darkBtnCheck = View.getEl('setting-dark-btn');
@@ -1870,8 +1873,6 @@ setupVirtualScroll() {
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读"); }); }
 
-    let volCheck = View.getEl('setting-vol-nav');
-    if (volCheck) { volCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('volNav', e.target.checked); showToast(e.target.checked ? "已开启音量键翻页" : "已关闭音量键翻页"); }); }
 
     let darkBtnCheck = View.getEl('setting-dark-btn');
     if (darkBtnCheck) {
@@ -1980,51 +1981,6 @@ if (testVibrateBtn) {
         fileImport.addEventListener('change', (e) => { if(e.target.files.length > 0) this.importBackup(e.target.files[0]); e.target.value = ''; });
     }
 
-window.addEventListener('keydown', (e) => {
-    // 如果当前聚焦在输入框或文本域，不处理音量键翻页
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
-        return;
-    }
-    if (localStorage.getItem('volNav') !== 'true') return;
-    let isVolUp = (e.key === 'VolumeUp' || e.key === 'AudioVolumeUp' || e.code === 'VolumeUp' || e.keyCode === 175);
-    let isVolDown = (e.key === 'VolumeDown' || e.key === 'AudioVolumeDown' || e.code === 'VolumeDown' || e.keyCode === 174);
-    if (!isVolUp && !isVolDown) return;
-    let inDetail = document.getElementById('detail-overlay').classList.contains('active');
-    let inStudy = !document.getElementById('study-area').classList.contains('hidden');
-    // 修复：允许所有学习模式使用音量键翻页，而不仅限于pendulum
-    if (!inDetail && !inStudy) return;
-    e.preventDefault(); 
-    if (inDetail) { 
-        if (isVolDown) Controller.navDetail(1); 
-        else if (isVolUp) Controller.navDetail(-1); 
-    } else { 
-        // 学习页：根据当前模式判断是否有下一个/上一个按钮可用
-        let hasNext = Model.state.currentIndex < Model.state.studyQueue.length - 1;
-        let hasPrev = Model.state.currentIndex > 0;
-        // 对于filter-test和dual-track等模式，同样有currentIndex，直接使用
-        if (isVolDown && hasNext) { 
-            let nextBtn = document.getElementById('btn-next');
-            if (nextBtn && nextBtn.style.display !== 'none') nextBtn.click();
-            else {
-                // 部分模式没有显式next按钮，手动推进
-                if (Model.state.mode === 'filter-test' || Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') {
-                    Model.state.currentIndex++;
-                    View.renderStudyCard('next');
-                }
-            }
-        } else if (isVolUp && hasPrev) { 
-            let prevBtn = document.getElementById('btn-prev');
-            if (prevBtn && prevBtn.style.display !== 'none') prevBtn.click();
-            else {
-                if (Model.state.mode === 'filter-test' || Model.state.mode === 'dual-track' || Model.state.mode === 'memory-test') {
-                    Model.state.currentIndex--;
-                    View.renderStudyCard('prev');
-                }
-            }
-        }
-    }
-}, { passive: false });
 
     let lpBtn = View.getEl('btn-long-press');
     let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
@@ -2076,7 +2032,26 @@ window.addEventListener('keydown', (e) => {
     if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { Hardware.vibrate(15); BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
     View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''), e.currentTarget); });
-    View.getEl('star-btn').addEventListener('click', (e) => { Hardware.playSound('click'); let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; let idx = Model.stars.indexOf(wordObj.word); let icon = View.getEl('star-icon'); if(idx > -1) { Model.stars.splice(idx, 1); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wordObj.word); window.createStarParticles(e.currentTarget); Hardware.vibrate(20); icon.style.fontVariationSettings = "'FILL' 1"; } Model.saveStars(); });
+    View.getEl('star-btn').addEventListener('click', (e) => { 
+        Hardware.playSound('click'); 
+        let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; 
+        let idx = Model.stars.indexOf(wordObj.word); 
+        let btn = e.currentTarget;
+        let icon = View.getEl('star-icon'); 
+        
+        if (idx > -1) { 
+            Model.stars.splice(idx, 1); 
+            btn.classList.remove('active');
+            icon.style.fontVariationSettings = "'FILL' 0"; 
+        } else { 
+            Model.stars.push(wordObj.word); 
+            btn.classList.add('active');
+            icon.style.fontVariationSettings = "'FILL' 1"; 
+            window.createStarParticles(btn); 
+            Hardware.vibrate(20); 
+        } 
+        Model.saveStars(); 
+    });
 
     let dtStarBtn = View.getEl('dt-star-btn');
     if (dtStarBtn) {

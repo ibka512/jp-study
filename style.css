@@ -236,7 +236,7 @@ body.modal-open .bottom-nav {
 
 .nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; color: var(--on-surface); opacity: 0.6; cursor: pointer;
+  gap: 2px; color: var(--on-surface); opacity: 0.75; cursor: pointer; /* 提升基态透明度以满足 WCAG/APCA */
   width: 72px; /* 略微拓宽呼吸空间 */
   transition: opacity 0.3s var(--spring-smooth), transform 0.3s var(--spring-bouncy); 
   user-select: none;
@@ -526,7 +526,7 @@ textarea { height: 120px; resize: none; font-size: 0.95rem; border-radius: var(-
 .setting-item:last-child { border-bottom: none; }
 .setting-info { flex: 1; padding-right: 16px; }
 .setting-title { font-size: 1.05rem; font-weight: 700; color: var(--on-surface); margin-bottom: 4px; }
-.setting-desc { font-size: 0.8rem; opacity: 0.7; color: var(--on-surface); line-height: 1.4; }
+.setting-desc { font-size: 0.8rem; opacity: 0.85; color: var(--on-surface); line-height: 1.4; } /* 强化设置说明文本的信噪比 */
 .danger-zone { background: var(--accent-red-bg); padding: 16px; border-radius: var(--radius-sm); border: 1px dashed var(--accent-red); margin-top: 12px;}
 
 /* 视觉优化：定制化设置列表内的微型胶囊控件 (Premium Capsule Controls) */
@@ -941,8 +941,9 @@ button#btn-test-vibrate:active {
 
 .speaker-icon { position: absolute; top: 20px; left: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; opacity: 0.8; z-index: 10; padding: 8px; margin: -8px;}
 .speaker-icon:active { transform: scale(0.85); }
-.star-btn { position: absolute; top: 20px; right: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; user-select: none; z-index: 10; padding: 8px; margin: -8px;}
-.star-btn:active { transform: scale(0.85); }
+.star-btn { position: absolute; top: 20px; right: 20px; font-size: 1.8rem; cursor: pointer; color: var(--outline); transition: all 0.4s var(--spring-bouncy), color 0.3s; user-select: none; z-index: 10; padding: 8px; margin: -8px;}
+.star-btn.active { color: #fbbc04; transform: scale(1.15); text-shadow: 0 2px 12px rgba(251, 188, 4, 0.4); }
+.star-btn:active { transform: scale(0.8); }
 
 .star-particle { position: fixed; width: 8px; height: 8px; background: var(--tertiary); border-radius: 50%; pointer-events: none; z-index: 9999; animation: particle-burst 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
 @keyframes particle-burst { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; } }
@@ -1069,9 +1070,9 @@ button#btn-test-vibrate:active {
 .wb-c-mean { 
     font-size: 0.85rem; font-weight: 700; width: 100%; text-align: center; 
     color: rgba(45, 40, 35, 0.85); 
-    opacity: 0.7; /*   降低释义的存在感，把视觉焦点让给日文单词 */
+    opacity: 0.85; /* 维持次级视觉层级，但大幅回收透明度，确保词库浏览的清晰度 */
     margin-top: 2px;
-    /*   核心：改为最多显示 2 行，超出再显示省略号，解决长释义溢出 */
+    /* 核心：改为最多显示 2 行，超出再显示省略号，解决长释义溢出 */
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; 
     overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
 }
@@ -1307,7 +1308,7 @@ button#btn-test-vibrate:active {
 
 .group-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--outline); margin-bottom: 16px; padding: 0 12px; }
 .group-tabs::-webkit-scrollbar { display: none; }
-.g-tab { padding: 14px 16px; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.5; white-space: nowrap; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s; }
+.g-tab { padding: 14px 16px; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.7; white-space: nowrap; border-bottom: 3px solid transparent; cursor: pointer; transition: all 0.3s; } /* 消除 0.5 的视弱陷阱，确保户外可读 */
 .g-tab.active { opacity: 1; color: var(--primary); border-bottom-color: var(--primary); }
 
 .toast { 

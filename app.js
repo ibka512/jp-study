@@ -698,7 +698,24 @@ const View = {
         displayCurrent = Model.state.currentIndex;
     }
     
-    if (displayCurrent > totalPixels) displayCurrent = totalPixels;
+        if (displayCurrent > totalPixels) displayCurrent = totalPixels;
+
+        // 🚀 动态判断：精准获取“物理词汇基数”，排除死记硬背/突击模式下数学膨胀的队列干扰
+    let baseCount = Model.state.studyQueue.length;
+    if (mode === 'memory-test') {
+        baseCount = Model.state.mtBaseQueue.length;
+    } else if (mode === 'rote-learning' || mode === 'pendulum' || mode === 'dual-track') {
+        baseCount = Model.state.uniqueWordCount;
+    }
+    
+        // 🚀 动态形态回退：当真实词汇量 > 100，或者处于「死记硬背 / 记忆检测」模式时，强制换回原本的流体条样式
+    if (baseCount > 100 || mode === 'rote-learning' || mode === 'memory-test') {
+        c.classList.add('matrix-legacy');
+    } else {
+        c.classList.remove('matrix-legacy');
+    }
+
+
 
     if (totalPixels <= 10) {
         c.classList.add('compact-mode');
@@ -707,6 +724,7 @@ const View = {
     }
 
     while (c.children.length < totalPixels) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
+
     while (c.children.length > totalPixels) { c.removeChild(c.lastChild); }
     
     Array.from(c.children).forEach((p, i) => {

@@ -1,4 +1,4 @@
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 :root {
   /* ================= 🎨 核心色彩引擎 Design Tokens (暖阳纸张 - Day Mode) ================= */
@@ -668,73 +668,95 @@ button#btn-test-vibrate:active {
 }
 
 
-/*  学习进度方块：有机生命力重构 (Organic Pixel Matrix) */
+/* 🚀 光学重构 [1B]: 高密度点阵微缩网格 (Dense LED Matrix) */
 #pixel-matrix { 
-    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; 
-    max-width: 100%; margin: 10px auto var(--space-md); padding: 0 var(--space-sm);
+    display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; 
+    max-width: 100%; margin: 8px auto 16px; padding: 0 var(--space-md);
 }
 
 .pixel { 
-    height: 6px; flex: 1 1 8%; max-width: 32px; 
-    background-color: rgba(139, 121, 103, 0.1); /* 极微弱的水痕底色 */
-    box-shadow: inset 0 1px 2px rgba(115, 102, 88, 0.08); /* 纸张凹陷感 */
-    border-radius: 8px; 
-    transition: all 0.6s var(--spring-smooth); /* 更柔和的水墨洇开过渡 */
+    width: 6px; height: 6px; /* 恒定微缩体积，杜绝延展溢出 */
+    background-color: rgba(139, 121, 103, 0.1); 
+    box-shadow: inset 0 1px 1px rgba(115, 102, 88, 0.1); 
+    border-radius: 2px; /* 极客风的微方块感 */
+    transition: all 0.4s var(--spring-smooth); 
 }
 
 [data-theme="dark"] .pixel {
     background-color: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .pixel.filled { 
     background-color: var(--fill-color, #8b7967); 
     opacity: 0.85; 
-    box-shadow: 0 0 8px rgba(139, 121, 103, 0.2); /* 墨水晕染的边缘柔化 */
-    transform: scale(0.98); /* 墨水干涸后轻微收缩 */
+    box-shadow: 0 0 4px rgba(139, 121, 103, 0.2); 
 }
 
-[data-theme="dark"] .pixel.filled { box-shadow: 0 0 8px rgba(0, 0, 0, 0.5); }
+[data-theme="dark"] .pixel.filled { box-shadow: 0 0 6px rgba(0, 0, 0, 0.4); }
 
 .pixel.current { 
     background-color: var(--tertiary); 
-    transform: scale(1.15); /* 放弃生硬的 Y 轴拉伸，改为全向微量膨胀 */
-    /* 强烈且温柔的发光光晕，模拟活性液体并照亮四周 */
-    box-shadow: 0 0 16px var(--tertiary), 0 0 4px rgba(107, 132, 123, 0.5); 
-    border-radius: 6px;
+    transform: scale(1.3); /* 独立的微粒发光态 */
+    box-shadow: 0 0 8px var(--tertiary); 
+    border-radius: 2px;
     z-index: 2;
     opacity: 1;
-    animation: ink-breathe 2.5s infinite ease-in-out; /* 注入生命呼吸节律 */
+    animation: neon-pulse 2s infinite ease-in-out; 
 }
 
+@keyframes neon-pulse {
+    0%, 100% { transform: scale(1.3); filter: brightness(1); box-shadow: 0 0 8px var(--tertiary); }
+    50% { transform: scale(1.1); filter: brightness(1.2); box-shadow: 0 0 4px var(--tertiary); }
+}
+
+/* 兼容紧凑模式类名，在点阵架构下统一表现为高密序列 */
+#pixel-matrix.compact-mode { gap: 3px; }
+#pixel-matrix.compact-mode .pixel { width: 5px; height: 5px; }
+
+/* 🚀 动态回退机制：当词汇量 > 100 时，无缝切回流体有机阵列 (Legacy Fluid Matrix) */
 @keyframes ink-breathe {
-    0%, 100% { 
-        transform: scale(1.15); 
-        box-shadow: 0 0 16px var(--tertiary), 0 0 4px rgba(107, 132, 123, 0.5); 
-        filter: brightness(1); 
-    }
-    50% { 
-        transform: scale(1.05); 
-        box-shadow: 0 0 8px var(--tertiary), 0 0 2px rgba(107, 132, 123, 0.3); 
-        filter: brightness(1.15); /* 呼吸时内部高光闪烁 */
-    }
+    0%, 100% { transform: scale(1.15); box-shadow: 0 0 16px var(--tertiary), 0 0 4px rgba(107, 132, 123, 0.5); filter: brightness(1); }
+    50% { transform: scale(1.05); box-shadow: 0 0 8px var(--tertiary), 0 0 2px rgba(107, 132, 123, 0.3); filter: brightness(1.15); }
 }
 
-/* Instagram 快拍式全宽进度条 (Compact Mode) */
-#pixel-matrix.compact-mode {
+#pixel-matrix.matrix-legacy { 
+    gap: 6px; 
+}
+#pixel-matrix.matrix-legacy .pixel { 
+    width: auto; /* 解除点阵模式的 6px 强绑定 */
+    height: 6px; 
+    flex: 1 1 8%; 
+    max-width: 32px; 
+    border-radius: 8px; 
+}
+#pixel-matrix.matrix-legacy .pixel.current { 
+    transform: scale(1.15); 
+    box-shadow: 0 0 16px var(--tertiary), 0 0 4px rgba(107, 132, 123, 0.5); 
+    border-radius: 6px;
+    animation: ink-breathe 2.5s infinite ease-in-out;
+}
+
+/* 兼容 >100 词且触发 10进度块压缩机制时（如死记硬背/大体量筛选），恢复快拍横条形态 */
+#pixel-matrix.matrix-legacy.compact-mode {
     gap: 4px;
     padding: 0 20px;
     width: 100%;
 }
-#pixel-matrix.compact-mode .pixel {
+#pixel-matrix.matrix-legacy.compact-mode .pixel {
+    width: auto; /* 🚀 核心修复：挣脱点阵模式的 5px 宽度束缚 */
+    flex: 1 1 0; /* 激活流体张力，让进度块均匀铺满整个横向空间 */
     max-width: none;
-    height: 6px; /* 降低高度，使其更像一条连续的宣纸水墨线 */
+    height: 6px;
     border-radius: 4px;
 }
-#pixel-matrix.compact-mode .pixel.current {
-    transform: scaleY(1.2); /* 稍微收敛快拍模式的形变 */
+
+#pixel-matrix.matrix-legacy.compact-mode .pixel.current {
+    transform: scaleY(1.2);
     border-radius: 4px;
+    animation: none; /* 紧凑横条模式下关闭呼吸，防止横向溢出 */
 }
+
 
 
 /* ==========================================
@@ -771,9 +793,14 @@ button#btn-test-vibrate:active {
     color: var(--primary); letter-spacing: 1px; white-space: nowrap; 
 }
 
+/* 🚀 物理收束 [2A] 修正: 在高密架构下恢复 Y 轴呼吸感 */
 .flash-card { 
-    text-align: center; padding: 64px 20px 48px 20px; margin: var(--space-sm) 0 var(--space-lg) 0; position: relative; z-index: 5; 
+    text-align: center; padding: 42px 16px 28px 16px; 
+    /* 核心修正：增加底部的 Margin，将选项区优雅地推离卡片 */
+    margin: 8px 0 32px 0; 
+    position: relative; z-index: 5; 
     background: var(--surface-container); border-radius: var(--radius-lg);
+
     /*  物理材质升级：内阴影转移至子层防止被底色遮挡，采用纯粹的多层弥散阴影 */
     box-shadow: 
       0 24px 48px rgba(115, 102, 88, 0.08), 
@@ -939,51 +966,52 @@ button#btn-test-vibrate:active {
 
 .word-main, .info-row-group, .dt-example-box, .dt-word { position: relative; z-index: 1; }
 
-.speaker-icon { position: absolute; top: 20px; left: 20px; font-size: 1.8rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; opacity: 0.8; z-index: 10; padding: 8px; margin: -8px;}
+/* 边缘操作簇位置重置以匹配等比压榨后的卡片尺寸 */
+.speaker-icon { position: absolute; top: 12px; left: 14px; font-size: 1.6rem; cursor: pointer; color: var(--primary); transition: transform 0.2s; opacity: 0.8; z-index: 10; padding: 8px; margin: -8px;}
 .speaker-icon:active { transform: scale(0.85); }
-.star-btn { position: absolute; top: 20px; right: 20px; font-size: 1.8rem; cursor: pointer; color: var(--outline); transition: all 0.4s var(--spring-bouncy), color 0.3s; user-select: none; z-index: 10; padding: 8px; margin: -8px;}
+.star-btn { position: absolute; top: 12px; right: 14px; font-size: 1.6rem; cursor: pointer; color: var(--outline); transition: all 0.4s var(--spring-bouncy), color 0.3s; user-select: none; z-index: 10; padding: 8px; margin: -8px;}
 .star-btn.active { color: #fbbc04; transform: scale(1.15); text-shadow: 0 2px 12px rgba(251, 188, 4, 0.4); }
 .star-btn:active { transform: scale(0.8); }
 
 .star-particle { position: fixed; width: 8px; height: 8px; background: var(--tertiary); border-radius: 50%; pointer-events: none; z-index: 9999; animation: particle-burst 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
 @keyframes particle-burst { 0% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; } }
 
+/* 🚀 字体学降维：微缩体积但保持高对比光学张力 */
 .word-main { 
-    font-size: clamp(2.8rem, 13vw, 4.5rem); line-height: 1.2; font-weight: 900; font-family: var(--font-jp-serif); letter-spacing: 2px; margin-bottom: var(--space-sm); cursor: pointer; word-break: keep-all; 
+    font-size: clamp(2.4rem, 11vw, 3.6rem); line-height: 1.1; font-weight: 900; font-family: var(--font-jp-serif); letter-spacing: 2px; margin-bottom: 12px; cursor: pointer; word-break: keep-all; 
     color: rgba(45, 40, 35, 0.95);
     text-shadow: 0 1.5px 1px var(--ink-emboss), 0 -1px 1px var(--ink-deboss);
 }
 [data-theme="dark"] .word-main { color: rgba(240, 235, 230, 0.95); }
 
-.info-row-group { display: flex; justify-content: center; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: 36px; }
-.kana-row { font-size: 1.2rem; font-weight: 600; font-family: var(--font-jp-sans); color: var(--primary); cursor: pointer; margin: 0; }
+.info-row-group { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.kana-row { font-size: 1.1rem; font-weight: 600; font-family: var(--font-jp-sans); color: var(--primary); cursor: pointer; margin: 0; }
 
-.type-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; cursor: pointer; }
+.type-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 0; cursor: pointer; }
 
 .type-capsule { 
-    font-size: 0.8rem; letter-spacing: 0.05em; padding: 4px 12px; border-radius: 6px; 
+    font-size: 0.75rem; letter-spacing: 0.02em; padding: 2px 10px; border-radius: 4px; 
     color: var(--on-surface); font-weight: 700; opacity: 0.85;
     background-blend-mode: normal; 
-    border: 1px solid rgba(139, 121, 103, 0.05); /* 极弱的轮廓，仅为了与纯色背景区分 */
-    box-shadow: none; /* 移除廉价的塑料内发光和浮空投影 */
-    display: inline-block; transition: background 0.4s;
+    border: 1px solid rgba(139, 121, 103, 0.05); 
+    box-shadow: none; display: inline-block; transition: background 0.4s;
 }
 [data-theme="dark"] .type-capsule { border: 1px solid rgba(255,255,255,0.03); color: rgba(255,255,255,0.85);}
-.dt-type { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+.dt-type { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 0; }
 
-.meaning-row { font-size: 1.4rem; font-weight: 700; color: var(--on-surface); opacity: 0.85; cursor: pointer; margin: 0; }
+.meaning-row { font-size: 1.15rem; font-weight: 700; color: var(--on-surface); opacity: 0.85; cursor: pointer; margin: 0; }
 
 .blur-text { background-color: var(--outline); border-radius: var(--radius-sm); opacity: 0.7; filter: blur(6px); padding: 12px 18px; margin: -8px -6px; transition: filter 0.4s var(--spring), background-color 0.4s ease, opacity 0.4s ease; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 80px; user-select: none; }
 .blur-text.active { filter: blur(0); background-color: transparent; opacity: 1; transform: scale(1.05); padding: 4px 8px; margin: 0;}
 
-/* 🎛️ 底部操作网格 */
-.action-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); width: 100%; margin-bottom: var(--space-md); margin-top: auto; }
+/* 🎛️ 底部操作网格优化：防止触底溢出 */
+.action-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 100%; margin-bottom: 16px; margin-top: auto; }
 
-.action-flex { display: flex; gap: var(--space-sm); width: 100%; }
-.action-flex .btn-action { flex: 1; padding: 18px 4px; font-size: 1.15rem; flex-direction: row;}
+.action-flex { display: flex; gap: 12px; width: 100%; }
+.action-flex .btn-action { flex: 1; padding: 14px 4px; font-size: 1.05rem; flex-direction: row;}
 
 .btn-action { 
-    padding: 20px 16px; border-radius: var(--radius-md); font-size: 1.05rem; font-weight: 800; 
+    padding: 14px 12px; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 800; 
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; line-height: 1.2; 
     background: var(--surface-container) !important; color: var(--on-surface) !important;
 }
@@ -1395,20 +1423,21 @@ button#btn-test-vibrate:active {
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .shake-anim { animation: shake 0.3s forwards; }
 
-.dt-spell-input-box { font-size: 2rem; text-align: center; margin-bottom: var(--space-md); min-height: 56px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 10px;}
-.dt-spell-keyboard, #mt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: var(--space-md);}
+/* 🚀 操作区物理压缩：极简点按键盘 */
+.dt-spell-input-box { font-size: 1.6rem; text-align: center; margin-bottom: 16px; min-height: 44px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 6px;}
+.dt-spell-keyboard, #mt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px;}
 
 .dt-spell-key { 
     width: auto !important; 
-    min-width: 64px; 
+    min-width: 52px; 
     background: var(--surface-container) !important; 
     color: var(--on-surface) !important; 
-    font-size: 1.4rem; 
-    padding: 14px 16px; 
+    font-size: 1.25rem; 
+    padding: 10px 12px; 
     font-family: var(--font-jp-sans); 
     font-weight: 700; 
     border-radius: var(--radius-sm);
-    box-shadow: 0 4px 12px var(--paper-shadow);
+    box-shadow: 0 2px 8px var(--paper-shadow);
 }
 /* 1. 假名拼写键：注入诗意消散动效 */
 .dt-spell-key {
@@ -1436,28 +1465,28 @@ button#btn-test-vibrate:active {
     box-shadow: 0 0 12px rgba(186, 107, 104, 0.3) !important;
 }
 
-/* 2. 多项选择按钮：动态便当盒布局 (Adaptive Bento) */
+/* 🚀 高密 2x2 便当盒排版 [3A]: 强制规整网格架构 */
 #dt-choice-buttons, #mt-choice-buttons { 
-    display: flex; 
-    flex-wrap: wrap; 
-    gap: 12px; 
+    display: grid; /* 放弃伸缩 Flex，转为刚性 Grid，斩断不可控的体积溢出 */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 8px; 
     justify-content: center;
 }
 
 .dt-choice-btn { 
-    flex: 1 1 calc(50% - 12px); /* 默认两列，但具备伸缩性 */
-    min-width: 140px; 
+    width: 100%;
     text-align: center; 
-    padding: 18px 16px; 
-    font-size: 1rem; 
+    padding: 12px 10px; 
+    font-size: 0.95rem; 
     color: var(--on-surface) !important; 
     background: var(--surface-container) !important; 
     word-break: break-word; 
-    line-height: 1.4;
+    line-height: 1.3;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 64px;
+    min-height: 52px; /* 进一步压榨物理层级厚度 */
+    border-radius: var(--radius-sm);
     border: 1px solid rgba(139, 121, 103, 0.08) !important;
 }
 

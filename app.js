@@ -83,15 +83,13 @@ const Nav = {
     },
         switchTab(targetId, titleData, navItemEl) {
         // 🚀 核心美学优化：Native 级上下文隔离。切换 Tab 时强制卸载局部的管理/多选状态，消除幽灵浮岛
-        if (Model.state.batchMode || Model.state.manageMode) {
+        if (Model.state.batchMode) {
             Model.state.batchMode = false;
-            Model.state.manageMode = false;
             Model.state.selectedSet.clear();
             
             // 收起底部浮岛，复原按钮高亮色
             View.updateWordbankUI(); 
             // 剥离当前屏幕上残留的卡片编辑遮罩
-            document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.remove('active'));
             // 注入脏标记：确保下次切回词库时，渲染引擎重新铺设干净的网格
             Model.state.renderedStartIndex = -1; 
         }
@@ -210,7 +208,7 @@ const Model = {
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
     comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
     maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
-    batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
+    batchMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, dtActionsExpanded: false,
     isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
   },
   
@@ -913,12 +911,6 @@ while (i * 10 < total) {
         batchBtn.style.boxShadow = Model.state.batchMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
     }
     
-    let manageBtn = this.getEl('wb-manage-toggle');
-    if(manageBtn) {
-        manageBtn.style.color = Model.state.manageMode ? "var(--tertiary)" : "var(--primary)";
-        manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
-    }
-
     let selFilter = this.getEl('wb-folder-filter'); 
     let currentVal = selFilter.value;
     selFilter.innerHTML = ''; 
@@ -1604,7 +1596,7 @@ while (i * 10 < total) {
       let starClass = starFilled ? 'active' : '';
 
       let topRightHTML = '';
-      if (Model.state.batchMode || Model.state.manageMode) {
+      if (Model.state.batchMode) {
           topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
       } else {
           topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
@@ -1618,12 +1610,7 @@ while (i * 10 < total) {
         ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
         <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
         <div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>
-        <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
-        <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
-            <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
-            <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
-            <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
-        </div>`;
+        <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
 
       // 视觉指纹：用于精准比对状态，避免同一张纸被重复泼墨
       let renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
@@ -1786,6 +1773,8 @@ setupVirtualScroll() {
   closeDetailIfOpen() {
       if (document.getElementById('detail-overlay').classList.contains('active')) {
           Hardware.vibrate(10);
+          Model.state.dtActionsExpanded = false;
+          this.syncDetailActionDock();
           window.toggleModal('detail-overlay', false);
           // 同时重置渲染索引以便刷新词库
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
@@ -1800,6 +1789,8 @@ setupVirtualScroll() {
         ov.addEventListener('click', (e) => { 
             if(e.target === ov) {
                 Hardware.vibrate(10);
+                Model.state.dtActionsExpanded = false;
+                this.syncDetailActionDock();
                 window.toggleModal(ov.id, false); 
                 if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); }
             }
@@ -2088,7 +2079,7 @@ if (testVibrateBtn) {
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
@@ -2097,13 +2088,9 @@ if (testVibrateBtn) {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,''), e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
-      if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); Hardware.vibrate(15); this.openMoveModal(idx); return; }
-      if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); Hardware.vibrate(15); this.editWord(idx); return; }
-      if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); Hardware.vibrate(15); this.deleteWord(idx); return; }
       if (Model.state.batchMode && !e.target.closest('.wb-blur-trigger')) { if (Model.state.selectedSet.has(idx)) Model.state.selectedSet.delete(idx); else Model.state.selectedSet.add(idx); Hardware.playSound('click'); Hardware.vibrate(10); View.updateWordbankUI(); let checkEl = card.querySelector('.wb-checkbox'); if (checkEl) { checkEl.classList.toggle('checked'); checkEl.innerText = Model.state.selectedSet.has(idx) ? '✓' : ''; } }
     });
 
-    View.getEl('wb-manage-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); if(Model.state.batchMode) this.toggleBatchMode(); Model.state.manageMode = !Model.state.manageMode; View.updateWordbankUI(); document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.toggle('active', Model.state.manageMode)); });
     View.getEl('wb-batch-toggle').addEventListener('click', () => this.toggleBatchMode()); 
     View.getEl('btn-batch-cancel').addEventListener('click', () => this.toggleBatchMode());
     View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); 
@@ -2115,8 +2102,32 @@ if (testVibrateBtn) {
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset').addEventListener('click', () => { Hardware.vibrate(20); showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); await Model.saveDB(); await Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
-    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
+    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); Model.state.dtActionsExpanded = false; this.syncDetailActionDock(); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
+    View.getEl('dt-more-btn').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        Model.state.dtActionsExpanded = !Model.state.dtActionsExpanded;
+        this.syncDetailActionDock();
+    });
+    View.getEl('dt-action-edit').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+        if (realIdx > -1) this.editWord(realIdx);
+    });
+    View.getEl('dt-action-move').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+        if (realIdx > -1) this.openMoveModal(realIdx);
+    });
+    View.getEl('dt-action-delete').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(20);
+        let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+        if (realIdx > -1) this.deleteWord(realIdx);
+    });
     View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('edit-overlay', false); });
   },
@@ -2394,7 +2405,7 @@ if (testVibrateBtn) {
   },
 
 
-  toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
+  toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); View.updateWordbankUI(); View.resetWordbankRenderer(); },
   createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
   deleteFolder() { 
       Hardware.vibrate(20); 
@@ -2539,6 +2550,8 @@ deleteWord(idx) {
           Model.state.activeDetailIdx = 0;
       }
 
+      Model.state.dtActionsExpanded = false;
+      this.syncDetailActionDock();
       window.toggleModal('detail-overlay', true); 
       this.renderDetailCard('none', true); 
   },
@@ -2555,6 +2568,8 @@ deleteWord(idx) {
       if (!w) {
           // 单词可能已被删除，关闭详情并刷新词库
           window.toggleModal('detail-overlay', false);
+          Model.state.dtActionsExpanded = false;
+          this.syncDetailActionDock();
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
               Model.state.renderedStartIndex = -1;
               View.renderVirtualGrid();
@@ -2573,6 +2588,8 @@ deleteWord(idx) {
       if (!w) {
           // 如果当前单词无效，关闭模态框
           window.toggleModal('detail-overlay', false);
+          Model.state.dtActionsExpanded = false;
+          this.syncDetailActionDock();
           return;
       }
       let wrapper = View.getEl('dt-anim-wrapper'); 
@@ -2639,6 +2656,13 @@ deleteWord(idx) {
           else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } 
       } 
       if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); } 
+  },
+  syncDetailActionDock() {
+      let dock = View.getEl('dt-action-dock');
+      let icon = View.getEl('dt-more-icon');
+      if (!dock || !icon) return;
+      dock.classList.toggle('expanded', Model.state.dtActionsExpanded);
+      icon.innerText = Model.state.dtActionsExpanded ? 'edit' : 'more_horiz';
   }
 };
 

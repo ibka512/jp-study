@@ -188,7 +188,6 @@
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 16px;">
         <h3 style="margin: 0; border: none; padding: 0;"><span class="material-symbols-rounded">folder_managed</span> 词汇与文件管理</h3>
         <div style="display: flex; gap: 8px;">
-           <button id="wb-manage-toggle" class="glass-icon-btn" title="管理编辑"><span class="material-symbols-rounded" id="manage-icon">edit</span></button>
            <button id="wb-batch-toggle" class="glass-icon-btn" title="多选模式"><span class="material-symbols-rounded" id="batch-icon">checklist_rtl</span></button>
         </div>
       </div>
@@ -539,6 +538,14 @@
     <div id="detail-close"><span class="material-symbols-rounded">close</span></div>
     
     <div id="dt-star-btn" class="wb-c-star dt-star-btn"><span class="material-symbols-rounded" id="dt-star-icon">star</span></div>
+    <div id="dt-action-dock" class="dt-action-dock" aria-label="详情操作栏">
+      <button id="dt-more-btn" class="glass-icon-btn dt-dock-toggle" title="展开操作">
+        <span class="material-symbols-rounded" id="dt-more-icon">more_horiz</span>
+      </button>
+      <button id="dt-action-edit" class="dt-dock-action" title="编辑单词"><span class="material-symbols-rounded">edit</span></button>
+      <button id="dt-action-move" class="dt-dock-action" title="移动至文件夹"><span class="material-symbols-rounded">move_item</span></button>
+      <button id="dt-action-delete" class="dt-dock-action danger" title="删除单词"><span class="material-symbols-rounded">delete</span></button>
+    </div>
 
     <button class="detail-nav-btn" id="detail-prev"><span class="material-symbols-rounded">chevron_left</span></button>
     <button class="detail-nav-btn" id="detail-next"><span class="material-symbols-rounded">chevron_right</span></button>

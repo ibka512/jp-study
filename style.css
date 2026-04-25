@@ -1228,8 +1228,6 @@ button#btn-test-vibrate:active {
 [data-theme="dark"] #batch-count-num { text-shadow: 0 2px 8px rgba(214, 195, 176, 0.2); }
 
 
-.wb-manage-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 8px; z-index: 20; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: inherit;}
-.wb-manage-overlay.active { opacity: 1; pointer-events: auto;}
 
 /* 段位色彩系统 */
 .hanko-bronze { --badge-color: #c0392b; }
@@ -1373,6 +1371,91 @@ button#btn-test-vibrate:active {
 #dt-hanko-badge { width: 36px !important; height: 36px !important; top: 16px !important; left: 16px !important; opacity: 1 !important; }
 #dt-star-btn { bottom: 16px; right: 16px; font-size: 2.2rem; opacity: 1; z-index: 20; top: auto; }
 #dt-star-btn .material-symbols-rounded { font-size: 2.2rem; }
+
+.dt-action-dock {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    height: 44px;
+    width: 44px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(246, 244, 239, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow: 0 8px 24px rgba(115, 102, 88, 0.2), var(--inner-sheen);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: width 0.36s var(--spring-snappy), padding 0.36s var(--spring-snappy), background 0.3s ease, border-color 0.3s ease;
+}
+
+.dt-action-dock.expanded {
+    width: 176px;
+    padding: 0 10px 0 0;
+}
+
+.dt-dock-toggle {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    margin: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.dt-dock-toggle .material-symbols-rounded {
+    font-size: 1.4rem;
+    transition: transform 0.28s var(--spring-snappy);
+}
+
+.dt-action-dock.expanded .dt-dock-toggle .material-symbols-rounded {
+    transform: scale(1.05);
+}
+
+.dt-dock-action {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border: none !important;
+    border-radius: 50% !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: translateX(-10px) scale(0.92);
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.62);
+    color: var(--on-surface);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 3px 8px rgba(115, 102, 88, 0.16);
+    transition: opacity 0.22s ease, transform 0.28s var(--spring-snappy), background 0.25s ease, color 0.25s ease;
+}
+
+.dt-action-dock.expanded .dt-dock-action {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    pointer-events: auto;
+}
+
+.dt-dock-action .material-symbols-rounded { font-size: 1.15rem; }
+.dt-dock-action.danger { color: var(--accent-red); }
+[data-theme="dark"] .dt-action-dock {
+    background: rgba(28, 26, 24, 0.85);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45), var(--inner-sheen);
+}
+[data-theme="dark"] .dt-action-dock .dt-dock-toggle { color: var(--on-surface); }
+[data-theme="dark"] .dt-dock-action {
+    background: rgba(255, 255, 255, 0.12);
+    color: #e8e2d9;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1), 0 4px 10px rgba(0,0,0,0.35);
+}
+[data-theme="dark"] .dt-dock-action.danger { color: var(--accent-red); }
 
 .detail-anim-wrapper { transition: transform 0.2s ease, opacity 0.2s ease; position: relative;}
 
@@ -1607,26 +1690,6 @@ button#btn-test-vibrate:active {
     border-color: rgba(255, 255, 255, 0.06) !important;
 }
 #detail-prev { left: -28px; } #detail-next { right: -28px; }
-
-.wb-btn-move, .wb-btn-edit, .wb-btn-del { 
-    width: 44px !important; 
-    height: 44px !important; 
-    padding: 0 !important;
-    border-radius: 50% !important; 
-    border: none !important;
-    box-shadow: 0 4px 12px var(--paper-shadow) !important;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-}
-.wb-btn-move:active, .wb-btn-edit:active, .wb-btn-del:active { transform: translateY(4px) !important; box-shadow: none !important; filter: none !important; }
-.wb-btn-move { background: var(--tertiary) !important; color: white !important; }
-[data-theme="dark"] .wb-btn-move { color: #1a2a22 !important; }
-.wb-btn-edit { background: var(--surface-container) !important; color: var(--on-surface) !important; }
-.wb-btn-del { background: var(--accent-red) !important; color: white !important; }
-[data-theme="dark"] .wb-btn-del { color: #3b0002 !important; }
-
-#wb-grid[data-cols="3"] .wb-btn-move, #wb-grid[data-cols="3"] .wb-btn-edit, #wb-grid[data-cols="3"] .wb-btn-del { width: 36px !important; height: 36px !important; }
-#wb-grid[data-cols="4"] .wb-btn-move, #wb-grid[data-cols="4"] .wb-btn-edit, #wb-grid[data-cols="4"] .wb-btn-del { width: 30px !important; height: 30px !important; }
 
 /* 🚀 视觉减负：幽灵态操作组 (Ghost Buttons) */
 .batch-bar button { 

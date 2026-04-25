@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v80'; // 建议更新缓存版本号
+const CACHE_NAME = 'pendulum-v79'; // 建议更新缓存版本号
 const ASSETS = [
   './',
   './index.html',

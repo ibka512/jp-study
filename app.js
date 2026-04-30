@@ -200,8 +200,73 @@ const BottomSheet = {
     }
 };
 
+const RomajiEngine = {
+    mode: 'hiragana', // 'hiragana' or 'katakana'
+    raw: '',          // 已转换的假名
+    buffer: '',       // 缓冲中的罗马字
+    map: {
+        "a":"あ","i":"い","u":"う","e":"え","o":"お","ka":"か","ki":"き","ku":"く","ke":"け","ko":"こ","ga":"が","gi":"ぎ","gu":"ぐ","ge":"げ","go":"ご",
+        "sa":"さ","shi":"し","si":"し","su":"す","se":"せ","so":"そ","za":"ざ","ji":"じ","zi":"じ","zu":"ず","ze":"ぜ","zo":"ぞ",
+        "ta":"た","chi":"ち","ti":"ち","tsu":"つ","tu":"つ","te":"て","to":"と","da":"だ","di":"ぢ","du":"づ","de":"で","do":"ど",
+        "na":"な","ni":"に","nu":"ぬ","ne":"ね","no":"の","ha":"は","hi":"ひ","fu":"ふ","hu":"ふ","he":"へ","ho":"ほ",
+        "ba":"ば","bi":"び","bu":"ぶ","be":"べ","bo":"ぼ","pa":"ぱ","pi":"ぴ","pu":"ぷ","pe":"ぺ","po":"ぽ",
+        "ma":"ま","mi":"み","mu":"む","me":"め","mo":"も","ya":"や","yu":"ゆ","yo":"よ","ra":"ら","ri":"り","ru":"る","re":"れ","ro":"ろ",
+        "wa":"わ","wo":"を","nn":"ん","n ":"ん","-":"ー",
+        "kya":"きゃ","kyu":"きゅ","kyo":"きょ","gya":"ぎゃ","gyu":"ぎゅ","gyo":"ぎょ",
+        "sha":"しゃ","sya":"しゃ","shu":"しゅ","syu":"しゅ","sho":"しょ","syo":"しょ",
+        "ja":"じゃ","zya":"じゃ","ju":"じゅ","zyu":"じゅ","jo":"じょ","zyo":"じょ",
+        "cha":"ちゃ","tya":"ちゃ","chu":"ちゅ","tyu":"ちゅ","cho":"ちょ","tyo":"ちょ",
+        "nya":"にゃ","nyu":"にゅ","nyo":"にょ","hya":"ひゃ","hyu":"ひゅ","hyo":"ひょ",
+        "bya":"びゃ","byu":"びゅ","byo":"びょ","pya":"ぴゃ","pyu":"ぴゅ","pyo":"ぴょ",
+        "mya":"みゃ","myu":"みゅ","myo":"みょ","rya":"りゃ","ryu":"りゅ","ryo":"りょ"
+    },
+    reset() { this.raw = ''; this.buffer = ''; this.mode = 'hiragana'; },
+    toggleMode() { this.mode = this.mode === 'hiragana' ? 'katakana' : 'hiragana'; Hardware.vibrate(10); },
+    toKatakana(hira) { return hira.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60)); },
+    input(char) {
+        if (char === 'Backspace') {
+            if (this.buffer.length > 0) this.buffer = this.buffer.slice(0, -1);
+            else if (this.raw.length > 0) this.raw = this.raw.slice(0, -1);
+            Hardware.vibrate(10); return;
+        }
+        Hardware.vibrate(15);
+        this.buffer += char.toLowerCase();
+        
+        // 促音规则 (e.g. tt -> っt)
+        if (this.buffer.length >= 2 && this.buffer[0] === this.buffer[1] && !"aeiouy-".includes(this.buffer[0]) && this.buffer[0] !== 'n') {
+            this.raw += this.mode === 'hiragana' ? "っ" : "ッ";
+            this.buffer = this.buffer.slice(1);
+        }
+        // 拨音规则 (n + 非n辅音 -> ん。而 nn 则交由字典映射完全吞没)
+        if (this.buffer.length >= 2 && this.buffer[0] === 'n' && this.buffer[1] !== 'n' && !"aeiouy-".includes(this.buffer[1])) {
+            this.raw += this.mode === 'hiragana' ? "ん" : "ン";
+            this.buffer = this.buffer.slice(1);
+        }
+        // 匹配合成
+        for (let i = 3; i > 0; i--) {
+            if (this.buffer.length >= i) {
+                let chunk = this.buffer.slice(0, i);
+                if (this.map[chunk]) {
+                    let kana = this.map[chunk];
+                    this.raw += this.mode === 'hiragana' ? kana : this.toKatakana(kana);
+                    this.buffer = this.buffer.slice(i);
+                    break;
+                }
+            }
+        }
+    },
+    getDisplayText() { return this.raw + (this.buffer ? `<span class="pending-romaji">${this.buffer}</span>` : ''); },
+    getFinalText() { 
+        let finalBuf = this.buffer;
+        // 智能静默补全：如果最后只剩下一个 n，回车时自动视作 ん
+        if (finalBuf === 'n') finalBuf = this.mode === 'hiragana' ? 'ん' : 'ン';
+        return this.raw + finalBuf; 
+    }
+};
+
 const Model = {
   db: [], folders: ["默认词库"], stars: [], records: [], editingIdx: -1,
+
   mtGroupClears: {}, mtWordClears: {},
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
@@ -1359,26 +1424,11 @@ while (i * 10 < total) {
   renderDualTrackUI(wObj) {
       if (Model.state.dtSubMode === 'spell') {
           this.getEl('dt-choice-area').classList.add('hidden'); this.getEl('dt-spell-area').classList.remove('hidden');
-          let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
-          this.getEl('dt-spell-input').innerText = ''; 
-          
-          let poolSet = new Set();
-          let neededFakes = Math.max(3, 12 - targetTokens.length);
-          while(poolSet.size < neededFakes) { 
-              let char = Gojuon[Math.floor(Math.random() * Gojuon.length)];
-              if (!targetTokens.includes(char)) poolSet.add(char); 
-          }
-          let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
-          
-          let kb = this.getEl('dt-spell-keyboard'); kb.innerHTML = '';
-                    allTokens.forEach((token) => { 
-              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
-              // 升维：触碰即发，在按钮缩放逃逸前捕获判定
-              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtSpellClick(btn, token); }; 
-              kb.appendChild(btn); 
-          });
-
-      } else if (Model.state.dtSubMode === 'choice') {
+          RomajiEngine.reset();
+          let inputEl = this.getEl('dt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
+          View.renderQwertyKeyboard('dt-spell-keyboard', inputEl, wObj, null);
+      }
+ else if (Model.state.dtSubMode === 'choice') {
           this.getEl('dt-spell-area').classList.add('hidden'); this.getEl('dt-choice-area').classList.remove('hidden');
           let targetMeaning = wObj.meaning;
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
@@ -1458,25 +1508,11 @@ while (i * 10 < total) {
 
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
-          let targetTokens = Model.splitKanaByMora(wObj.kana); Model.state.dtSpellTarget = targetTokens; Model.state.dtSpellCurrentIdx = 0;
-          this.getEl('mt-spell-input').innerText = ''; 
-          
-          let poolSet = new Set();
-          let neededFakes = Math.max(3, 12 - targetTokens.length);
-          while(poolSet.size < neededFakes) { 
-              let char = Gojuon[Math.floor(Math.random() * Gojuon.length)];
-              if (!targetTokens.includes(char)) poolSet.add(char); 
-          }
-          let allTokens = [...targetTokens, ...Array.from(poolSet)].sort(() => Math.random() - 0.5); 
-          
-          let kb = this.getEl('mt-spell-keyboard'); kb.innerHTML = '';
-          allTokens.forEach((token) => { 
-              let btn = document.createElement('div'); btn.className = 'dt-spell-key'; btn.innerText = token; 
-              // 升维：判定前置，无视物理动效位移
-              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtSpellClick(btn, token, wObj, displayMode); }; 
-              kb.appendChild(btn); 
-          });
-      } else if (currentTestType.startsWith('choice')) {
+          RomajiEngine.reset();
+          let inputEl = this.getEl('mt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
+          View.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, displayMode);
+      }
+ else if (currentTestType.startsWith('choice')) {
           this.getEl('mt-choice-area').classList.remove('hidden');
           let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
           if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
@@ -1492,6 +1528,64 @@ while (i * 10 < total) {
               cb.appendChild(btn); 
           });
       }
+  },
+
+    renderQwertyKeyboard(containerId, inputEl, wObj, displayMode) {
+      let kb = this.getEl(containerId);
+      // 🚀 核心修复：移除 dataset.rendered 锁，确保闭包内的 wObj 永远是当前单词
+      kb.innerHTML = ''; 
+      Model.state.spellFailCount = 0; // 每次重绘键盘（即切换新词时），重置连错计数
+
+      // 植入动态幽灵提示按钮
+      let hintWrap = document.createElement('div');
+      hintWrap.id = containerId + '-hint-wrap';
+      hintWrap.className = 'spell-hint-wrap';
+      let hintBtn = document.createElement('div');
+      hintBtn.className = 'spell-hint-btn';
+      hintBtn.innerHTML = '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
+      hintBtn.onpointerdown = (e) => {
+          e.preventDefault();
+          Hardware.vibrate(10);
+          let wKana = View.getEl('w-kana');
+          if (wKana) {
+              wKana.innerText = wObj.kana;
+              wKana.style.display = 'block';
+              wKana.classList.remove('blur-text');
+              wKana.classList.add('hint-pop-anim');
+          }
+          hintWrap.classList.remove('show'); // 阅后即焚，收起自身
+      };
+      hintWrap.appendChild(hintBtn);
+      kb.appendChild(hintWrap);
+
+      const rows = [
+          ['Q','W','E','R','T','Y','U','I','O','P'],
+          ['A','S','D','F','G','H','J','K','L','-'],
+          ['Kana','Z','X','C','V','B','N','M','Backspace'],
+          ['Enter']
+      ];
+
+      rows.forEach(r => {
+          let rowEl = document.createElement('div'); rowEl.className = 'qwerty-row';
+          r.forEach(key => {
+              let btn = document.createElement('div'); btn.className = 'qwerty-key';
+              if (key === 'Kana') { btn.innerText = 'あ/ア'; btn.classList.add('qwerty-key-wide'); }
+              else if (key === 'Backspace') { btn.innerHTML = '<span class="material-symbols-rounded">backspace</span>'; btn.classList.add('qwerty-key-wide'); }
+              else if (key === 'Enter') { btn.innerText = '確認 (Enter)'; btn.className = 'qwerty-key qwerty-key-confirm'; }
+              else btn.innerText = key;
+              
+              btn.onpointerdown = (e) => { 
+                  e.preventDefault(); 
+                  inputEl.classList.remove('error-state', 'shake-anim');
+                  if (key === 'Kana') { RomajiEngine.toggleMode(); btn.innerText = RomajiEngine.mode === 'hiragana' ? 'あ/ア' : 'ア/あ'; return; }
+                  if (key === 'Enter') { Controller.handleSpellConfirm(inputEl, wObj, displayMode); return; }
+                  RomajiEngine.input(key);
+                  inputEl.innerHTML = RomajiEngine.getDisplayText();
+              };
+              rowEl.appendChild(btn);
+          });
+          kb.appendChild(rowEl);
+      });
   },
 
   resetWordbankRenderer() { 
@@ -2258,22 +2352,43 @@ if (testVibrateBtn) {
       }
   },
 
-  handleDtSpellClick(btn, token) {
-      if (Model.state.isAnimating || btn.classList.contains('used')) return;
-      let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
-      if (token === targetChar) {
-          Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
-          View.getEl('dt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
-          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge(); setTimeout(() => this.dtAdvanceNext(), 300); }
-      } else { 
-          // 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
-          Hardware.playSound('error'); Hardware.vibrate(50); 
-          btn.classList.remove('shake-anim', 'wrong'); 
-          requestAnimationFrame(() => {
-              void btn.offsetWidth; 
-              btn.classList.add('shake-anim', 'wrong'); 
-          });
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); 
+  handleSpellConfirm(inputEl, wObj, displayMode) {
+      if (Model.state.isAnimating) return;
+      // 提取核心比对逻辑，去除标点括号带来的干扰
+      let targetClean = wObj.kana.replace(/[【】\[\]()]/g,'');
+      let inputClean = RomajiEngine.getFinalText();
+      
+      if (!inputClean) return;
+
+      if (inputClean === targetClean) {
+          Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50);
+          Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
+          
+          if (Model.state.mode === 'dual-track') {
+              setTimeout(() => this.dtAdvanceNext(), 300);
+          } else {
+              if (Model.state.mode === 'memory-test') { 
+                  View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; 
+                  setTimeout(() => this.mtAdvanceNext(), 600); 
+              } else { 
+                  if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; } 
+                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 500); 
+              }
+          }
+      } else {
+          Hardware.playSound('error'); Hardware.vibrate(60);
+          inputEl.classList.remove('shake-anim'); void inputEl.offsetWidth; 
+          inputEl.classList.add('shake-anim', 'error-state');
+          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
+          Model.state.currentWordFailed = true;
+          
+          // 🚀 认知脚手架：连错两次后，呼出幽灵提示按钮
+          Model.state.spellFailCount = (Model.state.spellFailCount || 0) + 1;
+          if (Model.state.spellFailCount >= 2) {
+              let activeKbId = Model.state.mode === 'dual-track' ? 'dt-spell-keyboard' : 'mt-spell-keyboard';
+              let hintWrap = this.getEl(activeKbId + '-hint-wrap');
+              if (hintWrap) hintWrap.classList.add('show');
+          }
       }
   },
 
@@ -2307,20 +2422,6 @@ if (testVibrateBtn) {
           });
           Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); 
       }
-  },
-
-  handleMtSpellClick(btn, token, wObj, displayMode) {
-      if (Model.state.isAnimating || btn.classList.contains('used')) return;
-      let targetChar = Model.state.dtSpellTarget[Model.state.dtSpellCurrentIdx];
-      if (token === targetChar) {
-          Hardware.playSound('click'); Hardware.vibrate(15); btn.classList.add('used'); Model.state.dtSpellCurrentIdx++;
-          View.getEl('mt-spell-input').innerText = Model.state.dtSpellTarget.slice(0, Model.state.dtSpellCurrentIdx).join('');
-          if (Model.state.dtSpellCurrentIdx >= Model.state.dtSpellTarget.length) { 
-              Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
-              if (Model.state.mode === 'memory-test') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); setTimeout(() => this.mtAdvanceNext(), 800); } 
-              else { if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').classList.add('shake-anim'); setTimeout(() => View.getEl('w-kana').classList.remove('shake-anim'), 300); } setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); }
-          }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); Model.state.currentWordFailed = true; }
   },
 
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {

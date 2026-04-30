@@ -1423,47 +1423,111 @@ button#btn-test-vibrate:active {
 @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 .shake-anim { animation: shake 0.3s forwards; }
 
-/* 🚀 操作区物理压缩：极简点按键盘 */
-.dt-spell-input-box { font-size: 1.6rem; text-align: center; margin-bottom: 16px; min-height: 44px; border-bottom: 3px solid var(--primary); color: var(--primary); letter-spacing: 6px; font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 6px;}
-.dt-spell-keyboard, #mt-spell-keyboard { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px;}
-
-.dt-spell-key { 
-    width: auto !important; 
-    min-width: 52px; 
-    background: var(--surface-container) !important; 
-    color: var(--on-surface) !important; 
-    font-size: 1.25rem; 
-    padding: 10px 12px; 
-    font-family: var(--font-jp-sans); 
-    font-weight: 700; 
-    border-radius: var(--radius-sm);
-    box-shadow: 0 2px 8px var(--paper-shadow);
+/* 🚀 物理级 IME 键盘重塑 (Native QWERTY Keyboard) */
+.dt-spell-input-box { 
+    font-size: 1.8rem; text-align: center; margin-bottom: 16px; min-height: 52px; 
+    border-bottom: 2px solid var(--outline); color: var(--primary); letter-spacing: 4px; 
+    font-weight: 800; font-family: var(--font-jp-sans); padding-bottom: 4px;
+    transition: border-color 0.3s, color 0.3s;
 }
-/* 1. 假名拼写键：注入诗意消散动效 */
-.dt-spell-key {
-    transition: 
-        transform 0.4s var(--spring-bouncy), 
-        opacity 0.4s var(--spring-smooth), 
-        filter 0.4s var(--spring-smooth),
-        box-shadow 0.3s ease,
-        background 0.3s ease;
+.dt-spell-input-box.error-state {
+    border-bottom-color: var(--accent-red); color: var(--accent-red);
+}
+.pending-romaji { opacity: 0.5; text-decoration: underline; text-decoration-thickness: 2px; }
+
+.dt-spell-keyboard, #mt-spell-keyboard { 
+    display: flex; flex-direction: column; gap: 8px; justify-content: center; margin-bottom: 8px; width: 100%;
 }
 
-.dt-spell-key.used {
-    opacity: 0;
-    pointer-events: none;
-    /* 灵魂脱离：向上微浮、轻微放大并伴随模糊气化 */
-    transform: translateY(-20px) scale(1.15);
-    filter: blur(12px);
+.qwerty-row { display: flex; justify-content: center; gap: 6px; width: 100%; }
+
+.qwerty-key {
+    flex: 1; height: 46px; 
+    background: var(--surface-container); 
+    color: var(--on-surface); 
+    font-size: 1.2rem; font-weight: 700; font-family: var(--font-ui);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    box-shadow: 0 1px 0 rgba(139, 121, 103, 0.2), 0 2px 4px rgba(115, 102, 88, 0.04);
+    border: 1px solid rgba(139, 121, 103, 0.04);
+    cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: all 0.1s;
 }
 
-.dt-spell-key.wrong {
-    background: rgba(186, 107, 104, 0.05) !important; /* 极淡的朱砂水渍 */
-    border-color: var(--accent-red) !important;
-    color: var(--accent-red) !important;
-    /* 边缘呼吸光 */
-    box-shadow: 0 0 12px rgba(186, 107, 104, 0.3) !important;
+.qwerty-key-wide { flex: 1.5; font-size: 1rem; background: rgba(139, 121, 103, 0.08); }
+.qwerty-key-confirm { flex: 2.5; background: var(--tertiary); color: var(--on-primary); box-shadow: 0 1px 0 rgba(74, 99, 85, 0.4); }
+
+.qwerty-key:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 transparent;
+    background: rgba(139, 121, 103, 0.15);
 }
+.qwerty-key-confirm:active { background: rgba(74, 99, 85, 0.9); }
+
+/* 🚀 认知脚手架：幽灵态假名提示按钮 */
+.spell-hint-wrap {
+    height: 0; overflow: hidden; display: flex; justify-content: center;
+    transition: height 0.4s var(--spring-bouncy), margin 0.4s var(--spring-bouncy);
+}
+.spell-hint-wrap.show {
+    height: 38px; margin-bottom: 12px;
+}
+.spell-hint-btn {
+    background: transparent; 
+    color: var(--tertiary); 
+    border: 1px solid rgba(107, 132, 123, 0.3);
+    padding: 6px 20px; 
+    border-radius: var(--radius-full); 
+    font-size: 0.9rem; font-weight: 800;
+    display: inline-flex; align-items: center; gap: 6px; 
+    cursor: pointer; user-select: none;
+    box-shadow: 0 4px 12px rgba(107, 132, 123, 0.08); 
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.spell-hint-btn:active { 
+    transform: scale(0.92); 
+    background: rgba(107, 132, 123, 0.1); 
+    box-shadow: 0 1px 2px rgba(107, 132, 123, 0.1);
+}
+[data-theme="dark"] .spell-hint-btn { 
+    border-color: rgba(164, 199, 182, 0.2); 
+    color: #a4c7b6; 
+}
+
+/* 光学变焦：假名揭晓时的镜头对焦动画 */
+.hint-pop-anim { animation: hint-focus-pull 0.6s var(--spring-bouncy) forwards; }
+@keyframes hint-focus-pull {
+    0% { opacity: 0; transform: translateY(15px) scale(0.9); filter: blur(8px); }
+    100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+
+/* 极夜模式键盘材质映射 */
+[data-theme="dark"] .qwerty-key {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    border-color: transparent;
+}
+[data-theme="dark"] .qwerty-key-wide { background: rgba(0, 0, 0, 0.2); }
+
+/* 🚀 光学重构：确认键幽灵态降维，削弱刺眼感 */
+[data-theme="dark"] .qwerty-key-confirm { 
+    background: rgba(164, 199, 182, 0.12); 
+    color: #a4c7b6; 
+    border: 1px solid rgba(164, 199, 182, 0.15);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(164, 199, 182, 0.05); 
+}
+
+[data-theme="dark"] .qwerty-key:active { background: rgba(255, 255, 255, 0.15); transform: translateY(2px); box-shadow: 0 0 0 transparent; }
+
+/* 确认键独立按压反馈：加深翠绿阻尼感 */
+[data-theme="dark"] .qwerty-key-confirm:active { 
+    background: rgba(164, 199, 182, 0.25); 
+    transform: translateY(2px); 
+    box-shadow: 0 0 0 transparent; 
+}
+
+
 
 /* 🚀 高密 2x2 便当盒排版 [3A]: 强制规整网格架构 */
 #dt-choice-buttons, #mt-choice-buttons { 

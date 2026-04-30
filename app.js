@@ -214,8 +214,9 @@ const RomajiEngine = {
         "wa":"わ","wo":"を","nn":"ん","n ":"ん","-":"ー",
         "kya":"きゃ","kyu":"きゅ","kyo":"きょ","gya":"ぎゃ","gyu":"ぎゅ","gyo":"ぎょ",
         "sha":"しゃ","sya":"しゃ","shu":"しゅ","syu":"しゅ","sho":"しょ","syo":"しょ",
-        "ja":"じゃ","zya":"じゃ","ju":"じゅ","zyu":"じゅ","jo":"じょ","zyo":"じょ",
-        "cha":"ちゃ","tya":"ちゃ","chu":"ちゅ","tyu":"ちゅ","cho":"ちょ","tyo":"ちょ",
+                "ja":"じゃ","zya":"じゃ","jya":"じゃ","ju":"じゅ","zyu":"じゅ","jyu":"じゅ","jo":"じょ","zyo":"じょ","jyo":"じょ",
+        "cha":"ちゃ","tya":"ちゃ","cya":"ちゃ","chu":"ちゅ","tyu":"ちゅ","cyu":"ちゅ","cho":"ちょ","tyo":"ちょ","cyo":"ちょ",
+
         "nya":"にゃ","nyu":"にゅ","nyo":"にょ","hya":"ひゃ","hyu":"ひゅ","hyo":"ひょ",
         "bya":"びゃ","byu":"びゅ","byo":"びょ","pya":"ぴゃ","pyu":"ぴゅ","pyo":"ぴょ",
         "mya":"みゃ","myu":"みゅ","myo":"みょ","rya":"りゃ","ryu":"りゅ","ryo":"りょ"
@@ -316,7 +317,8 @@ const Model = {
           await this.saveDB(); 
       }
   }
-  // 修复：清洗旧版 mtWordClears 中的数字值为三维对象
+  
+  // 修复：清洗旧版 mtWordClears 中的数字值为三维对象 (现已安全收束至 loadData 作用域内)
   let needSave = false;
   for (let word in this.mtWordClears) {
       if (typeof this.mtWordClears[word] === 'number') {
@@ -326,6 +328,7 @@ const Model = {
   }
   if (needSave) await this.saveClears();
 },
+
   saveDB() { return idbKeyval.set('myWordDB_v3', this.db); },
   saveFolders() { return idbKeyval.set('myFolders_v3', this.folders); },
   saveStars() { return idbKeyval.set('starredWords', this.stars); },
@@ -489,8 +492,17 @@ const Hardware = {
           osc2.start(now + 0.15); osc2.stop(now + 0.6);
       } catch(e) {}
   },
+stopAllAudio() {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        if (this._currentAudio) {
+            this._currentAudio.pause();
+            this._currentAudio.src = '';
+            this._currentAudio = null;
+        }
+    },
 isSpeechUnlocked: false,
       unlockSpeech() {
+
     try { 
         if (!window.speechSynthesis) return;
         // 预加载日语语音列表
@@ -583,9 +595,9 @@ if (engine === 'youdao') {
     const audio = new Audio(url);
     audio.playbackRate = 0.85;
     audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence); revertBtn(); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn); });
     return;
 }
             // 🗣️ 3. 微软 Azure 模式 (单词和长例句通吃！)
@@ -612,9 +624,9 @@ if (engine === 'azure') {
     //  智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
     audio.playbackRate = isSentence ? 0.75 : 0.85;
     audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence); revertBtn(); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence); revertBtn(); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn); });
 }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
@@ -1904,7 +1916,7 @@ setupVirtualScroll() {
         btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); window.speechSynthesis.cancel(); this.saveSessionRecord(); View.showPage('tab-home'); View.renderDashboard(); });
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); this.saveSessionRecord(); View.showPage('tab-home'); View.renderDashboard(); });
 
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
@@ -2563,6 +2575,17 @@ batchDelete() {
     showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
         // 删除前关闭详情卡片，避免 detailArray 失效
         this.closeDetailIfOpen();
+        
+        // 核心修复：彻底清洗剥离关联的幽灵数据
+        Model.state.selectedSet.forEach(idx => {
+            let wordKey = Model.db[idx].word;
+            Model.stars = Model.stars.filter(w => w !== wordKey);
+            delete Model.mtWordClears[wordKey];
+        });
+        Model.saveStars();
+        Model.saveClears();
+        
+        // 最后安全剔除词库实体
         Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
         Model.saveDB(); 
         this.toggleBatchMode();

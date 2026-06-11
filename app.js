@@ -361,7 +361,7 @@ const Model = {
       ]);
   },
   
-  updateFilteredDb(searchQuery, currentFilter) {
+    updateFilteredDb(searchQuery, currentFilter) {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
           let matchFolder = currentFilter === 'all' ? true : this.checkFilter(item.w, currentFilter);
           let matchSearch = !searchQuery || 
@@ -370,7 +370,10 @@ const Model = {
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
+      // 插入长按提示卡片到第一位 (使用 -999 作为特殊隔离标记)
+      this.state.filteredDb.unshift({ w: { word: 'HINT_CARD', type: 'hint' }, idx: -999 });
   },
+
 
   splitKanaByMora(kanaStr) {
       let tokens = kanaStr.replace(/[【】\[\]()]/g, '').match(/([ぁ-んァ-ン][ゃゅょャュョぁぃぅぇぉァィゥェォ]?|[っッんンー])/g);
@@ -1693,61 +1696,80 @@ while (i * 10 < total) {
 
 
     slice.forEach((item, index) => {
-      let w = item.w, idx = item.idx; let visuals = this.getCardVisuals(w.type);
-      let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
-      let isChecked = Model.state.selectedSet.has(idx);
+      let w = item.w, idx = item.idx; 
+      let contentHTML = '';
+      let renderFingerprint = '';
+      let bgStyle = '';
+      let isHintCard = (idx === -999);
 
-      let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
-      if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-      let hankoHTML = `
-        <div class="card-tri-bar">
-          <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
-          <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
-          <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
-        </div>`;
-
-      let starFilled = Model.stars.includes(w.word) ? 1 : 0;
-      let starClass = starFilled ? 'active' : '';
-
-      let topRightHTML = '';
-      if (Model.state.batchMode || Model.state.manageMode) {
-          topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
+      if (isHintCard) {
+          bgStyle = 'transparent';
+          renderFingerprint = 'hint-card';
+          contentHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; border: 2px dashed var(--outline); border-radius: inherit; width: 100%; position: absolute; inset: 0;">
+                <span class="material-symbols-rounded" style="font-size:2rem; margin-bottom:8px; color:var(--tertiary);">touch_app</span>
+                <div style="font-size:1rem; font-weight:800; margin-bottom:4px; color:var(--on-surface);">长按卡片</div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">查看详细释义</div>
+            </div>`;
       } else {
-          topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
+          let visuals = this.getCardVisuals(w.type);
+          bgStyle = visuals.bg;
+          let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
+          let isChecked = Model.state.selectedSet.has(idx);
+
+          let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
+          if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+          let hankoHTML = `
+            <div class="card-tri-bar">
+              <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
+              <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
+              <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
+            </div>`;
+
+          let starFilled = Model.stars.includes(w.word) ? 1 : 0;
+          let starClass = starFilled ? 'active' : '';
+
+          let topRightHTML = '';
+          if (Model.state.batchMode || Model.state.manageMode) {
+              topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
+          } else {
+              topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
+          }
+
+          let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
+          contentHTML = `
+            ${hankoHTML}
+            <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
+            ${topRightHTML}
+            ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
+            <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
+            <div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>
+            <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
+            <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
+                <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
+                <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
+                <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
+            </div>`;
+
+          renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
       }
 
-      let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
-      let contentHTML = `
-        ${hankoHTML}
-        <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
-        ${topRightHTML}
-        ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
-        <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-        <div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>
-        <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
-        <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
-            <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
-            <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
-            <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
-        </div>`;
-
-      // 视觉指纹：用于精准比对状态，避免同一张纸被重复泼墨
-      let renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
-
       if (index < existingCards.length) {
-          // 物理复用：直接抽调复用池中的现有卡片
           let card = existingCards[index];
           if (card.dataset.fingerprint !== renderFingerprint) {
-              card.style.background = visuals.bg;
+              card.style.background = bgStyle;
+              card.style.boxShadow = isHintCard ? 'none' : '';
+              card.style.border = isHintCard ? 'none' : '';
               card.dataset.idx = idx;
               card.dataset.fingerprint = renderFingerprint;
               card.innerHTML = contentHTML;
           }
       } else {
-          // 拓荒注入：仅在池子不够时才创建新实体
           let card = document.createElement('div');
           card.className = 'wb-card';
-          card.style.background = visuals.bg;
+          card.style.background = bgStyle;
+          card.style.boxShadow = isHintCard ? 'none' : '';
+          card.style.border = isHintCard ? 'none' : '';
           card.dataset.idx = idx;
           card.dataset.fingerprint = renderFingerprint;
           card.style.opacity = '1';
@@ -2194,13 +2216,13 @@ if (testVibrateBtn) {
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
     grid.addEventListener('click', (e) => {
-      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
+      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
       if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,''), e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); Hardware.vibrate(15); this.openMoveModal(idx); return; }
@@ -2654,7 +2676,7 @@ deleteWord(idx) {
   openDetailModal(idx) { 
       // 核心重构：抛弃笨重的二次遍历，直接对接高度精准的“已过滤数据池”
       // 无论用户是做了分类筛选，还是文字搜索，滑动轨道都将与之绝对统一
-      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx); 
+      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx).filter(id => id !== -999); 
       Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
       
       // 极端边界兜底：若未命中（理论上不可能），则降级为只展示当前单张卡片

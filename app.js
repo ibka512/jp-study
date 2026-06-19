@@ -82,17 +82,13 @@ const Nav = {
         });
     },
         switchTab(targetId, titleData, navItemEl) {
-        // 🚀 核心美学优化：Native 级上下文隔离。切换 Tab 时强制卸载局部的管理/多选状态，消除幽灵浮岛
         if (Model.state.batchMode || Model.state.manageMode) {
             Model.state.batchMode = false;
             Model.state.manageMode = false;
             Model.state.selectedSet.clear();
             
-            // 收起底部浮岛，复原按钮高亮色
             View.updateWordbankUI(); 
-            // 剥离当前屏幕上残留的卡片编辑遮罩
             document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.remove('active'));
-            // 注入脏标记：确保下次切回词库时，渲染引擎重新铺设干净的网格
             Model.state.renderedStartIndex = -1; 
         }
 
@@ -233,12 +229,12 @@ const RomajiEngine = {
         Hardware.vibrate(15);
         this.buffer += char.toLowerCase();
         
-        // 促音规则 (e.g. tt -> っt)
+        // 促音规则
         if (this.buffer.length >= 2 && this.buffer[0] === this.buffer[1] && !"aeiouy-".includes(this.buffer[0]) && this.buffer[0] !== 'n') {
             this.raw += this.mode === 'hiragana' ? "っ" : "ッ";
             this.buffer = this.buffer.slice(1);
         }
-        // 拨音规则 (n + 非n辅音 -> ん。而 nn 则交由字典映射完全吞没)
+        // 拨音规则
         if (this.buffer.length >= 2 && this.buffer[0] === 'n' && this.buffer[1] !== 'n' && !"aeiouy-".includes(this.buffer[1])) {
             this.raw += this.mode === 'hiragana' ? "ん" : "ン";
             this.buffer = this.buffer.slice(1);
@@ -259,7 +255,6 @@ const RomajiEngine = {
     getDisplayText() { return this.raw + (this.buffer ? `<span class="pending-romaji">${this.buffer}</span>` : ''); },
     getFinalText() { 
         let finalBuf = this.buffer;
-        // 智能静默补全：如果最后只剩下一个 n，回车时自动视作 ん
         if (finalBuf === 'n') finalBuf = this.mode === 'hiragana' ? 'ん' : 'ン';
         return this.raw + finalBuf; 
     }
@@ -318,7 +313,6 @@ const Model = {
       }
   }
   
-  // 修复：清洗旧版 mtWordClears 中的数字值为三维对象 (现已安全收束至 loadData 作用域内)
   let needSave = false;
   for (let word in this.mtWordClears) {
       if (typeof this.mtWordClears[word] === 'number') {
@@ -334,19 +328,16 @@ const Model = {
   saveStars() { return idbKeyval.set('starredWords', this.stars); },
   saveRecords() { return idbKeyval.set('studyRecords', this.records); },
   
-  // 🚀 新增：三维靶向统一过滤器
   checkFilter(w, filterName) {
       let st = this.mtWordClears[w.word] || { kanji:false, kana:false, meaning:false };
-      if (typeof st === 'number') st = { kanji:false, kana:false, meaning:false }; // 清洗旧数据
+      if (typeof st === 'number') st = { kanji:false, kana:false, meaning:false }; 
 
       if (filterName === 'virtual_starred') return this.stars.includes(w.word);
-      if (filterName === 'virtual_cleared') return st.kanji && st.kana && st.meaning; // 必须三杠全满
-      if (filterName === 'virtual_uncleared') return !(st.kanji && st.kana && st.meaning); // 只要差一杠就算未通关
-      // 🚀 正向筛选：全景词库展示用的“已了解”
+      if (filterName === 'virtual_cleared') return st.kanji && st.kana && st.meaning; 
+      if (filterName === 'virtual_uncleared') return !(st.kanji && st.kana && st.meaning); 
       if (filterName === 'virtual_know_kanji') return st.kanji;
       if (filterName === 'virtual_know_kana') return st.kana;
       if (filterName === 'virtual_know_meaning') return st.meaning;
-      // 🚀 反向筛选：学习和检验攻坚用的“未了解”
       if (filterName === 'virtual_miss_kanji') return !st.kanji;
       if (filterName === 'virtual_miss_kana') return !st.kana;
       if (filterName === 'virtual_miss_meaning') return !st.meaning;
@@ -370,7 +361,6 @@ const Model = {
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
-      // 插入长按提示卡片到第一位 (使用 -999 作为特殊隔离标记)
       this.state.filteredDb.unshift({ w: { word: 'HINT_CARD', type: 'hint' }, idx: -999 });
   },
 
@@ -508,7 +498,6 @@ isSpeechUnlocked: false,
 
     try { 
         if (!window.speechSynthesis) return;
-        // 预加载日语语音列表
         if (!this.jaVoiceCache) {
             let voices = window.speechSynthesis.getVoices();
             this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
@@ -520,75 +509,60 @@ isSpeechUnlocked: false,
         this.isSpeechUnlocked = true; 
     } catch(e) {}
 },
-      // --- 新增一个专门用来兜底的辅助函数 ---
 fallbackLocalTTS(text, isSentence = false, onComplete = null) {
     if (!window.speechSynthesis) {
         if (onComplete) onComplete();
         return;
     }
-    // 若语音缓存不存在，尝试再次获取
     if (!this.jaVoiceCache) {
         let voices = window.speechSynthesis.getVoices();
         this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
     }
     
-    // 用 50ms 延迟避开 cancel() 的清空判定期
     setTimeout(() => {
         let msg = new SpeechSynthesisUtterance(text);
         msg.lang = 'ja-JP';
         msg.rate = isSentence ? 0.75 : 0.8;
         if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
         
-        // 绑定语音结束或出错的回调，用来恢复樱花按钮状态
         if (onComplete) {
             msg.onend = onComplete;
             msg.onerror = onComplete;
         }
         
-        // 某些浏览器需要确保 speechSynthesis 未处于暂停状态
         if (window.speechSynthesis.paused) window.speechSynthesis.resume();
         window.speechSynthesis.speak(msg);
     }, 50);
 },
 
-      // --- 核心发音控制器 ---
 async speakText(text, btnEl = null) {
   try {
       if (typeof text !== 'string' || text.trim() === '') return;
-      // 取消之前的所有 TTS 播放，防止重叠
       if (window.speechSynthesis) window.speechSynthesis.cancel();
-      // 同时停止任何正在播放的在线音频（简单处理：静默销毁）
       if (this._currentAudio) {
           this._currentAudio.pause();
           this._currentAudio = null;
       }
             
-                        //  接管按钮：将其变成花朵加载状态
             let iconEl = null; let originalIcon = '';
             if (btnEl) {
                 btnEl.classList.add('speaker-loading');
-                //  智能感知：若元素自身即为图标，则直接接管；若是容器，则向下寻幽探微
                 iconEl = btnEl.classList.contains('material-symbols-rounded') ? btnEl : btnEl.querySelector('.material-symbols-rounded');
                 if (iconEl) { originalIcon = iconEl.innerText; iconEl.innerText = 'spa'; }
             }
 
-            //  恢复按钮状态的辅助闭包
             const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
 
             let isSentence = text.length > 12 || /[。？！，、]/.test(text);
             let engine = localStorage.getItem('ttsEngine') || 'youdao';
 
-            // 🗣️ 1. 拦截分流：如果你选了“本地”，或者（选了“有道”且点的是长例句）
  if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-    // 将恢复按钮的闭包传给底层，等真的读完了再把花朵变回喇叭
     this.fallbackLocalTTS(text, isSentence, revertBtn);
     return;
 }
 
-            // 🗣️ 2. 网易有道模式 (只有短单词会走到这里)
 if (engine === 'youdao') {
     const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
-    // 彻底清理上一个音频实例
     if (this._currentAudio) {
         this._currentAudio.pause();
         this._currentAudio.src = '';
@@ -603,7 +577,6 @@ if (engine === 'youdao') {
     audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn); });
     return;
 }
-            // 🗣️ 3. 微软 Azure 模式 (单词和长例句通吃！)
 if (engine === 'azure') {
     const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
     
@@ -616,7 +589,6 @@ if (engine === 'azure') {
     if (!response.ok) throw new Error("Azure API 请求失败");
     const blob = await response.blob();
     
-    // 彻底清理上一个音频实例
     if (this._currentAudio) {
         this._currentAudio.pause();
         if (this._currentAudio.src) URL.revokeObjectURL(this._currentAudio.src);
@@ -624,7 +596,6 @@ if (engine === 'azure') {
     }
 
     const audio = new Audio(URL.createObjectURL(blob));
-    //  智能降速：微软读长例句时，自动降速到 0.75，方便你听写和辨音
     audio.playbackRate = isSentence ? 0.75 : 0.85;
     audio.oncanplaythrough = revertBtn; 
     audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn); };
@@ -633,7 +604,6 @@ if (engine === 'azure') {
 }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
-            // 发生错误时也要记得把花朵变回小喇叭
             if (btnEl) { btnEl.classList.remove('speaker-loading'); let i = btnEl.querySelector('.material-symbols-rounded'); if(i) i.innerText = 'volume_up'; }
             this.fallbackLocalTTS(text, isSentence);
         }
@@ -681,7 +651,6 @@ const View = {
   getCardVisuals(typeStr) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
     
-    // 🚥 精密数据流：构建语义支架拦截池
     let wmSet = new Set();
     if (typeStr.includes('自他')) { wmSet.add('が'); wmSet.add('を'); }
     else {
@@ -691,7 +660,6 @@ const View = {
     if (typeStr.includes('形动') || typeStr.includes('形容动词')) wmSet.add('な');
     if (typeStr.includes('名')) wmSet.add('の');
 
-    // ✂️ 光学排版重构：设立阈值，最多展示两个核心图腾，触发动态降维标签
     let wmArray = Array.from(wmSet).slice(0, 2);
     let wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('・')}</span>` : wmArray.join('');
 
@@ -714,7 +682,6 @@ const View = {
     let uniqueColors = [...new Set(mainColors)];
     let bg = uniqueColors[0] || 'var(--surface-container)';
     if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
-    // 兜底：如果 bg 是默认色但实际应有颜色，确保至少有一个背景
     if (bg === 'var(--surface-container)' && tagsHTML) {
         bg = 'var(--bg-other)';
     }
@@ -780,7 +747,6 @@ const View = {
     
         if (displayCurrent > totalPixels) displayCurrent = totalPixels;
 
-        // 🚀 动态判断：精准获取“物理词汇基数”，排除死记硬背/突击模式下数学膨胀的队列干扰
     let baseCount = Model.state.studyQueue.length;
     if (mode === 'memory-test') {
         baseCount = Model.state.mtBaseQueue.length;
@@ -788,14 +754,11 @@ const View = {
         baseCount = Model.state.uniqueWordCount;
     }
     
-        // 🚀 动态形态回退：当真实词汇量 > 100，或者处于「死记硬背 / 记忆检测」模式时，强制换回原本的流体条样式
     if (baseCount > 100 || mode === 'rote-learning' || mode === 'memory-test') {
         c.classList.add('matrix-legacy');
     } else {
         c.classList.remove('matrix-legacy');
     }
-
-
 
     if (totalPixels <= 10) {
         c.classList.add('compact-mode');
@@ -908,18 +871,16 @@ const View = {
               return Model.checkFilter(item.w, catVal);
           });
 
-          // 🚀 智能识别胜利状态的缺省页
           if (words.length === 0) {
               let emptyText = "当前空空如也";
-              let iconStr = "spa"; // 基础莲花
+              let iconStr = "spa"; 
               let jpTitle = "【 空 無 】";
               
               if(catVal === 'virtual_starred') { emptyText = "暂无收藏，去发现心动词汇吧"; }
               if(catVal === 'virtual_cleared') { emptyText = "路漫漫其修远兮，继续攀登吧"; }
               if(catVal === 'virtual_uncleared' || catVal.includes('virtual_miss_')) { 
-                  // 攻坚完成的胜利状态！
                   emptyText = "此维度盲区已彻底扫清！"; 
-                  iconStr = "radio_button_unchecked"; //  ⭕️，代表完整
+                  iconStr = "radio_button_unchecked"; 
                   jpTitle = "【 円 相 】";
               }
               
@@ -947,7 +908,6 @@ while (i * 10 < total) {
               let clears = Model.mtGroupClears[groupVal] || 0;
               let badgeHTML = '';
               
-              // 修复：如果当前是「未通关」分类，强制不显示段位勋章
               if (catVal !== 'virtual_uncleared' && (clears > 0 || catVal === 'virtual_cleared')) {
                   let badgeClass = 'hanko-bronze'; 
                   if (clears >= 10 || catVal === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
@@ -1031,7 +991,6 @@ while (i * 10 < total) {
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
-    // 核心计算：三维进度
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
     Object.values(Model.mtWordClears).forEach(st => {
@@ -1053,7 +1012,6 @@ while (i * 10 < total) {
     if (this.getEl('mastery-total')) this.getEl('mastery-total').innerText = totalWordsCount;
     if (this.getEl('mastery-percent')) this.getEl('mastery-percent').innerText = `(${masteryPercent}%)`;
     
-    // 触发动画渲染进度条
     setTimeout(() => {
         if (this.getEl('mastery-bar')) this.getEl('mastery-bar').style.width = `${masteryPercent}%`;
         
@@ -1097,7 +1055,6 @@ while (i * 10 < total) {
 
       testSel.innerHTML = '';
       
-      // 核心增加：在这里补齐“已了解”的复习巩固选项
       let options = [
           { text: '默认词库', val: '默认词库' },
           { text: '收藏词汇', val: 'virtual_starred' },
@@ -1136,7 +1093,7 @@ while (i * 10 < total) {
     if (isFirstAppearance) { 
         forceRoteFull = true; 
         mode = 'all'; 
-        Model.state.mtStep = 1; // 重置遮盖步骤
+        Model.state.mtStep = 1; 
     }
 }
 
@@ -1162,16 +1119,15 @@ while (i * 10 < total) {
     let card = this.getEl('flash-card');
     let visuals = this.getCardVisuals(w.type);
     card.querySelector('.watermark-layer').style.background = visuals.bg;
-    this.getEl('flash-watermark').innerHTML = visuals.wm; // 允许解析光学缩放标签
+    this.getEl('flash-watermark').innerHTML = visuals.wm; 
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
         if (anim !== 'none') {
         Model.state.isAnimating = true;
 
-        // 🚀 注入交互反馈：触发材质扫光动画
         card.classList.remove('shimmering');
-        void card.offsetWidth; /* 强制重绘，确保连点时动画能重复触发 */
+        void card.offsetWidth; 
         card.classList.add('shimmering');
 
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
@@ -1180,12 +1136,11 @@ while (i * 10 < total) {
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
             
-            // 物理冷却期：确保 3D 动画与扫光动画完整释放
             setTimeout(() => { 
                 Model.state.isAnimating = false;
                 card.classList.remove('shimmering');
             }, 600); 
-        }, 300); /* 增加物理缓冲时间，让滑出与滑入的 3D 转动更自然 */
+        }, 300); 
     } else {
 
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
@@ -1244,7 +1199,6 @@ while (i * 10 < total) {
             }
         }
 
-        // 🚀 视觉净化：声学焦点重聚 (Acoustic Focus) - 隐去角落冗余的微型喇叭，将 100% 的视觉重心交还给中央的巨大播放器
         this.getEl('btn-speaker').style.display = (st === 'C' || (showA && displayMode !== 'audio')) ? 'block' : 'none';
         
         if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
@@ -1285,17 +1239,15 @@ while (i * 10 < total) {
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
-    // 核心优化 1：主卡片动态字号排版
     let finalWord = (!showWord && !isMemTest) ? mask(w.word) : w.word;
     let wWordEl = this.getEl('w-word');
     wWordEl.innerText = finalWord;
     
-    // 按字符长度阶梯式缩小字号
     let wLen = Array.from(finalWord || '').length;
     if (wLen >= 10) wWordEl.style.fontSize = '1.8rem';
     else if (wLen >= 7) wWordEl.style.fontSize = '2.2rem';
     else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
-    else wWordEl.style.fontSize = ''; // 恢复 CSS 默认的巨大字号
+    else wWordEl.style.fontSize = ''; 
 
     this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
     this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
@@ -1387,7 +1339,6 @@ while (i * 10 < total) {
         return;
     }
 
-    // 获取用户设置的渲染引擎模式 (默认使用 Ruby)
     let useRuby = localStorage.getItem('useRubyRender') !== 'false';
     
     let processedStr = exString;
@@ -1406,7 +1357,6 @@ while (i * 10 < total) {
         
         let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
         
-        // 条件渲染：只有在开启 Ruby 模式时，才进行正则转换
         if (useRuby) {
             safeJpPart = safeJpPart.replace(/\$\\overset\{([^\}]+)\}\{([^\}]+)\}\$/g, '<ruby>$2<rt>$1</rt></ruby>');
         }
@@ -1428,7 +1378,6 @@ while (i * 10 < total) {
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
-    // 条件调用：只有在 MathJax 模式下（且 API 存在时），才调用沉重的渲染库
     if (!useRuby && window.MathJax && window.MathJax.typesetPromise) { 
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
             .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
@@ -1452,9 +1401,12 @@ while (i * 10 < total) {
           let choices = [{text: targetMeaning, correct: true}];
           pool.forEach(x => choices.push({text: x.meaning, correct: false})); choices.sort(() => Math.random() - 0.5); 
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => { 
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; btn.innerText = c.text; 
-              // 升维：零延迟响应，封杀 300ms 点击犹豫期
+          choices.forEach((c, idx) => { 
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; 
+              let label = String.fromCharCode(65 + idx); // 生成 A, B, C, D
+              let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
+              let textSpan = document.createElement('span'); textSpan.innerText = c.text;
+              btn.appendChild(labelSpan); btn.appendChild(textSpan);
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtChoiceClick(btn, c.correct); }; 
               cb.appendChild(btn); 
           });
@@ -1536,9 +1488,12 @@ while (i * 10 < total) {
           pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false})); choices.sort(() => Math.random() - 0.5); 
           
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach(c => { 
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; btn.innerText = c.text; 
-              // 升维：音效与逻辑同步强耦合，触碰瞬间定胜负
+          choices.forEach((c, idx) => { 
+              let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; 
+              let label = String.fromCharCode(65 + idx); 
+              let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
+              let textSpan = document.createElement('span'); textSpan.innerText = c.text;
+              btn.appendChild(labelSpan); btn.appendChild(textSpan);
               btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); }; 
               cb.appendChild(btn); 
           });
@@ -1547,11 +1502,9 @@ while (i * 10 < total) {
 
     renderQwertyKeyboard(containerId, inputEl, wObj, displayMode) {
       let kb = this.getEl(containerId);
-      // 🚀 核心修复：移除 dataset.rendered 锁，确保闭包内的 wObj 永远是当前单词
       kb.innerHTML = ''; 
-      Model.state.spellFailCount = 0; // 每次重绘键盘（即切换新词时），重置连错计数
+      Model.state.spellFailCount = 0; 
 
-      // 植入动态幽灵提示按钮
       let hintWrap = document.createElement('div');
       hintWrap.id = containerId + '-hint-wrap';
       hintWrap.className = 'spell-hint-wrap';
@@ -1568,7 +1521,7 @@ while (i * 10 < total) {
               wKana.classList.remove('blur-text');
               wKana.classList.add('hint-pop-anim');
           }
-          hintWrap.classList.remove('show'); // 阅后即焚，收起自身
+          hintWrap.classList.remove('show'); 
       };
       hintWrap.appendChild(hintBtn);
       kb.appendChild(hintWrap);
@@ -1608,8 +1561,6 @@ while (i * 10 < total) {
       let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
       let currentFilter = this.getEl('wb-folder-filter').value;
       
-      // 修复：移除了导致死循环的重复检查（触发点已单独处理）
-      
       Model.updateFilteredDb(searchQuery, currentFilter);
       window.scrollTo({ top: 0, behavior: 'instant' }); 
       Model.state.renderedStartIndex = -1; 
@@ -1628,7 +1579,6 @@ while (i * 10 < total) {
     
     const filteredData = Model.state.filteredDb;
 
-    // 折纸鹤 (Origami) 缺省页
     if (filteredData.length === 0) {
         grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 100px 20px;">
             <span class="material-symbols-rounded" style="font-size: 5rem; margin-bottom: 24px; color: #8F9779; opacity: 0.4;">spa</span>
@@ -1648,7 +1598,7 @@ while (i * 10 < total) {
     if (actualHeight > 50) { 
         rowHeight = actualHeight;
     } else {
-        rowHeight = baseRowHeights[cols]; // 回退到预设值
+        rowHeight = baseRowHeights[cols]; 
     }
 }
 
@@ -1682,9 +1632,6 @@ while (i * 10 < total) {
 
             let slice = filteredData.slice(startIndex, endIndex);
     
-    // 🚀 DOM Recycling Engine: 杜绝 innerHTML='' 带来的毁灭性 GC 停顿，实现 120Hz 级流体滚动
-    
-    // 🛡️ 基因锁防线：在提取复用池前，冷酷剔除“空状态”等异形节点，彻底杜绝内联样式污染
     Array.from(grid.children).forEach(child => {
         if (!child.classList.contains('wb-card')) {
             grid.removeChild(child);
@@ -1778,7 +1725,6 @@ while (i * 10 < total) {
       }
     });
 
-    // 空间收束：无痕剔除多余的幽灵节点
     while (grid.children.length > neededCount) {
         grid.removeChild(grid.lastChild);
     }
@@ -1786,6 +1732,36 @@ while (i * 10 < total) {
 
     let sentinel = this.getEl('wb-scroll-sentinel');
     if (sentinel) sentinel.style.display = 'none';
+  },
+
+  simulateKeyPress(keyStr) {
+      let keys = document.querySelectorAll('.qwerty-key');
+      keys.forEach(k => {
+          let text = k.innerText;
+          let match = false;
+          if (keyStr === 'Backspace' && k.querySelector('.material-symbols-rounded')) match = true;
+          else if (keyStr === 'Enter' && text.includes('Enter')) match = true;
+          else if (text === keyStr) match = true;
+          
+          if (match) {
+              let isDark = document.body.getAttribute('data-theme') === 'dark';
+              k.style.transition = 'none'; 
+              k.style.transform = 'scale(0.92) translateY(2px)';
+              k.style.background = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(139, 121, 103, 0.15)';
+              k.style.boxShadow = '0 0 0 transparent';
+              
+              if(keyStr === 'Enter') {
+                  k.style.background = isDark ? 'rgba(164, 199, 182, 0.25)' : 'rgba(74, 99, 85, 0.9)';
+              }
+              
+              setTimeout(() => {
+                  k.style.transition = 'all 0.1s'; 
+                  k.style.transform = '';
+                  k.style.background = '';
+                  k.style.boxShadow = '';
+              }, 120);
+          }
+      });
   }
 };
 
@@ -1824,7 +1800,6 @@ const Controller = {
     let skipCheck = View.getEl('setting-skip-mastered');
     if(skipCheck) skipCheck.checked = skipMastered;
 
-    // 新增：初始化 Ruby 渲染设置（默认开启，因为排版更好）
     let useRuby = localStorage.getItem('useRubyRender');
     if (useRuby === null) useRuby = 'true'; 
     let rubyCheck = View.getEl('setting-ruby-render');
@@ -1833,14 +1808,12 @@ const Controller = {
     let ttsSelect = View.getEl('setting-tts-engine');
     if(ttsSelect) {
         ttsSelect.value = savedTTS;
-        // 关键修复：主动派发事件，通知外层的 UI 面板同步刷新文字！
         ttsSelect.dispatchEvent(new Event('facade-update')); 
     }
 
 
 let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
 
-  // 监听 Service Worker 更新消息
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'SW_UPDATED') {
@@ -1910,12 +1883,10 @@ setupVirtualScroll() {
       Model.state.sessionSaved = true;
   },
 
-  // 辅助函数：在数据库变更时关闭详情模态框，避免 detailArray 不同步
   closeDetailIfOpen() {
       if (document.getElementById('detail-overlay').classList.contains('active')) {
           Hardware.vibrate(10);
           window.toggleModal('detail-overlay', false);
-          // 同时重置渲染索引以便刷新词库
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
               Model.state.renderedStartIndex = -1;
               View.renderVirtualGrid();
@@ -1967,7 +1938,7 @@ setupVirtualScroll() {
             Hardware.playSound('click');
             Hardware.vibrate(10);
             Model.lbState.singleMode = e.currentTarget.dataset.mode;
-            Model.lbState.page = 1;  // 重置页码
+            Model.lbState.page = 1;  
             View.renderLeaderboard();
         });
     });
@@ -1986,12 +1957,11 @@ setupVirtualScroll() {
         Hardware.playSound('click'); Hardware.vibrate(20); 
         let currentDisplay = View.getEl('test-display-select').value || 'kana'; 
         
-        // 认知防剧透：精确映射合法提示池 (Lateral Scaffolding Pool)
         let poolMap = {
-            'word': ['kana', 'audio'],       // 考汉字：封锁释义，逼迫用发音回忆
-            'kana': ['word', 'meaning'],     // 考假名：封锁发音（原音剧透），给汉字或释义
-            'meaning': ['kana', 'audio'],    // 考释义：封锁汉字（形旁剧透），给发音
-            'audio': ['meaning']             // 考听力：极致盲考，封锁文字载体，只给释义
+            'word': ['kana', 'audio'],       
+            'kana': ['word', 'meaning'],     
+            'meaning': ['kana', 'audio'],    
+            'audio': ['meaning']             
         };
         
         let pool = poolMap[currentDisplay] || ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay);
@@ -2049,14 +2019,12 @@ setupVirtualScroll() {
         });
     }
 
-    // 新增：绑定 Ruby 排版切换事件
     let rubyCheck = View.getEl('setting-ruby-render');
     if (rubyCheck) {
         rubyCheck.addEventListener('change', (e) => {
             Hardware.playSound('click'); Hardware.vibrate(15);
             localStorage.setItem('useRubyRender', e.target.checked);
             showToast(e.target.checked ? "已切换为原生 Ruby 排版" : "已切换为 MathJax 引擎");
-            // 即时刷新：如果当前有卡片打开，立刻重新渲染
             if (!document.getElementById('detail-overlay').classList.contains('hidden') && document.getElementById('detail-overlay').classList.contains('active')) {
                 Controller.renderDetailCard('none', false);
             } else if (!document.getElementById('study-area').classList.contains('hidden')) {
@@ -2064,7 +2032,6 @@ setupVirtualScroll() {
             }
         });
     }
-    // 新增：发音引擎切换事件
     let ttsSelectTrigger = View.getEl('setting-tts-engine');
 if (ttsSelectTrigger) {
     ttsSelectTrigger.addEventListener('change', (e) => {
@@ -2075,16 +2042,12 @@ if (ttsSelectTrigger) {
     });
 }
 
-// 新增：测试震动按钮
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
         Hardware.playSound('click');
-        // 尝试震动 300ms（较长，便于感知）
         const vibrated = Hardware.vibrate(300);
-        // 给出相应提示
         if (navigator.vibrate) {
-            // 有些浏览器即使支持也可能返回 false，但仍会尝试震动
             showToast('震动测试已触发，请感受设备震动');
         } else {
             showToast('您的浏览器不支持震动 API（iOS 系统或桌面浏览器）');
@@ -2098,7 +2061,6 @@ if (testVibrateBtn) {
             if (Model.state.batchMode) Controller.toggleBatchMode(); 
             View.resetWordbankRenderer(); 
         }); 
-        // 监听键盘“回车/搜索”键，主动释放焦点，召回底部导航栏
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 searchInput.blur();
@@ -2106,7 +2068,6 @@ if (testVibrateBtn) {
         });
     }
 
-    // 流体交互：赋予底板感知力。触碰词库网格即刻收起软键盘，无缝唤回底栏
     let wbGridContainer = View.getEl('wb-grid-container');
     if (wbGridContainer) {
         wbGridContainer.addEventListener('pointerdown', () => {
@@ -2138,7 +2099,6 @@ if (testVibrateBtn) {
             lpBtn.classList.add('pressing'); Hardware.playChargeSound(); vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
             punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
         });
-                // 🚀 交互重构：增加 pointerleave 防逸出；致命 Bug 修复：拦截 contextmenu 时绝不执行 clearPunch，保护蓄力进程
         lpBtn.addEventListener('pointerup', clearPunch); 
         lpBtn.addEventListener('pointercancel', clearPunch); 
         lpBtn.addEventListener('pointerleave', clearPunch); 
@@ -2238,7 +2198,6 @@ if (testVibrateBtn) {
     View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
     View.getEl('btn-batch-move').addEventListener('click', () => { Hardware.vibrate(15); this.openMoveModal(-2); }); 
     View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
-    // 原确认按钮逻辑已由 executeMove 接管，此处保持精简
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
@@ -2247,6 +2206,267 @@ if (testVibrateBtn) {
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('edit-overlay', false); });
+
+    // 🚀 实体键盘盲操接管中枢 (Physical Keyboard Integration)
+    document.addEventListener('keydown', (e) => {
+        // 🔒 第一层防线：如果用户正在输入框里打字，静默所有快捷键
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+        
+        let key = e.key;
+        let keyLower = key.toLowerCase();
+
+        // 🟢 全局通用快捷键：Esc 退出与关闭
+        if (key === 'Escape') {
+            if (View.getEl('bs-overlay').classList.contains('active')) { window.toggleModal('bs-overlay', false); return; }
+            if (View.getEl('view-settings-overlay').classList.contains('active')) { window.toggleModal('view-settings-overlay', false); return; }
+            if (View.getEl('group-select-overlay').classList.contains('active')) { window.toggleModal('group-select-overlay', false); return; }
+            if (View.getEl('dialog-overlay').classList.contains('active')) { window.toggleModal('dialog-overlay', false); return; }
+            if (View.getEl('move-overlay').classList.contains('active')) { window.toggleModal('move-overlay', false); return; }
+            if (View.getEl('detail-overlay').classList.contains('active')) { Controller.closeDetailIfOpen(); return; }
+            if (!View.getEl('study-area').classList.contains('hidden')) { View.getEl('btn-exit-study').click(); return; }
+        }
+
+        // 🟡 底部下拉菜单（Bottom Sheet）的键盘接管
+        let bsOverlay = View.getEl('bs-overlay');
+        let groupOverlay = View.getEl('group-select-overlay');
+        let moveOverlay = View.getEl('move-overlay');
+        let activeOverlay = bsOverlay.classList.contains('active') ? bsOverlay : 
+                            (groupOverlay.classList.contains('active') ? groupOverlay : 
+                            (moveOverlay.classList.contains('active') ? moveOverlay : null));
+
+        if (activeOverlay) {
+            let options = Array.from(activeOverlay.querySelectorAll('.bs-option'));
+            if (options.length === 0) return;
+            let currentIdx = options.findIndex(o => o.classList.contains('selected'));
+            
+            // 上下键切换高亮项
+            if (key === 'ArrowDown' || key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentIdx === -1) currentIdx = 0;
+                else {
+                    options[currentIdx].classList.remove('selected');
+                    if (key === 'ArrowDown') currentIdx = (currentIdx + 1) % options.length;
+                    else currentIdx = (currentIdx - 1 + options.length) % options.length;
+                }
+                options[currentIdx].classList.add('selected');
+                // 确保高亮项自动滚动到可视区域内
+                options[currentIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                return;
+            }
+            // 空格或回车确认选中
+            if (key === 'Enter' || key === ' ') {
+                e.preventDefault();
+                if (currentIdx !== -1) options[currentIdx].click();
+                return;
+            }
+            return; // 在菜单里时，屏蔽其他字母键引发的乱跳转
+        }
+
+                // ⚪ 词库详情卡片翻页接管
+        let detailOverlay = View.getEl('detail-overlay');
+        if (detailOverlay && detailOverlay.classList.contains('active')) {
+            if (key === 'ArrowLeft') { e.preventDefault(); View.getEl('detail-prev').click(); return; }
+            if (key === 'ArrowRight') { e.preventDefault(); View.getEl('detail-next').click(); return; }
+            // 顺手加个空格发音，体验更好
+            if (key === ' ') { 
+                e.preventDefault(); 
+                let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
+                let w = Model.db[realIdx]; 
+                if (w) { Hardware.unlockSpeech(); Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); } 
+                return; 
+            }
+        }
+
+        // 🔵 底部导航栏(Tab)的全局左右切换
+        // 触发条件：没有任何弹窗处于打开状态，且不在学习区内
+        let isAnyModalOpen = document.querySelectorAll('.modal-overlay.active').length > 0;
+        if (!isAnyModalOpen && View.getEl('study-area').classList.contains('hidden')) {
+            if (key === 'ArrowLeft' || key === 'ArrowRight') {
+                e.preventDefault();
+                let navItems = Array.from(document.querySelectorAll('.nav-item'));
+                let currentIdx = navItems.findIndex(item => item.classList.contains('active'));
+                if (currentIdx !== -1) {
+                    let nextIdx = key === 'ArrowRight' ? (currentIdx + 1) % navItems.length : (currentIdx - 1 + navItems.length) % navItems.length;
+                    navItems[nextIdx].click();
+                }
+                return;
+            }
+        }
+
+        // 🔵 首页（道場）特定快捷键
+        if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden') && !isAnyModalOpen) {
+            if (keyLower === 'a') { e.preventDefault(); View.getEl('btn-start-pendulum').click(); return; }
+            if (keyLower === 'b') { e.preventDefault(); View.getEl('btn-start-dual-track').click(); return; }
+            if (keyLower === 'c') { e.preventDefault(); View.getEl('btn-start-rote-learning').click(); return; }
+            if (keyLower === 'd') { e.preventDefault(); View.getEl('btn-start-memory-test').click(); return; }
+            if (keyLower === 'e') { e.preventDefault(); View.getEl('btn-start-filter-test').click(); return; }
+            if (keyLower === 'f') { e.preventDefault(); View.getEl('btn-test-range-trigger').click(); return; }
+            if (keyLower === 'g') { e.preventDefault(); View.getEl('btn-test-display-trigger').click(); return; }
+            if (keyLower === 't' || (e.ctrlKey && keyLower === 't')) { e.preventDefault(); View.toggleTheme(); return; }
+            
+            // 长按空格打卡 (通过捕获 keydown 并忽略系统的按键连击)
+            if (key === ' ') {
+                e.preventDefault();
+                let lpBtn = View.getEl('btn-long-press');
+                if (lpBtn && !e.repeat) { 
+                    lpBtn.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', button: 0 }));
+                }
+                return;
+            }
+        }
+
+
+        // 🟣 学习/复习/测试区域快捷键
+        if (!View.getEl('study-area').classList.contains('hidden')) {
+            let mode = Model.state.mode;
+            let dtSpellArea = View.getEl('dt-spell-area');
+            let mtSpellArea = View.getEl('mt-spell-area');
+            let dtChoiceArea = View.getEl('dt-choice-area');
+            let mtChoiceArea = View.getEl('mt-choice-area');
+            
+            // 🔒 模式状态识别
+            let isSpelling = (!dtSpellArea.classList.contains('hidden')) || (!mtSpellArea.classList.contains('hidden'));
+            let isChoice = (!dtChoiceArea.classList.contains('hidden')) || (!mtChoiceArea.classList.contains('hidden'));
+
+            let wObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
+            let displayMode = View.getEl('next-display-mode').value;
+
+            // 1. 拼写输入隔离 (如果是打字阶段，把字母全部交给罗马音引擎)
+            if (isSpelling) {
+                let activeInputEl = !dtSpellArea.classList.contains('hidden') ? View.getEl('dt-spell-input') : View.getEl('mt-spell-input');
+                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === 'Backspace' || key === 'Enter') {
+                    e.preventDefault(); 
+                    activeInputEl.classList.remove('error-state', 'shake-anim');
+                    
+                    if (key === 'Enter') {
+                        Controller.handleSpellConfirm(activeInputEl, wObj, displayMode);
+                        View.simulateKeyPress('Enter');
+                    } else if (key === 'Backspace') {
+                        RomajiEngine.input('Backspace');
+                        activeInputEl.innerHTML = RomajiEngine.getDisplayText();
+                        View.simulateKeyPress('Backspace');
+                    } else {
+                        RomajiEngine.input(key);
+                        activeInputEl.innerHTML = RomajiEngine.getDisplayText();
+                        View.simulateKeyPress(key.toUpperCase());
+                    }
+                    return;
+                }
+            }
+
+            // 2. 选择题快捷键 (A, B, C, D) 以及兼容数字 1, 2, 3, 4
+            if (isChoice && ['a', 'b', 'c', 'd', '1', '2', '3', '4'].includes(keyLower)) {
+                e.preventDefault();
+                let choiceContainer = !dtChoiceArea.classList.contains('hidden') ? View.getEl('dt-choice-buttons') : View.getEl('mt-choice-buttons');
+                if (choiceContainer) {
+                    let buttons = choiceContainer.querySelectorAll('.dt-choice-btn');
+                    let idx = -1;
+                    if (['a', 'b', 'c', 'd'].includes(keyLower)) idx = ['a', 'b', 'c', 'd'].indexOf(keyLower);
+                    else idx = parseInt(keyLower) - 1;
+
+                    if (buttons[idx]) buttons[idx].dispatchEvent(new PointerEvent('pointerdown'));
+                }
+                return;
+            }
+
+            // 3. H键：显示假名提示 (防误触：打字阶段 H 属于发音，不可触发此功能)
+            if (keyLower === 'h' && !isSpelling) {
+                let btnMtShowHint = View.getEl('btn-mt-show-hint');
+                if (btnMtShowHint && !View.getEl('mt-blind-audio-ui').classList.contains('hidden')) {
+                    e.preventDefault(); btnMtShowHint.click(); return;
+                }
+                let hintWrap = document.querySelector('.spell-hint-wrap.show .spell-hint-btn');
+                if (hintWrap) { e.preventDefault(); hintWrap.click(); return; }
+            }
+
+            // 4. 方向键及回车：主导流程前进后退 / 判定判断
+            if (key === 'ArrowRight' || key === 'Enter') {
+                let btnNext = View.getEl('btn-next');
+                let btnFinish = View.getEl('btn-finish');
+                let ftKnow = View.getEl('ft-know');
+                let ftCorrect = View.getEl('ft-correct');
+                
+                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftKnow) {
+                    e.preventDefault(); ftKnow.click(); return;
+                }
+                if (!View.getEl('capsule-filter-judge').classList.contains('hidden') && ftCorrect) {
+                    e.preventDefault(); ftCorrect.click(); return;
+                }
+
+                if (btnNext && window.getComputedStyle(btnNext).display !== 'none' && !btnNext.disabled) {
+                    e.preventDefault(); btnNext.click();
+                } else if (btnFinish && window.getComputedStyle(btnFinish).display !== 'none') {
+                    e.preventDefault(); btnFinish.click();
+                }
+            } else if (key === 'ArrowLeft') {
+                let btnPrev = View.getEl('btn-prev');
+                let ftForget = View.getEl('ft-forget');
+                let ftWrong = View.getEl('ft-wrong');
+                
+                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftForget) {
+                    e.preventDefault(); ftForget.click(); return;
+                }
+                if (!View.getEl('capsule-filter-judge').classList.contains('hidden') && ftWrong) {
+                    e.preventDefault(); ftWrong.click(); return;
+                }
+
+                if (btnPrev && window.getComputedStyle(btnPrev).display !== 'none' && !btnPrev.disabled) {
+                    e.preventDefault(); btnPrev.click();
+                }
+            } else if (key === 'ArrowDown') {
+                let ftBlur = View.getEl('ft-blur');
+                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftBlur && window.getComputedStyle(ftBlur).display !== 'none') {
+                    e.preventDefault(); ftBlur.click(); return;
+                }
+            } 
+            // 5. 空格键：万能揭晓/发音
+            else if (key === ' ') {
+                e.preventDefault();
+                let blurTarget = document.querySelector('.blur-text');
+                if (blurTarget) {
+                    blurTarget.classList.remove('blur-text');
+                    Hardware.playSound('click'); Hardware.vibrate(15);
+                } else {
+                    let btnSpeaker = View.getEl('btn-speaker');
+                    let btnMtReplay = View.getEl('btn-mt-replay');
+                    if (!View.getEl('mt-blind-audio-ui').classList.contains('hidden') && btnMtReplay) {
+                        btnMtReplay.click();
+                    } else if (btnSpeaker && window.getComputedStyle(btnSpeaker).display !== 'none') {
+                        btnSpeaker.click();
+                    }
+                }
+            }
+        }
+    });
+
+    // 🚀 松开空格键：停止打卡蓄力
+    document.addEventListener('keyup', (e) => {
+        if (e.key === ' ') {
+            if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden')) {
+                let lpBtn = View.getEl('btn-long-press');
+                if (lpBtn) {
+                    lpBtn.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', button: 0 }));
+                }
+            }
+        }
+    });
+
+    // 🚀 智能呼出/隐藏键盘提示条 (感知键盘操作)
+    let keyboardHintBar = View.getEl('keyboard-hint-bar');
+    if (keyboardHintBar) {
+        document.addEventListener('keydown', (e) => {
+            // 只要检测到键盘敲击，且在复习界面内，就弹出提示条
+            if (!View.getEl('study-area').classList.contains('hidden') && !['Meta', 'Alt', 'Control', 'Shift'].includes(e.key)) {
+                keyboardHintBar.classList.remove('hidden');
+            }
+        });
+        document.addEventListener('pointerdown', (e) => {
+            // 如果用户使用手指触摸或鼠标点击，说明脱离了纯键盘盲操，自动隐藏提示条
+            if (e.pointerType === 'mouse' || e.pointerType === 'touch') {
+                keyboardHintBar.classList.add('hidden');
+            }
+        });
+    }
   },
 
   exportBackup() {
@@ -2301,11 +2521,9 @@ if (testVibrateBtn) {
       let isSkipEnabled = localStorage.getItem('skipMastered') === 'true';
 
       let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-          // 基础范围过滤
           let inRange = (cat === 'all') ? true : Model.checkFilter(item.w, cat);
           if (!inRange) return false;
 
-          // 智能维度拦截逻辑
           if (isSkipEnabled) {
               let st = Model.mtWordClears[item.w.word] || { kanji: false, kana: false, meaning: false };
               if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
@@ -2330,12 +2548,9 @@ if (testVibrateBtn) {
           let front = []; let back = [];
           rawQueue.forEach(idx => {
               let clearCount = Model.mtWordClears[Model.db[idx].word];
-              // 状态1 (undefined/纯新词) 和 状态2 (>0/已通关熟词) 放在队伍前半段
               if (clearCount === undefined || clearCount > 0) front.push(idx);
-              // 状态3 (===0/明确标记为忘记或打回原形的词) 发配到队伍最末尾
               else back.push(idx);
           });
-          // 分别打乱前后两截队伍，再拼接发牌
           front.sort(() => Math.random() - 0.5); back.sort(() => Math.random() - 0.5);
           Model.state.studyQueue = front.concat(back);
       } else {
@@ -2349,12 +2564,10 @@ if (testVibrateBtn) {
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
       let wordKey = w.word;
       
-      // 初始化数据清洗
       if (!Model.mtWordClears[wordKey] || typeof Model.mtWordClears[wordKey] !== 'object') {
           Model.mtWordClears[wordKey] = { kanji: false, kana: false, meaning: false };
       }
 
-      // 获取当前考试模式（靶向对位）
       let mode = View.getEl('test-display-select').value || 'kana';
       
       if (isCorrect) {
@@ -2362,12 +2575,10 @@ if (testVibrateBtn) {
           else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = true;
           else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = true;
 
-          // 容错规则生效：红(假名)和白(释义)都过关，自动保送黄(汉字)
           if (Model.mtWordClears[wordKey].kana && Model.mtWordClears[wordKey].meaning) {
               Model.mtWordClears[wordKey].kanji = true;
           }
       } else {
-          // 答错的话，精准把当前测试维度打回原形
           if (mode === 'word') Model.mtWordClears[wordKey].kanji = false;
           else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = false;
           else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = false;
@@ -2388,7 +2599,6 @@ if (testVibrateBtn) {
 
   handleSpellConfirm(inputEl, wObj, displayMode) {
       if (Model.state.isAnimating) return;
-      // 提取核心比对逻辑，去除标点括号带来的干扰
       let targetClean = wObj.kana.replace(/[【】\[\]()]/g,'');
       let inputClean = RomajiEngine.getFinalText();
       
@@ -2416,11 +2626,10 @@ if (testVibrateBtn) {
           Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
           Model.state.currentWordFailed = true;
           
-          // 🚀 认知脚手架：连错两次后，呼出幽灵提示按钮
           Model.state.spellFailCount = (Model.state.spellFailCount || 0) + 1;
           if (Model.state.spellFailCount >= 2) {
               let activeKbId = Model.state.mode === 'dual-track' ? 'dt-spell-keyboard' : 'mt-spell-keyboard';
-              let hintWrap = this.getEl(activeKbId + '-hint-wrap');
+              let hintWrap = View.getEl(activeKbId + '-hint-wrap');
               if (hintWrap) hintWrap.classList.add('show');
           }
       }
@@ -2439,7 +2648,6 @@ if (testVibrateBtn) {
         void el.offsetWidth; 
         el.style.transform = 'rotateX(0)'; 
         el.style.opacity = '1'; 
-        // 如果未使用Ruby模式，调用MathJax重新渲染
         if (localStorage.getItem('useRubyRender') === 'false' && window.MathJax) {
             MathJax.typesetPromise([el]);
         }
@@ -2447,7 +2655,6 @@ if (testVibrateBtn) {
 });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
       } else { 
-          // 帧重置：利用 requestAnimationFrame 确保动画状态在下一帧被强制刷新，防止抖动被吞噬
           Hardware.playSound('error'); Hardware.vibrate(50); 
           btn.classList.remove('shake-anim', 'wrong'); 
           requestAnimationFrame(() => {
@@ -2486,7 +2693,6 @@ if (testVibrateBtn) {
     Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1; 
     Model.state.mtBaseQueue.forEach(idx => { 
         let wWord = Model.db[idx].word; 
-        // 修复：改为三维对象全部掌握，而非累加数字
         if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
             Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
         }
@@ -2505,18 +2711,15 @@ if (testVibrateBtn) {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
     this.saveSessionRecord(); 
 
-    // 核心升维：让所有模式（突击/闯关/死记）完整结束后都能直接通关
     let gk = Model.state.currentGroupKey;
     Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
     
-    // 智能提取当前练习过的所有独立单词（记忆检测模式由于队列会被清空，使用备用队列提取）
     let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
     uniqueIndices.forEach(idx => {
         let wWord = Model.db[idx].word;
         if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
             Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
         }
-        // 瞬间点亮黄(汉字)、红(读音)、白(释义)三维靶向杠
         Model.mtWordClears[wWord].kanji = true;
         Model.mtWordClears[wWord].kana = true;
         Model.mtWordClears[wWord].meaning = true;
@@ -2536,7 +2739,6 @@ if (testVibrateBtn) {
       let filter = View.getEl('wb-folder-filter').value; 
       if (filter === 'all' || filter === '默认词库' || filter.startsWith('virtual_')) return showToast("内置分类不可删除"); 
       showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { 
-          // 删除前退出批量模式
           if (Model.state.batchMode) this.toggleBatchMode();
           Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); 
           Model.folders = Model.folders.filter(f => f !== filter); 
@@ -2552,7 +2754,6 @@ if (testVibrateBtn) {
       if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); 
       Model.state.moveTargetIdx = idx; 
       
-      // 🚀 动态构建触感列表，取代死板的 select
       const container = View.getEl('move-folder-list');
       container.innerHTML = '';
       
@@ -2564,7 +2765,6 @@ if (testVibrateBtn) {
               <span class="folder-name">${folderName}</span>
           `;
           
-          // 🚀 一键式逻辑：选中即移动，消灭确认按钮
           item.onclick = () => {
               Hardware.playSound('success');
               Hardware.vibrate(40);
@@ -2576,7 +2776,6 @@ if (testVibrateBtn) {
       window.toggleModal('move-overlay', true); 
   },
 
-  // 🚀 核心逻辑解耦：执行移动并收尾
   executeMove(destFolder) {
       if (Model.state.moveTargetIdx === -2) { 
           Model.state.selectedSet.forEach(idx => Model.db[idx].folder = destFolder); 
@@ -2595,10 +2794,8 @@ batchDelete() {
     Hardware.playSound('click'); Hardware.vibrate(30); 
     if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); 
     showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
-        // 删除前关闭详情卡片，避免 detailArray 失效
         this.closeDetailIfOpen();
         
-        // 核心修复：彻底清洗剥离关联的幽灵数据
         Model.state.selectedSet.forEach(idx => {
             let wordKey = Model.db[idx].word;
             Model.stars = Model.stars.filter(w => w !== wordKey);
@@ -2607,11 +2804,9 @@ batchDelete() {
         Model.saveStars();
         Model.saveClears();
         
-        // 最后安全剔除词库实体
         Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
         Model.saveDB(); 
         this.toggleBatchMode();
-        // 确保词库网格立即刷新（关闭详情页后可能未刷新）
         if (document.getElementById('tab-wordbank').classList.contains('active')) {
             Model.state.renderedStartIndex = -1;
             View.renderVirtualGrid();
@@ -2622,17 +2817,14 @@ batchDelete() {
   editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
 deleteWord(idx) { 
     showConfirm('删除单词', '彻底删除该词？', () => { 
-        // 删除前关闭详情卡片
         this.closeDetailIfOpen();
         const word = Model.db[idx].word;
         Model.db.splice(idx,1); 
         Model.saveDB();
-        // 清理关联数据
         Model.stars = Model.stars.filter(w => w !== word);
         delete Model.mtWordClears[word];
         Model.saveStars();
         Model.saveClears();
-        // 确保词库网格立即刷新
         if (document.getElementById('tab-wordbank').classList.contains('active')) {
             Model.state.renderedStartIndex = -1;
         }
@@ -2664,7 +2856,6 @@ deleteWord(idx) {
       }); 
       if(added) { 
           Hardware.playSound('success');
-          // 导入后关闭详情卡片
           this.closeDetailIfOpen();
           Model.saveDB(); 
           View.resetWordbankRenderer(); 
@@ -2674,12 +2865,9 @@ deleteWord(idx) {
   },
   
   openDetailModal(idx) { 
-      // 核心重构：抛弃笨重的二次遍历，直接对接高度精准的“已过滤数据池”
-      // 无论用户是做了分类筛选，还是文字搜索，滑动轨道都将与之绝对统一
       Model.state.detailArray = Model.state.filteredDb.map(item => item.idx).filter(id => id !== -999); 
       Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
       
-      // 极端边界兜底：若未命中（理论上不可能），则降级为只展示当前单张卡片
       if (Model.state.activeDetailIdx === -1) {
           Model.state.detailArray = [idx];
           Model.state.activeDetailIdx = 0;
@@ -2695,11 +2883,9 @@ deleteWord(idx) {
       if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; 
       if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; 
       
-      // 检查当前索引是否有效
       let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
       let w = Model.db[realIdx];
       if (!w) {
-          // 单词可能已被删除，关闭详情并刷新词库
           window.toggleModal('detail-overlay', false);
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
               Model.state.renderedStartIndex = -1;
@@ -2717,7 +2903,6 @@ deleteWord(idx) {
       let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
       let w = Model.db[realIdx]; 
       if (!w) {
-          // 如果当前单词无效，关闭模态框
           window.toggleModal('detail-overlay', false);
           return;
       }
@@ -2732,7 +2917,6 @@ deleteWord(idx) {
                   this.updateDetailContent(w, triggerTTS); 
               } catch (err) {
                   console.error('更新详情内容失败', err);
-                  // 出错时强制恢复可见性
                   wrapper.style.opacity = '1';
                   wrapper.style.transform = 'none';
               } finally {
@@ -2749,9 +2933,8 @@ deleteWord(idx) {
   updateDetailContent(w, triggerTTS = false) { 
       let visuals = View.getCardVisuals(w.type); 
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
-      View.getEl('dt-watermark').innerHTML = visuals.wm; // 允许解析光学缩放标签 
+      View.getEl('dt-watermark').innerHTML = visuals.wm; 
       
-      // 核心优化 2：详情页动态字号排版
       let dtWordEl = View.getEl('dt-word');
       dtWordEl.innerText = w.word; 
       let dtLen = Array.from(w.word || '').length;

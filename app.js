@@ -25,16 +25,47 @@ window.createStarParticles = (el) => {
     }
 };
 
+// 新增：用于记录打开弹窗前最后操作的 DOM 元素
+let previousFocusElement = null;
+
 window.toggleModal = (id, show) => {
     let el = document.getElementById(id);
     if (!el) return;
-    if (show) el.classList.add('active'); else el.classList.remove('active');
+    
+    if (show) {
+        // 1. 焦点借出：仅在当前没有任何弹窗开启时记录焦点
+        if (document.querySelectorAll('.modal-overlay.active').length === 0) {
+            previousFocusElement = document.activeElement;
+        }
+        el.classList.add('active');
+        
+        // 2. 焦点入场：延迟等待 CSS 动画生效后，自动聚焦弹窗内第一个可交互元素
+        setTimeout(() => {
+            let focusable = Array.from(el.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                                 .filter(node => node.offsetParent !== null);
+            
+            if (focusable.length > 0 && !el.contains(document.activeElement)) {
+                focusable[0].focus();
+            }
+        }, 100);
+        
+    } else {
+        el.classList.remove('active');
+        
+        // 3. 焦点归还：当所有弹窗都关闭时，将焦点还给触发弹窗的原元素
+        if (document.querySelectorAll('.modal-overlay.active').length === 0 && previousFocusElement) {
+            previousFocusElement.focus();
+            previousFocusElement = null;
+        }
+    }
+    
     if (document.querySelectorAll('.modal-overlay.active').length > 0) {
         document.body.classList.add('modal-open');
     } else {
         document.body.classList.remove('modal-open');
     }
 };
+
 
 window.showToast = (msg) => {
     let t = document.getElementById('toast');
@@ -135,6 +166,8 @@ const BottomSheet = {
         document.querySelectorAll('select:not(.no-bs)').forEach(sel => {
             let facade = document.createElement('div');
             facade.className = 'bs-facade'; 
+            facade.setAttribute('tabindex', '0');
+            facade.setAttribute('role', 'button');
             if(sel.style.marginBottom) facade.style.marginBottom = sel.style.marginBottom;
             if(sel.style.flex) facade.style.flex = sel.style.flex;
             if(sel.style.width) facade.style.width = sel.style.width;
@@ -167,6 +200,8 @@ const BottomSheet = {
         Array.from(selectEl.options).forEach(opt => {
             let btn = document.createElement('div');
             btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
+            btn.setAttribute('tabindex', '0');
+            btn.setAttribute('role', 'button');
             
             if (selectEl.id === 'test-range-select' || selectEl.id === 'wb-folder-filter') {
                 let iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">folder</span>`;
@@ -835,6 +870,8 @@ const View = {
           tab.className = `g-tab ${currentActive === catVal ? 'active' : ''}`;
           tab.dataset.cat = catVal;
           tab.innerText = f;
+          tab.setAttribute('tabindex', '0');
+          tab.setAttribute('role', 'button');
           tabsContainer.appendChild(tab);
       });
       
@@ -851,6 +888,8 @@ const View = {
           tab.className = `g-tab ${currentActive === v.cat ? 'active' : ''}`;
           tab.dataset.cat = v.cat;
           tab.innerText = v.text;
+          tab.setAttribute('tabindex', '0');
+          tab.setAttribute('role', 'button');
           tabsContainer.appendChild(tab);
       });
 
@@ -903,6 +942,8 @@ while (i * 10 < total) {
     let endIdx = Math.min(startIdx + 10, total);
               let btn = document.createElement('div');
               btn.className = 'bs-option';
+              btn.setAttribute('tabindex', '0');
+              btn.setAttribute('role', 'button');
               
               let groupVal = `group|${catVal}|${i}`;
               let clears = Model.mtGroupClears[groupVal] || 0;
@@ -1078,7 +1119,7 @@ while (i * 10 < total) {
       testSel.dispatchEvent(new Event('facade-update'));
   },
 
-  renderStudyCard(anim = 'none') {
+    renderStudyCard(anim = 'none') {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
     let w = Model.db[idx];
     let mode = this.getEl('next-display-mode').value;
@@ -1123,7 +1164,16 @@ while (i * 10 < total) {
     
     card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
     
-        if (anim !== 'none') {
+    // 提取公共无障碍播报逻辑，自动过滤掉非纯文本的假名修饰符
+    const triggerSRAnnouncement = () => {
+        let announcer = document.getElementById('sr-announcer');
+        if (announcer && w && w.word && w.word !== 'HINT_CARD') {
+            let cleanKana = w.kana.replace(/[【】\[\]()]/g, '');
+            announcer.innerText = `当前单词：${w.word}。假名：${cleanKana}。`;
+        }
+    };
+
+    if (anim !== 'none') {
         Model.state.isAnimating = true;
 
         card.classList.remove('shimmering');
@@ -1133,6 +1183,10 @@ while (i * 10 < total) {
         card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
         setTimeout(() => {
             this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
+            
+            // 🟢 在切卡动画中途、新 DOM 树内容装载完毕时，立刻执行无障碍播报
+            triggerSRAnnouncement();
+
             card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
             card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
             
@@ -1142,11 +1196,15 @@ while (i * 10 < total) {
             }, 600); 
         }, 300); 
     } else {
-
         this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
+        
+        // 🟢 无动画直接渲染时，即时执行无障碍播报
+        triggerSRAnnouncement();
+
         Model.state.isAnimating = false; 
     }
   },
+
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
     this.getEl('mt-blind-audio-ui').classList.add('hidden');
@@ -1286,20 +1344,31 @@ while (i * 10 < total) {
         ['word','kana','type','meaning'].forEach(k => {
             let el = this.getEl(`w-${k}`);
             el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
-            if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) el.classList.add('blur-text');
+            if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) {
+                el.classList.add('blur-text');
+                el.setAttribute('aria-hidden', 'true');
+            } else {
+                el.removeAttribute('aria-hidden');
+            }
         });
         let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
-        if (mode !== 'all' && mode !== 'meaning') exBox.classList.add('blur-text');
+        if (mode !== 'all' && mode !== 'meaning') {
+            exBox.classList.add('blur-text');
+            exBox.setAttribute('aria-hidden', 'true');
+        } else {
+            exBox.removeAttribute('aria-hidden');
+        }
     } else if (isMemTest) {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
-        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'none';
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); });
+        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'none'; this.getEl('w-example-box').removeAttribute('aria-hidden');
     } else if (forceRoteFull) {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
-        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; 
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); });
+        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; this.getEl('w-example-box').removeAttribute('aria-hidden');
     } else {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); });
+        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if (isRote && mode !== 'all') this.getEl('w-example-box').style.display = 'none'; 
+        if (isRote && mode !== 'all') this.getEl('w-example-box').style.display = 'none';
+        this.getEl('w-example-box').removeAttribute('aria-hidden');
     }
 
     this.getEl('capsule-pendulum').classList.add('hidden');
@@ -1403,6 +1472,8 @@ while (i * 10 < total) {
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
           choices.forEach((c, idx) => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; 
+              btn.setAttribute('tabindex', '0');
+              btn.setAttribute('role', 'button');
               let label = String.fromCharCode(65 + idx); // 生成 A, B, C, D
               let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
               let textSpan = document.createElement('span'); textSpan.innerText = c.text;
@@ -1490,6 +1561,8 @@ while (i * 10 < total) {
           let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
           choices.forEach((c, idx) => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; 
+              btn.setAttribute('tabindex', '0');
+              btn.setAttribute('role', 'button');
               let label = String.fromCharCode(65 + idx); 
               let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
               let textSpan = document.createElement('span'); textSpan.innerText = c.text;
@@ -1510,6 +1583,8 @@ while (i * 10 < total) {
       hintWrap.className = 'spell-hint-wrap';
       let hintBtn = document.createElement('div');
       hintBtn.className = 'spell-hint-btn';
+      hintBtn.setAttribute('tabindex', '0');
+      hintBtn.setAttribute('role', 'button');
       hintBtn.innerHTML = '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
       hintBtn.onpointerdown = (e) => {
           e.preventDefault();
@@ -1519,6 +1594,7 @@ while (i * 10 < total) {
               wKana.innerText = wObj.kana;
               wKana.style.display = 'block';
               wKana.classList.remove('blur-text');
+              wKana.removeAttribute('aria-hidden');
               wKana.classList.add('hint-pop-anim');
           }
           hintWrap.classList.remove('show'); 
@@ -1541,6 +1617,9 @@ while (i * 10 < total) {
               else if (key === 'Backspace') { btn.innerHTML = '<span class="material-symbols-rounded">backspace</span>'; btn.classList.add('qwerty-key-wide'); }
               else if (key === 'Enter') { btn.innerText = '確認 (Enter)'; btn.className = 'qwerty-key qwerty-key-confirm'; }
               else btn.innerText = key;
+              
+              btn.setAttribute('tabindex', '0');
+              btn.setAttribute('role', 'button');
               
               btn.onpointerdown = (e) => { 
                   e.preventDefault(); 
@@ -1714,6 +1793,8 @@ while (i * 10 < total) {
       } else {
           let card = document.createElement('div');
           card.className = 'wb-card';
+          card.setAttribute('tabindex', '0');
+          card.setAttribute('role', 'button');
           card.style.background = bgStyle;
           card.style.boxShadow = isHintCard ? 'none' : '';
           card.style.border = isHintCard ? 'none' : '';
@@ -1984,7 +2065,7 @@ setupVirtualScroll() {
     if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }); }
 
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
-    if (btnMtShowHint) { btnMtShowHint.addEventListener('click', () => { Hardware.vibrate(10); if (Model.state.mode === 'filter-test') { Model.state.ftShowKanaHint = true; View.renderStudyCard('none'); } else { let wKana = View.getEl('w-kana'); if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); } } }); }
+    if (btnMtShowHint) { btnMtShowHint.addEventListener('click', () => { Hardware.vibrate(10); if (Model.state.mode === 'filter-test') { Model.state.ftShowKanaHint = true; View.renderStudyCard('none'); } else { let wKana = View.getEl('w-kana'); if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); wKana.removeAttribute('aria-hidden'); } } }); }
 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读"); }); }
@@ -2170,7 +2251,14 @@ if (testVibrateBtn) {
     }
 
     document.addEventListener('click', (e) => { 
-        let target = e.target.closest('.blur-target, .wb-blur-trigger'); if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { let el = target.classList.contains('blur-text') ? target : target.parentElement; el.classList.remove('blur-text'); Hardware.playSound('click'); Hardware.vibrate(15); } 
+        let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
+        if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
+            let el = target.classList.contains('blur-text') ? target : target.parentElement; 
+            el.classList.remove('blur-text'); 
+            el.removeAttribute('aria-hidden');
+            Hardware.playSound('click'); 
+            Hardware.vibrate(15); 
+        } 
         let exJp = e.target.closest('.dt-ex-jp'); if (exJp) { let textToSpeak = exJp.getAttribute('data-speak'); if (textToSpeak) { Hardware.unlockSpeech(); Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp); Hardware.vibrate(10); } }
     });
 
@@ -2207,10 +2295,68 @@ if (testVibrateBtn) {
     View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('edit-overlay', false); });
 
+        // 🟢 WCAG 伪按钮 (role="button") 空格触发机制 (规范：Space 释放时触发)
+    document.addEventListener('keyup', (e) => {
+        let el = document.activeElement;
+        if (el && el.getAttribute('role') === 'button' && e.key === ' ') {
+            e.preventDefault();
+            el.click(); // 兼容绑了 onclick 的元素（如底部菜单）
+            el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0 })); // 兼容绑了 onpointerdown 的元素（如键盘、选择题）
+        }
+    });
+
     // 🚀 实体键盘盲操接管中枢 (Physical Keyboard Integration)
     document.addEventListener('keydown', (e) => {
-        // 🔒 第一层防线：如果用户正在输入框里打字，静默所有快捷键
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+
+        
+        // 🟢 WCAG 焦点陷阱 (Focus Trap) - 必须置于最顶层防线之前
+        if (e.key === 'Tab') {
+            let activeModal = document.querySelector('.modal-overlay.active');
+            if (activeModal) {
+                // 筛选出弹窗内所有物理可见的、可聚焦的元素
+                let focusable = Array.from(activeModal.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                                     .filter(node => node.offsetParent !== null);
+
+                if (focusable.length > 0) {
+                    let firstEl = focusable[0];
+                    let lastEl = focusable[focusable.length - 1];
+
+                    if (e.shiftKey) { // Shift + Tab：反向切换
+                        if (document.activeElement === firstEl || !activeModal.contains(document.activeElement)) {
+                            e.preventDefault();
+                            lastEl.focus();
+                        }
+                    } else { // Tab：正向切换
+                        if (document.activeElement === lastEl || !activeModal.contains(document.activeElement)) {
+                            e.preventDefault();
+                            firstEl.focus();
+                        }
+                    }
+                } else {
+                    // 如果弹窗内没有任何可交互元素，彻底锁死 Tab 键
+                    e.preventDefault(); 
+                }
+                return; // 阻断后续所有针对主界面的快捷键逻辑
+            }
+        }
+
+        // 🔒 第一层防线：如果用户正在输入框里打字，静默所有快捷键 (放行 Escape)
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            if (e.key !== 'Escape') return; 
+        }
+        
+        // 🟢 WCAG 伪按钮 (role="button") 回车触发与空格拦截机制
+        let activeEl = document.activeElement;
+        if (activeEl && activeEl.getAttribute('role') === 'button' && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault(); // 关键：阻止空格键引起页面默认向下滚动
+            
+            // 规范：Enter 键在按下时立即触发
+            if (e.key === 'Enter') {
+                activeEl.click(); 
+                activeEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0 }));
+            }
+            return; // 拦截事件，防止触发下方的全局空格发音等快捷键
+        }
         
         let key = e.key;
         let keyLower = key.toLowerCase();
@@ -2760,6 +2906,8 @@ if (testVibrateBtn) {
       Model.folders.forEach(folderName => {
           const item = document.createElement('div');
           item.className = 'move-folder-item';
+          item.setAttribute('tabindex', '0');
+          item.setAttribute('role', 'button');
           item.innerHTML = `
               <span class="material-symbols-rounded folder-icon">folder</span>
               <span class="folder-name">${folderName}</span>

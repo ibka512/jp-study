@@ -236,8 +236,8 @@ body.modal-open .bottom-nav {
 
 .nav-item {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; color: var(--on-surface); opacity: 0.75; cursor: pointer; /* 提升基态透明度以满足 WCAG/APCA */
-  width: 72px; /* 略微拓宽呼吸空间 */
+  gap: 2px; color: var(--on-surface); opacity: 0.75; cursor: pointer; 
+  flex: 1; max-width: 72px; /* 改为 flex:1，自适应 5 个按钮的宽度，防止小屏幕挤压 */
   transition: opacity 0.3s var(--spring-smooth), transform 0.3s var(--spring-bouncy); 
   user-select: none;
 }
@@ -2162,12 +2162,44 @@ rt {
     transition: background 0.3s ease, transform 0.2s ease;
 }
 
-/* 黄杠：看汉字知释义 */
-.tri-bar-segment.bar-y.active { background: #F5B041; box-shadow: 0 0 4px rgba(245, 176, 65, 0.6); }
-/* 红杠：听读音/看假名知释义 */
-.tri-bar-segment.bar-r.active { background: #E74C3C; box-shadow: 0 0 4px rgba(231, 76, 60, 0.6); }
-/* 白杠：看释义能写出 */
-.tri-bar-segment.bar-w.active { background: #FDFEFE; box-shadow: 0 0 4px rgba(253, 254, 254, 0.8); }
+/* 🟢 WCAG 无障碍优化：黄杠（汉字）-> 颜色 + 中心高光圆点 (聚焦) */
+.tri-bar-segment.bar-y.active { 
+    background: #F5B041; 
+    box-shadow: 0 0 4px rgba(245, 176, 65, 0.6); 
+    position: relative;
+}
+.tri-bar-segment.bar-y.active::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: #FFFFFF;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.9;
+}
+
+/* 🟢 WCAG 无障碍优化：红杠（读音）-> 颜色 + 45度极细斜线纹理 (声波) */
+.tri-bar-segment.bar-r.active { 
+    background: repeating-linear-gradient(
+        45deg,
+        #E74C3C,
+        #E74C3C 3px,
+        rgba(255, 255, 255, 0.4) 3px,
+        rgba(255, 255, 255, 0.4) 4px
+    );
+    box-shadow: 0 0 4px rgba(231, 76, 60, 0.6); 
+}
+
+/* 🟢 WCAG 无障碍优化：白杠（释义）-> 颜色 + 微立体纯平渐变 (面) */
+.tri-bar-segment.bar-w.active { 
+    background: linear-gradient(180deg, #FFFFFF 0%, #D5D8DC 100%);
+    box-shadow: 0 0 4px rgba(253, 254, 254, 0.8), inset 0 1px 1px rgba(255, 255, 255, 1); 
+    border: 0.5px solid rgba(0, 0, 0, 0.05);
+}
+
 
 /* 暗黑模式适配 */
 [data-theme="dark"] .tri-bar-segment { background: rgba(255, 255, 255, 0.15); }
@@ -2263,7 +2295,7 @@ button:focus-visible,
         max-width: 1000px;
         margin: 0 auto;
     }
-    .study-left-col {
+            .study-left-col {
         flex: 1;
         max-width: 480px;
     }
@@ -2275,6 +2307,8 @@ button:focus-visible,
     .flash-card {
         margin: 0; /* 移除为了竖屏底部腾空间的 margin */
     }
+
+
 
     /* 3. 横屏下的内置键盘放大优化 */
     .dt-spell-input-box {
@@ -2380,3 +2414,67 @@ button:focus-visible,
 [data-theme="dark"] .bs-option.selected::before { background-color: #b0d6c1; box-shadow: 0 0 8px #b0d6c1; }
 .dt-choice-btn .choice-label { color: var(--tertiary); font-weight: 900; margin-right: 8px; font-family: var(--font-ui); }
 [data-theme="dark"] .dt-choice-btn .choice-label { color: #a4c7b6; }
+
+/* ==========================================
+   📖 指南页 (Guide Page) 专属排版美学
+   ========================================== */
+.guide-mode-list { display: flex; flex-direction: column; gap: 12px; }
+.guide-mode-item { padding: 14px; background: rgba(139, 121, 103, 0.05); border-radius: var(--radius-md); border: 1px solid rgba(139, 121, 103, 0.08); transition: background 0.3s; }
+[data-theme="dark"] .guide-mode-item { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.05); }
+.g-mode-title { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.g-mode-desc { font-size: 0.85rem; color: var(--on-surface); opacity: 0.8; line-height: 1.5; }
+
+.guide-flowchart { display: flex; flex-direction: column; align-items: center; padding: 10px 0; }
+.flow-step { width: 100%; background: var(--surface); padding: 16px; border-radius: var(--radius-md); border: 2px dashed var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+[data-theme="dark"] .flow-step { background: rgba(0,0,0,0.2); box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+.flow-step-title { font-weight: 800; font-size: 1rem; color: var(--primary); margin-bottom: 8px; text-align: center; }
+.flow-step-desc { font-size: 0.85rem; opacity: 0.85; line-height: 1.6; }
+.flow-arrow { margin: 8px 0; color: var(--tertiary); opacity: 0.7; }
+
+.guide-tips-list { display: flex; flex-direction: column; gap: 16px; }
+.tip-item { font-size: 0.9rem; line-height: 1.6; color: var(--on-surface); opacity: 0.85; display: flex; align-items: flex-start; gap: 8px; }
+.tip-item .material-symbols-rounded { font-size: 1.2rem; color: var(--primary); opacity: 0.8; margin-top: 2px; }
+.tip-item code { background: rgba(139, 121, 103, 0.1); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; font-weight: 800; color: var(--primary); }
+[data-theme="dark"] .tip-item code { background: rgba(255,255,255,0.1); color: #b0d6c1; }
+
+/* 无障碍：为需要减少动态效果的用户关闭所有动画 */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================
+   📖 指南页可折叠详情样式
+   ========================================== */
+.guide-details summary {
+  list-style: none; /* 隐藏默认三角 */
+  -webkit-user-select: none; user-select: none;
+}
+.guide-details summary::-webkit-details-marker { display: none; }
+.guide-details summary::after {
+  content: 'expand_more';
+  font-family: 'Material Symbols Rounded';
+  font-size: 1.3rem;
+  margin-left: auto;
+  transition: transform 0.3s var(--spring-smooth);
+  opacity: 0.5;
+}
+.guide-details[open] summary::after {
+  transform: rotate(180deg);
+}
+.guide-details[open] summary {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* 对比表在暗色模式下的适配 */
+[data-theme="dark"] .guide-details table th,
+[data-theme="dark"] .guide-details table td {
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* 状态机卡片在暗色模式下 */
+[data-theme="dark"] .guide-details div[style*="border: 2px solid"] {
+  /* 保持内联样式中的边框颜色，仅调整背景 */
+}

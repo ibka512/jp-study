@@ -2,6 +2,7 @@
  * 钟摆日语 - 核心控制逻辑
  */
 
+const DATA_VERSION = 'v1';
 const escapeHTML = (str) => {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, tag => ({
@@ -147,8 +148,6 @@ const Nav = {
 
         if (targetId === 'tab-home') {
             View.renderDashboard();
-        } else if (targetId === 'tab-records') {
-            View.renderLeaderboard();
         } else if (targetId === 'tab-wordbank') {
             if(Model.state.renderedStartIndex === -1) {
                 View.resetWordbankRenderer();
@@ -198,6 +197,7 @@ const BottomSheet = {
         document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
         
         Array.from(selectEl.options).forEach(opt => {
+            if (opt.style.display === 'none') return; // 遇到隐藏选项，直接跳过不画
             let btn = document.createElement('div');
             btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
             btn.setAttribute('tabindex', '0');
@@ -295,10 +295,34 @@ const RomajiEngine = {
     }
 };
 
+// Simple English word input buffer for spelling mode
+const EnglishInput = {
+    buffer: '',
+    reset() { this.buffer = ''; },
+    input(char) {
+        if (char === 'Backspace') {
+            this.buffer = this.buffer.slice(0, -1);
+            return;
+        }
+        if (char.length === 1 && /[a-zA-Z]/.test(char)) {
+            this.buffer += char.toLowerCase();
+        }
+    },
+    getDisplayText() { return this.buffer || ''; },
+    getFinalText() { return this.buffer; }
+};
+
 const Model = {
-  db: [], folders: ["默认词库"], stars: [], records: [], editingIdx: -1,
+  db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars: [], records: [], editingIdx: -1,
 
   mtGroupClears: {}, mtWordClears: {},
+  getFolderLang(folderName) {
+    return this.folderLangs[folderName] || "ja";
+  },
+    getCurrentLang() {
+    return this.state.currentLangMode || "ja";
+  },
+
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
@@ -307,7 +331,7 @@ const Model = {
     comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
     maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
-    isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1
+    isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1, currentLangMode: 'ja'
   },
   
   lbState: {
@@ -318,11 +342,41 @@ const Model = {
 
   async init() { await this.loadData(); },
   
+  idbAvailable: true,
+
   async loadData() {
-    let storedDB = await idbKeyval.get('myWordDB_v3');
+    // Dev auto-reset: if data version changed, clear all stored data
+    const storedVer = localStorage.getItem('dataVersion');
+    if (storedVer !== DATA_VERSION) {
+      console.log('[Dev] Data version changed (' + (storedVer || 'none') + ' -> ' + DATA_VERSION + '), resetting...');
+      ['myWordDB_v3','myFolders_v3','myFolderLangs','starredWords','studyRecords','mtGroupClears_v3','mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
+      if (typeof idbKeyval !== 'undefined') {
+        try {
+          await Promise.all([
+            idbKeyval.del('myWordDB_v3'), idbKeyval.del('myFolders_v3'), idbKeyval.del('myFolderLangs'),
+            idbKeyval.del('starredWords'), idbKeyval.del('studyRecords'),
+            idbKeyval.del('mtGroupClears_v3'), idbKeyval.del('mtWordClears_v3')
+          ]);
+        } catch(e) { console.warn('[Dev] IndexedDB clear failed:', e); }
+      }
+      localStorage.setItem('dataVersion', DATA_VERSION);
+    }
+    let storedDB = null;
+    try {
+        if (typeof idbKeyval !== 'undefined') {
+            storedDB = await idbKeyval.get('myWordDB_v3');
+        } else {
+            this.idbAvailable = false;
+        }
+    } catch(e) {
+        console.warn('[DB] idb-keyval 不可用，降级至 localStorage', e);
+        this.idbAvailable = false;
+    }
+    
     if (storedDB) {
         this.db = storedDB;
         this.folders = await idbKeyval.get('myFolders_v3') || ["默认词库"];
+        this.folderLangs = await idbKeyval.get('myFolderLangs') || { "默认词库": "ja" };
         this.stars = await idbKeyval.get('starredWords') || [];
         this.records = await idbKeyval.get('studyRecords') || [];
         this.mtGroupClears = await idbKeyval.get('mtGroupClears_v3') || {};
@@ -332,6 +386,7 @@ const Model = {
         if (lsDB) {
             this.db = JSON.parse(lsDB);
             this.folders = JSON.parse(localStorage.getItem('myFolders_v3')) || ["默认词库"];
+            this.folderLangs = JSON.parse(localStorage.getItem('myFolderLangs')) || { "默认词库": "ja" };
             this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
             this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
             this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
@@ -341,12 +396,59 @@ const Model = {
                 this.saveDB(), this.saveFolders(), this.saveStars(), 
                 this.saveRecords(), this.saveClears()
             ]);
-            ['myWordDB_v3', 'myFolders_v3', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
-} else {
-          this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
-          await this.saveDB(); 
+            ['myWordDB_v3', 'myFolders_v3', 'myFolderLangs', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
+        } else {
+            this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
+            // Also include English default words
+            if (typeof DefaultEnglishWords !== 'undefined') {
+                this.db = this.db.concat(DefaultEnglishWords.map(w => ({...w})));
+                this.folders.push("四级词汇");
+                this.folderLangs["四级词汇"] = "en";
+            }
+            await this.saveDB(); 
+            await this.saveFolders();
+        }
+    }
+  
+    // Migrate: ensure all words in db have lang field
+    let needLangFix = false;
+    for (let w of this.db) {
+      if (!w.lang) { w.lang = "ja"; needLangFix = true; }
+    }
+    if (needLangFix) await this.saveDB();
+    
+    // Migrate: ensure folderLangs exists for all folders
+    let needFolderLangFix = false;
+    for (let f of this.folders) {
+      if (!this.folderLangs[f]) {
+        // Detect language from folder contents
+        const enWord = typeof DefaultEnglishWords !== 'undefined' && DefaultEnglishWords.find(w => w.folder === f);
+        this.folderLangs[f] = enWord ? "en" : "ja";
+        needFolderLangFix = true;
       }
-  }
+    }
+    // Migrate: ensure DefaultEnglishWords folders exist
+    if (typeof DefaultEnglishWords !== 'undefined') {
+      const enFolders = [...new Set(DefaultEnglishWords.map(w => w.folder))];
+      for (let ef of enFolders) {
+        if (!this.folders.includes(ef)) {
+          this.folders.push(ef);
+          this.folderLangs[ef] = "en";
+          needFolderLangFix = true;
+        }
+        // Ensure English words exist in db
+        const existingWords = new Set(this.db.map(w => w.word));
+        let addedCount = 0;
+        DefaultEnglishWords.forEach(w => {
+          if (!existingWords.has(w.word)) {
+            this.db.push({...w});
+            addedCount++;
+          }
+        });
+        if (addedCount > 0) await this.saveDB();
+      }
+    }
+    if (needFolderLangFix) await this.saveFolderLangs();
   
   let needSave = false;
   for (let word in this.mtWordClears) {
@@ -358,18 +460,39 @@ const Model = {
   if (needSave) await this.saveClears();
 },
 
-  saveDB() { return idbKeyval.set('myWordDB_v3', this.db); },
-  saveFolders() { return idbKeyval.set('myFolders_v3', this.folders); },
-  saveStars() { return idbKeyval.set('starredWords', this.stars); },
-  saveRecords() { return idbKeyval.set('studyRecords', this.records); },
+  saveDB() {
+      if (!this.idbAvailable) { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); return Promise.resolve(); }
+      return idbKeyval.set('myWordDB_v3', this.db);
+  },
+  saveFolders() {
+      if (!this.idbAvailable) { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); return Promise.resolve(); }
+      return idbKeyval.set('myFolders_v3', this.folders);
+  },
+  saveFolderLangs() {
+      if (!this.idbAvailable) { localStorage.setItem('myFolderLangs', JSON.stringify(this.folderLangs)); return Promise.resolve(); }
+      return idbKeyval.set('myFolderLangs', this.folderLangs);
+  },
+  saveStars() {
+      if (!this.idbAvailable) { localStorage.setItem('starredWords', JSON.stringify(this.stars)); return Promise.resolve(); }
+      return idbKeyval.set('starredWords', this.stars);
+  },
+  saveRecords() {
+      if (!this.idbAvailable) { localStorage.setItem('studyRecords', JSON.stringify(this.records)); return Promise.resolve(); }
+      return idbKeyval.set('studyRecords', this.records);
+  },
   
   checkFilter(w, filterName) {
       let st = this.mtWordClears[w.word] || { kanji:false, kana:false, meaning:false };
       if (typeof st === 'number') st = { kanji:false, kana:false, meaning:false }; 
 
       if (filterName === 'virtual_starred') return this.stars.includes(w.word);
-      if (filterName === 'virtual_cleared') return st.kanji && st.kana && st.meaning; 
-      if (filterName === 'virtual_uncleared') return !(st.kanji && st.kana && st.meaning); 
+      // 统一三杠判断：日语和英语均用 kanji + kana + meaning
+      if (filterName === 'virtual_cleared') {
+          return st.kanji && st.kana && st.meaning; 
+      }
+      if (filterName === 'virtual_uncleared') {
+          return !(st.kanji && st.kana && st.meaning); 
+      }
       if (filterName === 'virtual_know_kanji') return st.kanji;
       if (filterName === 'virtual_know_kana') return st.kana;
       if (filterName === 'virtual_know_meaning') return st.meaning;
@@ -381,6 +504,11 @@ const Model = {
   },
 
   saveClears() {
+      if (!this.idbAvailable) {
+          localStorage.setItem('mtGroupClears_v3', JSON.stringify(this.mtGroupClears));
+          localStorage.setItem('mtWordClears_v3', JSON.stringify(this.mtWordClears));
+          return Promise.resolve();
+      }
       return Promise.all([
           idbKeyval.set('mtGroupClears_v3', this.mtGroupClears),
           idbKeyval.set('mtWordClears_v3', this.mtWordClears)
@@ -389,10 +517,11 @@ const Model = {
   
     updateFilteredDb(searchQuery, currentFilter) {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
+          if ((item.w.lang || 'ja') !== Model.state.currentLangMode) return false;
           let matchFolder = currentFilter === 'all' ? true : this.checkFilter(item.w, currentFilter);
           let matchSearch = !searchQuery || 
                             item.w.word.toLowerCase().includes(searchQuery) ||
-                            item.w.kana.toLowerCase().includes(searchQuery) ||
+                            (item.w.kana || '').toLowerCase().includes(searchQuery) ||
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
@@ -425,7 +554,7 @@ const Model = {
 };
 
 const Hardware = {
-  audioCtx: null, jaVoiceCache: null, chargeOsc: null, chargeGain: null, _currentAudio: null,
+  audioCtx: null, jaVoiceCache: null, enVoiceCache: null, chargeOsc: null, chargeGain: null, _currentAudio: null,
   init() {
     try {
         if (window.speechSynthesis) {
@@ -544,21 +673,28 @@ isSpeechUnlocked: false,
         this.isSpeechUnlocked = true; 
     } catch(e) {}
 },
-fallbackLocalTTS(text, isSentence = false, onComplete = null) {
+fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
     if (!window.speechSynthesis) {
         if (onComplete) onComplete();
         return;
     }
-    if (!this.jaVoiceCache) {
-        let voices = window.speechSynthesis.getVoices();
-        this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
-    }
     
     setTimeout(() => {
         let msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'ja-JP';
+        msg.lang = lang;
         msg.rate = isSentence ? 0.75 : 0.8;
-        if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+        
+        let voices = window.speechSynthesis.getVoices();
+        if (lang === 'en-US') {
+            if (!this.enVoiceCache) this.enVoiceCache = voices.find(v => v.lang.includes('en') && (v.lang.includes('US') || v.lang.includes('GB')));
+            if (this.enVoiceCache) msg.voice = this.enVoiceCache;
+        } else if (lang === 'zh-CN') {
+            if (!this.zhVoiceCache) this.zhVoiceCache = voices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
+            if (this.zhVoiceCache) msg.voice = this.zhVoiceCache;
+        } else {
+            if (!this.jaVoiceCache) this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
+            if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
+        }
         
         if (onComplete) {
             msg.onend = onComplete;
@@ -570,7 +706,18 @@ fallbackLocalTTS(text, isSentence = false, onComplete = null) {
     }, 50);
 },
 
-async speakText(text, btnEl = null) {
+
+// Helper: speak the appropriate text for a word based on its language
+speakWord(w, btnEl) {
+    if (!w) return;
+    const isEnglish = w.lang === 'en';
+    const text = isEnglish 
+        ? (w.word || '') 
+        : ((w.kana || '').replace(/[【】\[\]()]/g,''));
+    this.speakText(text, btnEl, isEnglish ? 'en' : 'ja');
+},
+
+async speakText(text, btnEl = null, lang = 'ja') {
   try {
       if (typeof text !== 'string' || text.trim() === '') return;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -588,16 +735,18 @@ async speakText(text, btnEl = null) {
 
             const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
 
-            let isSentence = text.length > 12 || /[。？！，、]/.test(text);
+let isSentence = text.length > 12 || /[。？！，、]/.test(text);
             let engine = localStorage.getItem('ttsEngine') || 'youdao';
+            const ttsLang = lang === 'en' ? 'en-US' : (lang === 'zh' ? 'zh-CN' : 'ja-JP');
 
  if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-    this.fallbackLocalTTS(text, isSentence, revertBtn);
+    this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang);
     return;
 }
 
 if (engine === 'youdao') {
-    const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=jap`;
+    const langParam = lang === 'en' ? 'eng' : (lang === 'zh' ? 'zh' : 'jap');
+    const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=${langParam}`;
     if (this._currentAudio) {
         this._currentAudio.pause();
         this._currentAudio.src = '';
@@ -607,18 +756,20 @@ if (engine === 'youdao') {
     const audio = new Audio(url);
     audio.playbackRate = 0.85;
     audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
     return;
 }
 if (engine === 'azure') {
     const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
+    let voice = 'ja-JP-NanamiNeural';
+    if (lang === 'en') voice = 'en-US-AriaNeural';
+    if (lang === 'zh') voice = 'zh-CN-XiaoxiaoNeural';
     
-    const response = await fetch(workerUrl, {
-        method: "POST",
+    const response = await fetch(workerUrl, {        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "tts-1", input: text, voice: "ja-JP-NanamiNeural" })
+        body: JSON.stringify({ model: "tts-1", input: text, voice: voice })
     });
 
     if (!response.ok) throw new Error("Azure API 请求失败");
@@ -633,9 +784,9 @@ if (engine === 'azure') {
     const audio = new Audio(URL.createObjectURL(blob));
     audio.playbackRate = isSentence ? 0.75 : 0.85;
     audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
 }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
@@ -683,9 +834,43 @@ const View = {
     transition.finished.then(() => { document.documentElement.classList.remove('theme-switching'); });
   },
   
-  getCardVisuals(typeStr) {
+  getCardVisuals(typeStr, lang) {
     if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
     
+    // English words: use simple PoS abbreviations as watermark
+    if (lang === 'en') {
+        let enWm = '';
+        if (typeStr.includes('名词')) enWm = 'n.';
+        else if (typeStr.includes('动词')) enWm = 'v.';
+        else if (typeStr.includes('形容词') && !typeStr.includes('形容动词')) enWm = 'adj.';
+        else if (typeStr.includes('副词')) enWm = 'adv.';
+        else if (typeStr.includes('介词')) enWm = 'prep.';
+        else if (typeStr.includes('连词') || typeStr.includes('连接')) enWm = 'conj.';
+        else if (typeStr.includes('代词')) enWm = 'pron.';
+        else enWm = typeStr.charAt(0);
+        
+        const getCat = (t) => {
+            if (t.includes('形容动词') || t.includes('形动') || t.includes('形容词')) return { color: 'var(--bg-adj)' };
+            if (t.includes('动词')) return { color: 'var(--bg-verb)' };
+            if (t.includes('名词')) return { color: 'var(--bg-noun)' };
+            if (t.includes('副词') || t.includes('接')) return { color: 'var(--bg-adv)' };
+            return { color: 'var(--bg-other)' }; 
+        };
+        let tags = typeStr.split('・').map(t => t.trim()).filter(t => t);
+        if (tags.length === 0) tags = [typeStr];
+        let mainColors = [];
+        let tagsHTML = tags.map(t => {
+            let catInfo = getCat(t); mainColors.push(catInfo.color);
+            return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
+        }).join('');
+        let uniqueColors = [...new Set(mainColors)];
+        let bg = uniqueColors[0] || 'var(--surface-container)';
+        if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
+        if (bg === 'var(--surface-container)' && tagsHTML) bg = 'var(--bg-other)';
+        return { bg, wm: enWm, tagsHTML };
+    }
+    
+    // Japanese words: keep original grammar character watermark
     let wmSet = new Set();
     if (typeStr.includes('自他')) { wmSet.add('が'); wmSet.add('を'); }
     else {
@@ -865,6 +1050,7 @@ const View = {
       tabsContainer.innerHTML = '';
       
       Model.folders.forEach(f => {
+          if ((Model.folderLangs[f] || 'ja') !== Model.state.currentLangMode) return;
           let catVal = f === '默认词库' ? 'default' : f;
           let tab = document.createElement('div');
           tab.className = `g-tab ${currentActive === catVal ? 'active' : ''}`;
@@ -875,29 +1061,31 @@ const View = {
           tabsContainer.appendChild(tab);
       });
       
+            let isEnTab = Model.state.currentLangMode === 'en';
       const virtuals = [
           { cat: 'virtual_cleared', text: '完全通关' },
           { cat: 'virtual_uncleared', text: '所有未通关' },
-          { cat: 'virtual_miss_kanji', text: '未了解汉字' },
-          { cat: 'virtual_miss_kana', text: '未了解读音' },
+          { cat: 'virtual_miss_kanji', text: isEnTab ? '未掌握拼写' : '未了解汉字' },
+          { cat: 'virtual_miss_kana', text: isEnTab ? '未掌握听力' : '未了解读音' },
           { cat: 'virtual_miss_meaning', text: '未了解释义' },
           { cat: 'virtual_starred', text: '收藏' }
       ];
+
       virtuals.forEach(v => {
           let tab = document.createElement('div');
           tab.className = `g-tab ${currentActive === v.cat ? 'active' : ''}`;
           tab.dataset.cat = v.cat;
           tab.innerText = v.text;
+
           tab.setAttribute('tabindex', '0');
           tab.setAttribute('role', 'button');
           tabsContainer.appendChild(tab);
       });
 
-      if (!tabsContainer.querySelector('.active')) {
-          let defTab = tabsContainer.querySelector('[data-cat="default"]');
-          if(defTab) defTab.classList.add('active');
-      }
-  },
+if (!tabsContainer.querySelector('.active')) {
+          let firstTab = tabsContainer.querySelector('.g-tab');
+          if(firstTab) firstTab.classList.add('active');
+      }  },
 
   renderGroupBottomSheet(cat) {
       let container = this.getEl('group-list-container');
@@ -986,6 +1174,15 @@ while (i * 10 < total) {
   },
 
   updateWordbankUI() {
+    let searchInput = this.getEl('wb-search-input');
+    if (searchInput) searchInput.placeholder = Model.state.currentLangMode === 'en' ? '搜索英文、音标或释义...' : '搜索汉字、假名或释义...';
+    
+    let modeSel = this.getEl('next-display-mode');
+    if (modeSel) {
+        modeSel.options[1].text = Model.state.currentLangMode === 'en' ? '英文' : '汉字';
+        modeSel.options[2].text = Model.state.currentLangMode === 'en' ? '音标' : '假名';
+    }
+
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
     
     let batchBtn = this.getEl('wb-batch-toggle');
@@ -1006,12 +1203,16 @@ while (i * 10 < total) {
     selFilter.add(new Option('查看所有词汇', 'all'));
     selFilter.add(new Option('收藏词汇', 'virtual_starred'));
     selFilter.add(new Option('完全通关词汇', 'virtual_cleared'));
-    selFilter.add(new Option('所有未通关', 'virtual_uncleared'));
-    selFilter.add(new Option('专项图鉴: 汉字了解(黄)', 'virtual_know_kanji'));
-    selFilter.add(new Option('专项图鉴: 读音了解(红)', 'virtual_know_kana'));
+        selFilter.add(new Option('所有未通关', 'virtual_uncleared'));
+    selFilter.add(new Option(Model.state.currentLangMode === 'en' ? '专项图鉴: 拼写掌握(黄)' : '专项图鉴: 汉字了解(黄)', 'virtual_know_kanji'));
+    selFilter.add(new Option(Model.state.currentLangMode === 'en' ? '专项图鉴: 听力掌握(红)' : '专项图鉴: 读音了解(红)', 'virtual_know_kana'));
     selFilter.add(new Option('专项图鉴: 释义了解(白)', 'virtual_know_meaning'));
+
     
-    Model.folders.forEach(f => { selFilter.add(new Option(`${f}`, f)); });
+    Model.folders.forEach(f => { 
+      if ((Model.folderLangs[f] || 'ja') !== Model.state.currentLangMode) return;
+      selFilter.add(new Option(f, f)); 
+    });
     
     let lastFolder = localStorage.getItem('lastSelectedFolder') || currentVal;
     if(Array.from(selFilter.options).some(opt => opt.value === lastFolder)) {
@@ -1021,21 +1222,55 @@ while (i * 10 < total) {
     }
     selFilter.dispatchEvent(new Event('facade-update'));
 
+        // 以当前词书语种作为判断基准，而非筛选器值
+    const selLang = Model.state.currentLangMode;
+    document.querySelectorAll('.jp-only').forEach(el => {
+        el.style.display = selLang === 'en' ? 'none' : '';
+    });
+
+    // 动态更新词库视图设置的按钮文本，赋予其英语模式下的新功能
+    let blurWordBtn = document.querySelector('.vs-blur-btn[data-val="word"]');
+    if (blurWordBtn) blurWordBtn.innerText = selLang === 'en' ? '仅显英文' : '仅显单词';
+
+    let blurKanaBtn = document.querySelector('.vs-blur-btn[data-val="kana"]');
+    if (blurKanaBtn) {
+        blurKanaBtn.innerText = selLang === 'en' ? '仅显音标' : '仅显假名';
+        blurKanaBtn.classList.remove('jp-only'); // 挣脱日语专属束缚，允许在英语模式下显示
+    }
+
+
     this.updateGroupTabs();
   },
 
   renderDashboard() {
-    let dbTotalEl = this.getEl('db-total-count');
-    if (dbTotalEl) dbTotalEl.innerText = Model.db.length;
-    
+    // 英语模式下显示三杠（听力杠替代读音杠），标签文字动态切换
+    const currentLang = Model.getCurrentLang();
+    const kanaRow = this.getEl('prog-row-kana');
+    if (kanaRow) kanaRow.style.display = 'flex';
+    const kanaBarLabel = document.getElementById('kana-bar-label');
+    if (kanaBarLabel) kanaBarLabel.innerText = currentLang === 'en' ? '听力' : '读音';
+
+let dbTotalEl = this.getEl('db-total-count');
+    if (dbTotalEl) dbTotalEl.innerText = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;    
     let stats = Model.calculateStats();
     this.getEl('total-days').innerText = stats.totalDays;
     this.getEl('streak-days').innerText = stats.streak;
 
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
-    Object.values(Model.mtWordClears).forEach(st => {
+    // Build word → lang lookup for accurate counting
+    const wordLangMap = {};
+    Model.db.forEach(w => { wordLangMap[w.word] = w.lang || 'ja'; });
+    
+Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
         if (typeof st === 'object') {
+            const lang = wordLangMap[wordKey] || 'ja';
+            if (lang !== Model.state.currentLangMode) return;
+            // 兼容旧英语格式 {word, meaning} → 映射为三杠
+            if (lang === 'en' && st.word !== undefined) {
+                st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
+            }
+            // 统一三杠判断
             if (st.kanji && st.kana && st.meaning) clearedWordsCount++;
             if (st.kanji) kanjiCount++;
             if (st.kana) kanaCount++;
@@ -1043,7 +1278,7 @@ while (i * 10 < total) {
         }
     });
 
-    let totalWordsCount = Model.db.length;
+    let totalWordsCount = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;
     let masteryPercent = totalWordsCount === 0 ? 0 : ((clearedWordsCount / totalWordsCount) * 100).toFixed(1);
     let pKanji = totalWordsCount === 0 ? 0 : ((kanjiCount / totalWordsCount) * 100).toFixed(1);
     let pKana = totalWordsCount === 0 ? 0 : ((kanaCount / totalWordsCount) * 100).toFixed(1);
@@ -1065,14 +1300,29 @@ while (i * 10 < total) {
         if (this.getEl('prog-txt-meaning')) this.getEl('prog-txt-meaning').innerHTML = `${meaningCount} <span style="font-size:0.85em; opacity:0.6;">(${pMeaning}%)</span>`;
     }, 50);
 
-    let lastTxt = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)';
+    let lastTxt = localStorage.getItem('lastCustomGroupTxt');
+    if (!lastTxt) {
+        let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || '默认词库';
+        lastTxt = `${defFolder} (第 1-10 词)`;
+    }
     this.getEl('custom-group-text').innerText = lastTxt;
 
     this.updateTestSelects();
 
+        let displaySel = this.getEl('test-display-select');
+    if (displaySel) {
+        let isEn = Model.state.currentLangMode === 'en';
+        displaySel.options[0].text = isEn ? '专攻英文拼写 (点亮黄杠)' : '专攻汉字辨认 (点亮黄杠)';
+        displaySel.options[1].text = isEn ? '专攻假名辨认' : '专攻假名辨认 (点亮红杠)';
+        displaySel.options[2].text = isEn ? '专攻听力辨音 (点亮红杠)' : '专攻听力辨音 (点亮红杠)';
+        
+        // 英语模式下直接隐藏用不到的“专攻假名”选项
+        displaySel.options[1].style.display = isEn ? 'none' : '';
+    }
+
     let lastTestDisplay = localStorage.getItem('lastTestDisplay') || 'kana';
-    let displaySel = this.getEl('test-display-select');
     if (displaySel && Array.from(displaySel.options).some(o => o.value === lastTestDisplay)) {
+
         displaySel.value = lastTestDisplay;
         displaySel.dispatchEvent(new Event('facade-update'));
     }
@@ -1092,32 +1342,35 @@ while (i * 10 < total) {
 
   updateTestSelects() {
       let testSel = this.getEl('test-range-select');
-      let currentTest = testSel.value || localStorage.getItem('lastTestRange') || '默认词库';
+      let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || '默认词库';
+      let currentTest = testSel.value || localStorage.getItem('lastTestRange') || defFolder;
 
       testSel.innerHTML = '';
       
-      let options = [
-          { text: '默认词库', val: '默认词库' },
+      let options = [];
+      Model.folders.forEach(f => {
+          if ((Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) {
+              options.push({ text: f, val: f });
+          }
+      });
+      options.push(
           { text: '收藏词汇', val: 'virtual_starred' },
           { text: '完全通关词汇', val: 'virtual_cleared' },
-          { text: '所有未通关', val: 'virtual_uncleared' },
-          { text: '专项攻坚: 未了解汉字(黄)', val: 'virtual_miss_kanji' },
-          { text: '专项攻坚: 未了解读音(红)', val: 'virtual_miss_kana' },
+                    { text: '所有未通关', val: 'virtual_uncleared' },
+          { text: Model.state.currentLangMode === 'en' ? '专项攻坚: 未掌握拼写(黄)' : '专项攻坚: 未了解汉字(黄)', val: 'virtual_miss_kanji' },
+          { text: Model.state.currentLangMode === 'en' ? '专项攻坚: 未掌握听力(红)' : '专项攻坚: 未了解读音(红)', val: 'virtual_miss_kana' },
           { text: '专项攻坚: 未了解释义(白)', val: 'virtual_miss_meaning' },
-          { text: '复习巩固: 已了解汉字(黄)', val: 'virtual_know_kanji' },
-          { text: '复习巩固: 已了解读音(红)', val: 'virtual_know_kana' },
+          { text: Model.state.currentLangMode === 'en' ? '复习巩固: 已掌握拼写(黄)' : '复习巩固: 已了解汉字(黄)', val: 'virtual_know_kanji' },
+          { text: Model.state.currentLangMode === 'en' ? '复习巩固: 已掌握听力(红)' : '复习巩固: 已了解读音(红)', val: 'virtual_know_kana' },
           { text: '复习巩固: 已了解释义(白)', val: 'virtual_know_meaning' }
-      ];
-      
-      Model.folders.forEach(f => {
-          if(f !== '默认词库') options.push({ text: f, val: f });
-      });
+
+      );
 
       options.forEach(opt => { testSel.add(new Option(opt.text, opt.val)); });
 
-      if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
-      testSel.dispatchEvent(new Event('facade-update'));
-  },
+if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
+      else if (testSel.options.length > 0) testSel.value = testSel.options[0].value;
+      testSel.dispatchEvent(new Event('facade-update'));  },
 
     renderStudyCard(anim = 'none') {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
@@ -1158,7 +1411,7 @@ while (i * 10 < total) {
     }
 
     let card = this.getEl('flash-card');
-    let visuals = this.getCardVisuals(w.type);
+    let visuals = this.getCardVisuals(w.type, w.lang);
     card.querySelector('.watermark-layer').style.background = visuals.bg;
     this.getEl('flash-watermark').innerHTML = visuals.wm; 
     
@@ -1168,8 +1421,13 @@ while (i * 10 < total) {
     const triggerSRAnnouncement = () => {
         let announcer = document.getElementById('sr-announcer');
         if (announcer && w && w.word && w.word !== 'HINT_CARD') {
-            let cleanKana = w.kana.replace(/[【】\[\]()]/g, '');
-            announcer.innerText = `当前单词：${w.word}。假名：${cleanKana}。`;
+            const isEn = w.lang === 'en';
+            if (isEn) {
+                announcer.innerText = `Current word: ${w.word}. Meaning: ${w.meaning}.`;
+            } else {
+                let cleanKana = (w.kana || '').replace(/[【】\[\]()]/g, '');
+                announcer.innerText = `当前单词：${w.word}。假名：${cleanKana}。`;
+            }
         }
     };
 
@@ -1207,9 +1465,11 @@ while (i * 10 < total) {
 
 
   updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
+    const isEnglish = w.lang === 'en';
+    
     this.getEl('mt-blind-audio-ui').classList.add('hidden');
     this.getEl('w-word').style.display = 'block';
-    this.getEl('w-kana').style.display = 'block';
+    this.getEl('w-kana').style.display = isEnglish ? 'block' : 'block';
     this.getEl('w-meaning').style.display = 'block';
     this.getEl('w-type').style.display = 'flex';
     this.getEl('w-example-box').style.display = 'block';
@@ -1219,6 +1479,10 @@ while (i * 10 < total) {
 
     if (isFilterTest) {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
+        // 英语模式：kana 维度不存在，映射为 word；audio 维度保留为听力辨音
+        if (isEnglish && displayMode === 'kana') {
+            displayMode = 'word';
+        }
         let st = Model.state.ftState; 
         let hint = Model.state.ftHint;
         let showKanaHint = Model.state.ftShowKanaHint; 
@@ -1231,12 +1495,18 @@ while (i * 10 < total) {
         };
 
         let showW = isVisible('word');
-        let showK = isVisible('kana') || showKanaHint; 
+        let showK = (!isEnglish && isVisible('kana')) || showKanaHint; 
         let showM = isVisible('meaning');
         let showA = isVisible('audio');
 
         this.getEl('w-word').innerText = showW ? w.word : maskFixed;
-        this.getEl('w-kana').innerText = showK ? w.kana.replace(/[【】\[\]()]/g,'') : maskFixed;
+        if (!isEnglish) {
+            this.getEl('w-kana').innerText = showK ? (w.kana || '').replace(/[【】\[\]()]/g,'') : maskFixed;
+            this.getEl('w-kana').style.display = 'block';
+        } else {
+            this.getEl('w-kana').innerText = w.phonetic || '';
+            this.getEl('w-kana').style.display = 'block';
+        }
         this.getEl('w-meaning').innerText = showM ? w.meaning : maskFixed;
         this.getEl('w-type').innerHTML = visuals.tagsHTML;
         this.getEl('w-type').style.display = st === 'C' ? 'flex' : 'none'; 
@@ -1261,7 +1531,7 @@ while (i * 10 < total) {
         
         if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
 
-             Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
+             Hardware.speakWord(w);
         }
 
         this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
@@ -1289,11 +1559,22 @@ while (i * 10 < total) {
         return; 
     }
 
-    let showWord = true, showKana = true, showMeaning = true;
+    let showWord = true, showKana = !isEnglish, showMeaning = true;
+
+    let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
+    let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
+
+    // 🚀 针对英语模式的往复测验：拼写阶段隐藏英文单词（变马赛克），并确保释义可见
+    if (isEnglish && isDtSpell) {
+        showWord = false;
+    }
     
     if (isRote && mode !== 'all' && !forceRoteFull) {
         if (mode === 'word') { showKana = Model.state.mtStep > 1; showMeaning = false; } 
-        else if (mode === 'kana') { showWord = Model.state.mtStep > 1; showMeaning = false; } 
+        else if (mode === 'kana') { 
+            if (isEnglish) { showMeaning = false; } 
+            else { showWord = Model.state.mtStep > 1; showMeaning = false; }
+        } 
         else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
     }
 
@@ -1307,7 +1588,12 @@ while (i * 10 < total) {
     else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
     else wWordEl.style.fontSize = ''; 
 
-    this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask(w.kana.replace(/[【】\[\]()]/g,'')) : w.kana;
+    if (!isEnglish) {
+        this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask((w.kana || '').replace(/[【】\[\]()]/g,'')) : (w.kana || '');
+    } else {
+        this.getEl('w-kana').style.display = 'block';
+        this.getEl('w-kana').innerText = w.phonetic || '';
+    }
     this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
     
@@ -1320,9 +1606,6 @@ while (i * 10 < total) {
         else starBtn.classList.remove('active');
         starBtn.style.display = 'block';
     }
-
-    let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
-    let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
 
     if (!isMemTest && !isRote) {
         this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
@@ -1364,12 +1647,14 @@ while (i * 10 < total) {
     } else if (forceRoteFull) {
         ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); });
         this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; this.getEl('w-example-box').removeAttribute('aria-hidden');
-    } else {
+        } else {
         ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); });
         this.getEl('w-example-box').className = 'dt-example-box';
-        if (isRote && mode !== 'all') this.getEl('w-example-box').style.display = 'none';
+        // 🚀 修复：如果在往复测验的拼写阶段（isDtSpell），强制隐藏例句防作弊
+        if ((isRote && mode !== 'all') || isDtSpell) this.getEl('w-example-box').style.display = 'none';
         this.getEl('w-example-box').removeAttribute('aria-hidden');
     }
+
 
     this.getEl('capsule-pendulum').classList.add('hidden');
     this.getEl('capsule-filter-test').classList.add('hidden');
@@ -1391,14 +1676,14 @@ while (i * 10 < total) {
     }
     
     if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
-        Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''));
+        Hardware.speakWord(w);
     } else {
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-        if (autoSpeak && !hideSpeaker) { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }
+        if (autoSpeak && !hideSpeaker) { Hardware.speakWord(w); }
     }
   },
 
-  renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
+    renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
     let exBox = this.getEl(boxId);
     if (!exBox) return;
     
@@ -1411,8 +1696,13 @@ while (i * 10 < total) {
     let useRuby = localStorage.getItem('useRubyRender') !== 'false';
     
     let processedStr = exString;
+    // 🚀 终极修复：强制将英语例句的 || 替换为正确的翻译分隔符 /
+    if (processedStr.includes('||') && !processedStr.includes('/')) {
+        processedStr = processedStr.replace(/\|\|/g, '/');
+    }
+
     if (mode === 'spell' && targetWordObj) {
-        processedStr = exString.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
+        processedStr = processedStr.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
             if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{○}{${kanji}}`; return match;
         });
     }
@@ -1423,7 +1713,6 @@ while (i * 10 < total) {
         let cnPart = parts[1] ? parts[1].trim() : "";
         
         let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
-        
         let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
         
         if (useRuby) {
@@ -1454,10 +1743,11 @@ while (i * 10 < total) {
     }
   },
 
+
   renderDualTrackUI(wObj) {
       if (Model.state.dtSubMode === 'spell') {
           this.getEl('dt-choice-area').classList.add('hidden'); this.getEl('dt-spell-area').classList.remove('hidden');
-          RomajiEngine.reset();
+          RomajiEngine.reset(); EnglishInput.reset();
           let inputEl = this.getEl('dt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
           View.renderQwertyKeyboard('dt-spell-keyboard', inputEl, wObj, null);
       }
@@ -1497,42 +1787,57 @@ while (i * 10 < total) {
       let isMeaning = false;
       let targetText = '';
 
-      if (isMemTest) {
+            if (isMemTest) {
           this.getEl('w-word').style.display = 'none';
           this.getEl('w-kana').style.display = 'none';
           this.getEl('w-meaning').style.display = 'none';
           this.getEl('w-type').style.display = 'none';
+
           
           let round = Model.state.mtRound;
           let step = Model.state.mtStep;
+          const isEnglishMt = wObj.lang === 'en';
           
           if (round === 1) { 
               if(blindAudioUi) blindAudioUi.classList.remove('hidden');
               currentTestType = 'choice';
               isMeaning = true;
               targetText = wObj.meaning;
-          } else if (round === 2) {
-              if (step === 1) { 
+} else if (round === 2) {
+              if (isEnglishMt) {
+                  // 英语第二轮：听力拼写
                   if(blindAudioUi) blindAudioUi.classList.remove('hidden');
-                  currentTestType = 'choice';
-                  isMeaning = false;
-                  targetText = wObj.word;
-              } else if (step === 2) { 
-                  this.getEl('w-word').style.display = 'block';
                   currentTestType = 'spell';
+              } else {                  if (step === 1) { 
+                      if(blindAudioUi) blindAudioUi.classList.remove('hidden');
+                      currentTestType = 'choice';
+                      isMeaning = false;
+                      targetText = wObj.word;
+                  } else if (step === 2) { 
+                      this.getEl('w-word').style.display = 'block';
+                      currentTestType = 'spell';
+                  }
               }
           } else if (round === 3) {
-              if (step === 1) { 
+              if (isEnglishMt) {
                   this.getEl('w-kana').style.display = 'block';
+                  this.getEl('w-kana').innerText = wObj.phonetic || '';
                   currentTestType = 'choice';
                   isMeaning = true;
                   targetText = wObj.meaning;
-              } else if (step === 2) { 
-                  this.getEl('w-kana').style.display = 'block';
-                  this.getEl('w-meaning').style.display = 'block';
-                  currentTestType = 'choice';
-                  isMeaning = false;
-                  targetText = wObj.word;
+              } else {
+                  if (step === 1) { 
+                      this.getEl('w-kana').style.display = 'block';
+                      currentTestType = 'choice';
+                      isMeaning = true;
+                      targetText = wObj.meaning;
+                  } else if (step === 2) { 
+                      this.getEl('w-kana').style.display = 'block';
+                      this.getEl('w-meaning').style.display = 'block';
+                      currentTestType = 'choice';
+                      isMeaning = false;
+                      targetText = wObj.word;
+                  }
               }
           }
       } else {
@@ -1546,7 +1851,7 @@ while (i * 10 < total) {
 
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
-          RomajiEngine.reset();
+          RomajiEngine.reset(); EnglishInput.reset();
           let inputEl = this.getEl('mt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
           View.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, displayMode);
       }
@@ -1585,24 +1890,44 @@ while (i * 10 < total) {
       hintBtn.className = 'spell-hint-btn';
       hintBtn.setAttribute('tabindex', '0');
       hintBtn.setAttribute('role', 'button');
-      hintBtn.innerHTML = '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
+      const isEnglishKb = wObj.lang === 'en';
+      hintBtn.innerHTML = isEnglishKb 
+          ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看单词提示'
+          : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
       hintBtn.onpointerdown = (e) => {
           e.preventDefault();
           Hardware.vibrate(10);
-          let wKana = View.getEl('w-kana');
-          if (wKana) {
-              wKana.innerText = wObj.kana;
-              wKana.style.display = 'block';
-              wKana.classList.remove('blur-text');
-              wKana.removeAttribute('aria-hidden');
-              wKana.classList.add('hint-pop-anim');
+          if (isEnglishKb) {
+              let wWord = View.getEl('w-word');
+              if (wWord) {
+                  wWord.innerText = wObj.word;
+                  wWord.style.display = 'block';
+                  wWord.classList.remove('blur-text');
+                  wWord.removeAttribute('aria-hidden');
+                  wWord.classList.add('hint-pop-anim');
+              }
+          } else {
+              let wKana = View.getEl('w-kana');
+              if (wKana) {
+                  wKana.innerText = wObj.kana;
+                  wKana.style.display = 'block';
+                  wKana.classList.remove('blur-text');
+                  wKana.removeAttribute('aria-hidden');
+                  wKana.classList.add('hint-pop-anim');
+              }
           }
           hintWrap.classList.remove('show'); 
       };
       hintWrap.appendChild(hintBtn);
       kb.appendChild(hintWrap);
 
-      const rows = [
+      // 日语键盘 vs 英语键盘：英语键盘含完整 QWERTY 及常用标点
+      const rows = isEnglishKb ? [
+          ['Q','W','E','R','T','Y','U','I','O','P'],
+          ['A','S','D','F','G','H','J','K','L'],
+          ['Z','X','C','V','B','N','M','-',"'",'Backspace'],
+          ['Enter']
+      ] : [
           ['Q','W','E','R','T','Y','U','I','O','P'],
           ['A','S','D','F','G','H','J','K','L','-'],
           ['Kana','Z','X','C','V','B','N','M','Backspace'],
@@ -1626,8 +1951,15 @@ while (i * 10 < total) {
                   inputEl.classList.remove('error-state', 'shake-anim');
                   if (key === 'Kana') { RomajiEngine.toggleMode(); btn.innerText = RomajiEngine.mode === 'hiragana' ? 'あ/ア' : 'ア/あ'; return; }
                   if (key === 'Enter') { Controller.handleSpellConfirm(inputEl, wObj, displayMode); return; }
-                  RomajiEngine.input(key);
-                  inputEl.innerHTML = RomajiEngine.getDisplayText();
+                  if (isEnglishKb) {
+                      if (key === 'Backspace') EnglishInput.input('Backspace');
+                      else if (key === "'") EnglishInput.buffer += "'";
+                      else EnglishInput.input(key);
+                      inputEl.innerHTML = escapeHTML(EnglishInput.getDisplayText());
+                  } else {
+                      RomajiEngine.input(key);
+                      inputEl.innerHTML = RomajiEngine.getDisplayText();
+                  }
               };
               rowEl.appendChild(btn);
           });
@@ -1738,13 +2070,21 @@ while (i * 10 < total) {
                 <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">查看详细释义</div>
             </div>`;
       } else {
-          let visuals = this.getCardVisuals(w.type);
+          let visuals = this.getCardVisuals(w.type, w.lang);
+          const isEnglishWord = w.lang === 'en';
           bgStyle = visuals.bg;
-          let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
+          let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; 
+          let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; 
+          let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
           let isChecked = Model.state.selectedSet.has(idx);
 
+          // 统一三杠体系：兼容旧英语 {word, meaning} 格式
           let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
           if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+          if (isEnglishWord && st.word !== undefined) {
+            st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
+          }
+          // 统一三杠缩略图
           let hankoHTML = `
             <div class="card-tri-bar">
               <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
@@ -1762,14 +2102,16 @@ while (i * 10 < total) {
               topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
           }
 
-          let safeWord = escapeHTML(w.word); let safeKana = escapeHTML(w.kana); let safeMean = escapeHTML(w.meaning);
+          let safeWord = escapeHTML(w.word); 
+          let safeKana = isEnglishWord ? (w.phonetic || '') : escapeHTML(w.kana || ''); 
+          let safeMean = escapeHTML(w.meaning);
           contentHTML = `
             ${hankoHTML}
             <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
             ${topRightHTML}
             ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
             <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-            <div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>
+            ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>`}
             <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
             <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
                 <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
@@ -1851,6 +2193,14 @@ const Controller = {
     BottomSheet.init(); 
     Nav.init(); 
     await Model.init(); 
+    Model.state.currentLangMode = localStorage.getItem('langMode') || 'ja';
+    document.body.setAttribute('data-lang', Model.state.currentLangMode);
+    
+    // 渲染书架
+    document.querySelectorAll('.book-card').forEach(b => b.classList.remove('active'));
+    let activeBook = document.querySelector(`.book-card[data-lang="${Model.state.currentLangMode}"]`);
+    if (activeBook) activeBook.classList.add('active');
+
     Hardware.init(); 
     View.renderDashboard(); 
     View.updateWordbankUI(); 
@@ -1992,6 +2342,36 @@ setupVirtualScroll() {
     
     View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); this.saveSessionRecord(); View.showPage('tab-home'); View.renderDashboard(); });
 
+    // 📚 词书切换核心事件
+    document.querySelectorAll('.book-card').forEach(card => {
+        card.addEventListener('click', () => {
+            let targetLang = card.getAttribute('data-lang');
+            if (targetLang !== Model.state.currentLangMode) {
+                Hardware.playSound('click'); Hardware.vibrate(20);
+                Model.state.currentLangMode = targetLang;
+                localStorage.setItem('langMode', targetLang);
+                document.body.setAttribute('data-lang', targetLang);
+                
+                document.querySelectorAll('.book-card').forEach(b => b.classList.remove('active'));
+                card.classList.add('active');
+
+                // 切换后强制清空跨语言选择，防止数据串线
+                let selFilter = View.getEl('wb-folder-filter');
+                if (selFilter) selFilter.value = 'all';
+                localStorage.setItem('lastSelectedFolder', 'all');
+                localStorage.removeItem('lastCustomGroupVal');
+                localStorage.removeItem('lastCustomGroupTxt');
+                Model.state.currentGroupKey = '';
+                Model.state.currentGroupLabel = '';
+
+                View.updateWordbankUI();
+                View.resetWordbankRenderer();
+                View.renderDashboard();
+                showToast(`已切换至${targetLang === 'en' ? '英语' : '日语'}词书`);
+            }
+        });
+    });
+
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
         Hardware.playSound('click'); Hardware.vibrate(15);
         window.toggleModal('group-select-overlay', true);
@@ -2006,22 +2386,9 @@ setupVirtualScroll() {
         let tab = e.target.closest('.g-tab');
         if (!tab) return;
         Hardware.playSound('click');
-        Hardware.vibrate(10);
-        document.querySelectorAll('#gs-tabs .g-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
         setTimeout(() => {
             View.renderGroupBottomSheet(tab.dataset.cat);
         }, 10);
-    });
-
-    document.querySelectorAll('#lb-tabs .g-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            Hardware.playSound('click');
-            Hardware.vibrate(10);
-            Model.lbState.singleMode = e.currentTarget.dataset.mode;
-            Model.lbState.page = 1;  
-            View.renderLeaderboard();
-        });
     });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
@@ -2062,7 +2429,7 @@ setupVirtualScroll() {
     if (displayTrigger) { displayTrigger.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span')); }); }
 
     let btnMtReplay = View.getEl('btn-mt-replay');
-    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); }); }
+    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakWord(w); }); }
 
     let btnMtShowHint = View.getEl('btn-mt-show-hint');
     if (btnMtShowHint) { btnMtShowHint.addEventListener('click', () => { Hardware.vibrate(10); if (Model.state.mode === 'filter-test') { Model.state.ftShowKanaHint = true; View.renderStudyCard('none'); } else { let wKana = View.getEl('w-kana'); if(wKana) { wKana.style.display = 'block'; wKana.classList.remove('blur-text'); wKana.removeAttribute('aria-hidden'); } } }); }
@@ -2218,7 +2585,7 @@ if (testVibrateBtn) {
     let lbLayoutTrigger = View.getEl('setting-lb-layout');
     if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { Hardware.vibrate(15); BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
     
-    View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,''), e.currentTarget); });
+    View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakWord(w, e.currentTarget); });
     View.getEl('star-btn').addEventListener('click', (e) => { 
         Hardware.playSound('click'); 
         let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; 
@@ -2250,7 +2617,7 @@ if (testVibrateBtn) {
         });
     }
 
-    document.addEventListener('click', (e) => { 
+        document.addEventListener('click', (e) => { 
         let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
         if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
             let el = target.classList.contains('blur-text') ? target : target.parentElement; 
@@ -2259,8 +2626,25 @@ if (testVibrateBtn) {
             Hardware.playSound('click'); 
             Hardware.vibrate(15); 
         } 
-        let exJp = e.target.closest('.dt-ex-jp'); if (exJp) { let textToSpeak = exJp.getAttribute('data-speak'); if (textToSpeak) { Hardware.unlockSpeech(); Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp); Hardware.vibrate(10); } }
+        let exJp = e.target.closest('.dt-ex-jp'); 
+        if (exJp) { 
+            let textToSpeak = exJp.getAttribute('data-speak'); 
+            if (textToSpeak) { 
+                Hardware.unlockSpeech(); 
+                let currentIdx = -1;
+                if (document.getElementById('detail-overlay').classList.contains('active')) {
+                    currentIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+                } else if (Model.state.studyQueue && Model.state.studyQueue.length > 0) {
+                    currentIdx = Model.state.studyQueue[Model.state.currentIndex];
+                }
+                const wEx = currentIdx > -1 ? Model.db[currentIdx] : null;
+                let lang = (wEx && wEx.lang === 'en') ? 'en' : 'ja';
+                Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp, lang); 
+                Hardware.vibrate(10); 
+            } 
+        }
     });
+
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
@@ -2272,7 +2656,7 @@ if (testVibrateBtn) {
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
       if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
-      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakText(Model.db[idx].kana.replace(/[【】\[\]()]/g,''), e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
+      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
       if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); Hardware.vibrate(15); this.openMoveModal(idx); return; }
       if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); Hardware.vibrate(15); this.editWord(idx); return; }
       if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); Hardware.vibrate(15); this.deleteWord(idx); return; }
@@ -2289,10 +2673,10 @@ if (testVibrateBtn) {
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
-    View.getEl('btn-reset').addEventListener('click', () => { Hardware.vibrate(20); showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); await Model.saveDB(); await Model.saveFolders(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
+    View.getEl('btn-reset').addEventListener('click', () => { Hardware.vibrate(20); showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.folderLangs = { "默认词库": "ja" }; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); if (typeof DefaultEnglishWords !== 'undefined') { Model.db = Model.db.concat(DefaultEnglishWords.map(w => ({...w}))); Model.folders.push("四级词汇"); Model.folderLangs["四级词汇"] = "en"; } await Model.saveDB(); await Model.saveFolders(); await Model.saveFolderLangs(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
     View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
-    View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); w.kana = View.getEl('edit-kana').value.trim(); w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
+    View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); const isEnSave = w.lang === 'en'; if (isEnSave) { w.phonetic = View.getEl('edit-kana').value.trim(); } else { w.kana = View.getEl('edit-kana').value.trim(); } w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
     View.getEl('btn-cancel-edit').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('edit-overlay', false); });
 
         // 🟢 WCAG 伪按钮 (role="button") 空格触发机制 (规范：Space 释放时触发)
@@ -2418,7 +2802,7 @@ if (testVibrateBtn) {
                 e.preventDefault(); 
                 let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
                 let w = Model.db[realIdx]; 
-                if (w) { Hardware.unlockSpeech(); Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); Hardware.vibrate(10); } 
+                if (w) { Hardware.unlockSpeech(); Hardware.speakWord(w); Hardware.vibrate(10); } 
                 return; 
             }
         }
@@ -2617,8 +3001,8 @@ if (testVibrateBtn) {
 
   exportBackup() {
       Hardware.playSound('success'); Hardware.vibrate(50);
-      let data = { db: Model.db, folders: Model.folders, stars: Model.stars, records: Model.records, mtGroupClears: Model.mtGroupClears, mtWordClears: Model.mtWordClears, version: "v3", exportDate: new Date().toISOString() };
-      let fileName = `钟摆日语备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
+      let data = { db: Model.db, folders: Model.folders, folderLangs: Model.folderLangs, stars: Model.stars, records: Model.records, mtGroupClears: Model.mtGroupClears, mtWordClears: Model.mtWordClears, version: "v4", exportDate: new Date().toISOString() };
+      let fileName = `钟日备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
       let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
       if (navigator.share && navigator.canShare) { let file = new File([blob], fileName, { type: "application/json" }); if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName)); return; } }
       this.fallbackDownload(blob, fileName);
@@ -2633,19 +3017,33 @@ if (testVibrateBtn) {
           try {
               let data = JSON.parse(e.target.result);
               if (data && data.db && data.folders) {
-                  Model.db = data.db; Model.folders = data.folders; Model.stars = data.stars || []; Model.records = data.records || []; Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
-                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => { Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); });
+                  Model.db = data.db; Model.folders = data.folders; 
+                  Model.folderLangs = data.folderLangs || {}; 
+                  // Migrate: ensure all folders have lang
+                  for (let f of Model.folders) {
+                    if (!Model.folderLangs[f]) Model.folderLangs[f] = "ja";
+                  }
+                  // Migrate: ensure all words have lang
+                  for (let w of Model.db) {
+                    if (!w.lang) w.lang = "ja";
+                  }
+                  Model.stars = data.stars || []; Model.records = data.records || []; Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
+                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveFolderLangs(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => { Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); });
               } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
           } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
       };
       reader.readAsText(file);
   },
 
-  startPendulum(launchMode = 'pendulum') {
-    let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || 'group|default|0';
+    startPendulum(launchMode = 'pendulum') {
+    let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || '默认词库';
+    let defCat = defFolder === '默认词库' ? 'default' : defFolder;
+    
+    let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || `group|${defCat}|0`;
     Model.state.currentGroupKey = groupKey;
-    if (!Model.state.currentGroupLabel) { Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || '默认词库 (第 1-10 词)'; }
+    if (!Model.state.currentGroupLabel) { Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || `${defFolder} (第 1-10 词)`; }
     let [prefix, catName, idxStr] = groupKey.split('|'); 
+ 
     let idx = parseInt(idxStr); let startIdx = idx * 7; let endIdx = startIdx + 10;
     let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
         return Model.checkFilter(item.w, catName);
@@ -2693,8 +3091,8 @@ if (testVibrateBtn) {
       if (localStorage.getItem('postponeTested') === 'true') {
           let front = []; let back = [];
           rawQueue.forEach(idx => {
-              let clearCount = Model.mtWordClears[Model.db[idx].word];
-              if (clearCount === undefined || clearCount > 0) front.push(idx);
+              let isTested = !!Model.mtWordClears[Model.db[idx].word];
+              if (!isTested) front.push(idx);
               else back.push(idx);
           });
           front.sort(() => Math.random() - 0.5); back.sort(() => Math.random() - 0.5);
@@ -2709,20 +3107,30 @@ if (testVibrateBtn) {
   processFilterTestResult(isCorrect) {
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
       let wordKey = w.word;
+      const isEnglish = w.lang === 'en';
       
       if (!Model.mtWordClears[wordKey] || typeof Model.mtWordClears[wordKey] !== 'object') {
           Model.mtWordClears[wordKey] = { kanji: false, kana: false, meaning: false };
       }
 
       let mode = View.getEl('test-display-select').value || 'kana';
+      // 英语模式：kana 不存在 → 映射为 word；audio 保留为听力辨音
+      if (isEnglish && mode === 'kana') mode = 'word';
       
       if (isCorrect) {
           if (mode === 'word') Model.mtWordClears[wordKey].kanji = true;
           else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = true;
           else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = true;
 
+          // 日语及英语：任意两杠亮 → 第三杠自动亮（加速通关）
           if (Model.mtWordClears[wordKey].kana && Model.mtWordClears[wordKey].meaning) {
               Model.mtWordClears[wordKey].kanji = true;
+          }
+          if (Model.mtWordClears[wordKey].kanji && Model.mtWordClears[wordKey].meaning) {
+              Model.mtWordClears[wordKey].kana = true;
+          }
+          if (Model.mtWordClears[wordKey].kanji && Model.mtWordClears[wordKey].kana) {
+              Model.mtWordClears[wordKey].meaning = true;
           }
       } else {
           if (mode === 'word') Model.mtWordClears[wordKey].kanji = false;
@@ -2745,8 +3153,17 @@ if (testVibrateBtn) {
 
   handleSpellConfirm(inputEl, wObj, displayMode) {
       if (Model.state.isAnimating) return;
-      let targetClean = wObj.kana.replace(/[【】\[\]()]/g,'');
-      let inputClean = RomajiEngine.getFinalText();
+      const isEnglish = wObj.lang === 'en';
+      
+      let targetClean, inputClean;
+      if (isEnglish) {
+          // English: compare typed English word directly
+          targetClean = (wObj.word || '').toLowerCase().trim();
+          inputClean = (EnglishInput.buffer || '').toLowerCase().trim();
+      } else {
+          targetClean = (wObj.kana || '').replace(/[【】\[\]()]/g,'');
+          inputClean = RomajiEngine.getFinalText();
+      }
       
       if (!inputClean) return;
 
@@ -2758,13 +3175,16 @@ if (testVibrateBtn) {
               setTimeout(() => this.dtAdvanceNext(), 300);
           } else {
               if (Model.state.mode === 'memory-test') { 
-                  View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; 
+                  if (!isEnglish) {
+                      View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; 
+                  }
                   setTimeout(() => this.mtAdvanceNext(), 600); 
               } else { 
-                  if(displayMode === 'word' || displayMode === 'meaning') { View.getEl('w-kana').innerText = wObj.kana; } 
+                  if (!isEnglish && (displayMode === 'word' || displayMode === 'meaning')) { View.getEl('w-kana').innerText = wObj.kana; } 
                   setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 500); 
               }
           }
+          if (isEnglish) EnglishInput.reset();
       } else {
           Hardware.playSound('error'); Hardware.vibrate(60);
           inputEl.classList.remove('shake-anim'); void inputEl.offsetWidth; 
@@ -2833,12 +3253,18 @@ if (testVibrateBtn) {
           if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue.shift(); Model.state.studyQueue.push(failedIdx); } else { Model.state.studyQueue.shift(); }
           Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
           if (Model.state.studyQueue.length === 0) {
-              if (Model.state.mtRound < 3) { Model.state.mtRound++; Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Hardware.playSound('success'); Hardware.vibrate(200); showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`); setTimeout(() => View.renderStudyCard('next'), 500); } 
+              // 日语 3 轮 / 英语 3 轮（听力杠替代读音杠）
+              if (Model.state.mtRound < 3) { 
+                  Model.state.mtRound++; 
+                  Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); 
+                  Hardware.playSound('success'); Hardware.vibrate(200); 
+                  showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`); 
+                  setTimeout(() => View.renderStudyCard('next'), 500); 
+              } 
               else { 
-    let gk = Model.state.currentGroupKey; 
-    Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1; 
     Model.state.mtBaseQueue.forEach(idx => { 
-        let wWord = Model.db[idx].word; 
+        let w = Model.db[idx];
+        let wWord = w.word; 
         if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
             Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
         }
@@ -2862,10 +3288,12 @@ if (testVibrateBtn) {
     
     let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
     uniqueIndices.forEach(idx => {
-        let wWord = Model.db[idx].word;
+        let w = Model.db[idx];
+        let wWord = w.word;
         if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
             Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
         }
+        // 统一三杠全亮
         Model.mtWordClears[wWord].kanji = true;
         Model.mtWordClears[wWord].kana = true;
         Model.mtWordClears[wWord].meaning = true;
@@ -2879,7 +3307,18 @@ if (testVibrateBtn) {
 
 
   toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
-  createFolder() { Hardware.vibrate(20); showPrompt("请输入新文件夹名称", "", (name) => { if(Model.folders.includes(name)) return showToast("文件夹已存在"); Model.folders.push(name); Model.saveFolders(); View.updateWordbankUI(); }); },
+  createFolder() { 
+    Hardware.vibrate(20); 
+    showPrompt("请输入新文件夹名称", "", (name) => { 
+      if(Model.folders.includes(name)) return showToast("文件夹已存在"); 
+      const lang = Model.state.currentLangMode; // 强绑定为当前所处语言
+      Model.folders.push(name); 
+      Model.folderLangs[name] = lang;
+      Model.saveFolders(); 
+      Model.saveFolderLangs();
+      View.updateWordbankUI(); 
+    }); 
+  },
   deleteFolder() { 
       Hardware.vibrate(20); 
       let filter = View.getEl('wb-folder-filter').value; 
@@ -2888,7 +3327,9 @@ if (testVibrateBtn) {
           if (Model.state.batchMode) this.toggleBatchMode();
           Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); 
           Model.folders = Model.folders.filter(f => f !== filter); 
+          delete Model.folderLangs[filter];
           Model.saveFolders(); 
+          Model.saveFolderLangs();
           Model.saveDB(); 
           View.getEl('wb-folder-filter').value = "all"; 
           View.updateWordbankUI(); 
@@ -2940,9 +3381,9 @@ if (testVibrateBtn) {
   confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
 batchDelete() { 
     Hardware.playSound('click'); Hardware.vibrate(30); 
-    if(Model.state.selectedSet.size === 0) return showToast("未选中任何单词"); 
-    showConfirm('批量删除', `确定删除这 ${Model.state.selectedSet.size} 个单词？`, () => { 
-        this.closeDetailIfOpen();
+    if(Model.state.selectedSet.size === 0) return showToast("请先选择单词"); 
+showConfirm('批量删除', '确定要删除选中的所有单词吗？', () => { 
+    this.closeDetailIfOpen();
         
         Model.state.selectedSet.forEach(idx => {
             let wordKey = Model.db[idx].word;
@@ -2962,7 +3403,23 @@ batchDelete() {
         showToast("已批量删除"); 
     }); 
 },
-  editWord(idx) { Model.editingIdx = idx; let w = Model.db[idx]; View.getEl('edit-word').value = w.word; View.getEl('edit-kana').value = w.kana; View.getEl('edit-type').value = w.type; View.getEl('edit-meaning').value = w.meaning; window.toggleModal('edit-overlay', true); },
+  editWord(idx) { 
+    Model.editingIdx = idx; 
+    let w = Model.db[idx]; 
+    const isEnEdit = w.lang === 'en';
+    View.getEl('edit-word').value = w.word; 
+    View.getEl('edit-kana').value = isEnEdit ? (w.phonetic || '') : (w.kana || ''); 
+    View.getEl('edit-type').value = w.type; 
+    View.getEl('edit-meaning').value = w.meaning; 
+    // Update the kana label for English
+    const kanaLabels = document.querySelectorAll('#edit-overlay label');
+    kanaLabels.forEach(l => { 
+        if (l.getAttribute('for') === 'edit-kana' || l.textContent.includes('假名')) {
+            l.textContent = isEnEdit ? '音标' : '假名';
+        }
+    });
+    window.toggleModal('edit-overlay', true); 
+  },
 deleteWord(idx) { 
     showConfirm('删除单词', '彻底删除该词？', () => { 
         this.closeDetailIfOpen();
@@ -3078,9 +3535,10 @@ deleteWord(idx) {
       } 
   },
   
-  updateDetailContent(w, triggerTTS = false) { 
-      let visuals = View.getCardVisuals(w.type); 
+    updateDetailContent(w, triggerTTS = false) { 
+      let visuals = View.getCardVisuals(w.type, w.lang); 
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
+ 
       View.getEl('dt-watermark').innerHTML = visuals.wm; 
       
       let dtWordEl = View.getEl('dt-word');
@@ -3091,7 +3549,9 @@ deleteWord(idx) {
       else if (dtLen >= 5) dtWordEl.style.fontSize = '2.6rem';
       else dtWordEl.style.fontSize = '';
 
-      View.getEl('dt-kana').innerText = w.kana; 
+      const isEnDetail = w.lang === 'en';
+      View.getEl('dt-kana').innerText = isEnDetail ? (w.phonetic || '') : (w.kana || ''); 
+      View.getEl('dt-kana').style.display = isEnDetail ? (w.phonetic ? 'block' : 'none') : 'block';
       View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
       View.getEl('dt-mean').innerText = w.meaning; 
       View.renderExampleBox(w.example, 'dt-example-box'); 
@@ -3115,7 +3575,7 @@ deleteWord(idx) {
           if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } 
           else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } 
       } 
-      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakText(w.kana.replace(/[【】\[\]()]/g,'')); } 
+      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
   }
 };
 

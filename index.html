@@ -80,16 +80,16 @@
               <div class="sub-progress-group" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
                   <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
                       <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
-                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #F5B041;"></div>汉字
+                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #F5B041;"></div>单词
                       </div>
                       <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
                           <div id="prog-bar-kanji" style="height: 100%; background: #F5B041; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
                       </div>
                       <div style="width: auto; min-width: 80px; white-space: nowrap; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-kanji">0 (0%)</div>
                   </div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
+                  <div id="prog-row-kana" style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
                       <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
-                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #E74C3C;"></div>读音
+                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #E74C3C;"></div><span id="kana-bar-label">读音</span>
                       </div>
                       <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
                           <div id="prog-bar-kana" style="height: 100%; background: #E74C3C; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
@@ -204,20 +204,6 @@
     </div>
   </div>
 
-  <div id="tab-records" class="tab-content hidden">
-    <div class="card-panel" style="padding-bottom: 8px;">
-      <h3 style="margin-bottom: 16px; margin-top: 0;">
-        <span class="material-symbols-rounded">filter_vintage</span> 连击排行榜
-      </h3>
-      <div class="group-tabs" id="lb-tabs" style="margin-bottom: 24px;">
-          <div class="g-tab active" data-mode="dual-track" style="flex: 1; text-align: center;">往复测验</div>
-          <div class="g-tab" data-mode="memory-test" style="flex: 1; text-align: center;">三轮通关</div>
-          <div class="g-tab" data-mode="rote-learning" style="flex: 1; text-align: center;">循环强记</div>
-      </div>
-      <div id="lb-single-list"></div>
-      <button id="btn-lb-load-more" class="btn-outline" style="width: 100%; margin-top: 16px; margin-bottom: 16px; display: none;">加载更多记录</button>
-    </div>
-  </div>
 
 
   <!-- ==================== 🆕 重构后的指南页 ==================== -->
@@ -527,6 +513,21 @@ Round 3: Step 1. 看假名选释义
 
 
   <div id="tab-settings" class="tab-content hidden">
+    <!-- 词书选择书架 -->
+    <div class="card-panel" style="margin-bottom: 24px; padding: 20px;">
+      <h3 style="margin-bottom: 16px; border: none; padding-bottom: 0;"><span class="material-symbols-rounded">library_books</span> 词书选择</h3>
+      <div class="book-shelf">
+        <div class="book-card jp-book" data-lang="ja">
+          <span class="watermark-book">あ</span>
+          <div class="book-title">日语模式</div>
+        </div>
+        <div class="book-card en-book" data-lang="en">
+          <span class="watermark-book">A</span>
+          <div class="book-title">英语模式</div>
+        </div>
+      </div>
+    </div>
+
     <div class="card-panel">
       <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
       <div class="setting-desc" style="margin-bottom: 16px;">将你的词库、学习进度和打卡记录导出为本地文件，以防数据丢失或用于更换设备。</div>
@@ -542,7 +543,7 @@ Round 3: Step 1. 看假名选释义
 
       <div class="setting-item">
         <div class="setting-info">
-          <div class="setting-title">自动朗读假名</div>
+          <div class="setting-title">自动朗读单词</div>
           <div class="setting-desc">切换卡片时自动使用系统 TTS 朗读</div>
         </div>
         <label class="tactile-switch-wrap">
@@ -573,9 +574,9 @@ Round 3: Step 1. 看假名选释义
         </label>
       </div>
 
-      <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">原生假名排版 (Ruby)</div>
+      <div class="setting-item jp-only">
+    <div class="setting-info">
+        <div class="setting-title">原生假名排版 (Ruby)</div>
           <div class="setting-desc">开启使用原生 Ruby 标签排版假名，关闭则使用 MathJax 公式引擎</div>
         </div>
         <label class="tactile-switch-wrap">
@@ -711,10 +712,6 @@ Round 3: Step 1. 看假名选释义
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
     <span class="nav-label">道場</span>
   </div>
-  <div class="nav-item" data-target="tab-records" data-title="leaderboard|連撃記録" role="button" tabindex="0" aria-label="连击记录">
-    <span class="material-symbols-rounded nav-icon" aria-hidden="true">leaderboard</span>
-    <span class="nav-label">記録</span>
-  </div>
   <div class="nav-item" data-target="tab-wordbank" data-title="grid_view|全景語彙" role="button" tabindex="0" aria-label="全景词库">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
     <span class="nav-label">語彙</span>
@@ -766,10 +763,10 @@ Round 3: Step 1. 看假名选释义
             </div>
             <div style="font-size:0.95rem; font-weight:800; margin-bottom:12px; color:var(--primary);">列表遮盖模式</div>
             <div class="flex-row" style="gap:12px; flex-wrap:wrap;">
-                <button class="vs-blur-btn vs-btn selected" data-val="all" style="flex:1 1 40%;">全显 (无遮盖)</button>
+                <button class="vs-blur-btn vs-btn selected" data-val="all" style="flex:1 1 40%;">全显</button>
                 <button class="vs-blur-btn vs-btn" data-val="meaning" style="flex:1 1 40%;">仅显释义</button>
-                <button class="vs-blur-btn vs-btn" data-val="word" style="flex:1 1 40%;">仅显汉字</button>
-                <button class="vs-blur-btn vs-btn" data-val="kana" style="flex:1 1 40%;">仅显假名</button>
+                <button class="vs-blur-btn vs-btn" data-val="word" style="flex:1 1 40%;">仅显单词</button>
+                <button class="vs-blur-btn vs-btn jp-only" data-val="kana" style="flex:1 1 40%;">仅显假名</button>
             </div>
         </div>
     </div>
@@ -849,6 +846,7 @@ Round 3: Step 1. 看假名选释义
 
 <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 <script src="data.js"></script> 
+<script src="english-data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v93'; // 更新了缓存版本号
+const CACHE_NAME = 'pendulum-v1782758010'; // 自动更新了缓存版本号
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './logo.png',
   './style.css',
   './data.js',
+  './english-data.js',
   './app.js',
   // 核心 CDN 依赖纳入预缓存
   'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js',

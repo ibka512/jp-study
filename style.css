@@ -32,6 +32,7 @@
   --bg-pronoun: #d5ecec;         /* 作用：代词类 (代) */
   --bg-other: #e3e4e3;           /* 作用：无匹配项时的兜底灰色标签 */
 
+
   /* 物理材质引擎 (Day Mode) */
 
   /* 六层缓动弥散阴影 */
@@ -80,7 +81,7 @@
   /* 🚨 情绪语义色 (Accent Dark) - 在低对比度中提供强烈的警示 */
   --accent-red: #ffb4a9;         /* 作用：暗夜中的警示红，用于删除图标、答错变色、危险文本 */
   --accent-red-bg: #3d1416;      /* 作用：深红色底色晕染，用于危险操作按钮背景 */
-  --accent-green-bg: #142b1f;    /* 作用：深绿色底色晕染，用于正确反馈的低调背景 */
+  --accent-green-bg: #142b1f;    /* 作用：深绿色底色晕染，用于正确反馈的低调背景 */    
 
   /* 物理材质引擎 (Dark Mode) */
   --paper-shadow: 
@@ -2407,10 +2408,11 @@ button:focus-visible,
 /* 3. 下拉菜单高亮指示器与选项按钮前缀 */
 .bs-option { position: relative; }
 .bs-option.selected::before {
-    content: ''; position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+    content: ''; position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
     width: 6px; height: 6px; border-radius: 50%;
     background-color: var(--on-primary); box-shadow: 0 0 8px var(--on-primary);
 }
+
 [data-theme="dark"] .bs-option.selected::before { background-color: #b0d6c1; box-shadow: 0 0 8px #b0d6c1; }
 .dt-choice-btn .choice-label { color: var(--tertiary); font-weight: 900; margin-right: 8px; font-family: var(--font-ui); }
 [data-theme="dark"] .dt-choice-btn .choice-label { color: #a4c7b6; }
@@ -2478,3 +2480,59 @@ button:focus-visible,
 [data-theme="dark"] .guide-details div[style*="border: 2px solid"] {
   /* 保持内联样式中的边框颜色，仅调整背景 */
 }
+
+/* ==========================================
+   📚 词书书架与主题色联动 (Theme Color Linkage)
+   ========================================== */
+.book-shelf {
+    display: flex; gap: 16px; padding: 16px;
+    background: rgba(139, 121, 103, 0.05); border-radius: var(--radius-md);
+    box-shadow: inset 0 4px 8px rgba(0,0,0,0.02);
+}
+[data-theme="dark"] .book-shelf { background: rgba(255,255,255,0.02); box-shadow: inset 0 4px 8px rgba(0,0,0,0.2); }
+
+.book-card {
+    flex: 1; height: 100px; border-radius: 8px; position: relative; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: all 0.4s var(--spring-bouncy); opacity: 0.5; transform: scale(0.95);
+    border: 2px solid transparent; box-shadow: none;
+}
+.book-card.active {
+    opacity: 1; transform: scale(1) translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05);
+}
+/* 日语词书材质 */
+.jp-book { background: linear-gradient(135deg, #dcd3ca, #bcaaa4); color: #5c5249; }
+[data-theme="dark"] .jp-book { background: linear-gradient(135deg, #5c5249, #3e3630); color: #dcd3ca; }
+.book-card.active.jp-book { border-color: #8b7967; }
+
+/* 英语词书材质 (Earl Grey 伯爵红茶) */
+.en-book { background: linear-gradient(135deg, #f0e1d4, #dcb99c); color: #6b3e15; }
+[data-theme="dark"] .en-book { background: linear-gradient(135deg, #6b3e15, #3d230b); color: #f0e1d4; }
+.book-card.active.en-book { border-color: #965922; }
+
+
+.watermark-book { position: absolute; right: -10px; bottom: -15px; font-size: 5rem; opacity: 0.15; font-weight: 900; line-height: 1; font-family: var(--font-jp-serif); pointer-events: none; }
+.book-title { font-weight: 800; font-size: 1.05rem; z-index: 1; text-shadow: 0 1px 2px rgba(255,255,255,0.3); letter-spacing: 1px;}
+[data-theme="dark"] .book-title { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+
+/* 🚀 英语模式主题色覆写 (Earl Grey 伯爵红茶) */
+body[data-lang="en"] {
+    --primary: #965922;           /* 焦糖烤栗色（主视觉焦点） */
+    --primary-container: #fae4d1; /* 温热牛奶色（胶囊底色、次级强调） */
+    --surface: #f6efe9;           /* 燕麦拿铁色（App最底层背景） */
+    --surface-container: #fbf4ef; /* 奶油原木色（单词卡片本体背景） */
+    --on-surface: #3d2616;        /* 浓缩意式咖啡色（正文文字） */
+    --outline: #dfc4ae;           /* 拿铁拉花色（柔和边框与分割线） */
+    --tertiary: #a3523d;          /* 肉桂红茶色（答对反馈、进度条荧光） */
+}body[data-theme="dark"][data-lang="en"] {
+    --primary: #e6a875;           /* 柔和的琥珀荧光（夜间高亮文字/图标） */
+    --primary-container: #47270e; /* 深焙黑咖啡（夜间激活底色） */
+    --surface: #1a130f;           /* 极夜深褐色（夜间最底层，助眠防刺眼） */
+    --surface-container: #261d18; /* 黑巧克力色（夜间卡片底板） */
+    --on-surface: #ebd5c5;        /* 暖调奶油灰（夜间正文，高对比不累眼） */
+    --outline: #5c4332;           /* 幽暗沉木色（夜间物理边界勾勒） */
+    --tertiary: #e89f8d;          /* 温暖肉桂微光（夜间成功反馈发光色） */
+}
+
+

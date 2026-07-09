@@ -1,7 +1,7 @@
 {
-  "name": "鐘日",
+  "name": "鐘日 - 日英双语学习",
   "short_name": "鐘日",
-  "description": "基于离散重复机制的日语突击工具",
+  "description": "基于离散重复机制的日英双语突击工具",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#faf9f7",

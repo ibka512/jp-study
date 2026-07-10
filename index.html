@@ -208,6 +208,43 @@
 
 
 
+      <div id="tab-ai-history" class="tab-content hidden">
+  <div id="ai-list-view">
+    <div class="card-panel" style="margin-bottom: 20px; padding: 22px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <h3 style="margin: 0; padding: 0; border: none;"><span class="material-symbols-rounded">auto_awesome</span> AI 对话</h3>
+        <button id="btn-clear-ai-history" class="glass-icon-btn" title="清空全部记录" style="color: var(--accent-red);">
+          <span class="material-symbols-rounded">delete_sweep</span>
+        </button>
+      </div>
+      <button id="btn-new-ai-chat" class="icon-text-gap" style="width:100%; padding: 14px; border-radius: var(--radius-full); border: 2px dashed var(--outline); background: transparent; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.8;">
+        <span class="material-symbols-rounded" style="color:#6366f1;">add_comment</span> 开始新对话
+      </button>
+    </div>
+    <div id="ai-history-list"></div>
+    <div id="ai-history-empty" style="text-align: center; padding: 60px 20px; display: none;">
+      <span class="material-symbols-rounded" style="font-size: 4rem; opacity: 0.15; color: #6366f1; margin-bottom: 16px;">auto_awesome</span>
+      <div style="font-size: 1rem; font-weight: 800; opacity: 0.5; margin-bottom: 6px;">尚无对话记录</div>
+      <div style="font-size: 0.85rem; opacity: 0.4;">在学习时点击例句旁的 ✨ 图标即可开始</div>
+    </div>
+  </div>
+  <div id="ai-chat-view" class="hidden" style="display:none;flex-direction:column;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+      <button id="btn-ai-chat-back" class="glass-icon-btn" title="返回列表">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <span id="ai-chat-view-title" style="font-weight:800; font-size:1.05rem; color:var(--on-surface);">对话</span>
+    </div>
+    <div class="ai-chat-messages" id="ai-tab-chat-messages" style="flex:1; min-height:300px; max-height:none;"></div>
+    <div class="ai-chat-input-bar" style="padding-left:0; padding-right:0;">
+      <input type="text" id="ai-tab-chat-input" placeholder="继续提问，和 AI 深入探讨..." autocomplete="off">
+      <button id="ai-tab-chat-send" class="ai-send-btn" title="发送">
+        <span class="material-symbols-rounded">send</span>
+      </button>
+    </div>
+  </div>
+</div>
+
   <div id="tab-settings" class="tab-content hidden">
     <!-- 词书选择书架 -->
     <div class="card-panel" style="margin-bottom: 24px; padding: 20px;">
@@ -394,6 +431,16 @@
             <div class="meaning-row blur-target" id="w-meaning">释义</div>
         </div>
         <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
+        <div class="ai-inline-panel hidden" id="ai-inline-panel">
+          <div class="ai-inline-header">
+            <div class="ai-inline-title">
+              <span class="material-symbols-rounded">auto_awesome</span>
+              <span>AI 解析</span>
+            </div>
+            <button class="ai-inline-close-btn"><span class="material-symbols-rounded">close</span></button>
+          </div>
+          <div class="ai-inline-body" id="ai-inline-content"></div>
+        </div>
       </div>
     </div>
     
@@ -438,13 +485,17 @@
     <span class="nav-label">道場</span>
   </div>
   <div class="nav-item" data-target="tab-wordbank" data-title="grid_view|全景語彙" role="button" tabindex="0" aria-label="全景词库">
-    <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
-    <span class="nav-label">語彙</span>
-  </div>
-  <div class="nav-item" data-target="tab-settings" data-title="settings|環境設定" role="button" tabindex="0" aria-label="应用设置">
-    <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
-    <span class="nav-label">設定</span>
-  </div>
+  <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
+  <span class="nav-label">語彙</span>
+</div>
+<div class="nav-item" data-target="tab-ai-history" data-title="auto_awesome|AI対話" role="button" tabindex="0" aria-label="AI对话记录">
+  <span class="material-symbols-rounded nav-icon" aria-hidden="true">auto_awesome</span>
+  <span class="nav-label">対話</span>
+</div>
+<div class="nav-item" data-target="tab-settings" data-title="settings|環境設定" role="button" tabindex="0" aria-label="应用设置">
+  <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
+  <span class="nav-label">設定</span>
+</div>
 </nav>
 
 <div id="bs-overlay" class="modal-overlay">
@@ -493,15 +544,52 @@
     </div>
 </div>
 
-<div id="ai-modal-overlay" class="modal-overlay">
-  <div class="modal-content bs-content" style="max-height: 80vh; display: flex; flex-direction: column;">
-    <div class="bs-header">
-      <div class="bs-title"><span class="material-symbols-rounded" style="color: #6366f1; margin-right: 6px;">auto_awesome</span> AI 例句导师</div>
-      <button class="icon-btn" onclick="window.toggleModal('ai-modal-overlay', false)"><span class="material-symbols-rounded">close</span></button>
-    </div>
-    <div id="ai-content-area" style="padding: 16px 20px; overflow-y: auto; flex: 1; font-size: 0.95rem; line-height: 1.6;">
+<div id="ai-history-detail-overlay" class="modal-overlay" style="align-items: flex-end; z-index: 5000;">
+    <div class="bottom-sheet ai-sheet ai-chat-sheet">
+        <div class="bs-handle"></div>
+        <div class="ai-sheet-header">
+            <div class="ai-sheet-title">
+                <span class="material-symbols-rounded">auto_awesome</span>
+                <span id="ai-history-detail-title">对话回放</span>
+            </div>
+            <div class="ai-sheet-actions">
+                <button id="ai-history-detail-copy" class="glass-icon-btn" title="复制对话全文">
+                    <span class="material-symbols-rounded">content_copy</span>
+                </button>
+                <button id="ai-history-detail-close" class="glass-icon-btn" title="关闭">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
         </div>
-  </div>
+        <div class="ai-chat-messages" id="ai-history-detail-messages"></div>
+    </div>
+</div>
+
+<div id="ai-sheet-overlay" class="modal-overlay" style="align-items: flex-end; z-index: 5000;">
+    <div class="bottom-sheet ai-sheet ai-chat-sheet">
+        <div class="bs-handle"></div>
+        <div class="ai-sheet-header">
+            <div class="ai-sheet-title">
+                <span class="material-symbols-rounded">auto_awesome</span>
+                <span>AI 例句导师</span>
+            </div>
+            <div class="ai-sheet-actions">
+                <button id="ai-sheet-copy" class="glass-icon-btn" title="复制对话全文" style="display:none;">
+                    <span class="material-symbols-rounded">content_copy</span>
+                </button>
+                <button id="ai-sheet-close" class="glass-icon-btn" title="关闭">
+                    <span class="material-symbols-rounded">close</span>
+                </button>
+            </div>
+        </div>
+        <div class="ai-chat-messages" id="ai-chat-messages"></div>
+        <div class="ai-chat-input-bar">
+            <input type="text" id="ai-chat-input" placeholder="继续提问，和 AI 深入探讨..." autocomplete="off">
+            <button id="ai-chat-send" class="ai-send-btn" title="发送">
+                <span class="material-symbols-rounded">send</span>
+            </button>
+        </div>
+    </div>
 </div>
 <div id="dialog-overlay" class="modal-overlay">
     <div class="dialog-content">
@@ -519,8 +607,8 @@
         <h3 id="prompt-title" style="border:none; margin-bottom:16px; justify-content:center;">输入</h3>
         <input type="text" id="prompt-input" style="text-align:center; font-weight:700; border-radius: 999px;" />
         <div class="flex-row" style="margin-bottom:0;">
-            <button id="prompt-confirm" style="flex:1;">确定</button>
             <button id="prompt-cancel" class="btn-outline" style="flex:1;">取消</button>
+            <button id="prompt-confirm" style="flex:1;">确定</button>
         </div>
     </div>
 </div>
@@ -568,6 +656,16 @@
           <div class="dt-mean" id="dt-mean">释义</div>
       </div>
       <div class="dt-example-box" id="dt-example-box"></div>
+      <div class="ai-inline-panel hidden" id="dt-ai-inline-panel">
+        <div class="ai-inline-header">
+          <div class="ai-inline-title">
+            <span class="material-symbols-rounded">auto_awesome</span>
+            <span>AI 解析</span>
+          </div>
+          <button class="ai-inline-close-btn"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div class="ai-inline-body" id="dt-ai-inline-content"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -581,7 +679,9 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
+<script src="https://npm.elemecdn.com/idb-keyval@6/dist/umd.js"></script>
+<script id="MathJax-script" async src="https://npm.elemecdn.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+
 <script src="data.js"></script> 
 <script src="english-data.js"></script>
 <script src="app.js"></script>

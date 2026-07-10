@@ -119,11 +119,17 @@ const Nav = {
 
 
         let inputs = document.querySelectorAll('input[type="text"], textarea');
-        let nav = document.getElementById('bottom-nav');
-        inputs.forEach(el => {
-            el.addEventListener('focus', () => { if(nav) nav.style.transform = 'translateY(150%)'; });
-            el.addEventListener('blur', () => { if(nav) nav.style.transform = 'translateY(0)'; });
-        });
+let nav = document.getElementById('bottom-nav');
+inputs.forEach(el => {
+    el.addEventListener('focus', () => {
+        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
+        if(nav) nav.style.transform = 'translateY(150%)';
+    });
+    el.addEventListener('blur', () => {
+        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
+        if(nav) nav.style.transform = 'translateY(0)';
+    });
+});
     },
         switchTab(targetId, titleData, navItemEl) {
         if (Model.state.batchMode || Model.state.manageMode) {
@@ -159,8 +165,10 @@ const Nav = {
         }
 
         if (targetId === 'tab-home') {
-            View.renderDashboard();
-        } else if (targetId === 'tab-wordbank') {
+    View.renderDashboard();
+} else if (targetId === 'tab-ai-history') {
+    Controller.renderAIHistory();
+} else if (targetId === 'tab-wordbank') {
             if(Model.state.renderedStartIndex === -1) {
                 View.resetWordbankRenderer();
             } else {
@@ -325,8 +333,7 @@ const EnglishInput = {
 };
 
 const Model = {
-  db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars: [], records: [], editingIdx: -1,
-
+db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars: [], records: [], aiConversations: [], editingIdx: -1,
   mtGroupClears: {}, mtWordClears: {},
   getFolderLang(folderName) {
     return this.folderLangs[folderName] || "ja";
@@ -393,6 +400,7 @@ const Model = {
         this.records = await idbKeyval.get('studyRecords') || [];
         this.mtGroupClears = await idbKeyval.get('mtGroupClears_v3') || {};
         this.mtWordClears = await idbKeyval.get('mtWordClears_v3') || {};
+        this.aiConversations = await idbKeyval.get('aiConversations') || [];
     } else {
         let lsDB = localStorage.getItem('myWordDB_v3');
         if (lsDB) {
@@ -403,7 +411,7 @@ const Model = {
             this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
             this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
             this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
-            
+            this.aiConversations = JSON.parse(localStorage.getItem('aiConversations')) || [];
             await Promise.all([
                 this.saveDB(), this.saveFolders(), this.saveStars(), 
                 this.saveRecords(), this.saveClears()
@@ -1436,7 +1444,9 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
     let isMemTest = (Model.state.mode === 'memory-test');
     let isRote = (Model.state.mode === 'rote-learning');
     let isFilterTest = (Model.state.mode === 'filter-test');
-    
+    // 切卡时自动收起 AI 解析面板
+let aiPanel = View.getEl('ai-inline-panel');
+if (aiPanel) aiPanel.classList.add('hidden');
     let forceRoteFull = false;
     if (isRote) {
     let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
@@ -1871,7 +1881,8 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
 
         let safeCnPart = escapeHTML(cnPart);
         
-                let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-btn" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" style="color:#6366f1; flex-shrink:0; cursor:pointer;" title="DeepSeek 例句解析">auto_awesome</span>`;
+                let wordLang = targetWordObj ? (targetWordObj.lang || 'ja') : 'ja';
+let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" data-lang="${wordLang}">auto_awesome</span>`;
         let jpBoxHTML = `<div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="display:flex; align-items:flex-start; gap:6px;"><span class="material-symbols-rounded ex-speaker" style="flex-shrink:0;">volume_up</span><span style="flex:1;">${safeJpPart}</span>${sparkBtnHTML}</div>`;
 
         if (mode === 'choice' && cnPart) { 
@@ -2347,6 +2358,9 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
 };
 
 const Controller = {
+  aiCache: {},
+  currentChat: { systemPrompt: '', messages: [], cacheKey: '' },
+  aiTabChat: { activeIdx: -1, messages: [], systemPrompt: '', cacheKey: '' },
   async init() {
     BottomSheet.init(); 
     Nav.init(); 
@@ -2703,6 +2717,165 @@ if (ttsSelectTrigger) {
     });
 }
 
+let aiSheetClose = View.getEl('ai-sheet-close');
+if (aiSheetClose) {
+    aiSheetClose.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        window.toggleModal('ai-sheet-overlay', false);
+        Controller._saveCurrentChat();
+        let inputEl = View.getEl('ai-chat-input');
+        if (inputEl) inputEl.value = '';
+    });
+}
+let aiSheetCopy = View.getEl('ai-sheet-copy');
+if (aiSheetCopy) {
+    aiSheetCopy.addEventListener('click', () => {
+        Hardware.vibrate(15);
+        let c = View.getEl('ai-chat-messages');
+        if (c) {
+            let t = '';
+            c.querySelectorAll('.ai-chat-bubble-text').forEach(b => {
+                t += b.innerText + '\n\n';
+            });
+            t = t.trim();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(t).then(() => showToast('已复制对话全文')).catch(() => showToast('复制失败，请手动选择文字'));
+            } else {
+                showToast('复制失败，请手动选择文字');
+            }
+        }
+    });
+}
+let btnNewAIChat = View.getEl('btn-new-ai-chat');
+if (btnNewAIChat) {
+    btnNewAIChat.addEventListener('click', () => {
+        Hardware.vibrate(15);
+        let headerH = document.getElementById('global-header')?.offsetHeight || 104;
+        let navH = document.getElementById('bottom-nav')?.offsetHeight || 90;
+        let chatView = View.getEl('ai-chat-view');
+        if (chatView) {
+            chatView.style.display = 'flex';
+            chatView.style.height = (window.innerHeight - headerH - navH) + 'px';
+        }
+        Controller.aiTabChat.activeIdx = -1;
+        Controller.aiTabChat.messages = [];
+        Controller.aiTabChat.systemPrompt = '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。';
+        Controller.aiTabChat.cacheKey = 'free_' + Date.now();
+        Controller.aiTabChat.word = '自由对话';
+        Controller.aiTabChat.lang = Model.state.currentLangMode;
+        Controller.aiTabChat.sentence = '';
+        let listView = View.getEl('ai-list-view');
+        let chatView = View.getEl('ai-chat-view');
+        let messagesEl = View.getEl('ai-tab-chat-messages');
+        let titleEl = View.getEl('ai-chat-view-title');
+        let inputEl = View.getEl('ai-tab-chat-input');
+        if (titleEl) titleEl.innerText = '自由对话';
+        if (messagesEl) messagesEl.innerHTML = '';
+        if (inputEl) inputEl.value = '';
+        if (listView) listView.classList.add('hidden');
+        if (chatView) chatView.classList.remove('hidden');
+        setTimeout(() => { if (inputEl) inputEl.focus(); }, 200);
+    });
+}
+
+let btnAIChatBack = View.getEl('btn-ai-chat-back');
+if (btnAIChatBack) {
+    btnAIChatBack.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        if (Controller.aiTabChat.messages.length > 0 && Controller.aiTabChat.activeIdx === -1) {
+            let conv = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+                sentence: Controller.aiTabChat.sentence || '',
+                word: Controller.aiTabChat.word || '自由对话',
+                lang: Controller.aiTabChat.lang || Model.state.currentLangMode,
+                cacheKey: Controller.aiTabChat.cacheKey,
+                systemPrompt: Controller.aiTabChat.systemPrompt,
+                messages: [...Controller.aiTabChat.messages]
+            };
+            Model.aiConversations.unshift(conv);
+            Controller._persistConversations();
+        }
+        Controller.closeAITabChat();
+    });
+}
+
+let aiTabChatSend = View.getEl('ai-tab-chat-send');
+if (aiTabChatSend) {
+    aiTabChatSend.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        Controller.sendAITabMessage();
+    });
+}
+let aiTabChatInput = View.getEl('ai-tab-chat-input');
+if (aiTabChatInput) {
+    aiTabChatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && document.getElementById('tab-ai-history').classList.contains('active')) {
+            e.preventDefault();
+            Controller.sendAITabMessage();
+        }
+    });
+}
+let btnClearAI = View.getEl('btn-clear-ai-history');
+if (btnClearAI) {
+    btnClearAI.addEventListener('click', () => {
+        Hardware.vibrate(20);
+        showConfirm('清空全部记录', '确定要删除所有 AI 对话记录吗？此操作不可恢复。', () => {
+            Model.aiConversations = [];
+            Controller._persistConversations();
+            Controller.renderAIHistory();
+            showToast('已清空全部对话记录');
+        });
+    });
+}
+
+let aiHistDetailClose = View.getEl('ai-history-detail-close');
+if (aiHistDetailClose) {
+    aiHistDetailClose.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        window.toggleModal('ai-history-detail-overlay', false);
+    });
+}
+let aiHistDetailCopy = View.getEl('ai-history-detail-copy');
+if (aiHistDetailCopy) {
+    aiHistDetailCopy.addEventListener('click', () => {
+        Hardware.vibrate(15);
+        let c = View.getEl('ai-history-detail-messages');
+        if (c) {
+            let t = '';
+            c.querySelectorAll('.ai-chat-bubble-text').forEach(b => { t += b.innerText + '\n\n'; });
+            t = t.trim();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(t).then(() => showToast('已复制对话全文')).catch(() => showToast('复制失败'));
+            } else {
+                showToast('复制失败');
+            }
+        }
+    });
+}
+let aiChatSend = View.getEl('ai-chat-send');
+if (aiChatSend) {
+    aiChatSend.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        Controller.sendAIMessage();
+    });
+}
+if (aiChatSend) {
+    aiChatSend.addEventListener('click', () => {
+        Hardware.vibrate(10);
+        Controller.sendAIMessage();
+    });
+}
+let aiChatInput = View.getEl('ai-chat-input');
+if (aiChatInput) {
+    aiChatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            Controller.sendAIMessage();
+        }
+    });
+}
+
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
@@ -2832,13 +3005,19 @@ if (testVibrateBtn) {
 
         document.addEventListener('click', (e) => { 
         // 拦截 AI 闪耀按钮点击
-        let aiBtn = e.target.closest('.ai-sparkle-btn');
-        if (aiBtn) {
-            Hardware.vibrate(15);
-            Controller.openAIModal(aiBtn.dataset.sentence, aiBtn.dataset.word);
-            return; 
-        }
-        
+        let aiBtn = e.target.closest('.ai-sparkle-btn, .ai-sparkle-capsule, .ai-sparkle-icon');
+if (aiBtn) {
+    Hardware.vibrate(15);
+    Controller.openAISheet(aiBtn.dataset.sentence, aiBtn.dataset.word, aiBtn.dataset.lang || 'ja');
+    return; 
+}
+        // AI 内联面板关闭按钮
+let aiCloseBtn = e.target.closest('.ai-inline-close-btn');
+if (aiCloseBtn) {
+    let panel = aiCloseBtn.closest('.ai-inline-panel');
+    if (panel) panel.classList.add('hidden');
+    return;
+}
         let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
 
             if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
@@ -3779,6 +3958,9 @@ deleteWord(idx) {
           window.toggleModal('detail-overlay', false);
           return;
       }
+      // 切卡时自动收起详情卡 AI 面板
+let dtAiPanel = View.getEl('dt-ai-inline-panel');
+if (dtAiPanel) dtAiPanel.classList.add('hidden');
       let wrapper = View.getEl('dt-anim-wrapper'); 
       wrapper.className = 'detail-anim-wrapper'; 
       void wrapper.offsetWidth; 
@@ -3866,71 +4048,883 @@ deleteWord(idx) {
       if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
   },
 
-  openAIModal(sentence, word) {
-      if (!navigator.onLine) { showToast('AI 导师需要联网才能工作哦，请检查网络~'); return; }
-      let apiKey = localStorage.getItem('deepseekApiKey');
-      if (!apiKey) {
-          showToast('请先在【偏好设置】中配置 DeepSeek API Key');
-          Nav.switchTab('tab-settings', ' |【環境設定】', document.querySelector('[data-target="tab-settings"]'));
-          return;
-      }
-      window.toggleModal('ai-modal-overlay', true);
-      let contentArea = View.getEl('ai-content-area');
-      contentArea.innerHTML = '<div class="ai-loading-pulse">DeepSeek 正在为您拆解句法，请稍候...</div>';
-      this.callDeepSeekStream(sentence, word, apiKey, contentArea);
-  },
+openAISheet(sentence, word, lang) {
+    if (!navigator.onLine) { showToast('AI 导师需要联网才能工作哦，请检查网络~'); return; }
+    let apiKey = localStorage.getItem('deepseekApiKey');
+    if (!apiKey) {
+        let self = this;
+        Hardware.vibrate(20);
+        document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6366f1; vertical-align:middle; margin-right:6px;">vpn_key</span> 配置 DeepSeek API Key';
+        let input = document.getElementById('prompt-input');
+        input.type = 'password';
+        input.placeholder = '粘贴你的 API Key (sk-...)';
+        input.value = '';
+        window.toggleModal('prompt-overlay', true);
+        setTimeout(() => input.focus(), 100);
+        document.getElementById('prompt-confirm').onclick = () => { 
+            Hardware.vibrate(15);
+            let val = input.value.trim(); 
+            if(val) { 
+                localStorage.setItem('deepseekApiKey', val);
+                let settingInput = View.getEl('setting-ai-key');
+                if (settingInput) settingInput.value = val;
+                window.toggleModal('prompt-overlay', false);
+                showToast('API Key 已保存');
+                self.openAISheet(sentence, word, lang);
+            }
+        };
+        document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
+        return;
+    }
+    let cacheKey = sentence + '|||' + word;
+    let chatArea = View.getEl('ai-chat-messages');
+    let copyBtn = View.getEl('ai-sheet-copy');
+    let inputEl = View.getEl('ai-chat-input');
+    if (!chatArea) return;
+    window.toggleModal('ai-sheet-overlay', true);
+    if (copyBtn) copyBtn.style.display = 'none';
+    if (inputEl) inputEl.value = '';
+    
+    const isEnglish = lang === 'en';
+    let systemPrompt = isEnglish
+        ? `你是精通多语言的私人外教。用户正在学习以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`
+        : `你是精通多语言的私人外教。用户正在学习以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`;
+    
+    this.currentChat = {
+    systemPrompt: systemPrompt,
+    messages: [],
+    cacheKey: cacheKey,
+    sentence: sentence,
+    word: word,
+    lang: lang
+};
+    
+    if (this.aiCache[cacheKey]) {
+        chatArea.innerHTML = this.aiCache[cacheKey];
+        if (copyBtn) copyBtn.style.display = 'flex';
+        this._scrollChatToBottom();
+        if (inputEl) setTimeout(() => inputEl.focus(), 300);
+        return;
+    }
+    
+    chatArea.innerHTML = '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:85%;"></div><div class="ai-skel-bar" style="width:60%;"></div><div class="ai-skel-bar" style="width:92%;"></div><div class="ai-skel-bar" style="width:45%;"></div><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:35%;"></div></div></div>';
+    this._scrollChatToBottom();
+    this._startChatStream(apiKey, chatArea, copyBtn, inputEl);
+},
 
-  async callDeepSeekStream(sentence, word, apiKey, container) {
-      // 预设给 AI 的顶级 Prompt，规定了严苛的排版标准
-      const prompt = `你是精通多语言的私人外教。请解析以下例句。\n目标词汇：${word}\n例句：${sentence}\n\n请严格按以下结构输出，不要加多余的废话和客套话：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）`;
-      try {
-          const response = await fetch('https://api.deepseek.com/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-              body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'user', content: prompt}], stream: true })
-          });
-          
-          if (!response.ok) {
-              if (response.status === 401) throw new Error('API Key 无效或余额不足，请检查设置。');
-              throw new Error(`网络请求失败: 错误码 ${response.status}`);
-          }
-          
-          container.innerHTML = '<div class="ai-response-box"></div>';
-          let box = container.querySelector('.ai-response-box');
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder("utf-8");
-          let fullText = "";
-          
-          // 流式接收打字机数据
-          while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              let chunkStr = decoder.decode(value, {stream: true});
-              let lines = chunkStr.split('\n');
-              for (let line of lines) {
-                  line = line.trim();
-                  if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                      try {
-                          let data = JSON.parse(line.slice(6));
-                          let content = data.choices[0].delta.content;
-                          if (content) {
-                              fullText += content;
-                              // 实时转换排版：拦截 ### 生成华丽标题，拦截 ** 生成高亮胶囊
-                              let renderText = escapeHTML(fullText)
-                                  .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                  .replace(/\n/g, '<br>');
-                              box.innerHTML = renderText;
-                              container.scrollTop = container.scrollHeight;
-                          }
-                      } catch (e) {}
-                  }
-              }
-          }
-      } catch (err) {
-          container.innerHTML = `<div style="color: var(--accent-red); padding: 20px; text-align: center; font-weight: bold;">呼叫失败：${err.message}</div>`;
-      }
-  }
+_saveCurrentChat() {
+    if (!this.currentChat || this.currentChat.messages.length === 0) return;
+    let lastExisting = Model.aiConversations.findIndex(c => c.cacheKey === this.currentChat.cacheKey);
+    let conv = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+        sentence: this.currentChat.sentence || '',
+        word: this.currentChat.word || '',
+        lang: this.currentChat.lang || 'ja',
+        cacheKey: this.currentChat.cacheKey,
+        systemPrompt: this.currentChat.systemPrompt,
+        messages: [...this.currentChat.messages]
+    };
+    if (lastExisting !== -1) {
+        Model.aiConversations[lastExisting] = conv;
+    } else if (conv.messages.length > 0) {
+        Model.aiConversations.unshift(conv);
+        if (Model.aiConversations.length > 50) Model.aiConversations = Model.aiConversations.slice(0, 50);
+    }
+    this._persistConversations();
+},
+
+_persistConversations() {
+    if (!Model.idbAvailable) {
+        localStorage.setItem('aiConversations', JSON.stringify(Model.aiConversations));
+        return Promise.resolve();
+    }
+    return idbKeyval.set('aiConversations', Model.aiConversations);
+},
+
+renderAIHistory() {
+    let listEl = View.getEl('ai-history-list');
+    let emptyEl = View.getEl('ai-history-empty');
+    let chatView = View.getEl('ai-chat-view');
+    let listView = View.getEl('ai-list-view');
+    if (chatView) chatView.classList.add('hidden');
+    if (listView) listView.classList.remove('hidden');
+    if (!listEl) return;
+    if (Model.aiConversations.length === 0) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.style.display = 'block';
+        return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    let html = '';
+    Model.aiConversations.forEach((conv, idx) => {
+        let preview = '';
+        let msgCount = 0;
+        if (conv.messages && conv.messages.length > 0) {
+            msgCount = conv.messages.length;
+            let lastMsg = conv.messages[conv.messages.length - 1].content || '';
+            preview = lastMsg.replace(/###.*?\n/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').substring(0, 60);
+            if (lastMsg.length > 60) preview += '...';
+        }
+        let isEnglish = conv.lang === 'en';
+        let wordDisplay = conv.word || '自由对话';
+        html += '<div class="ai-history-card" data-idx="' + idx + '" tabindex="0" role="button">';
+        html += '<div class="ai-history-card-top">';
+        html += '<span class="ai-history-lang-tag">' + (isEnglish ? 'EN' : '日') + '</span>';
+        html += '<span class="ai-history-word">' + escapeHTML(wordDisplay) + '</span>';
+        html += '<span class="ai-history-msgcount">' + msgCount + ' 条对话</span>';
+        html += '</div>';
+        html += '<div class="ai-history-preview">' + escapeHTML(preview || '点击继续对话...') + '</div>';
+        html += '<div class="ai-history-date">' + escapeHTML(conv.date) + '</div>';
+        html += '<button class="ai-history-del-btn" data-idx="' + idx + '"><span class="material-symbols-rounded">delete</span></button>';
+        html += '</div>';
+    });
+    listEl.innerHTML = html;
+    
+    listEl.querySelectorAll('.ai-history-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.ai-history-del-btn')) return;
+            Hardware.vibrate(15);
+            let idx = parseInt(card.dataset.idx);
+            Controller.openAIChatFromTab(idx);
+        });
+    });
+    listEl.querySelectorAll('.ai-history-del-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            Hardware.vibrate(20);
+            let idx = parseInt(btn.dataset.idx);
+            showConfirm('删除对话', '确定要删除这条对话记录吗？', () => {
+                Model.aiConversations.splice(idx, 1);
+                Controller._persistConversations();
+                Controller.renderAIHistory();
+                showToast('已删除');
+            });
+        });
+    });
+},
+
+openAIHistoryDetail(idx) {
+    this.openAIChatFromTab(idx);
+},
+
+openAIChatFromTab(idx) {
+    let conv = Model.aiConversations[idx];
+    if (!conv) return;
+    let listView = View.getEl('ai-list-view');
+    let chatView = View.getEl('ai-chat-view');
+    let messagesEl = View.getEl('ai-tab-chat-messages');
+    let titleEl = View.getEl('ai-chat-view-title');
+    let inputEl = View.getEl('ai-tab-chat-input');
+    if (!messagesEl || !chatView || !listView) return;
+    
+    // 计算可用高度，让消息区域可以滚动
+    let headerH = document.getElementById('global-header')?.offsetHeight || 104;
+    let navH = document.getElementById('bottom-nav')?.offsetHeight || 90;
+    chatView.style.display = 'flex';
+    chatView.style.height = (window.innerHeight - headerH - navH) + 'px';
+    
+    this.aiTabChat.activeIdx = idx;
+    this.aiTabChat.messages = conv.messages ? [...conv.messages] : [];
+    this.aiTabChat.systemPrompt = conv.systemPrompt || '';
+    this.aiTabChat.cacheKey = conv.cacheKey || '';
+    this.aiTabChat.sentence = conv.sentence || '';
+    this.aiTabChat.word = conv.word || '';
+    this.aiTabChat.lang = conv.lang || 'ja';
+    
+    if (titleEl) titleEl.innerText = conv.word || '自由对话';
+    if (inputEl) inputEl.value = '';
+    
+    let html = '';
+    let msgs = this.aiTabChat.messages;
+    if (msgs && msgs.length > 0) {
+        msgs.forEach(msg => {
+            if (msg.role === 'assistant') {
+                let renderText = escapeHTML(msg.content)
+                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+                html += '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">' + renderText + '</div></div>';
+            } else if (msg.role === 'user') {
+                html += '<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">' + escapeHTML(msg.content) + '</div></div>';
+            }
+        });
+    }
+    messagesEl.innerHTML = html;
+    
+    listView.classList.add('hidden');
+    chatView.classList.remove('hidden');
+    setTimeout(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (inputEl) inputEl.focus();
+    }, 100);
+},
+
+closeAITabChat() {
+    if (this.aiTabChat.activeIdx !== -1) {
+        this._saveTabChat();
+    }
+    this.aiTabChat.activeIdx = -1;
+    this.aiTabChat.messages = [];
+    this.aiTabChat.systemPrompt = '';
+    this.aiTabChat.cacheKey = '';
+    this.aiTabChat.sentence = '';
+    this.aiTabChat.word = '';
+    let chatView = View.getEl('ai-chat-view');
+    if (chatView) {
+        chatView.style.display = 'none';
+        chatView.style.height = '';
+    }
+    this.renderAIHistory();
+},
+
+_saveTabChat() {
+    if (this.aiTabChat.activeIdx === -1 || this.aiTabChat.messages.length === 0) return;
+    let idx = this.aiTabChat.activeIdx;
+    if (idx >= Model.aiConversations.length) return;
+    let conv = Model.aiConversations[idx];
+    conv.messages = [...this.aiTabChat.messages];
+    conv.date = new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    Model.aiConversations[idx] = conv;
+    this._persistConversations();
+},
+
+sendAITabMessage() {
+    let inputEl = View.getEl('ai-tab-chat-input');
+    let messagesEl = View.getEl('ai-tab-chat-messages');
+    let sendBtn = View.getEl('ai-tab-chat-send');
+    if (!inputEl || !messagesEl) return;
+    let text = inputEl.value.trim();
+    if (!text) return;
+    let apiKey = localStorage.getItem('deepseekApiKey');
+    if (!apiKey) {
+        showToast('请先配置 DeepSeek API Key');
+        return;
+    }
+    inputEl.value = '';
+    if (sendBtn) sendBtn.disabled = true;
+    
+    this.aiTabChat.messages.push({ role: 'user', content: text });
+    
+    let userBubble = document.createElement('div');
+    userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
+    userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
+    messagesEl.appendChild(userBubble);
+    
+    let aiBubble = document.createElement('div');
+    aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+    aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:40%;"></div><div class="ai-skel-bar" style="width:55%;"></div></div></div>';
+    messagesEl.appendChild(aiBubble);
+    this._scrollTabChatToBottom();
+    
+    let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。' }, ...this.aiTabChat.messages.slice(0, -1)];
+    this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
+},
+
+async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
+    let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。' }, ...this.aiTabChat.messages.slice(0, -1)];
+    try {
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">key_off</span>API Key 无效或余额不足</div>';
+                if (sendBtn) sendBtn.disabled = false;
+                return;
+            }
+            throw new Error('网络请求失败');
+        }
+        
+        let fullText = '';
+        let textDiv = document.createElement('div');
+        textDiv.className = 'ai-chat-bubble-text ai-response-box';
+        aiBubble.innerHTML = '';
+        aiBubble.appendChild(textDiv);
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            let chunkStr = decoder.decode(value, {stream: true});
+            let lines = chunkStr.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                        let data = JSON.parse(line.slice(6));
+                        let chunk = data.choices[0].delta.content;
+                        if (chunk) {
+                            fullText += chunk;
+                            let renderText = escapeHTML(fullText)
+                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br>');
+                            textDiv.innerHTML = renderText;
+                            this._scrollTabChatToBottom();
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+        
+        this.aiTabChat.messages.push({ role: 'assistant', content: fullText });
+        this._saveTabChat();
+        if (sendBtn) sendBtn.disabled = false;
+        setTimeout(() => {
+            let inputEl = View.getEl('ai-tab-chat-input');
+            if (inputEl && document.getElementById('tab-ai-history').classList.contains('active')) {
+                inputEl.focus();
+            }
+        }, 200);
+    } catch (err) {
+        aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
+        if (sendBtn) sendBtn.disabled = false;
+    }
+},
+
+_scrollTabChatToBottom() {
+    let chatArea = View.getEl('ai-tab-chat-messages');
+    if (chatArea) {
+        setTimeout(() => { chatArea.scrollTop = chatArea.scrollHeight; }, 50);
+    }
+},
+
+_scrollChatToBottom() {
+    let chatArea = View.getEl('ai-chat-messages');
+    if (chatArea) {
+        setTimeout(() => { chatArea.scrollTop = chatArea.scrollHeight; }, 50);
+    }
+},
+
+sendAIMessage() {
+    let inputEl = View.getEl('ai-chat-input');
+    let chatArea = View.getEl('ai-chat-messages');
+    let sendBtn = View.getEl('ai-chat-send');
+    if (!inputEl || !chatArea) return;
+    let text = inputEl.value.trim();
+    if (!text) return;
+    let apiKey = localStorage.getItem('deepseekApiKey');
+    if (!apiKey) return;
+    
+    inputEl.value = '';
+    if (sendBtn) sendBtn.disabled = true;
+    
+    this.currentChat.messages.push({ role: 'user', content: text });
+    let userBubble = document.createElement('div');
+    userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
+    userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
+    chatArea.appendChild(userBubble);
+    
+    let aiBubble = document.createElement('div');
+    aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+    aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:40%;"></div><div class="ai-skel-bar" style="width:55%;"></div></div></div>';
+    chatArea.appendChild(aiBubble);
+    this._scrollChatToBottom();
+    
+    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+    this._streamChatResponse(apiKey, aiBubble, sendBtn);
+},
+
+_startChatStream(apiKey, chatArea, copyBtn, inputEl) {
+    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }];
+    let aiBubble = chatArea.querySelector('.ai-chat-bubble-ai');
+    if (!aiBubble) {
+        aiBubble = document.createElement('div');
+        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+        chatArea.appendChild(aiBubble);
+    }
+    this._streamChatResponse(apiKey, aiBubble, null, copyBtn, inputEl);
+},
+
+async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
+    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+    try {
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+    aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">key_off</span>API Key 无效或余额不足<button id="ai-rekey-btn" class="btn-outline" style="margin-top:12px; width:auto; display:inline-flex; padding:10px 20px; border-color:var(--tertiary) !important; color:var(--tertiary) !important;"><span class="material-symbols-rounded">vpn_key</span> 重新输入 Key</button></div>';
+    this._scrollChatToBottom();
+    setTimeout(() => {
+        let btn = document.getElementById('ai-rekey-btn');
+        if (btn) btn.onclick = () => {
+            let self = this;
+            Hardware.vibrate(15);
+            document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6366f1; vertical-align:middle; margin-right:6px;">vpn_key</span> 重新输入 API Key';
+            let pInput = document.getElementById('prompt-input');
+            pInput.type = 'password';
+            pInput.placeholder = '粘贴你的 API Key (sk-...)';
+            pInput.value = '';
+            window.toggleModal('prompt-overlay', true);
+            setTimeout(() => pInput.focus(), 100);
+            document.getElementById('prompt-confirm').onclick = () => { 
+                Hardware.vibrate(15);
+                let val = pInput.value.trim(); 
+                if(val) { 
+                    localStorage.setItem('deepseekApiKey', val);
+                    let sInput = View.getEl('setting-ai-key');
+                    if (sInput) sInput.value = val;
+                    window.toggleModal('prompt-overlay', false);
+                    showToast('API Key 已更新，请重新点击 AI 解析');
+                }
+            };
+            document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
+        };
+    }, 100);
+    if (sendBtn) sendBtn.disabled = false;
+    return;
+}
+            throw new Error('网络请求失败: 错误码 ' + response.status);
+        }
+        
+        let fullText = '';
+        let textDiv = document.createElement('div');
+        textDiv.className = 'ai-chat-bubble-text ai-response-box';
+        aiBubble.innerHTML = '';
+        aiBubble.appendChild(textDiv);
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            let chunkStr = decoder.decode(value, {stream: true});
+            let lines = chunkStr.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                        let data = JSON.parse(line.slice(6));
+                        let chunk = data.choices[0].delta.content;
+                        if (chunk) {
+                            fullText += chunk;
+                            let renderText = escapeHTML(fullText)
+                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br>');
+                            textDiv.innerHTML = renderText;
+                            this._scrollChatToBottom();
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+        
+        this.currentChat.messages.push({ role: 'assistant', content: fullText });
+        
+        if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
+            let chatArea = View.getEl('ai-chat-messages');
+            if (chatArea) {
+                Controller.aiCache[this.currentChat.cacheKey] = chatArea.innerHTML;
+            }
+        }
+        if (copyBtn) copyBtn.style.display = 'flex';
+        if (sendBtn) sendBtn.disabled = false;
+        if (inputEl) setTimeout(() => inputEl.focus(), 300);
+    } catch (err) {
+        aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">wifi_off</span>连接失败：' + escapeHTML(err.message) + '</div>';
+        if (sendBtn) sendBtn.disabled = false;
+    }
+},
+
+async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copyBtn) {
+    const isEnglish = lang === 'en';
+    const prompt = isEnglish 
+        ? `你是精通多语言的私人外教。请解析以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请严格按以下结构输出，不要加多余的废话和客套话：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）`
+        : `你是精通多语言的私人外教。请解析以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请严格按以下结构输出，不要加多余的废话和客套话：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）`;
+    try {
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'user', content: prompt}], stream: true })
+        });
+        
+        if (!response.ok) {
+            if (response.status === 401) {
+                container.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: var(--accent-red);"><span class="material-symbols-rounded" style="font-size:3rem; opacity:0.5;">key_off</span><div style="font-weight:800; margin-top:16px;">API Key 无效或余额不足</div><button id="ai-goto-settings" class="btn-outline" style="margin-top:20px; width:auto; display:inline-flex; padding:12px 28px; border-color:var(--tertiary) !important; color:var(--tertiary) !important;"><span class="material-symbols-rounded">settings</span> 前往设置修改</button></div>';
+                setTimeout(() => {
+                    let btn = document.getElementById('ai-goto-settings');
+                    if (btn) btn.onclick = () => {
+                        window.toggleModal('ai-sheet-overlay', false);
+                        Nav.switchTab('tab-settings', 'settings|環境設定', document.querySelector('[data-target="tab-settings"]'));
+                    };
+                }, 100);
+                return;
+            }
+            throw new Error('网络请求失败: 错误码 ' + response.status);
+        }
+        
+        container.innerHTML = '<div class="ai-response-box"></div>';
+        let box = container.querySelector('.ai-response-box');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let fullText = "";
+        
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            let chunkStr = decoder.decode(value, {stream: true});
+            let lines = chunkStr.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                        let data = JSON.parse(line.slice(6));
+                        let chunk = data.choices[0].delta.content;
+                        if (chunk) {
+                            fullText += chunk;
+                            let renderText = escapeHTML(fullText)
+                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                .replace(/\n/g, '<br>');
+                            box.innerHTML = renderText;
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    } catch (e) {}
+                }
+            }
+        }
+        if (cacheKey && fullText) {
+            Controller.aiCache[cacheKey] = container.innerHTML;
+        }
+        if (copyBtn) {
+            copyBtn.style.display = 'flex';
+        }
+    } catch (err) {
+        container.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: var(--accent-red);"><span class="material-symbols-rounded" style="font-size:3rem; opacity:0.5;">wifi_off</span><div style="font-weight:800; margin-top:16px;">连接失败</div><div style="opacity:0.7; margin-top:8px;">' + escapeHTML(err.message) + '</div></div>';
+    }
+}
 };
 
 window.onload = () => Controller.init();
+
+/* ==========================================
+   ✨ 优化的 AI 对话逻辑拦截包
+   ========================================== */
+Object.assign(Controller, {
+    openAISheet(sentence, word, lang) {
+        if (!navigator.onLine) { window.showToast('AI 导师需要联网才能工作哦，请检查网络~'); return; }
+        let apiKey = localStorage.getItem('deepseekApiKey');
+        if (!apiKey) {
+            let self = this;
+            Hardware.vibrate(20);
+            document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6b847b; vertical-align:middle; margin-right:6px;">vpn_key</span> 配置 API Key';
+            let input = document.getElementById('prompt-input');
+            input.type = 'password';
+            input.placeholder = '粘贴你的 API Key (sk-...)';
+            input.value = '';
+            window.toggleModal('prompt-overlay', true);
+            setTimeout(() => input.focus(), 100);
+            document.getElementById('prompt-confirm').onclick = () => {
+                Hardware.vibrate(15);
+                let val = input.value.trim();
+                if(val) {
+                    localStorage.setItem('deepseekApiKey', val);
+                    let settingInput = View.getEl('setting-ai-key');
+                    if (settingInput) settingInput.value = val;
+                    window.toggleModal('prompt-overlay', false);
+                    window.showToast('API Key 已保存');
+                    self.openAISheet(sentence, word, lang);
+                }
+            };
+            document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
+            return;
+        }
+        let cacheKey = sentence + '|||' + word;
+        let chatArea = View.getEl('ai-chat-messages');
+        let inputEl = View.getEl('ai-chat-input');
+        if (!chatArea) return;
+        window.toggleModal('ai-sheet-overlay', true);
+        if (inputEl) inputEl.value = '';
+
+        // 渲染快捷回复药丸
+        this._renderQuickReplies(View.getEl('ai-sheet-overlay').querySelector('.ai-chat-sheet'), inputEl, View.getEl('ai-chat-send'), lang === 'en');
+
+        const isEnglish = lang === 'en';
+        let systemPrompt = isEnglish
+            ? `你是精通多语言的私人外教。用户正在学习以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`
+            : `你是精通多语言的私人外教。用户正在学习以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`;
+
+        this.currentChat = { systemPrompt: systemPrompt, messages: [], cacheKey: cacheKey, sentence: sentence, word: word, lang: lang };
+
+        if (this.aiCache[cacheKey]) {
+            chatArea.innerHTML = this.aiCache[cacheKey];
+            this._scrollChatToBottom();
+            if (inputEl) setTimeout(() => inputEl.focus(), 300);
+            return;
+        }
+
+        // 使用新版的呼吸点动画
+        chatArea.innerHTML = '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div></div>';
+        this._scrollChatToBottom();
+        this._startChatStream(apiKey, chatArea, null, inputEl);
+    },
+
+    _renderQuickReplies(container, inputEl, sendBtn, isEnglish) {
+        let old = container.querySelector('.ai-quick-replies');
+        if(old) old.remove();
+        let wrapper = document.createElement('div');
+        wrapper.className = 'ai-quick-replies';
+        let replies = isEnglish ? ["再给个更简单的例句", "这个词有哪些同义词？", "用它模拟个日常对话"] : ["再给个更简单的例句", "这个词有什么近义词？", "用它模拟个日常对话"];
+        replies.forEach(text => {
+            let btn = document.createElement('button');
+            btn.className = 'ai-quick-reply-btn';
+            btn.innerText = text;
+            btn.onclick = () => {
+                Hardware.vibrate(15);
+                inputEl.value = text;
+                sendBtn.click();
+                wrapper.remove(); // 点击后消失
+            };
+            wrapper.appendChild(btn);
+        });
+        let inputBar = container.querySelector('.ai-chat-input-bar');
+        if(inputBar) container.insertBefore(wrapper, inputBar);
+    },
+
+    sendAIMessage() {
+        let inputEl = View.getEl('ai-chat-input');
+        let chatArea = View.getEl('ai-chat-messages');
+        let sendBtn = View.getEl('ai-chat-send');
+        if (!inputEl || !chatArea) return;
+        let text = inputEl.value.trim();
+        if (!text) return;
+        let apiKey = localStorage.getItem('deepseekApiKey');
+        if (!apiKey) return;
+
+        inputEl.value = '';
+        if (sendBtn) sendBtn.disabled = true;
+
+        let qr = chatArea.parentElement.querySelector('.ai-quick-replies');
+        if(qr) qr.remove();
+
+        this.currentChat.messages.push({ role: 'user', content: text });
+        let userBubble = document.createElement('div');
+        userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
+        userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
+        chatArea.appendChild(userBubble);
+
+        let aiBubble = document.createElement('div');
+        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+        aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div>';
+        chatArea.appendChild(aiBubble);
+        this._scrollChatToBottom();
+
+        let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+        this._streamChatResponse(apiKey, aiBubble, sendBtn, null, inputEl);
+    },
+
+    sendAITabMessage() {
+        let inputEl = View.getEl('ai-tab-chat-input');
+        let messagesEl = View.getEl('ai-tab-chat-messages');
+        let sendBtn = View.getEl('ai-tab-chat-send');
+        if (!inputEl || !messagesEl) return;
+        let text = inputEl.value.trim();
+        if (!text) return;
+        let apiKey = localStorage.getItem('deepseekApiKey');
+        if (!apiKey) { window.showToast('请先配置 DeepSeek API Key'); return; }
+        inputEl.value = '';
+        if (sendBtn) sendBtn.disabled = true;
+
+        let qr = messagesEl.parentElement.querySelector('.ai-quick-replies');
+        if(qr) qr.remove();
+
+        this.aiTabChat.messages.push({ role: 'user', content: text });
+
+        let userBubble = document.createElement('div');
+        userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
+        userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
+        messagesEl.appendChild(userBubble);
+
+        let aiBubble = document.createElement('div');
+        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+        aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div>';
+        messagesEl.appendChild(aiBubble);
+        this._scrollTabChatToBottom();
+
+        this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
+    },
+
+    async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
+        let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+            });
+
+            if (!response.ok) throw new Error('网络请求失败');
+
+            let fullText = '';
+            let textDiv = document.createElement('div');
+            textDiv.className = 'ai-chat-bubble-text ai-response-box';
+            aiBubble.innerHTML = '';
+            aiBubble.appendChild(textDiv);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                let chunkStr = decoder.decode(value, {stream: true});
+                let lines = chunkStr.split('\n');
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                            let data = JSON.parse(line.slice(6));
+                            let chunk = data.choices[0].delta.content;
+                            if (chunk) {
+                                fullText += chunk;
+                                let renderText = escapeHTML(fullText)
+                                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\n/g, '<br>');
+                                textDiv.innerHTML = renderText;
+                                this._scrollChatToBottom();
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+            
+            // 为每条对话独立附加专属的复制按钮
+            textDiv.innerHTML += `<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div>`;
+
+            this.currentChat.messages.push({ role: 'assistant', content: fullText });
+
+            if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
+                let chatArea = View.getEl('ai-chat-messages');
+                if (chatArea) { Controller.aiCache[this.currentChat.cacheKey] = chatArea.innerHTML; }
+            }
+            if (sendBtn) sendBtn.disabled = false;
+            if (inputEl) setTimeout(() => inputEl.focus(), 300);
+        } catch (err) {
+            aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败：' + escapeHTML(err.message) + '</div>';
+            if (sendBtn) sendBtn.disabled = false;
+        }
+    },
+
+    async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
+        let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是私人外教。' }, ...this.aiTabChat.messages.slice(0, -1)];
+        try {
+            const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+            });
+
+            if (!response.ok) throw new Error('网络请求失败');
+
+            let fullText = '';
+            let textDiv = document.createElement('div');
+            textDiv.className = 'ai-chat-bubble-text ai-response-box';
+            aiBubble.innerHTML = '';
+            aiBubble.appendChild(textDiv);
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                let chunkStr = decoder.decode(value, {stream: true});
+                let lines = chunkStr.split('\n');
+                for (let line of lines) {
+                    line = line.trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                            let data = JSON.parse(line.slice(6));
+                            let chunk = data.choices[0].delta.content;
+                            if (chunk) {
+                                fullText += chunk;
+                                let renderText = escapeHTML(fullText)
+                                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\n/g, '<br>');
+                                textDiv.innerHTML = renderText;
+                                this._scrollTabChatToBottom();
+                            }
+                        } catch (e) {}
+                    }
+                }
+            }
+
+            textDiv.innerHTML += `<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div>`;
+
+            this.aiTabChat.messages.push({ role: 'assistant', content: fullText });
+            this._saveTabChat();
+            if (sendBtn) sendBtn.disabled = false;
+            setTimeout(() => {
+                let inputEl = View.getEl('ai-tab-chat-input');
+                if (inputEl && document.getElementById('tab-ai-history').classList.contains('active')) {
+                    inputEl.focus();
+                }
+            }, 200);
+        } catch (err) {
+            aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
+            if (sendBtn) sendBtn.disabled = false;
+        }
+    },
+
+    openAIChatFromTab(idx) {
+        let conv = Model.aiConversations[idx];
+        if (!conv) return;
+        let listView = View.getEl('ai-list-view');
+        let chatView = View.getEl('ai-chat-view');
+        let messagesEl = View.getEl('ai-tab-chat-messages');
+        let titleEl = View.getEl('ai-chat-view-title');
+        let inputEl = View.getEl('ai-tab-chat-input');
+        if (!messagesEl || !chatView || !listView) return;
+
+        this.aiTabChat.activeIdx = idx;
+        this.aiTabChat.messages = conv.messages ? [...conv.messages] : [];
+        this.aiTabChat.systemPrompt = conv.systemPrompt || '';
+        this.aiTabChat.cacheKey = conv.cacheKey || '';
+        this.aiTabChat.sentence = conv.sentence || '';
+        this.aiTabChat.word = conv.word || '';
+        this.aiTabChat.lang = conv.lang || 'ja';
+
+        if (titleEl) titleEl.innerText = conv.word || '自由对话';
+        if (inputEl) inputEl.value = '';
+
+        let html = '';
+        let msgs = this.aiTabChat.messages;
+        if (msgs && msgs.length > 0) {
+            msgs.forEach(msg => {
+                if (msg.role === 'assistant') {
+                    let renderText = escapeHTML(msg.content)
+                        .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>');
+                    html += `<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">${renderText}<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div></div></div>`;
+                } else if (msg.role === 'user') {
+                    html += `<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">${escapeHTML(msg.content)}</div></div>`;
+                }
+            });
+        }
+        messagesEl.innerHTML = html;
+
+        this._renderQuickReplies(chatView, inputEl, View.getEl('ai-tab-chat-send'), conv.lang === 'en');
+
+        listView.classList.add('hidden');
+        chatView.classList.remove('hidden');
+        setTimeout(() => {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            if (inputEl) inputEl.focus();
+        }, 100);
+    }
+});

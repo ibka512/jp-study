@@ -206,310 +206,6 @@
 
 
 
-  <!-- ==================== 🆕 重构后的指南页 ==================== -->
-  <div id="tab-guide" class="tab-content hidden">
-
-    <!-- ① 应用简介 -->
-    <div class="card-panel" style="margin-bottom: 24px;">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">menu_book</span> 应用简介</h3>
-      <p style="font-size: 0.95rem; line-height: 1.6; margin-top: 0; opacity: 0.85;">
-        钟摆日语是一款基于「离散重复机制」的日语突击工具。<br>
-        将每个单词拆解为<b>汉字 · 读音 · 释义</b>三个独立维度，通过五种精心设计的学习模式，帮你快速、高效地攻克日语词汇难关。
-      </p>
-    </div>
-
-    <!-- ② 核心机制：三维技能杠 -->
-    <div class="card-panel" style="margin-bottom: 24px;">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">foundation</span> 核心机制：三维技能杠</h3>
-      <p style="font-size: 0.9rem; opacity: 0.8; margin-top: 0; line-height: 1.6;">
-        每个单词有三根独立的「技能杠」，分别对应：
-      </p>
-
-      <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
-        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(245,176,65,0.08); border-radius: var(--radius-md); border-left: 4px solid #F5B041;">
-          <div style="width: 10px; height: 10px; background: #F5B041; border-radius: 50%; flex-shrink: 0;"></div>
-          <div><b style="color: #c4902e;">汉字杠（黄）</b><span style="font-size: 0.85rem; opacity: 0.75;"> — 看汉字能联想意思</span></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(231,76,60,0.08); border-radius: var(--radius-md); border-left: 4px solid #E74C3C;">
-          <div style="width: 10px; height: 10px; background: #E74C3C; border-radius: 50%; flex-shrink: 0;"></div>
-          <div><b style="color: #c0392b;">读音杠（红）</b><span style="font-size: 0.85rem; opacity: 0.75;"> — 看假名 / 听发音能辨认</span></div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(180,180,180,0.2); border-radius: var(--radius-md); border-left: 4px solid #D0D3D4;">
-          <div style="width: 10px; height: 10px; background: #D0D3D4; border-radius: 50%; flex-shrink: 0;"></div>
-          <div><b style="color: #777;">释义杠（白）</b><span style="font-size: 0.85rem; opacity: 0.75;"> — 看意思能写出词</span></div>
-        </div>
-      </div>
-
-            <div style="font-size: 0.85rem; opacity: 0.7; line-height: 1.6; padding: 12px; background: var(--surface); border-radius: var(--radius-sm);">
-        <span class="material-symbols-rounded" style="color: #F5B041; font-size: 1.2rem; vertical-align: text-bottom; margin-right: 4px;">lightbulb</span> <b>关键理解：</b>三根杠彼此独立。你可能「看汉字能猜意思」（黄杠亮）但「听到发音反应不过来」（红杠灭）。<br>
-        只有<b>筛选检验</b>能独立点亮某一条杠；其他模式通关后会三杠全亮。
-      </div>
-
-    </div>
-
-    <!-- ③ 模式详解（可折叠） -->
-    <div class="card-panel" style="margin-bottom: 24px;">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">extension</span> 模式详解（点击展开）</h3>
-
-      <!-- 自由浏览 -->
-      <details class="guide-details" style="margin-bottom: 12px;">
-        <summary style="cursor: pointer; padding: 14px 16px; background: rgba(74,101,122,0.08); border-radius: var(--radius-md); font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #4a657a;">
-          <span class="material-symbols-rounded" style="color: #4a657a;">directions_run</span> 自由浏览 — 零压力的翻书体验
-        </summary>
-        <div style="padding: 16px; font-size: 0.9rem; line-height: 1.7; opacity: 0.85;">
-          <p><b>队列：</b>「钟摆序列」— 从选定范围中采样 10 个词，生成 A, B, A, B, C, B, A, B, C, D... 的摆动序列。每个词在不同位置反复出现，形成自然的间隔重复。</p>
-          <p><b>交互：</b>←上一个 / 下一个→ 翻页；可手动点击模糊区域揭晓；也可用遮盖模式选择性隐藏某维度。</p>
-          <p><b>判定：</b>❌ 无。纯浏览，不记录对错，不上报 Combo，不点亮/重置任何杠。</p>
-          <p style="margin-bottom: 0;"><b>适合：</b>刚接触新词时混个脸熟；或碎片时间随意翻翻，零压力。</p>
-        </div>
-      </details>
-
-      <!-- 往复测验 -->
-      <details class="guide-details" style="margin-bottom: 12px;">
-        <summary style="cursor: pointer; padding: 14px 16px; background: rgba(122,74,74,0.08); border-radius: var(--radius-md); font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #7a4a4a;">
-          <span class="material-symbols-rounded" style="color: #7a4a4a;">swords</span> 往复测验 — 选择题与拼写题的交替横跳
-        </summary>
-        <div style="padding: 16px; font-size: 0.9rem; line-height: 1.7; opacity: 0.85;">
-          <p><b>核心机制：</b>每词出现 5 次为一个周期——第 1~3 次是<b>选择题</b>（看汉字/假名，选释义），第 4~5 次是<b>拼写题</b>（看汉字，在虚拟键盘上打出假名）。两种思维模式交替轰炸。</p>
-
-          <div style="font-family: monospace; font-size: 0.8rem; background: var(--surface); padding: 12px; border-radius: var(--radius-sm); margin: 8px 0; line-height: 1.8; white-space: pre-wrap;">
-┌─ 选择题 ─────────────────────
-│  看汉字/假名，从 A B C D 中选释义
-│  ├─ 答对 → 按钮变绿 + Combo+1 + 例句解密
-│  └─ 答错 → 按钮红色抖动 + Combo-3
-│
-└─ 拼写题 ─────────────────────
-   看汉字，在虚拟键盘上打出假名
-   ├─ 答对 → 输入框变绿 + Combo+1
-   ├─ 答错 → 输入框红色抖动 + Combo-3
-   └─ 连续错 2 次 → 出现「查看假名提示」按钮
-          </div>
-
-          <p style="margin-bottom: 0;"><b>适合：</b>自我检验阶段。在「再认」（选择题）与「回忆」（拼写题）间反复切换，模拟真实的记忆提取过程。</p>
-        </div>
-      </details>
-
-      <!-- 循环强记 -->
-      <details class="guide-details" style="margin-bottom: 12px;">
-        <summary style="cursor: pointer; padding: 14px 16px; background: rgba(74,99,85,0.08); border-radius: var(--radius-md); font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #4a6355;">
-          <span class="material-symbols-rounded" style="color: #4a6355;">menu_book</span> 循环强记 — 错词无限循环轰炸
-        </summary>
-        <div style="padding: 16px; font-size: 0.9rem; line-height: 1.7; opacity: 0.85;">
-          <p><b>核心机制：</b>每个词<b>首次出现时全显</b>（让你看清楚），之后分两步：Step 1 针对遮盖维度出题 → Step 2 揭晓全部答案。</p>
-
-          <div style="font-family: monospace; font-size: 0.8rem; background: var(--surface); padding: 12px; border-radius: var(--radius-sm); margin: 8px 0; line-height: 1.8; white-space: pre-wrap;">
-队列: [A, B, C, D]
-  → B 答错了
-队列: [A, C, D, <b>B</b>]  ← B 被推到队尾！
-  → C 答对了
-队列: [A, D, B]      ← C 永久移除
-  → ... 直到全部答对才结束
-          </div>
-
-          <p style="margin-bottom: 0;"><b>适合：</b>死磕到底。弱势词获得更多曝光，强势词逐渐消失，形成自然的聚焦效应。</p>
-        </div>
-      </details>
-
-      <!-- 三轮通关 -->
-      <details class="guide-details" style="margin-bottom: 12px;">
-        <summary style="cursor: pointer; padding: 14px 16px; background: rgba(92,85,78,0.08); border-radius: var(--radius-md); font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #5c554e;">
-          <span class="material-symbols-rounded" style="color: #5c554e;">quiz</span> 三轮通关 — 终极验收的硬核大考
-        </summary>
-        <div style="padding: 16px; font-size: 0.9rem; line-height: 1.7; opacity: 0.85;">
-
-          <div style="font-family: monospace; font-size: 0.8rem; background: var(--surface); padding: 12px; border-radius: var(--radius-sm); margin: 8px 0; line-height: 1.8; white-space: pre-wrap;">
-Round 1: 纯听力 → 选释义 <span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom;">volume_up</span>
-  （不显示任何文字，只听音选意思）
-  └─ 答错 → 词回到当前轮队尾
-
-Round 2: Step 1. 听力选汉字 <span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom;">volume_up</span>
-          Step 2. 听音拼假名 <span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom;">keyboard</span>  ← 最难
-  └─ 答错 → 词回到当前轮队尾
-
-Round 3: Step 1. 看假名选释义
-          Step 2. 看假名+释义选汉字
-  └─ 答错 → 词回到当前轮队尾
-
-<span class="material-symbols-rounded" style="color: #F5B041; font-size: 1.2rem; vertical-align: text-bottom;">emoji_events</span> 三轮全部清空 → 三杠全亮 → 本组通关！
-          </div>
-
-          <p style="margin-bottom: 0;"><b>适合：</b>考前最终验收。从被动识别到主动产出，三轮递进模拟完整的认知梯度。</p>
-        </div>
-      </details>
-
-      <!-- 筛选检验 -->
-      <details class="guide-details" style="margin-bottom: 0;">
-        <summary style="cursor: pointer; padding: 14px 16px; background: rgba(69,99,96,0.08); border-radius: var(--radius-md); font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #456360;">
-          <span class="material-symbols-rounded" style="color: #456360;">psychology_alt</span> 筛选检验 — 精准靶向补弱（唯一可独立点亮单杠的模式）
-        </summary>
-        <div style="padding: 16px; font-size: 0.9rem; line-height: 1.7; opacity: 0.85;">
-
-          <p><b>四种专攻维度：</b></p>
-          <div style="overflow-x: auto; margin: 8px 0;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-              <tr style="border-bottom: 1px solid var(--outline);">
-                <th style="text-align: left; padding: 8px;">维度</th>
-                <th style="text-align: left; padding: 8px;">盲测时显示</th>
-                <th style="text-align: left; padding: 8px;">点亮 / 重置</th>
-              </tr>
-              <tr style="border-bottom: 1px solid var(--outline);">
-                <td style="padding: 8px;"><span style="color:#F5B041; font-weight:800;"><span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom; margin-right: 2px;">lens</span> 汉字辨认</span></td>
-                <td style="padding: 8px;">假名可见，汉字 + 释义隐藏</td>
-                <td style="padding: 8px;">黄杠</td>
-              </tr>
-              <tr style="border-bottom: 1px solid var(--outline);">
-                <td style="padding: 8px;"><span style="color:#E74C3C; font-weight:800;"><span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom; margin-right: 2px;">lens</span> 假名辨认</span></td>
-                <td style="padding: 8px;">汉字可见，假名 + 释义隐藏</td>
-                <td style="padding: 8px;">红杠</td>
-              </tr>
-              <tr style="border-bottom: 1px solid var(--outline);">
-                <td style="padding: 8px;"><span style="color:#E74C3C; font-weight:800;"><span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom; margin-right: 2px;">lens</span> 听力辨音</span></td>
-                <td style="padding: 8px;">播放发音 <span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom;">volume_up</span>，不显示任何文字</td>
-                <td style="padding: 8px;">红杠</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px;"><span style="color:#D0D3D4; font-weight:800;"><span class="material-symbols-rounded" style="font-size: 1.1rem; vertical-align: text-bottom; margin-right: 2px;">lens</span> 释义默写</span></td>
-                <td style="padding: 8px;">汉字 + 假名可见，释义隐藏</td>
-                <td style="padding: 8px;">白杠</td>
-              </tr>
-            </table>
-          </div>
-
-          <p><b>状态机流程：A → B → C</b></p>
-          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; font-size: 0.8rem; text-align: center;">
-            <div style="flex: 1; min-width: 75px; background: rgba(186,107,104,0.08); border: 2px solid var(--accent-red); border-radius: var(--radius-sm); padding: 10px 6px;">
-              <b>A 态：盲测</b><br>
-              部分信息隐藏<br>
-              <span style="opacity:0.6;">忘记 / 模糊 / 认识</span>
-            </div>
-            <div style="color: var(--tertiary); font-size: rem; flex-shrink: 0;">→</div>
-            <div style="flex: 1; min-width: 75px; background: rgba(196,140,75,0.08); border: 2px solid #c48c4b; border-radius: var(--radius-sm); padding: 10px 6px;">
-              <b>B 态：提示</b><br>
-              随机显示一线索<br>
-              <span style="opacity:0.6;">忘记 / 认识</span>
-            </div>
-            <div style="color: var(--tertiary); font-size: 1.5rem; flex-shrink: 0;">→</div>
-            <div style="flex: 1; min-width: 75px; background: rgba(107,132,123,0.08); border: 2px solid var(--tertiary); border-radius: var(--radius-sm); padding: 10px 6px;">
-              <b>C 态：判定</b><br>
-              全部揭晓<br>
-              <span style="color:var(--accent-red);">错误 → 重置杠</span><br>
-              <span style="color:var(--tertiary);">正确 → 点亮杠</span>
-            </div>
-          </div>
-
-          <p style="margin-bottom: 0;"><b>适合：</b>精准打击弱点。读音记不住 → 专攻读音；意思混淆 → 专攻释义。可配合「智能跳过已亮维度」进一步提升效率。</p>
-        </div>
-      </details>
-    </div>
-
-    <!-- ④ 五模式全景对比 -->
-    <div class="card-panel" style="margin-bottom: 24px; overflow-x: auto;">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">table_chart</span> 五模式全景对比</h3>
-      <table style="width: 100%; min-width: 520px; border-collapse: collapse; font-size: 0.8rem; line-height: 1.6;">
-        <thead>
-          <tr style="border-bottom: 2px solid var(--outline);">
-            <th style="text-align: left; padding: 8px;"></th>
-            <th style="text-align: center; padding: 8px; color: #4a657a;">自由浏览</th>
-            <th style="text-align: center; padding: 8px; color: #7a4a4a;">往复测验</th>
-            <th style="text-align: center; padding: 8px; color: #4a6355;">循环强记</th>
-            <th style="text-align: center; padding: 8px; color: #5c554e;">三轮通关</th>
-            <th style="text-align: center; padding: 8px; color: #456360;">筛选检验</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid var(--outline);">
-            <td style="padding: 8px; font-weight: 700;">队列策略</td>
-            <td style="text-align: center; padding: 8px;">摆动序列</td>
-            <td style="text-align: center; padding: 8px;">摆动序列</td>
-            <td style="text-align: center; padding: 8px;">摆动序列</td>
-            <td style="text-align: center; padding: 8px;">随机打乱</td>
-            <td style="text-align: center; padding: 8px;">随机打乱</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--outline);">
-            <td style="padding: 8px; font-weight: 700;">有判定？</td>
-            <td style="text-align: center; padding: 8px;">❌</td>
-            <td style="text-align: center; padding: 8px;">✅</td>
-            <td style="text-align: center; padding: 8px;">✅</td>
-            <td style="text-align: center; padding: 8px;">✅</td>
-            <td style="text-align: center; padding: 8px;">✅</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--outline);">
-            <td style="padding: 8px; font-weight: 700;">分步递进</td>
-            <td style="text-align: center; padding: 8px;">—</td>
-            <td style="text-align: center; padding: 8px;">5 次 / 周期<br>选 → 拼</td>
-            <td style="text-align: center; padding: 8px;">首次全显<br>之后分步</td>
-            <td style="text-align: center; padding: 8px;">3 轮递进</td>
-            <td style="text-align: center; padding: 8px;">A→B→C<br>状态机</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--outline);">
-            <td style="padding: 8px; font-weight: 700;">答错后果</td>
-            <td style="text-align: center; padding: 8px;">—</td>
-            <td style="text-align: center; padding: 8px;">Combo -3</td>
-            <td style="text-align: center; padding: 8px;">Combo -3<br>推到队尾</td>
-            <td style="text-align: center; padding: 8px;">Combo -3<br>回当前轮队尾</td>
-            <td style="text-align: center; padding: 8px; color: var(--accent-red);">重置对应杠</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--outline);">
-            <td style="padding: 8px; font-weight: 700;">答对奖励</td>
-            <td style="text-align: center; padding: 8px;">—</td>
-            <td style="text-align: center; padding: 8px;">Combo +1<br>例句解密</td>
-            <td style="text-align: center; padding: 8px;">Combo +1<br>逐步淘汰</td>
-            <td style="text-align: center; padding: 8px;">Combo +1<br>永久移除</td>
-            <td style="text-align: center; padding: 8px; color: var(--tertiary);">点亮对应杠</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; font-weight: 700;">适合场景</td>
-            <td style="text-align: center; padding: 8px;">混个脸熟</td>
-            <td style="text-align: center; padding: 8px;">自我检验</td>
-            <td style="text-align: center; padding: 8px;">死磕到底</td>
-            <td style="text-align: center; padding: 8px;">考前验收</td>
-            <td style="text-align: center; padding: 8px;">查缺补漏</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ⑤ 推荐学习路径 -->
-    <div class="card-panel" style="margin-bottom: 24px;">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">map</span> 推荐学习路径</h3>
-      <div class="guide-flowchart">
-        <div class="flow-step">
-          <div class="flow-step-title">第一步：查缺补漏</div>
-          <div class="flow-step-desc">使用「筛选检验」→「所有未通关」→「专攻汉字辨认」。利用中文母语优势，快速扫清"看汉字猜意思"的单词，点亮黄杠。</div>
-        </div>
-        <div class="flow-arrow"><span class="material-symbols-rounded">arrow_downward</span></div>
-        <div class="flow-step">
-          <div class="flow-step-title">第二步：自由选择</div>
-          <div class="flow-step-desc">
-            <ul style="margin: 8px 0 0 0; padding-left: 20px;">
-              <li>刚接触新词 → <b>自由浏览</b>（混个脸熟）</li>
-              <li>想牢牢记住 → <b>循环强记</b>（错了重来，弱势聚焦）</li>
-              <li>想自我检验 → <b>往复测验</b>（选择拼写交替横跳）</li>
-              <li>想最终验收 → <b>三轮通关</b>（硬核大考，三杠全亮）</li>
-            </ul>
-          </div>
-        </div>
-        <div class="flow-arrow"><span class="material-symbols-rounded">arrow_downward</span></div>
-        <div class="flow-step">
-          <div class="flow-step-title">随时穿插：精准补弱</div>
-          <div class="flow-step-desc">如果发现某些词的读音记不住，或者意思老混淆，就用「筛选检验」专攻那一项。三根杠中哪根没亮就补哪根。</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ⑥ 实用小贴士 -->
-    <div class="card-panel">
-      <h3 style="margin-bottom: 16px;"><span class="material-symbols-rounded">lightbulb</span> 实用小贴士</h3>
-      <div class="guide-tips-list">
-        <div class="tip-item"><span class="material-symbols-rounded">timer</span> <div><b>每天打卡：</b>在主页长按打卡按钮，记录学习天数。</div></div>
-        <div class="tip-item"><span class="material-symbols-rounded">keyboard</span> <div><b>全键盘盲操：</b>支持电脑和外接键盘！<br><span style="font-size: 0.85em; opacity: 0.8;">使用 <code>A B C D</code> 选答案，<code>← → ↓</code> 切换，<code>Space</code> 发音/翻面，<code>Enter</code> 确认，<code>Esc</code> 退出。横屏自动提示。</span></div></div>
-        <div class="tip-item"><span class="material-symbols-rounded">dark_mode</span> <div><b>夜间模式：</b>点击首页右上角按钮（或按 <code>T</code> 键）一键切换，睡前学习不刺眼。</div></div>
-        <div class="tip-item"><span class="material-symbols-rounded">save</span> <div><b>数据安全：</b>进度全在本地，请定期在「设置」中导出备份。</div></div>
-      </div>
-    </div>
-
-  </div>
-  <!-- ==================== 🆕 指南页结束 ==================== -->
 
 
   <div id="tab-settings" class="tab-content hidden">
@@ -541,11 +237,23 @@ Round 3: Step 1. 看假名选释义
     <div class="card-panel">
       <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">tune</span> 偏好设置</h3>
 
+            <div class="setting-item en-only" style="display: none;">
+        <div class="setting-info">
+          <div class="setting-title">显示词根词缀公式</div>
+          <div class="setting-desc">在英语模式下，将单词拆解为胶囊公式辅助记忆</div>
+        </div>
+        <label class="tactile-switch-wrap">
+          <input type="checkbox" id="setting-show-roots" class="tactile-switch" checked>
+          <span class="tactile-slider"></span>
+        </label>
+      </div>
+
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-title">自动朗读单词</div>
           <div class="setting-desc">切换卡片时自动使用系统 TTS 朗读</div>
         </div>
+
         <label class="tactile-switch-wrap">
           <input type="checkbox" id="setting-auto-speak" class="tactile-switch">
           <span class="tactile-slider"></span>
@@ -596,6 +304,16 @@ Round 3: Step 1. 看假名选释义
         </label>
       </div>
 
+            <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-title">AI 引擎 (DeepSeek)</div>
+          <div class="setting-desc">输入 DeepSeek API Key 解锁例句智能解析</div>
+        </div>
+        <div class="custom-select-wrapper setting-compact-wrapper">
+          <input type="password" id="setting-ai-key" placeholder="sk-..." style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-family: monospace;">
+        </div>
+      </div>
+
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-title">发音引擎 (TTS)</div>
@@ -603,12 +321,14 @@ Round 3: Step 1. 看假名选释义
         </div>
         <div class="custom-select-wrapper setting-compact-wrapper">
           <select id="setting-tts-engine">
+            <option value="azure">微软语音</option>
             <option value="youdao">网易有道</option>
-            <option value="azure">微软七海</option>
             <option value="local">系统自带</option>
           </select>
         </div>
       </div>
+
+
 
       <div class="setting-item" style="border-bottom: none;">
         <div class="setting-info">
@@ -621,7 +341,7 @@ Round 3: Step 1. 看假名选释义
 
     <div class="card-panel">
       <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">library_add</span> 导入与重置</h3>
-      <textarea id="custom-input" placeholder="格式：单词,假名,词性,释义,例句(可选)&#10;用逗号或Tab分隔" class="settings-textarea"></textarea>
+      <textarea id="custom-input" placeholder="格式：单词,音标,词性,释义,例句,词根&#10;用逗号或Tab分隔 (后两项可选)" class="settings-textarea"></textarea>
       <button id="btn-import">确认导入新词</button>
       <div class="danger-zone">
         <div class="setting-desc" style="margin-bottom: 12px; color: var(--accent-red);">警告：此操作将清空所有个人进度与导入词汇</div>
@@ -667,7 +387,12 @@ Round 3: Step 1. 看假名选释义
             <div id="btn-mt-show-hint" style="font-size: 0.85rem; color: var(--outline); cursor: pointer; text-decoration: underline; opacity: 0.8;">听不清？显示假名</div>
         </div>
         <div class="word-main blur-target" id="w-word">单词</div>
-        <div class="info-row-group"><div class="kana-row blur-target" id="w-kana">假名</div><div class="type-row blur-target" id="w-type"></div><div class="meaning-row blur-target" id="w-meaning">释义</div></div>
+        <div class="info-row-group">
+            <div class="kana-row blur-target" id="w-kana">假名</div>
+            <div class="type-row blur-target" id="w-type"></div>
+            <div class="roots-row blur-target" id="w-roots" style="display:none;"></div>
+            <div class="meaning-row blur-target" id="w-meaning">释义</div>
+        </div>
         <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
       </div>
     </div>
@@ -715,10 +440,6 @@ Round 3: Step 1. 看假名选释义
   <div class="nav-item" data-target="tab-wordbank" data-title="grid_view|全景語彙" role="button" tabindex="0" aria-label="全景词库">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
     <span class="nav-label">語彙</span>
-  </div>
-  <div class="nav-item" data-target="tab-guide" data-title="explore|使用指南" role="button" tabindex="0" aria-label="使用指南">
-    <span class="material-symbols-rounded nav-icon" aria-hidden="true">explore</span>
-    <span class="nav-label">指南</span>
   </div>
   <div class="nav-item" data-target="tab-settings" data-title="settings|環境設定" role="button" tabindex="0" aria-label="应用设置">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
@@ -772,6 +493,16 @@ Round 3: Step 1. 看假名选释义
     </div>
 </div>
 
+<div id="ai-modal-overlay" class="modal-overlay">
+  <div class="modal-content bs-content" style="max-height: 80vh; display: flex; flex-direction: column;">
+    <div class="bs-header">
+      <div class="bs-title"><span class="material-symbols-rounded" style="color: #6366f1; margin-right: 6px;">auto_awesome</span> AI 例句导师</div>
+      <button class="icon-btn" onclick="window.toggleModal('ai-modal-overlay', false)"><span class="material-symbols-rounded">close</span></button>
+    </div>
+    <div id="ai-content-area" style="padding: 16px 20px; overflow-y: auto; flex: 1; font-size: 0.95rem; line-height: 1.6;">
+        </div>
+  </div>
+</div>
 <div id="dialog-overlay" class="modal-overlay">
     <div class="dialog-content">
         <h3 id="dialog-title" style="border:none; margin-bottom:12px; justify-content:center;">提示</h3>
@@ -801,6 +532,7 @@ Round 3: Step 1. 看假名选释义
         <div class="edit-input-group"><label>假名</label><input type="text" id="edit-kana"></div>
         <div class="edit-input-group"><label>词性</label><input type="text" id="edit-type"></div>
         <div class="edit-input-group"><label>释义</label><input type="text" id="edit-meaning"></div>
+        <div class="edit-input-group en-only" style="display: none;"><label>词根拆解 (如: in(否定)-vis(看)-ible(形))</label><input type="text" id="edit-roots"></div>
         <div class="flex-row" style="margin-top: 24px; margin-bottom: 0;">
             <button id="btn-save-edit" style="flex: 1; background: var(--tertiary);">保存修改</button>
             <button id="btn-cancel-edit" class="btn-outline" style="flex: 1;">放弃</button>
@@ -829,7 +561,12 @@ Round 3: Step 1. 看假名选释义
     <button class="detail-nav-btn" id="detail-next"><span class="material-symbols-rounded">chevron_right</span></button>
     <div id="dt-anim-wrapper" class="detail-anim-wrapper">
       <div class="dt-word" id="dt-word">单词</div>
-      <div class="info-row-group"><div class="dt-kana" id="dt-kana">假名</div><div class="dt-type" id="dt-type"></div><div class="dt-mean" id="dt-mean">释义</div></div>
+      <div class="info-row-group">
+          <div class="dt-kana" id="dt-kana">假名</div>
+          <div class="dt-type" id="dt-type"></div>
+          <div class="dt-roots" id="dt-roots" style="display:none;"></div>
+          <div class="dt-mean" id="dt-mean">释义</div>
+      </div>
       <div class="dt-example-box" id="dt-example-box"></div>
     </div>
   </div>

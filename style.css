@@ -2492,11 +2492,12 @@ button:focus-visible,
 [data-theme="dark"] .book-shelf { background: rgba(255,255,255,0.02); box-shadow: inset 0 4px 8px rgba(0,0,0,0.2); }
 
 .book-card {
-    flex: 1; height: 100px; border-radius: 8px; position: relative; overflow: hidden;
+    flex: 1; height: 100px; border-radius: var(--radius-md); position: relative; overflow: hidden;
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     transition: all 0.4s var(--spring-bouncy); opacity: 0.5; transform: scale(0.95);
     border: 2px solid transparent; box-shadow: none;
 }
+
 .book-card.active {
     opacity: 1; transform: scale(1) translateY(-4px);
     box-shadow: 0 12px 24px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.05);
@@ -2535,4 +2536,263 @@ body[data-lang="en"] {
     --tertiary: #e89f8d;          /* 温暖肉桂微光（夜间成功反馈发光色） */
 }
 
+/* ==========================================
+   💊 词根词缀胶囊系统 (Roots Capsule)
+   ========================================== */
+.roots-row, .dt-roots {
+    display: flex; justify-content: center; align-items: center; flex-wrap: wrap; 
+    gap: 6px; margin: 4px 0 16px 0; width: 100%;
+}
+.root-capsule {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: var(--radius-full);
+    font-size: 0.8rem; font-weight: 800; font-family: var(--font-ui);
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
+}
+.root-capsule:active { transform: scale(0.95); }
+.r-text { font-family: 'Georgia', serif; font-style: italic; font-size: 0.9rem; margin-right: 2px;}
+.r-mean { opacity: 0.9; }
 
+.root-plus { color: var(--outline); font-size: 1rem; font-weight: 900; margin: 0 2px; }
+
+/* 伯爵红茶专属配色：三种胶囊循环匹配 */
+body[data-lang="en"] .capsule-0 { background: var(--primary); color: var(--on-primary); }
+body[data-lang="en"] .capsule-1 { background: var(--primary-container); color: var(--on-surface); }
+body[data-lang="en"] .capsule-2 { background: var(--outline); color: var(--on-surface); }
+
+/* 极夜墨迹适配 */
+body[data-theme="dark"][data-lang="en"] .root-capsule { box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+body[data-theme="dark"][data-lang="en"] .capsule-0 { background: #8b5633; color: #ebd5c5; }
+body[data-theme="dark"][data-lang="en"] .capsule-1 { background: #47270e; color: #ebd5c5; }
+body[data-theme="dark"][data-lang="en"] .capsule-2 { background: #5c4332; color: #ebd5c5; }
+
+/* 胶囊内部文字模糊抗畸变 (防止继承全局大 padding) */
+.root-capsule .blur-text {
+    padding: 0 6px !important;
+    margin: 0 !important;
+    min-width: 30px !important;
+    border-radius: 4px !important;
+    filter: blur(4px) !important; /* 缩小模糊半径，适应小字体 */
+    background-color: var(--outline) !important;
+}
+
+/* ==========================================
+   🇬🇧 英语模式：卡片视觉层级重构 V3 (并排释义词性 + 喇叭音标)
+   排版优先级：单词(超大) > 释义+词性(并排) > 词根 > 音标带喇叭
+   ========================================== */
+
+/* 1. 主单词：改由 JS 动态计算真实物理字号，彻底避免排版挤压 */
+body[data-lang="en"] .word-main,
+body[data-lang="en"] .dt-word {
+    transform: none !important;             /* 移除粗暴的视觉放大缩放 */
+    white-space: nowrap !important;         /* 强制单行显示，绝不允许换行 */
+    letter-spacing: -0.5px !important;      /* 稍微收紧字间距，为超长单词节省屏幕空间 */
+    margin-bottom: 12px !important;         /* 恢复标准的底部推离间距 */
+}
+
+
+/* 2. 容器：Flex弹性容器，拉近上下行距 */
+body[data-lang="en"] .info-row-group {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px 10px !important; 
+    margin-top: 15px !important;
+}
+
+/* 3. 释义：字号微调至1.25，宽度设为自适应，为右侧词性腾出空间 */
+body[data-lang="en"] .meaning-row,
+body[data-lang="en"] .dt-mean {
+    order: 1 !important;
+    width: auto !important;
+    font-size: 1.25rem !important;
+    font-weight: 900 !important;
+    color: var(--primary) !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* 4. 词性：紧紧依附在释义右侧 */
+body[data-lang="en"] .type-row,
+body[data-lang="en"] .dt-type {
+    order: 2 !important;
+    width: auto !important;
+    transform: scale(0.9) !important;
+    opacity: 0.85 !important;
+    margin: 0 !important;
+}
+
+/* 5. 词根：独占一行 (100% 宽度) */
+body[data-lang="en"] .roots-row,
+body[data-lang="en"] .dt-roots {
+    order: 3 !important;
+    width: 100% !important;
+    margin: 4px 0 0 0 !important;
+}
+
+/* 6. 音标：独占最底部一行，启用 Flex 让喇叭图标和文字完美居中 */
+body[data-lang="en"] .kana-row,
+body[data-lang="en"] .dt-kana {
+    order: 4 !important;
+    width: 100% !important;
+    font-size: 0.95rem !important;
+    opacity: 0.65 !important; /* 稍微调亮一点，确保喇叭图标清晰 */
+    font-family: 'Georgia', serif !important;
+    letter-spacing: 0.5px !important;
+    margin: 8px 0 0 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 4px !important;
+}
+
+/* 喇叭图标专属的点击按压反馈动画 */
+.phonetic-speaker {
+    transition: all 0.2s;
+}
+.phonetic-speaker:active {
+    transform: scale(0.8);
+    opacity: 0.5;
+}
+
+/* ==========================================
+   🛡️ 全新遮盖系统 V3：隐形呼吸胶带 (极简、防窥、优雅)
+   彻底替代旧版模糊与丑陋的斜纹涂层
+   ========================================== */
+
+/* 1. 彻底屏蔽文字本身，杜绝眯眼偷看，并转化为实体色块 */
+.blur-text {
+    color: transparent !important;
+    text-shadow: none !important;
+    background-color: var(--outline) !important; /* 使用极其和谐的辅助色作为背景 */
+    border-radius: var(--radius-sm, 6px) !important;
+    cursor: pointer !important;
+    position: relative !important;
+    transition: transform 0.2s, background-color 0.2s !important;
+    animation: mask-breathe 2.5s infinite alternate ease-in-out !important; /* 优雅的呼吸感 */
+}
+
+/* 2. 拔除之前写的所有伪元素覆盖层 (杀掉丑陋的斜纹和文字) */
+.blur-text::after {
+    display: none !important;
+}
+
+/* 3. 保证行内元素（如词根、假名）能完美撑开成一个个小胶囊，方便点击 */
+span.blur-text {
+    display: inline-block !important;
+    min-width: 40px;
+    vertical-align: bottom;
+}
+
+/* 4. 极夜模式色彩适配：变成幽静的半透明深灰色块 */
+body[data-theme="dark"] .blur-text {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* 5. 交互手感：按下时微缩并停止呼吸 */
+.blur-text:active {
+    transform: scale(0.96) !important;
+    animation: none !important;
+    opacity: 0.8 !important;
+}
+
+/* 6. 大块例句区域的特殊关照：注入极其克制、优雅的锁形小图标 */
+.dt-example-box.blur-text {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 80px;
+}
+.dt-example-box.blur-text::before {
+    content: "lock";
+    display: block !important;
+    font-family: 'Material Symbols Rounded';
+    font-variation-settings: 'FILL' 1;
+    font-size: 1.8rem;
+    color: var(--on-surface);
+    opacity: 0.25; /* 极低的透明度，隐形陪伴 */
+    position: absolute;
+}
+
+/* 7. 定义极其轻微的呼吸动画，让遮盖显得“活”起来 */
+@keyframes mask-breathe {
+    0% { opacity: 0.65; }
+    100% { opacity: 0.95; }
+}
+
+/* 8. 修复词根系统胶囊内部排版冲突 */
+.root-capsule .blur-text {
+    background-color: transparent !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    min-width: 30px !important;
+}
+
+/* ==========================================
+   ✨ AI 智能解析 (DeepSeek) 专属样式
+   ========================================== */
+.ai-sparkle-btn {
+    transition: transform 0.2s, opacity 0.2s;
+    opacity: 0.85;
+}
+.ai-sparkle-btn:active {
+    transform: scale(0.75);
+    opacity: 0.5;
+}
+#ai-content-area {
+    font-family: var(--font-ui, sans-serif);
+    letter-spacing: 0.5px;
+}
+/* 等待 AI 思考时的呼吸波纹 */
+.ai-loading-pulse {
+    animation: mask-breathe 1.5s infinite alternate ease-in-out;
+    color: #6366f1;
+    font-weight: 800;
+    text-align: center;
+    padding: 40px 10px;
+}
+/* AI 返回内容的排版美化 */
+.ai-response-box h4 {
+    margin: 20px 0 8px 0;
+    color: #6366f1;
+    font-size: 1.1rem;
+    border-bottom: 1px dashed rgba(99, 102, 241, 0.3);
+    padding-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ai-response-box h4:first-child { margin-top: 0; }
+.ai-response-box strong {
+    color: var(--primary);
+    background: var(--primary-container);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin: 0 2px;
+}
+
+/* 1. 提升 AI 弹窗的层级，确保它高于任何卡片 */
+#ai-modal-overlay {
+    z-index: 9999 !important; /* 确保它在最顶层 */
+}
+
+/* 2. 增强弹窗的背景，提高可读性 */
+#ai-modal-overlay .modal-content {
+    background-color: var(--surface) !important; /* 不再仅仅依赖模糊，而是实色填充 */
+    backdrop-filter: blur(15px) !important;
+    border: 1px solid var(--outline);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+}
+
+/* 3. 给 AI 内容区增加一点内衬，防止文字贴边 */
+#ai-content-area {
+    padding: 20px !important;
+    color: var(--on-surface) !important;
+    background-color: rgba(255, 255, 255, 0.3); /* 给予微微的纸张底色 */
+}
+#ai-content-area {
+    background-color: var(--surface-container) !important; /* 将背景改为卡片专用纸张色 */
+    border-radius: 12px;
+}

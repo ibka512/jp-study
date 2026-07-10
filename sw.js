@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v1782758010'; // 自动更新了缓存版本号
+const CACHE_NAME = 'pendulum-v1783679432'; // 自动更新了缓存版本号
 const ASSETS = [
   './',
   './index.html',

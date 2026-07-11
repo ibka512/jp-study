@@ -2,7 +2,30 @@
  * 钟摆日语 - 核心控制逻辑
  */
 
-const DATA_VERSION = 'v1';
+const DATA_SCHEMA_VERSION = 1;
+const MIGRATION_SNAPSHOT_KEY = 'migrationSafetySnapshot_v1';
+
+const BACKUP_FORMAT_ID = 'zhongri-backup';
+const BACKUP_FORMAT_VERSION = 5;
+const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
+
+const BACKUP_PREFERENCE_KEYS = Object.freeze([
+    'theme',
+    'langMode',
+    'autoSpeak',
+    'showRoots',
+    'darkBtnStyle',
+    'postponeTested',
+    'skipMastered',
+    'useRubyRender',
+    'ttsEngine',
+    'displayMode',
+    'lastCustomGroupTxt',
+    'lastCustomGroupVal',
+    'lastSelectedFolder',
+    'lastTestDisplay',
+    'lastTestRange'
+]);
 const escapeHTML = (str) => {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, tag => ({
@@ -323,27 +346,424 @@ const BottomSheet = {
     init() {
         document.querySelectorAll('select:not(.no-bs)').forEach(sel => {
             let facade = document.createElement('div');
-            facade.className = 'bs-facade'; 
+            facade.className = 'bs-facade';
             facade.setAttribute('tabindex', '0');
             facade.setAttribute('role', 'button');
-            if(sel.style.marginBottom) facade.style.marginBottom = sel.style.marginBottom;
-            if(sel.style.flex) facade.style.flex = sel.style.flex;
-            if(sel.style.width) facade.style.width = sel.style.width;
-            if(sel.style.marginTop) facade.style.marginTop = sel.style.marginTop;
-            
+
+            if (sel.style.marginBottom) {
+                facade.style.marginBottom = sel.style.marginBottom;
+            }
+
+            if (sel.style.flex) {
+                facade.style.flex = sel.style.flex;
+            }
+
+            if (sel.style.width) {
+                facade.style.width = sel.style.width;
+            }
+
+            if (sel.style.marginTop) {
+                facade.style.marginTop = sel.style.marginTop;
+            }
+
             let textSpan = document.createElement('span');
             textSpan.className = 'bs-facade-text';
-            textSpan.innerText = sel.options[sel.selectedIndex]?.text || '';
+            textSpan.innerText =
+                sel.options[sel.selectedIndex]?.text || '';
+
             let arrowSpan = document.createElement('span');
-            arrowSpan.className = 'material-symbols-rounded'; arrowSpan.innerText = 'keyboard_arrow_down'; arrowSpan.style.opacity = '0.5';
-            
-            facade.appendChild(textSpan); facade.appendChild(arrowSpan);
-            sel.style.display = 'none'; sel.parentNode.insertBefore(facade, sel.nextSibling);
-            
-            facade.addEventListener('click', () => { Hardware.vibrate(10); this.open(sel, textSpan); });
-            sel.addEventListener('facade-update', () => { textSpan.innerText = sel.options[sel.selectedIndex]?.text || ''; });
+            arrowSpan.className = 'material-symbols-rounded';
+            arrowSpan.innerText = 'keyboard_arrow_down';
+            arrowSpan.style.opacity = '0.5';
+
+            facade.appendChild(textSpan);
+            facade.appendChild(arrowSpan);
+
+            sel.style.display = 'none';
+            sel.parentNode.insertBefore(facade, sel.nextSibling);
+
+            facade.addEventListener('click', () => {
+                Hardware.vibrate(10);
+                this.open(sel, textSpan);
+            });
+
+            sel.addEventListener('facade-update', () => {
+                textSpan.innerText =
+                    sel.options[sel.selectedIndex]?.text || '';
+            });
         });
+
+        /*
+         * 为所有带有顶部横条的底部抽屉
+         * 自动安装拖动关闭功能。
+         */
+        this.initDragSupport();
     },
+
+    initDragSupport() {
+        document
+            .querySelectorAll('.modal-overlay .bottom-sheet')
+            .forEach(sheet => {
+                /*
+                 * 防止初始化函数重复执行时，
+                 * 同一个抽屉被绑定多次事件。
+                 */
+                if (sheet.dataset.dragReady === 'true') {
+                    return;
+                }
+
+                const overlay =
+                    sheet.closest('.modal-overlay');
+
+                /*
+                 * 只寻找抽屉最外层的横条，
+                 * 避免误选内容区内的同名元素。
+                 */
+                const handle =
+                    Array.from(sheet.children).find(child => {
+                        return child.classList.contains('bs-handle');
+                    });
+
+                if (!overlay || !handle) {
+                    return;
+                }
+
+                sheet.dataset.dragReady = 'true';
+
+                /*
+                 * 横条同时支持键盘操作。
+                 */
+                handle.setAttribute('role', 'button');
+                handle.setAttribute('tabindex', '0');
+                handle.setAttribute(
+                    'aria-label',
+                    '向下拖动关闭抽屉'
+                );
+
+                let dragging = false;
+                let pointerId = null;
+                let startY = 0;
+                let currentY = 0;
+                let startTime = 0;
+                let finishTimer = null;
+
+                const clearMotionState = () => {
+                    if (finishTimer) {
+                        window.clearTimeout(finishTimer);
+                        finishTimer = null;
+                    }
+
+                    dragging = false;
+                    pointerId = null;
+                    currentY = 0;
+
+                    sheet.classList.remove(
+                        'is-dragging',
+                        'is-settling',
+                        'is-dismissing'
+                    );
+
+                    handle.classList.remove('is-dragging');
+                    overlay.classList.remove('sheet-dismissing');
+
+                    sheet.style.removeProperty(
+                        '--sheet-drag-y'
+                    );
+                };
+
+                /*
+                 * 没有达到关闭距离时，
+                 * 让抽屉弹回原位。
+                 */
+                const springBack = () => {
+                    sheet.classList.remove(
+                        'is-dragging',
+                        'is-dismissing'
+                    );
+
+                    handle.classList.remove('is-dragging');
+                    overlay.classList.remove(
+                        'sheet-dismissing'
+                    );
+
+                    sheet.classList.add('is-settling');
+
+                    sheet.style.setProperty(
+                        '--sheet-drag-y',
+                        '0px'
+                    );
+
+                    finishTimer = window.setTimeout(() => {
+                        sheet.classList.remove('is-settling');
+
+                        sheet.style.removeProperty(
+                            '--sheet-drag-y'
+                        );
+
+                        finishTimer = null;
+                    }, 300);
+                };
+
+                /*
+                 * 完整执行抽屉退出动画，
+                 * 然后调用现有的弹窗关闭方法。
+                 */
+                const dismissSheet = () => {
+                    sheet.classList.remove(
+                        'is-dragging',
+                        'is-settling'
+                    );
+
+                    handle.classList.remove('is-dragging');
+
+                    sheet.classList.add('is-dismissing');
+                    overlay.classList.add(
+                        'sheet-dismissing'
+                    );
+
+                    const dismissDistance = Math.max(
+                        window.innerHeight,
+                        sheet.offsetHeight + 120
+                    );
+
+                    sheet.style.setProperty(
+                        '--sheet-drag-y',
+                        `${dismissDistance}px`
+                    );
+
+                    Hardware.vibrate(12);
+
+                    finishTimer = window.setTimeout(() => {
+                        window.toggleModal(
+                            overlay.id,
+                            false
+                        );
+
+                        finishTimer =
+                            window.setTimeout(() => {
+                                clearMotionState();
+                            }, 420);
+                    }, 220);
+                };
+
+                const endDrag = event => {
+                    if (
+                        !dragging ||
+                        event.pointerId !== pointerId
+                    ) {
+                        return;
+                    }
+
+                    const elapsed = Math.max(
+                        performance.now() - startTime,
+                        1
+                    );
+
+                    const totalDistance = Math.max(
+                        0,
+                        event.clientY - startY
+                    );
+
+                    const velocity =
+                        totalDistance / elapsed;
+
+                    /*
+                     * 抽屉越高，关闭阈值会适当增加，
+                     * 但不会超过 160 像素。
+                     */
+                    const closeThreshold = Math.min(
+                        160,
+                        Math.max(
+                            90,
+                            sheet.offsetHeight * 0.22
+                        )
+                    );
+
+                    dragging = false;
+
+                    try {
+                        handle.releasePointerCapture(
+                            pointerId
+                        );
+                    } catch (error) {}
+
+                    pointerId = null;
+
+                    /*
+                     * 满足任一条件即可关闭：
+                     *
+                     * 1. 下拉距离足够；
+                     * 2. 下拉距离超过 28 像素，
+                     *    并且手势速度足够快。
+                     */
+                    const shouldClose =
+                        currentY > closeThreshold ||
+                        (
+                            currentY > 28 &&
+                            velocity > 0.55
+                        );
+
+                    if (shouldClose) {
+                        dismissSheet();
+                    } else {
+                        springBack();
+                    }
+                };
+
+                handle.addEventListener(
+                    'pointerdown',
+                    event => {
+                        if (
+                            !overlay.classList.contains(
+                                'active'
+                            )
+                        ) {
+                            return;
+                        }
+
+                        if (
+                            event.pointerType === 'mouse' &&
+                            event.button !== 0
+                        ) {
+                            return;
+                        }
+
+                        if (
+                            overlay.classList.contains(
+                                'sheet-dismissing'
+                            )
+                        ) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        if (finishTimer) {
+                            window.clearTimeout(
+                                finishTimer
+                            );
+
+                            finishTimer = null;
+                        }
+
+                        dragging = true;
+                        pointerId = event.pointerId;
+                        startY = event.clientY;
+                        currentY = 0;
+                        startTime = performance.now();
+
+                        sheet.classList.remove(
+                            'is-settling',
+                            'is-dismissing'
+                        );
+
+                        overlay.classList.remove(
+                            'sheet-dismissing'
+                        );
+
+                        sheet.classList.add(
+                            'is-dragging'
+                        );
+
+                        handle.classList.add(
+                            'is-dragging'
+                        );
+
+                        sheet.style.setProperty(
+                            '--sheet-drag-y',
+                            '0px'
+                        );
+
+                        try {
+                            handle.setPointerCapture(
+                                pointerId
+                            );
+                        } catch (error) {}
+                    }
+                );
+
+                handle.addEventListener(
+                    'pointermove',
+                    event => {
+                        if (
+                            !dragging ||
+                            event.pointerId !== pointerId
+                        ) {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        const rawDistance =
+                            event.clientY - startY;
+
+                        /*
+                         * 向下时完全跟手。
+                         * 向上时增加阻力，最多只移动 18 像素。
+                         */
+                        currentY = rawDistance < 0
+                            ? Math.max(
+                                -18,
+                                rawDistance * 0.18
+                            )
+                            : rawDistance;
+
+                        sheet.style.setProperty(
+                            '--sheet-drag-y',
+                            `${currentY}px`
+                        );
+                    }
+                );
+
+                handle.addEventListener(
+                    'pointerup',
+                    endDrag
+                );
+
+                handle.addEventListener(
+                    'pointercancel',
+                    event => {
+                        if (
+                            !dragging ||
+                            event.pointerId !== pointerId
+                        ) {
+                            return;
+                        }
+
+                        dragging = false;
+                        pointerId = null;
+
+                        springBack();
+                    }
+                );
+
+                /*
+                 * 为键盘和辅助设备提供关闭方式。
+                 */
+                handle.addEventListener(
+                    'keydown',
+                    event => {
+                        if (
+                            !overlay.classList.contains(
+                                'active'
+                            )
+                        ) {
+                            return;
+                        }
+
+                        if (
+                            event.key === 'Enter' ||
+                            event.key === ' ' ||
+                            event.key === 'ArrowDown'
+                        ) {
+                            event.preventDefault();
+                            dismissSheet();
+                        }
+                    }
+                );
+            });
+    },
+
     open(selectEl, textSpan) {
         let container = document.getElementById('bs-options'); container.innerHTML = '';
         let titleMap = {
@@ -498,27 +918,319 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
       pageSize: 50
   },
 
-  async init() { await this.loadData(); },
-  
+  async init() {
+      await this.loadData();
+  },
+
   idbAvailable: true,
 
-  async loadData() {
-    // Dev auto-reset: if data version changed, clear all stored data
-    const storedVer = localStorage.getItem('dataVersion');
-    if (storedVer !== DATA_VERSION) {
-      console.log('[Dev] Data version changed (' + (storedVer || 'none') + ' -> ' + DATA_VERSION + '), resetting...');
-      ['myWordDB_v3','myFolders_v3','myFolderLangs','starredWords','studyRecords','mtGroupClears_v3','mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
-      if (typeof idbKeyval !== 'undefined') {
-        try {
-          await Promise.all([
-            idbKeyval.del('myWordDB_v3'), idbKeyval.del('myFolders_v3'), idbKeyval.del('myFolderLangs'),
-            idbKeyval.del('starredWords'), idbKeyval.del('studyRecords'),
-            idbKeyval.del('mtGroupClears_v3'), idbKeyval.del('mtWordClears_v3')
-          ]);
-        } catch(e) { console.warn('[Dev] IndexedDB clear failed:', e); }
+  async readStorageValue(key) {
+      if (
+          this.idbAvailable &&
+          typeof idbKeyval !== 'undefined'
+      ) {
+          try {
+              return await idbKeyval.get(key);
+          } catch (error) {
+              console.warn(
+                  `[Storage] 读取 ${key} 失败，尝试本地备用存储`,
+                  error
+              );
+          }
       }
-      localStorage.setItem('dataVersion', DATA_VERSION);
-    }
+
+      const rawValue = localStorage.getItem(key);
+
+      if (rawValue === null) {
+          return null;
+      }
+
+      try {
+          return JSON.parse(rawValue);
+      } catch (error) {
+          return rawValue;
+      }
+  },
+
+  async writeStorageValue(key, value) {
+      if (
+          this.idbAvailable &&
+          typeof idbKeyval !== 'undefined'
+      ) {
+          try {
+              await idbKeyval.set(key, value);
+              return;
+          } catch (error) {
+              console.warn(
+                  `[Storage] 写入 ${key} 失败，尝试本地备用存储`,
+                  error
+              );
+          }
+      }
+
+      localStorage.setItem(
+          key,
+          JSON.stringify(value)
+      );
+  },
+
+  async createMigrationSnapshot(fromVersion) {
+      const snapshot = {
+          type: 'migration-snapshot',
+          createdAt: new Date().toISOString(),
+          fromVersion,
+          toVersion: DATA_SCHEMA_VERSION,
+
+          db: structuredClone(this.db),
+          folders: structuredClone(this.folders),
+          folderLangs: structuredClone(this.folderLangs),
+          stars: structuredClone(this.stars),
+          records: structuredClone(this.records),
+          mtGroupClears: structuredClone(
+              this.mtGroupClears
+          ),
+          mtWordClears: structuredClone(
+              this.mtWordClears
+          ),
+          aiConversations: structuredClone(
+              this.aiConversations
+          )
+      };
+
+      try {
+          await this.writeStorageValue(
+              MIGRATION_SNAPSHOT_KEY,
+              snapshot
+          );
+
+          console.log(
+              '[Migration] 更新前安全快照已保存'
+          );
+      } catch (error) {
+          /*
+           * 快照保存失败时停止迁移。
+           * 宁可暂时不更新，也不能冒险改坏用户数据。
+           */
+          console.error(
+              '[Migration] 无法建立安全快照',
+              error
+          );
+
+          throw new Error(
+              '无法建立数据安全快照，已停止更新'
+          );
+      }
+
+      return snapshot;
+  },
+
+  async saveAllUserData() {
+      await Promise.all([
+          this.saveDB(),
+          this.saveFolders(),
+          this.saveFolderLangs(),
+          this.saveStars(),
+          this.saveRecords(),
+          this.saveClears(),
+
+          this.writeStorageValue(
+              'aiConversations',
+              this.aiConversations
+          )
+      ]);
+  },
+
+  async restoreMigrationSnapshot(snapshot) {
+      if (!snapshot) {
+          throw new Error('没有可恢复的数据快照');
+      }
+
+      this.db = Array.isArray(snapshot.db)
+          ? structuredClone(snapshot.db)
+          : [];
+
+      this.folders = Array.isArray(snapshot.folders)
+          ? structuredClone(snapshot.folders)
+          : ['默认词库'];
+
+      this.folderLangs =
+          snapshot.folderLangs &&
+          typeof snapshot.folderLangs === 'object'
+              ? structuredClone(snapshot.folderLangs)
+              : { '默认词库': 'ja' };
+
+      this.stars = Array.isArray(snapshot.stars)
+          ? structuredClone(snapshot.stars)
+          : [];
+
+      this.records = Array.isArray(snapshot.records)
+          ? structuredClone(snapshot.records)
+          : [];
+
+      this.mtGroupClears =
+          snapshot.mtGroupClears &&
+          typeof snapshot.mtGroupClears === 'object'
+              ? structuredClone(snapshot.mtGroupClears)
+              : {};
+
+      this.mtWordClears =
+          snapshot.mtWordClears &&
+          typeof snapshot.mtWordClears === 'object'
+              ? structuredClone(snapshot.mtWordClears)
+              : {};
+
+      this.aiConversations =
+          Array.isArray(snapshot.aiConversations)
+              ? structuredClone(
+                    snapshot.aiConversations
+                )
+              : [];
+
+      await this.saveAllUserData();
+
+      console.warn(
+          '[Migration] 已恢复更新前的数据快照'
+      );
+  },
+
+  async runDataMigrations() {
+      let dbChanged = false;
+      let foldersChanged = false;
+      let clearsChanged = false;
+
+      /*
+       * 旧日语词没有语言字段时，
+       * 自动补成日语，而不是删除重建。
+       */
+      for (const word of this.db) {
+          if (!word.lang) {
+              word.lang = 'ja';
+              dbChanged = true;
+          }
+      }
+
+      /*
+       * 补齐每个词库的语言信息。
+       */
+      for (const folder of this.folders) {
+          if (!this.folderLangs[folder]) {
+              const containsEnglishWord =
+                  this.db.some(word => {
+                      return (
+                          word.folder === folder &&
+                          word.lang === 'en'
+                      );
+                  });
+
+              this.folderLangs[folder] =
+                  containsEnglishWord ? 'en' : 'ja';
+
+              foldersChanged = true;
+          }
+      }
+
+      /*
+       * 补齐默认英语词库。
+       * 只添加缺失内容，不覆盖用户修改。
+       */
+      if (
+          typeof DefaultEnglishWords !== 'undefined'
+      ) {
+          const englishFolders = [
+              ...new Set(
+                  DefaultEnglishWords.map(word => {
+                      return word.folder;
+                  })
+              )
+          ];
+
+          for (const folder of englishFolders) {
+              if (!this.folders.includes(folder)) {
+                  this.folders.push(folder);
+                  this.folderLangs[folder] = 'en';
+                  foldersChanged = true;
+              }
+          }
+
+          const existingEnglishWords = new Set(
+              this.db
+                  .filter(word => {
+                      return word.lang === 'en';
+                  })
+                  .map(word => {
+                      return `${word.folder || ''}::${word.word}`;
+                  })
+          );
+
+          for (const defaultWord of DefaultEnglishWords) {
+              const identity =
+                  `${defaultWord.folder || ''}::${defaultWord.word}`;
+
+              if (!existingEnglishWords.has(identity)) {
+                  this.db.push({
+                      ...defaultWord
+                  });
+
+                  existingEnglishWords.add(identity);
+                  dbChanged = true;
+              }
+          }
+      }
+
+      /*
+       * 把早期数字形式的掌握状态，
+       * 转换成现在的三项掌握结构。
+       */
+      for (
+          const wordKey of Object.keys(
+              this.mtWordClears
+          )
+      ) {
+          if (
+              typeof this.mtWordClears[wordKey] ===
+              'number'
+          ) {
+              this.mtWordClears[wordKey] = {
+                  kanji: false,
+                  kana: false,
+                  meaning: false
+              };
+
+              clearsChanged = true;
+          }
+      }
+
+      if (dbChanged) {
+          await this.saveDB();
+      }
+
+      if (foldersChanged) {
+          await Promise.all([
+              this.saveFolders(),
+              this.saveFolderLangs()
+          ]);
+      }
+
+      if (clearsChanged) {
+          await this.saveClears();
+      }
+  },
+
+  async loadData() {
+    /*
+     * 这里只读取数据格式版本。
+     * 无论版本是否变化，都绝不删除用户数据。
+     */
+    const storedSchemaVersion = Number.parseInt(
+        localStorage.getItem(
+            'dataSchemaVersion'
+        ) || '0',
+        10
+    );
+
+    const needsMigration =
+        storedSchemaVersion < DATA_SCHEMA_VERSION;
+
     let storedDB = null;
     try {
         if (typeof idbKeyval !== 'undefined') {
@@ -569,54 +1281,62 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
         }
     }
   
-    // Migrate: ensure all words in db have lang field
-    let needLangFix = false;
-    for (let w of this.db) {
-      if (!w.lang) { w.lang = "ja"; needLangFix = true; }
+    /*
+     * 只有数据格式真正升级时，
+     * 才创建更新前安全快照。
+     */
+    let migrationSnapshot = null;
+
+    if (needsMigration) {
+        migrationSnapshot =
+            await this.createMigrationSnapshot(
+                storedSchemaVersion
+            );
     }
-    if (needLangFix) await this.saveDB();
-    
-    // Migrate: ensure folderLangs exists for all folders
-    let needFolderLangFix = false;
-    for (let f of this.folders) {
-      if (!this.folderLangs[f]) {
-        // Detect language from folder contents
-        const enWord = typeof DefaultEnglishWords !== 'undefined' && DefaultEnglishWords.find(w => w.folder === f);
-        this.folderLangs[f] = enWord ? "en" : "ja";
-        needFolderLangFix = true;
-      }
-    }
-    // Migrate: ensure DefaultEnglishWords folders exist
-    if (typeof DefaultEnglishWords !== 'undefined') {
-      const enFolders = [...new Set(DefaultEnglishWords.map(w => w.folder))];
-      for (let ef of enFolders) {
-        if (!this.folders.includes(ef)) {
-          this.folders.push(ef);
-          this.folderLangs[ef] = "en";
-          needFolderLangFix = true;
+
+    try {
+        /*
+         * 迁移函数是可重复运行的：
+         * 它只补缺失数据，不删除或覆盖用户内容。
+         */
+        await this.runDataMigrations();
+
+        if (needsMigration) {
+            localStorage.setItem(
+                'dataSchemaVersion',
+                String(DATA_SCHEMA_VERSION)
+            );
+
+            console.log(
+                `[Migration] 数据格式已从 ${storedSchemaVersion} 升级到 ${DATA_SCHEMA_VERSION}`
+            );
         }
-        // Ensure English words exist in db
-        const existingWords = new Set(this.db.map(w => w.word));
-        let addedCount = 0;
-        DefaultEnglishWords.forEach(w => {
-          if (!existingWords.has(w.word)) {
-            this.db.push({...w});
-            addedCount++;
-          }
-        });
-        if (addedCount > 0) await this.saveDB();
-      }
+    } catch (error) {
+        console.error(
+            '[Migration] 数据迁移失败',
+            error
+        );
+
+        if (migrationSnapshot) {
+            try {
+                await this.restoreMigrationSnapshot(
+                    migrationSnapshot
+                );
+
+                localStorage.setItem(
+                    'dataSchemaVersion',
+                    String(storedSchemaVersion)
+                );
+            } catch (restoreError) {
+                console.error(
+                    '[Migration] 自动恢复也失败',
+                    restoreError
+                );
+            }
+        }
+
+        throw error;
     }
-    if (needFolderLangFix) await this.saveFolderLangs();
-  
-  let needSave = false;
-  for (let word in this.mtWordClears) {
-      if (typeof this.mtWordClears[word] === 'number') {
-          this.mtWordClears[word] = { kanji: false, kana: false, meaning: false };
-          needSave = true;
-      }
-  }
-  if (needSave) await this.saveClears();
 },
 
   saveDB() {
@@ -3031,9 +3751,10 @@ const Controller = {
     Hardware.init(); 
     View.renderDashboard(); 
     View.updateWordbankUI(); 
-    this.bindEvents(); 
-    this.setupVirtualScroll(); 
-    this.setupHeaderScrollShadow(); 
+    this.bindEvents();
+    await this.updateRestorePointUI();
+    this.setupVirtualScroll();
+    this.setupHeaderScrollShadow();
     
     if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
     
@@ -3603,15 +4324,40 @@ if (testVibrateBtn) {
         }, { passive: true });
     }
 
-    let btnExport = View.getEl('btn-export-backup');
+    const btnExport = View.getEl('btn-export-backup');
 
-    if (btnExport) btnExport.addEventListener('click', () => this.exportBackup());
-    
-    let btnImport = View.getEl('btn-import-backup');
-    let fileImport = View.getEl('file-import-backup');
+    if (btnExport) {
+        btnExport.addEventListener('click', () => {
+            this.exportBackup();
+        });
+    }
+
+    const btnImport = View.getEl('btn-import-backup');
+    const fileImport = View.getEl('file-import-backup');
+
     if (btnImport && fileImport) {
-        btnImport.addEventListener('click', () => { Hardware.vibrate(15); fileImport.click(); });
-        fileImport.addEventListener('change', (e) => { if(e.target.files.length > 0) this.importBackup(e.target.files[0]); e.target.value = ''; });
+        btnImport.addEventListener('click', () => {
+            Hardware.vibrate(15);
+            fileImport.click();
+        });
+
+        fileImport.addEventListener('change', event => {
+            const selectedFile = event.target.files?.[0];
+
+            if (selectedFile) {
+                this.importBackup(selectedFile);
+            }
+
+            event.target.value = '';
+        });
+    }
+
+    const btnUndoImport = View.getEl('btn-undo-import');
+
+    if (btnUndoImport) {
+        btnUndoImport.addEventListener('click', () => {
+            this.restorePreImportBackup();
+        });
     }
 
 
@@ -4151,40 +4897,873 @@ if (aiCloseBtn) {
     }
   },
 
-  exportBackup() {
-      Hardware.playSound('success'); Hardware.vibrate(50);
-      let data = { db: Model.db, folders: Model.folders, folderLangs: Model.folderLangs, stars: Model.stars, records: Model.records, mtGroupClears: Model.mtGroupClears, mtWordClears: Model.mtWordClears, version: "v4", exportDate: new Date().toISOString() };
-      let fileName = `钟日备份_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.json`;
-      let blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-      if (navigator.share && navigator.canShare) { let file = new File([blob], fileName, { type: "application/json" }); if (navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: '钟摆日语数据备份' }).then(() => showToast("已成功调起保存面板")).catch((e) => this.fallbackDownload(blob, fileName)); return; } }
-      this.fallbackDownload(blob, fileName);
+  collectBackupPreferences() {
+      const preferences = {};
+
+      for (const key of BACKUP_PREFERENCE_KEYS) {
+          const value = localStorage.getItem(key);
+
+          if (value !== null) {
+              preferences[key] = value;
+          }
+      }
+
+      return preferences;
   },
 
-  fallbackDownload(blob, fileName) { let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("尝试唤起本地下载..."); },
+  applyBackupPreferences(preferences) {
+      if (
+          !preferences ||
+          typeof preferences !== 'object' ||
+          Array.isArray(preferences)
+      ) {
+          return;
+      }
 
-  importBackup(file) {
-      if (!file) return;
-      let reader = new FileReader();
-      reader.onload = (e) => {
-          try {
-              let data = JSON.parse(e.target.result);
-              if (data && data.db && data.folders) {
-                  Model.db = data.db; Model.folders = data.folders; 
-                  Model.folderLangs = data.folderLangs || {}; 
-                  // Migrate: ensure all folders have lang
-                  for (let f of Model.folders) {
-                    if (!Model.folderLangs[f]) Model.folderLangs[f] = "ja";
-                  }
-                  // Migrate: ensure all words have lang
-                  for (let w of Model.db) {
-                    if (!w.lang) w.lang = "ja";
-                  }
-                  Model.stars = data.stars || []; Model.records = data.records || []; Model.mtGroupClears = data.mtGroupClears || {}; Model.mtWordClears = data.mtWordClears || {};
-                  Promise.all([Model.saveDB(), Model.saveFolders(), Model.saveFolderLangs(), Model.saveStars(), Model.saveRecords(), Model.saveClears()]).then(() => { Hardware.playSound('success'); Hardware.vibrate(100); showToast("数据恢复成功！"); setTimeout(() => location.reload(), 1000); });
-              } else { Hardware.playSound('error'); Hardware.vibrate(50); showToast("备份文件格式不正确"); }
-          } catch(err) { Hardware.playSound('error'); Hardware.vibrate(50); showToast("解析文件失败"); }
+      for (const key of BACKUP_PREFERENCE_KEYS) {
+          if (
+              Object.prototype.hasOwnProperty.call(
+                  preferences,
+                  key
+              )
+          ) {
+              localStorage.setItem(
+                  key,
+                  String(preferences[key])
+              );
+          }
+      }
+  },
+
+  buildBackupPayload(kind = 'manual') {
+      const cloneValue = value => {
+          return JSON.parse(
+              JSON.stringify(value)
+          );
       };
-      reader.readAsText(file);
+
+      return {
+          format: BACKUP_FORMAT_ID,
+          backupVersion: BACKUP_FORMAT_VERSION,
+          schemaVersion:
+              typeof DATA_SCHEMA_VERSION === 'number'
+                  ? DATA_SCHEMA_VERSION
+                  : 1,
+
+          appName: '钟日',
+          kind,
+          exportDate: new Date().toISOString(),
+
+          data: {
+              db: cloneValue(Model.db),
+              folders: cloneValue(Model.folders),
+              folderLangs: cloneValue(
+                  Model.folderLangs
+              ),
+              stars: cloneValue(Model.stars),
+              records: cloneValue(Model.records),
+              mtGroupClears: cloneValue(
+                  Model.mtGroupClears
+              ),
+              mtWordClears: cloneValue(
+                  Model.mtWordClears
+              ),
+              aiConversations: cloneValue(
+                  Model.aiConversations
+              )
+          },
+
+          preferences:
+              this.collectBackupPreferences()
+      };
+  },
+
+  normalizeBackupPayload(rawData) {
+      if (
+          rawData &&
+          rawData.format === BACKUP_FORMAT_ID &&
+          rawData.data
+      ) {
+          return {
+              format: BACKUP_FORMAT_ID,
+              backupVersion:
+                  Number(rawData.backupVersion) || 5,
+              schemaVersion:
+                  Number(rawData.schemaVersion) || 1,
+              appName: rawData.appName || '钟日',
+              kind: rawData.kind || 'manual',
+              exportDate:
+                  rawData.exportDate || null,
+
+              data: {
+                  db: rawData.data.db,
+                  folders: rawData.data.folders,
+                  folderLangs:
+                      rawData.data.folderLangs,
+                  stars: rawData.data.stars,
+                  records: rawData.data.records,
+                  mtGroupClears:
+                      rawData.data.mtGroupClears,
+                  mtWordClears:
+                      rawData.data.mtWordClears,
+
+                  aiConversations:
+                      Array.isArray(
+                          rawData.data.aiConversations
+                      )
+                          ? rawData.data.aiConversations
+                          : null
+              },
+
+              preferences:
+                  rawData.preferences &&
+                  typeof rawData.preferences ===
+                      'object'
+                      ? rawData.preferences
+                      : {}
+          };
+      }
+
+      /*
+       * 兼容旧版 v4 备份。
+       */
+      if (
+          rawData &&
+          Array.isArray(rawData.db) &&
+          Array.isArray(rawData.folders)
+      ) {
+          return {
+              format: BACKUP_FORMAT_ID,
+              backupVersion: 4,
+              schemaVersion: 0,
+              appName: '钟日',
+              kind: 'legacy',
+              exportDate:
+                  rawData.exportDate || null,
+
+              data: {
+                  db: rawData.db,
+                  folders: rawData.folders,
+                  folderLangs:
+                      rawData.folderLangs || {},
+                  stars: rawData.stars || [],
+                  records: rawData.records || [],
+                  mtGroupClears:
+                      rawData.mtGroupClears || {},
+                  mtWordClears:
+                      rawData.mtWordClears || {},
+
+                  aiConversations:
+                      Array.isArray(
+                          rawData.aiConversations
+                      )
+                          ? rawData.aiConversations
+                          : null
+              },
+
+              preferences:
+                  rawData.preferences &&
+                  typeof rawData.preferences ===
+                      'object'
+                      ? rawData.preferences
+                      : {}
+          };
+      }
+
+      throw new Error('无法识别此备份文件');
+  },
+
+  validateBackupPayload(payload) {
+      if (
+          !payload ||
+          payload.format !== BACKUP_FORMAT_ID ||
+          !payload.data
+      ) {
+          throw new Error('备份文件格式不正确');
+      }
+
+      if (!Array.isArray(payload.data.db)) {
+          throw new Error('备份中缺少词库数据');
+      }
+
+      if (!Array.isArray(payload.data.folders)) {
+          throw new Error('备份中缺少文件夹数据');
+      }
+
+      const invalidWord = payload.data.db.find(word => {
+          return (
+              !word ||
+              typeof word !== 'object' ||
+              typeof word.word !== 'string'
+          );
+      });
+
+      if (invalidWord) {
+          throw new Error('备份中的词汇数据不完整');
+      }
+
+      return true;
+  },
+
+  renderBackupSummary(payload) {
+      const data = payload.data;
+
+      let dateText = '未知时间';
+
+      if (payload.exportDate) {
+          const parsedDate =
+              new Date(payload.exportDate);
+
+          if (!Number.isNaN(parsedDate.getTime())) {
+              dateText =
+                  parsedDate.toLocaleString('zh-CN');
+          }
+      }
+
+      const wordCount =
+          Array.isArray(data.db)
+              ? data.db.length
+              : 0;
+
+      const folderCount =
+          Array.isArray(data.folders)
+              ? data.folders.length
+              : 0;
+
+      const recordCount =
+          Array.isArray(data.records)
+              ? data.records.length
+              : 0;
+
+      const aiIncluded =
+          Array.isArray(data.aiConversations);
+
+      const aiCount =
+          aiIncluded
+              ? data.aiConversations.length
+              : 0;
+
+      const preferenceCount =
+          payload.preferences &&
+          typeof payload.preferences === 'object'
+              ? Object.keys(
+                    payload.preferences
+                ).length
+              : 0;
+
+      return `
+          <div style="
+              margin-top: 12px;
+              padding: 16px;
+              border-radius: 18px;
+              background: var(--surface);
+              border: 1px solid var(--outline);
+              text-align: left;
+              line-height: 1.8;
+          ">
+              <div>
+                  <strong>备份时间：</strong>
+                  ${escapeHTML(dateText)}
+              </div>
+
+              <div>
+                  <strong>词汇：</strong>
+                  ${wordCount} 条
+              </div>
+
+              <div>
+                  <strong>词库：</strong>
+                  ${folderCount} 个
+              </div>
+
+              <div>
+                  <strong>学习记录：</strong>
+                  ${recordCount} 条
+              </div>
+
+              <div>
+                  <strong>AI 对话：</strong>
+                  ${
+                      aiIncluded
+                          ? `${aiCount} 条`
+                          : '旧版备份未包含'
+                  }
+              </div>
+
+              <div>
+                  <strong>偏好设置：</strong>
+                  ${
+                      preferenceCount > 0
+                          ? `${preferenceCount} 项`
+                          : '未包含'
+                  }
+              </div>
+          </div>
+      `;
+  },
+
+  async storePreImportRestorePoint() {
+      const restorePoint =
+          this.buildBackupPayload(
+              'pre-import-restore'
+          );
+
+      await Model.writeStorageValue(
+          PRE_IMPORT_RESTORE_KEY,
+          restorePoint
+      );
+
+      await this.updateRestorePointUI();
+
+      return restorePoint;
+  },
+
+  async removePreImportRestorePoint() {
+      try {
+          if (
+              typeof idbKeyval !== 'undefined'
+          ) {
+              await idbKeyval.del(
+                  PRE_IMPORT_RESTORE_KEY
+              );
+          }
+      } catch (error) {
+          console.warn(
+              '[Backup] 删除 IndexedDB 恢复点失败',
+              error
+          );
+      }
+
+      localStorage.removeItem(
+          PRE_IMPORT_RESTORE_KEY
+      );
+
+      await this.updateRestorePointUI();
+  },
+
+  async updateRestorePointUI() {
+      const button =
+          View.getEl('btn-undo-import');
+
+      const note =
+          View.getEl('backup-restore-note');
+
+      if (!button && !note) {
+          return;
+      }
+
+      let restorePoint = null;
+
+      try {
+          restorePoint =
+              await Model.readStorageValue(
+                  PRE_IMPORT_RESTORE_KEY
+              );
+      } catch (error) {
+          console.warn(
+              '[Backup] 读取导入恢复点失败',
+              error
+          );
+      }
+
+      const hasRestorePoint =
+          Boolean(
+              restorePoint &&
+              restorePoint.data &&
+              Array.isArray(
+                  restorePoint.data.db
+              )
+          );
+
+      if (button) {
+          button.style.display =
+              hasRestorePoint
+                  ? 'flex'
+                  : 'none';
+      }
+
+      if (note) {
+          note.style.display =
+              hasRestorePoint
+                  ? 'block'
+                  : 'none';
+      }
+  },
+
+  async applyBackupPayload(payload) {
+      this.validateBackupPayload(payload);
+
+      const data = payload.data;
+
+      const restoredDB =
+          JSON.parse(
+              JSON.stringify(data.db)
+          );
+
+      const restoredFolders =
+          JSON.parse(
+              JSON.stringify(data.folders)
+          );
+
+      const restoredFolderLangs =
+          data.folderLangs &&
+          typeof data.folderLangs === 'object'
+              ? JSON.parse(
+                    JSON.stringify(
+                        data.folderLangs
+                    )
+                )
+              : {};
+
+      if (restoredFolders.length === 0) {
+          restoredFolders.push('默认词库');
+      }
+
+      /*
+       * 补齐词库语言。
+       */
+      for (const folder of restoredFolders) {
+          if (!restoredFolderLangs[folder]) {
+              const containsEnglish =
+                  restoredDB.some(word => {
+                      return (
+                          word.folder === folder &&
+                          word.lang === 'en'
+                      );
+                  });
+
+              restoredFolderLangs[folder] =
+                  containsEnglish
+                      ? 'en'
+                      : 'ja';
+          }
+      }
+
+      /*
+       * 补齐旧备份中没有语言信息的词汇。
+       */
+      for (const word of restoredDB) {
+          if (!word.lang) {
+              word.lang =
+                  restoredFolderLangs[
+                      word.folder
+                  ] || 'ja';
+          }
+      }
+
+      Model.db = restoredDB;
+      Model.folders = restoredFolders;
+      Model.folderLangs =
+          restoredFolderLangs;
+
+      Model.stars =
+          Array.isArray(data.stars)
+              ? JSON.parse(
+                    JSON.stringify(data.stars)
+                )
+              : [];
+
+      Model.records =
+          Array.isArray(data.records)
+              ? JSON.parse(
+                    JSON.stringify(
+                        data.records
+                    )
+                )
+              : [];
+
+      Model.mtGroupClears =
+          data.mtGroupClears &&
+          typeof data.mtGroupClears ===
+              'object'
+              ? JSON.parse(
+                    JSON.stringify(
+                        data.mtGroupClears
+                    )
+                )
+              : {};
+
+      Model.mtWordClears =
+          data.mtWordClears &&
+          typeof data.mtWordClears ===
+              'object'
+              ? JSON.parse(
+                    JSON.stringify(
+                        data.mtWordClears
+                    )
+                )
+              : {};
+
+      /*
+       * 老备份没有 AI 对话时，
+       * 保留设备里现有的 AI 对话，
+       * 避免导入旧文件时意外清空。
+       */
+      if (
+          Array.isArray(
+              data.aiConversations
+          )
+      ) {
+          Model.aiConversations =
+              JSON.parse(
+                  JSON.stringify(
+                      data.aiConversations
+                  )
+              );
+      }
+
+      this.applyBackupPreferences(
+          payload.preferences
+      );
+
+      await Model.saveAllUserData();
+  },
+
+  async exportBackup() {
+      const payload =
+          this.buildBackupPayload('manual');
+
+      const dateStamp =
+          new Date()
+              .toISOString()
+              .slice(0, 19)
+              .replace(/[T:]/g, '-');
+
+      const fileName =
+          `钟日完整备份_${dateStamp}.json`;
+
+      const blob = new Blob(
+          [
+              JSON.stringify(
+                  payload,
+                  null,
+                  2
+              )
+          ],
+          {
+              type:
+                  'application/json;charset=utf-8'
+          }
+      );
+
+      Hardware.playSound('success');
+      Hardware.vibrate(50);
+
+      try {
+          if (
+              navigator.share &&
+              navigator.canShare
+          ) {
+              const file = new File(
+                  [blob],
+                  fileName,
+                  {
+                      type:
+                          'application/json'
+                  }
+              );
+
+              if (
+                  navigator.canShare({
+                      files: [file]
+                  })
+              ) {
+                  await navigator.share({
+                      files: [file],
+                      title: '钟日数据备份',
+                      text:
+                          '钟日完整学习数据备份'
+                  });
+
+                  showToast('备份文件已生成');
+                  return;
+              }
+          }
+      } catch (error) {
+          if (error?.name === 'AbortError') {
+              showToast('已取消导出');
+              return;
+          }
+
+          console.warn(
+              '[Backup] 系统分享失败，改用下载',
+              error
+          );
+      }
+
+      this.fallbackDownload(
+          blob,
+          fileName
+      );
+  },
+
+  fallbackDownload(blob, fileName) {
+      const url =
+          URL.createObjectURL(blob);
+
+      const anchor =
+          document.createElement('a');
+
+      anchor.style.display = 'none';
+      anchor.href = url;
+      anchor.download = fileName;
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+      }, 1000);
+
+      showToast('备份文件已生成');
+  },
+
+  async importBackup(file) {
+      if (!file) {
+          return;
+      }
+
+      if (file.size > 25 * 1024 * 1024) {
+          Hardware.playSound('error');
+          Hardware.vibrate(50);
+          showToast('备份文件过大');
+          return;
+      }
+
+      try {
+          const fileText =
+              await file.text();
+
+          const rawData =
+              JSON.parse(fileText);
+
+          const payload =
+              this.normalizeBackupPayload(
+                  rawData
+              );
+
+          this.validateBackupPayload(
+              payload
+          );
+
+          const summary =
+              this.renderBackupSummary(
+                  payload
+              );
+
+          showConfirm(
+              '确认导入这份备份？',
+              `
+                  ${summary}
+
+                  <div style="
+                      margin-top: 14px;
+                      color: var(--accent-red);
+                      font-size: 0.86rem;
+                      line-height: 1.65;
+                  ">
+                      当前词库和学习进度将被替换。
+                      导入前会自动保存恢复点，
+                      可以通过“撤销上次导入”恢复。
+                  </div>
+              `,
+              async () => {
+                  showToast('正在恢复数据…');
+
+                  let restorePoint = null;
+
+                  try {
+                      restorePoint =
+                          await this
+                              .storePreImportRestorePoint();
+
+                      await this.applyBackupPayload(
+                          payload
+                      );
+
+                      Hardware.playSound(
+                          'success'
+                      );
+
+                      Hardware.vibrate(100);
+
+                      showToast('数据恢复成功');
+
+                      window.setTimeout(() => {
+                          location.reload();
+                      }, 900);
+                  } catch (error) {
+                      console.error(
+                          '[Backup] 导入失败',
+                          error
+                      );
+
+                      if (restorePoint) {
+                          try {
+                              await this
+                                  .applyBackupPayload(
+                                      restorePoint
+                                  );
+
+                              showToast(
+                                  '导入失败，已恢复原数据'
+                              );
+                          } catch (
+                              restoreError
+                          ) {
+                              console.error(
+                                  '[Backup] 自动恢复失败',
+                                  restoreError
+                              );
+
+                              showToast(
+                                  '导入和自动恢复均失败'
+                              );
+                          }
+                      } else {
+                          showToast(
+                              '导入失败，未修改数据'
+                          );
+                      }
+
+                      Hardware.playSound(
+                          'error'
+                      );
+
+                      Hardware.vibrate(50);
+                  }
+              }
+          );
+      } catch (error) {
+          console.error(
+              '[Backup] 读取备份失败',
+              error
+          );
+
+          Hardware.playSound('error');
+          Hardware.vibrate(50);
+
+          showToast(
+              error?.message ||
+              '无法读取备份文件'
+          );
+      }
+  },
+
+  async restorePreImportBackup() {
+      let restorePoint = null;
+
+      try {
+          restorePoint =
+              await Model.readStorageValue(
+                  PRE_IMPORT_RESTORE_KEY
+              );
+      } catch (error) {
+          console.error(
+              '[Backup] 读取恢复点失败',
+              error
+          );
+      }
+
+      if (
+          !restorePoint ||
+          !restorePoint.data ||
+          !Array.isArray(
+              restorePoint.data.db
+          )
+      ) {
+          showToast('没有可用的恢复点');
+          await this.updateRestorePointUI();
+          return;
+      }
+
+      const summary =
+          this.renderBackupSummary(
+              restorePoint
+          );
+
+      showConfirm(
+          '撤销上次导入？',
+          `
+              ${summary}
+
+              <div style="
+                  margin-top: 14px;
+                  color: var(--accent-red);
+                  font-size: 0.86rem;
+                  line-height: 1.65;
+              ">
+                  将恢复到上次导入之前的状态。
+              </div>
+          `,
+          async () => {
+              /*
+               * 先在内存中保存当前状态。
+               * 如果撤销过程失败，仍能恢复回来。
+               */
+              const currentSafetyCopy =
+                  this.buildBackupPayload(
+                      'before-undo-import'
+                  );
+
+              try {
+                  showToast(
+                      '正在恢复导入前的数据…'
+                  );
+
+                  await this.applyBackupPayload(
+                      restorePoint
+                  );
+
+                  await this
+                      .removePreImportRestorePoint();
+
+                  Hardware.playSound(
+                      'success'
+                  );
+
+                  Hardware.vibrate(100);
+
+                  showToast(
+                      '已撤销上次导入'
+                  );
+
+                  window.setTimeout(() => {
+                      location.reload();
+                  }, 900);
+              } catch (error) {
+                  console.error(
+                      '[Backup] 撤销导入失败',
+                      error
+                  );
+
+                  try {
+                      await this.applyBackupPayload(
+                          currentSafetyCopy
+                      );
+
+                      showToast(
+                          '撤销失败，已保留当前数据'
+                      );
+                  } catch (
+                      restoreError
+                  ) {
+                      console.error(
+                          '[Backup] 保留当前数据失败',
+                          restoreError
+                      );
+
+                      showToast(
+                          '数据恢复出现严重错误'
+                      );
+                  }
+
+                  Hardware.playSound('error');
+                  Hardware.vibrate(50);
+              }
+          }
+      );
   },
 
     startPendulum(launchMode = 'pendulum') {

@@ -1304,18 +1304,135 @@ button#btn-test-vibrate:active {
     box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 -8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.modal-overlay.active .bottom-sheet { transform: translateY(0); }
-/* 🚀 MD3 底部抽屉：超短粗物理把手 (Heavy Pill Handle)，强化拖拽的触觉心理暗示 */
-.bs-handle { 
-    width: 32px; 
-    height: 6px; 
-    background: var(--outline); 
-    border-radius: var(--radius-full); 
-    margin: 0 auto var(--space-md); 
-    opacity: 0.85; 
+/*
+ * 默认打开状态使用变量控制位置。
+ * 正常状态变量为 0，拖动时由 JavaScript 实时更新。
+ */
+.modal-overlay.active .bottom-sheet {
+    transform: translateY(
+        var(--sheet-drag-y, 0px)
+    );
+}
+
+/*
+ * 手指拖动期间必须取消过渡，
+ * 否则抽屉会明显落后于手指。
+ */
+.bottom-sheet.is-dragging {
+    transition: none !important;
+    will-change: transform;
+}
+
+/*
+ * 下拉距离不足时的回弹。
+ */
+.bottom-sheet.is-settling {
+    transition:
+        transform 280ms
+        cubic-bezier(0.22, 1, 0.36, 1)
+        !important;
+}
+
+/*
+ * 达到关闭条件后的退出动画。
+ */
+.bottom-sheet.is-dismissing {
+    transition:
+        transform 220ms
+        cubic-bezier(0.4, 0, 1, 1)
+        !important;
+}
+
+/*
+ * 抽屉下沉的同时让遮罩快速消失，
+ * 避免抽屉离场后还剩一层模糊蒙版。
+ */
+.modal-overlay.active.sheet-dismissing {
+    opacity: 0;
+    pointer-events: none;
+
+    transition-duration: 220ms;
+}
+
+/*
+ * 可拖动的顶部横条。
+ *
+ * 视觉上仍然是一根短横条，
+ * 但使用透明伪元素扩大实际触摸范围。
+ */
+.bs-handle {
+    position: relative;
+
+    width: 36px;
+    height: 6px;
+
+    margin:
+        0
+        auto
+        var(--space-md);
+
     flex-shrink: 0;
-    /* 注入微弱高光，赋予横条“实体橡胶把手”的精密质感 */
-    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0,0,0,0.05);
+
+    background: var(--outline);
+    border-radius: var(--radius-full);
+
+    opacity: 0.85;
+
+    cursor: grab;
+    touch-action: none;
+
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+
+    transition:
+        transform 180ms ease,
+        opacity 180ms ease,
+        background 180ms ease;
+
+    box-shadow:
+        inset 0 1px 1px
+            rgba(255, 255, 255, 0.6),
+        0 1px 2px
+            rgba(0, 0, 0, 0.05);
+}
+
+/*
+ * 横条本身只有 36 × 6 像素，
+ * 但真实可触摸范围向四周扩大。
+ */
+.bs-handle::before {
+    content: "";
+
+    position: absolute;
+
+    top: -14px;
+    right: -24px;
+    bottom: -14px;
+    left: -24px;
+
+    border-radius: 999px;
+}
+
+/*
+ * 拖动时让横条略微拉长，
+ * 提示用户当前已经抓住它。
+ */
+.bs-handle.is-dragging {
+    cursor: grabbing;
+    opacity: 1;
+    transform: scaleX(1.2);
+}
+
+/*
+ * 键盘聚焦状态。
+ */
+.bs-handle:focus-visible {
+    outline:
+        3px solid
+        rgba(107, 132, 123, 0.24);
+
+    outline-offset: 8px;
 }
 
 /* 🚀 极夜墨迹：深色模式下的把手材质映射 */

@@ -264,12 +264,83 @@
 
     <div class="card-panel">
       <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
-      <div class="setting-desc" style="margin-bottom: 16px;">将你的词库、学习进度和打卡记录导出为本地文件，以防数据丢失或用于更换设备。</div>
-      <div class="flex-row" style="margin-bottom: 0; gap: 12px;">
-         <button id="btn-export-backup" class="btn-outline icon-text-gap" style="flex: 1;"><span class="material-symbols-rounded" style="font-size: 1.1rem;">download</span> 导出备份</button>
-         <button id="btn-import-backup" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--tertiary); color: var(--tertiary);"><span class="material-symbols-rounded" style="font-size: 1.1rem;">upload</span> 导入恢复</button>
-         <input type="file" id="file-import-backup" accept=".json" style="display: none;">
-      </div>
+<div class="setting-desc" style="margin-bottom: 8px;">
+  导出词库、学习进度、收藏、AI 对话和偏好设置，用于防止数据丢失或更换设备。
+</div>
+
+<div class="setting-desc" style="margin-bottom: 18px; color: var(--tertiary);">
+  出于安全考虑，备份文件不会包含 DeepSeek API Key。
+</div>
+
+<div class="flex-row" style="margin-bottom: 12px; gap: 12px;">
+  <button
+    id="btn-export-backup"
+    class="btn-outline icon-text-gap"
+    style="flex: 1;"
+  >
+    <span
+      class="material-symbols-rounded"
+      style="font-size: 1.1rem;"
+    >
+      download
+    </span>
+    导出备份
+  </button>
+
+  <button
+    id="btn-import-backup"
+    class="btn-outline icon-text-gap"
+    style="flex: 1; border-color: var(--tertiary); color: var(--tertiary);"
+  >
+    <span
+      class="material-symbols-rounded"
+      style="font-size: 1.1rem;"
+    >
+      upload
+    </span>
+    导入恢复
+  </button>
+
+  <input
+    type="file"
+    id="file-import-backup"
+    accept=".json,application/json"
+    style="display: none;"
+  >
+</div>
+
+<button
+  id="btn-undo-import"
+  class="btn-outline icon-text-gap"
+  style="
+    display: none;
+    width: 100%;
+    margin: 0;
+    border-color: var(--outline);
+    color: var(--on-surface);
+    opacity: 0.78;
+  "
+>
+  <span
+    class="material-symbols-rounded"
+    style="font-size: 1.1rem;"
+  >
+    restore
+  </span>
+  撤销上次导入
+</button>
+
+<div
+  id="backup-restore-note"
+  class="setting-desc"
+  style="
+    display: none;
+    margin-top: 10px;
+    text-align: center;
+  "
+>
+  已保存导入前的恢复点
+</div>
     </div>
 
     <div class="card-panel">

@@ -1,5 +1,5 @@
 /**
- * 钟摆日语 - 核心控制逻辑
+  * 钟日 - 核心控制逻辑
  */
 
 const DATA_SCHEMA_VERSION = 1;
@@ -906,17 +906,12 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
-    comboCount: 0, maxSessionCombo: 0, sessionSaved: false,
+        comboCount: 0,
     maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
     batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
     isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1, currentLangMode: 'ja'
   },
-  
-  lbState: {
-      singleMode: 'dual-track', 
-      page: 1,
-      pageSize: 50
-  },
+
 
   async init() {
       await this.loadData();
@@ -1964,51 +1959,7 @@ const View = {
     });
   },
 
-  renderLeaderboard() {
-      let allComboRecords = Model.records.filter(r => r.type === 'combo_record');
-      let mode = Model.lbState.singleMode;
-      
-      document.querySelectorAll('#lb-tabs .g-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
-      
-      let filtered = allComboRecords.filter(r => r.mode === mode);
-      filtered.sort((a, b) => b.combo - a.combo || b.timestamp - a.timestamp);
 
-      let listEl = this.getEl('lb-single-list');
-      let limit = Model.lbState.page * Model.lbState.pageSize;
-      let displayList = filtered.slice(0, limit);
-      
-      let html = '';
-      if (filtered.length === 0) {
-          html = `<div style="text-align:center; padding: 40px 20px; opacity: 0.5;">暂无挑战记录</div>`;
-      } else {
-              displayList.forEach((r, idx) => {
-                  let rankHTML = '';
-                  if (idx === 0) rankHTML = `<span class="material-symbols-rounded" style="color: #d4af37; font-size: 2.2rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(212,175,55,0.3));">trip_origin</span>`;
-                  else if (idx === 1) rankHTML = `<span class="material-symbols-rounded" style="color: #C0C0C0; font-size: 1.8rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(192,192,192,0.3));">trip_origin</span>`;
-                  else if (idx === 2) rankHTML = `<span class="material-symbols-rounded" style="color: #cd7f32; font-size: 1.8rem; font-variation-settings: 'FILL' 0; filter: drop-shadow(0 4px 8px rgba(205,127,50,0.3));">trip_origin</span>`;
-                  else rankHTML = `<span style="font-size: 1.1rem; font-weight: 800; opacity: 0.4;">#${idx + 1}</span>`;
-
-
-              html += `
-              <div style="display:flex; justify-content:space-between; align-items:center; padding: 14px 12px; border-bottom: 1px solid var(--outline);">
-                 <div>
-                    <div style="font-size: 1.3rem; font-weight: 800; color: var(--primary); margin-bottom: 4px;">${r.combo} 连击</div>
-                    <div style="font-size: 0.8rem; opacity: 0.7;">${r.dateStr} · ${r.group}</div>
-                 </div>
-                 <div style="display:flex; align-items:center; justify-content:center; width:40px;">${rankHTML}</div>
-              </div>`;
-          });
-      }
-      listEl.innerHTML = html;
-      
-      let btnMore = this.getEl('btn-lb-load-more');
-      if (filtered.length > limit) { 
-          btnMore.style.display = 'block'; 
-          btnMore.onclick = () => { Hardware.vibrate(10); Model.lbState.page++; this.renderLeaderboard(); }; 
-      } else { 
-          btnMore.style.display = 'none'; 
-      }
-  },
 
   updateGroupTabs() {
       let tabsContainer = this.getEl('gs-tabs');
@@ -3857,24 +3808,7 @@ setupVirtualScroll() {
       updateHeaderStatus();
   },
 
-  saveSessionRecord() {
-      if (Model.state.sessionSaved) return; 
-      let mode = Model.state.mode;
-      if (mode === 'dual-track' || mode === 'memory-test' || mode === 'rote-learning') {
-          let t = new Date();
-          let dateStr = t.toLocaleDateString('zh-CN') + ' ' + t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
-          Model.records.push({
-              type: 'combo_record',
-              mode: mode,
-              combo: Model.state.maxSessionCombo,
-              group: Model.state.currentGroupLabel || '默认词库',
-              timestamp: t.getTime(),
-              dateStr: dateStr
-          });
-          Model.saveRecords();
-      }
-      Model.state.sessionSaved = true;
-  },
+
 
   closeDetailIfOpen() {
       if (document.getElementById('detail-overlay').classList.contains('active')) {
@@ -3902,7 +3836,7 @@ setupVirtualScroll() {
         btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); this.saveSessionRecord(); View.showPage('tab-home'); View.renderDashboard(); });
+    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); View.showPage('tab-home'); View.renderDashboard(); });
 
     // 📚 词书切换核心事件
     document.querySelectorAll('.book-card').forEach(card => {
@@ -4273,12 +4207,6 @@ if (aiChatSend) {
         Controller.sendAIMessage();
     });
 }
-if (aiChatSend) {
-    aiChatSend.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        Controller.sendAIMessage();
-    });
-}
 let aiChatInput = View.getEl('ai-chat-input');
 if (aiChatInput) {
     aiChatInput.addEventListener('keydown', (e) => {
@@ -4406,9 +4334,7 @@ if (testVibrateBtn) {
         });
     }
     
-    let lbLayoutTrigger = View.getEl('setting-lb-layout');
-    if (lbLayoutTrigger) { let facade = lbLayoutTrigger.nextElementSibling; if (facade && facade.classList.contains('bs-facade')) { facade.addEventListener('click', () => { Hardware.vibrate(15); BottomSheet.open(lbLayoutTrigger, facade.querySelector('.bs-facade-text')); }); } }
-    
+
     View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakWord(w, e.currentTarget); });
     View.getEl('star-btn').addEventListener('click', (e) => { 
         Hardware.playSound('click'); 
@@ -5857,7 +5783,7 @@ const startIdx = groupIndex * GROUP_STEP;
     localStorage.setItem('lastCustomGroupVal', groupKey);
     localStorage.setItem('lastCustomGroupTxt', groupLabel);
     Hardware.playSound('click'); 
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
+    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
     if (launchMode === 'memory-test') { Model.state.mtRound = 1; Model.state.mtBaseQueue = sourceWords.map(x => x.i); Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Model.state.totalTestWords = Model.state.studyQueue.length; } 
     else { Model.state.studyQueue = []; let len = sourceWords.length; for (let i = 0; i < len; i++) { Model.state.studyQueue.push(sourceWords[i].i); for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i); for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i); } }
     Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
@@ -5930,7 +5856,7 @@ const startIdx = groupIndex * GROUP_STEP;
           });
       }
       Hardware.playSound('click'); 
-      Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false;
+      Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0;
       
       let rawQueue = sourceWords.map(x => x.i);
       if (localStorage.getItem('postponeTested') === 'true') {
@@ -6061,10 +5987,6 @@ const startIdx = groupIndex * GROUP_STEP;
           View.playStudyFeedback('correct');
 
           Model.state.comboCount++;
-          Model.state.maxSessionCombo = Math.max(
-              Model.state.maxSessionCombo,
-              Model.state.comboCount
-          );
           View.updateComboBadge();
 
           if (isEnglishRote) {
@@ -6169,10 +6091,6 @@ const startIdx = groupIndex * GROUP_STEP;
           View.playStudyFeedback('correct');
 
           Model.state.comboCount++;
-          Model.state.maxSessionCombo = Math.max(
-              Model.state.maxSessionCombo,
-              Model.state.comboCount
-          );
           View.updateComboBadge();
           
           let wMeaning = View.getEl('w-meaning');
@@ -6235,10 +6153,6 @@ const startIdx = groupIndex * GROUP_STEP;
       View.playStudyFeedback('correct');
 
       Model.state.comboCount++;
-      Model.state.maxSessionCombo = Math.max(
-          Model.state.maxSessionCombo,
-          Model.state.comboCount
-      );
       View.updateComboBadge();
 
       const disableChoiceButtons = () => {
@@ -6398,7 +6312,7 @@ const startIdx = groupIndex * GROUP_STEP;
 
     finishPendulum() {
     Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
-    this.saveSessionRecord(); 
+
 
     let gk = Model.state.currentGroupKey;
     Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;

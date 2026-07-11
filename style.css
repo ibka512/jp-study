@@ -174,27 +174,20 @@ body.modal-open .app-container {
   }
 
 [data-theme="dark"] .global-header { 
-    background: rgba(20, 18, 16, 0.75); 
-    border-bottom-color: rgba(255, 255, 255, 0.05);
+  background: rgba(26, 24, 22, 0.85); 
+  border-bottom-color: rgba(255, 255, 255, 0.05);
 }
 
-  /* 景深同步：顶栏随背景层级缩小 */
-  body.modal-open .global-header {
-    transform: scale(0.94);
-    filter: brightness(0.85);
-  }
-
+/* 景深同步：顶栏随背景层级缩小 */
+body.modal-open .global-header {
+  transform: scale(0.94);
+  filter: brightness(0.85);
+}
 
 /* 滚动时的阴影悬浮状态 (白天) */
 .global-header.scrolled {
   box-shadow: 0 4px 20px var(--paper-shadow); 
   border-bottom-color: transparent;
-}
-
-/* 夜间模式的基础背景色 */
-[data-theme="dark"] .global-header { 
-  background: rgba(26, 24, 22, 0.85); 
-  border-color: rgba(255,255,255,0.05); 
 }
 
 /* 滚动时的阴影悬浮状态 (夜间) */
@@ -1662,15 +1655,7 @@ button#btn-test-vibrate:active {
 
 .detail-anim-wrapper { transition: transform 0.2s ease, opacity 0.2s ease; position: relative;}
 
-@keyframes slideOutLeft { to { opacity: 0; transform: translateX(-40px) scale(0.95); } }
-@keyframes slideOutRight { to { opacity: 0; transform: translateX(40px) scale(0.95); } }
-@keyframes slideInRight { from { opacity: 0; transform: translateX(40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
-@keyframes slideInLeft { from { opacity: 0; transform: translateX(-40px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
 
-.anim-slide-out-left { animation: slideOutLeft 0.2s var(--spring); }
-.anim-slide-out-right { animation: slideOutRight 0.2s var(--spring); }
-.anim-slide-in-right { animation: slideInRight 0.2s var(--spring); }
-.anim-slide-in-left { animation: slideInLeft 0.2s var(--spring); }
 
 .dt-word { font-family: var(--font-jp-serif); font-size: 3.2rem; font-weight: 900; margin-bottom: 12px; color: var(--on-surface);}
 .dt-kana { font-family: var(--font-jp-sans); font-size: 1.25rem; font-weight: 600; opacity: 0.8; color: var(--on-surface); margin: 0;}
@@ -3341,10 +3326,7 @@ body[data-theme="dark"] .blur-text {
     background: rgba(129, 140, 248, 0.25);
     border-color: rgba(129, 140, 248, 0.4);
 }
-#ai-content-area {
-    font-family: var(--font-ui, sans-serif);
-    letter-spacing: 0.5px;
-}
+
 /* 等待 AI 思考时的呼吸波纹 */
 .ai-loading-pulse {
     animation: mask-breathe 1.5s infinite alternate ease-in-out;
@@ -3370,9 +3352,7 @@ body[data-theme="dark"] .blur-text {
     content: "";
 }
 
-.ai-response-box {
-    line-height: 1.95;
-}
+
 
 .ai-response-box h4 + br {
     display: none;
@@ -3480,29 +3460,7 @@ body[data-theme="dark"] .blur-text {
     border-color: rgba(129, 140, 248, 0.26);
 }
 
-/* 1. 提升 AI 弹窗的层级，确保它高于任何卡片 */
-#ai-modal-overlay {
-    z-index: 9999 !important; /* 确保它在最顶层 */
-}
 
-/* 2. 增强弹窗的背景，提高可读性 */
-#ai-modal-overlay .modal-content {
-    background-color: var(--surface) !important; /* 不再仅仅依赖模糊，而是实色填充 */
-    backdrop-filter: blur(15px) !important;
-    border: 1px solid var(--outline);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
-}
-
-/* 3. 给 AI 内容区增加一点内衬，防止文字贴边 */
-#ai-content-area {
-    padding: 20px !important;
-    color: var(--on-surface) !important;
-    background-color: rgba(255, 255, 255, 0.3); /* 给予微微的纸张底色 */
-}
-#ai-content-area {
-    background-color: var(--surface-container) !important; /* 将背景改为卡片专用纸张色 */
-    border-radius: 12px;
-}
 /* ==========================================
    🤖 嵌入式 AI 解析面板 (Inline AI Panel)
    ========================================== */

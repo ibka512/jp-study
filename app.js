@@ -2,7 +2,7 @@
   * 钟日 - 核心控制逻辑
  */
 
-const DATA_SCHEMA_VERSION = 1;
+const DATA_SCHEMA_VERSION = 2;
 const MIGRATION_SNAPSHOT_KEY = 'migrationSafetySnapshot_v1';
 
 const BACKUP_FORMAT_ID = 'zhongri-backup';
@@ -1213,6 +1213,54 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
               this.folderLangs[folder] =
                   containsEnglishWord ? 'en' : 'ja';
 
+              foldersChanged = true;
+          }
+      }
+
+      /*
+       * 修复旧版本中被误放进日语默认词库的英语词汇。
+       * 先把它们送回内置英语词库，再检查缺失的内置词，
+       * 可以避免更新后出现重复词汇。
+       */
+      if (
+          typeof DefaultEnglishWords !== 'undefined'
+      ) {
+          const defaultEnglishFolder =
+              DefaultEnglishWords.find(word => {
+                  return Boolean(word.folder);
+              })?.folder || '英语词库';
+
+          const misplacedEnglishWords =
+              this.db.filter(word => {
+                  return (
+                      word.lang === 'en' &&
+                      word.folder === '默认词库'
+                  );
+              });
+
+          if (misplacedEnglishWords.length > 0) {
+              if (
+                  !this.folders.includes(
+                      defaultEnglishFolder
+                  )
+              ) {
+                  this.folders.push(
+                      defaultEnglishFolder
+                  );
+              }
+
+              this.folderLangs[
+                  defaultEnglishFolder
+              ] = 'en';
+
+              for (
+                  const word of misplacedEnglishWords
+              ) {
+                  word.folder =
+                      defaultEnglishFolder;
+              }
+
+              dbChanged = true;
               foldersChanged = true;
           }
       }
@@ -6887,23 +6935,152 @@ const startIdx = groupIndex * GROUP_STEP;
       View.updateWordbankUI(); 
     }); 
   },
-  deleteFolder() { 
-      Hardware.vibrate(20); 
-      let filter = View.getEl('wb-folder-filter').value; 
-      if (filter === 'all' || filter === '默认词库' || filter.startsWith('virtual_')) return showToast("内置分类不可删除"); 
-      showConfirm('删除文件夹', `确定要删除「${filter}」吗？里面的单词会自动退回默认词库。`, () => { 
-          if (Model.state.batchMode) this.toggleBatchMode();
-          Model.db.forEach(w => { if(w.folder === filter) w.folder = "默认词库"; }); 
-          Model.folders = Model.folders.filter(f => f !== filter); 
-          delete Model.folderLangs[filter];
-          Model.saveFolders(); 
-          Model.saveFolderLangs();
-          Model.saveDB(); 
-          View.getEl('wb-folder-filter').value = "all"; 
-          View.updateWordbankUI(); 
-          View.resetWordbankRenderer(); 
-          showToast("已删除"); 
-      }); 
+  deleteFolder() {
+      Hardware.vibrate(20);
+
+      const folderFilter =
+          View.getEl('wb-folder-filter');
+
+      const filter = folderFilter.value;
+
+      const builtInEnglishFolders =
+          typeof DefaultEnglishWords !== 'undefined'
+              ? [
+                    ...new Set(
+                        DefaultEnglishWords
+                            .map(word => word.folder)
+                            .filter(Boolean)
+                    )
+                ]
+              : [];
+
+      const builtInFolders = new Set([
+          '默认词库',
+          ...builtInEnglishFolders
+      ]);
+
+      if (
+          filter === 'all' ||
+          builtInFolders.has(filter) ||
+          filter.startsWith('virtual_')
+      ) {
+          return showToast('内置分类不可删除');
+      }
+
+      const folderWords = Model.db.filter(word => {
+          return word.folder === filter;
+      });
+
+      const folderLang =
+          Model.folderLangs[filter] ||
+          folderWords.find(word => word.lang)?.lang ||
+          Model.state.currentLangMode ||
+          'ja';
+
+      const englishFallbackFolder =
+          builtInEnglishFolders.find(folder => {
+              return Model.folders.includes(folder);
+          }) ||
+          Model.folders.find(folder => {
+              return (
+                  folder !== filter &&
+                  Model.folderLangs[folder] === 'en'
+              );
+          }) ||
+          '英语词库';
+
+      const mainFallbackFolder =
+          folderLang === 'en'
+              ? englishFallbackFolder
+              : '默认词库';
+
+      showConfirm(
+          '删除文件夹',
+          `确定要删除「${filter}」吗？里面的 ${folderWords.length} 个单词会自动移至同语言的默认词库「${mainFallbackFolder}」。`,
+          () => {
+              if (Model.state.batchMode) {
+                  this.toggleBatchMode();
+              }
+
+              if (!Model.folders.includes('默认词库')) {
+                  Model.folders.unshift('默认词库');
+              }
+
+              Model.folderLangs['默认词库'] = 'ja';
+
+              const hasEnglishWord =
+                  folderWords.some(word => {
+                      return (
+                          word.lang === 'en' ||
+                          (
+                              !word.lang &&
+                              folderLang === 'en'
+                          )
+                      );
+                  });
+
+              if (hasEnglishWord) {
+                  if (
+                      !Model.folders.includes(
+                          englishFallbackFolder
+                      )
+                  ) {
+                      Model.folders.push(
+                          englishFallbackFolder
+                      );
+                  }
+
+                  Model.folderLangs[
+                      englishFallbackFolder
+                  ] = 'en';
+              }
+
+              Model.db.forEach(word => {
+                  if (word.folder !== filter) {
+                      return;
+                  }
+
+                  const wordLang =
+                      word.lang || folderLang;
+
+                  word.lang = wordLang;
+
+                  word.folder =
+                      wordLang === 'en'
+                          ? englishFallbackFolder
+                          : '默认词库';
+              });
+
+              Model.folders =
+                  Model.folders.filter(folder => {
+                      return folder !== filter;
+                  });
+
+              delete Model.folderLangs[filter];
+
+              Model.saveFolders();
+              Model.saveFolderLangs();
+              Model.saveDB();
+
+              folderFilter.value = 'all';
+
+              localStorage.setItem(
+                  'lastSelectedFolder',
+                  'all'
+              );
+
+              folderFilter.dispatchEvent(
+                  new Event('facade-update')
+              );
+
+              View.updateWordbankUI();
+              View.resetWordbankRenderer();
+
+              showToast(
+                  '已删除，单词已按语言归档'
+              );
+          }
+      );
   },
     openMoveModal(idx) { 
       if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("未选词"); 

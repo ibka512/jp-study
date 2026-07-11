@@ -1364,50 +1364,61 @@ button#btn-test-vibrate:active {
 .ai-chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 8px;
+    padding: 20px 12px 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 18px;
     min-height: 200px;
     max-height: calc(75vh - 160px);
 }
+
 .ai-chat-bubble {
-    max-width: 85%;
+    max-width: 88%;
     animation: ai-bubble-in 0.3s var(--spring-smooth);
 }
+
 @keyframes ai-bubble-in {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
 .ai-chat-bubble-ai {
     align-self: flex-start;
 }
+
 .ai-chat-bubble-user {
     align-self: flex-end;
 }
+
 .ai-chat-bubble-text {
-    padding: 14px 18px;
-    border-radius: var(--radius-md);
-    font-size: 0.92rem;
-    line-height: 1.7;
+    padding: 18px 20px;
+    border-radius: 24px;
+    font-size: 0.94rem;
+    line-height: 1.9;
+    letter-spacing: 0.01em;
     word-break: break-word;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.04);
 }
+
 .ai-chat-bubble-ai .ai-chat-bubble-text {
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.10)), var(--surface);
     color: var(--on-surface);
     border: 1px solid var(--outline);
-    border-bottom-left-radius: 6px;
+    border-radius: 24px 24px 24px 10px;
 }
+
 .ai-chat-bubble-user .ai-chat-bubble-text {
     background: rgba(99, 102, 241, 0.12);
     color: var(--on-surface);
     border: 1px solid rgba(99, 102, 241, 0.2);
-    border-bottom-right-radius: 6px;
+    border-radius: 24px 24px 10px 24px;
 }
+
 [data-theme="dark"] .ai-chat-bubble-ai .ai-chat-bubble-text {
     background: rgba(255,255,255,0.05);
     border-color: rgba(255,255,255,0.06);
 }
+
 [data-theme="dark"] .ai-chat-bubble-user .ai-chat-bubble-text {
     background: rgba(129,140,248,0.15);
     border-color: rgba(129,140,248,0.2);
@@ -2618,6 +2629,253 @@ button:focus-visible,
 .tip-item code { background: rgba(139, 121, 103, 0.1); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; font-weight: 800; color: var(--primary); }
 [data-theme="dark"] .tip-item code { background: rgba(255,255,255,0.1); color: #b0d6c1; }
 
+/* ==========================================
+   学习卡片第一批动效：切换、揭晓、答题反馈
+   ========================================== */
+
+.flash-card.study-card-exit-next {
+    pointer-events: none;
+    animation: study-card-exit-next 180ms
+        cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.flash-card.study-card-exit-prev {
+    pointer-events: none;
+    animation: study-card-exit-prev 180ms
+        cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.flash-card.study-card-enter-next {
+    pointer-events: none;
+    animation: study-card-enter-next 330ms
+        cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.flash-card.study-card-enter-prev {
+    pointer-events: none;
+    animation: study-card-enter-prev 330ms
+        cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes study-card-exit-next {
+    from {
+        opacity: 1;
+        transform: translateX(0) rotate(0deg) scale(1);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(-44px) rotate(-1.2deg) scale(0.975);
+    }
+}
+
+@keyframes study-card-exit-prev {
+    from {
+        opacity: 1;
+        transform: translateX(0) rotate(0deg) scale(1);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(44px) rotate(1.2deg) scale(0.975);
+    }
+}
+
+@keyframes study-card-enter-next {
+    0% {
+        opacity: 0;
+        transform: translateX(48px) rotate(1.2deg) scale(0.965);
+    }
+
+    72% {
+        opacity: 1;
+        transform: translateX(-3px) rotate(-0.15deg) scale(1.006);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(0) rotate(0deg) scale(1);
+    }
+}
+
+@keyframes study-card-enter-prev {
+    0% {
+        opacity: 0;
+        transform: translateX(-48px) rotate(-1.2deg) scale(0.965);
+    }
+
+    72% {
+        opacity: 1;
+        transform: translateX(3px) rotate(0.15deg) scale(1.006);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(0) rotate(0deg) scale(1);
+    }
+}
+
+/* 答案从模糊中逐渐显现 */
+.answer-reveal {
+    transform-origin: center;
+    animation: answer-reveal 440ms
+        cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+@keyframes answer-reveal {
+    0% {
+        opacity: 0.15;
+        filter: blur(8px);
+        transform: translateY(6px) scale(0.985);
+    }
+
+    65% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(-1px) scale(1.008);
+    }
+
+    100% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 答对：卡片轻抬，并出现一次柔和绿光 */
+.flash-card.study-feedback-correct {
+    animation: study-feedback-correct 360ms
+        cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes study-feedback-correct {
+    0% {
+        transform: translateY(0) scale(1);
+        box-shadow:
+            0 24px 48px rgba(115, 102, 88, 0.08),
+            0 8px 16px rgba(115, 102, 88, 0.04),
+            0 0 0 0 rgba(107, 132, 123, 0);
+    }
+
+    48% {
+        transform: translateY(-5px) scale(1.008);
+        box-shadow:
+            0 28px 54px rgba(115, 102, 88, 0.12),
+            0 10px 20px rgba(115, 102, 88, 0.06),
+            0 0 0 4px rgba(107, 132, 123, 0.18),
+            0 0 28px rgba(107, 132, 123, 0.24);
+    }
+
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow:
+            0 24px 48px rgba(115, 102, 88, 0.08),
+            0 8px 16px rgba(115, 102, 88, 0.04),
+            0 0 0 0 rgba(107, 132, 123, 0);
+    }
+}
+
+/* 答错：短促晃动，不做夸张抖屏 */
+.flash-card.study-feedback-wrong {
+    animation: study-feedback-wrong 300ms ease-out both;
+}
+
+@keyframes study-feedback-wrong {
+    0% {
+        transform: translateX(0);
+        box-shadow:
+            0 24px 48px rgba(115, 102, 88, 0.08),
+            0 8px 16px rgba(115, 102, 88, 0.04);
+    }
+
+    22% {
+        transform: translateX(-4px);
+        box-shadow:
+            0 24px 48px rgba(115, 102, 88, 0.08),
+            0 8px 16px rgba(115, 102, 88, 0.04),
+            0 0 0 3px rgba(186, 107, 104, 0.18),
+            0 0 22px rgba(186, 107, 104, 0.20);
+    }
+
+    45% {
+        transform: translateX(4px);
+    }
+
+    66% {
+        transform: translateX(-2px);
+    }
+
+    84% {
+        transform: translateX(2px);
+    }
+
+    100% {
+        transform: translateX(0);
+        box-shadow:
+            0 24px 48px rgba(115, 102, 88, 0.08),
+            0 8px 16px rgba(115, 102, 88, 0.04);
+    }
+}
+
+[data-theme="dark"] .flash-card.study-feedback-correct {
+    animation-name: study-feedback-correct-dark;
+}
+
+@keyframes study-feedback-correct-dark {
+    0%,
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow:
+            0 24px 48px rgba(0, 0, 0, 0.6),
+            0 8px 16px rgba(0, 0, 0, 0.4),
+            0 0 0 0 rgba(164, 199, 182, 0);
+    }
+
+    48% {
+        transform: translateY(-5px) scale(1.008);
+        box-shadow:
+            0 28px 54px rgba(0, 0, 0, 0.68),
+            0 10px 20px rgba(0, 0, 0, 0.44),
+            0 0 0 4px rgba(164, 199, 182, 0.16),
+            0 0 28px rgba(164, 199, 182, 0.18);
+    }
+}
+
+[data-theme="dark"] .flash-card.study-feedback-wrong {
+    animation-name: study-feedback-wrong-dark;
+}
+
+@keyframes study-feedback-wrong-dark {
+    0%,
+    100% {
+        transform: translateX(0);
+        box-shadow:
+            0 24px 48px rgba(0, 0, 0, 0.6),
+            0 8px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    22% {
+        transform: translateX(-4px);
+        box-shadow:
+            0 24px 48px rgba(0, 0, 0, 0.6),
+            0 8px 16px rgba(0, 0, 0, 0.4),
+            0 0 0 3px rgba(255, 180, 169, 0.13),
+            0 0 22px rgba(255, 180, 169, 0.14);
+    }
+
+    45% {
+        transform: translateX(4px);
+    }
+
+    66% {
+        transform: translateX(-2px);
+    }
+
+    84% {
+        transform: translateX(2px);
+    }
+}
+
 /* 无障碍：为需要减少动态效果的用户关闭所有动画 */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
@@ -2764,10 +3022,20 @@ body[data-theme="dark"][data-lang="en"] .capsule-2 { background: #5c4332; color:
 /* 1. 主单词：改由 JS 动态计算真实物理字号，彻底避免排版挤压 */
 body[data-lang="en"] .word-main,
 body[data-lang="en"] .dt-word {
-    transform: none !important;             /* 移除粗暴的视觉放大缩放 */
-    white-space: nowrap !important;         /* 强制单行显示，绝不允许换行 */
-    letter-spacing: -0.5px !important;      /* 稍微收紧字间距，为超长单词节省屏幕空间 */
-    margin-bottom: 12px !important;         /* 恢复标准的底部推离间距 */
+    transform: none !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.5px !important;
+    margin-bottom: 12px !important;
+}
+
+body[data-lang="en"] #w-word {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 8px;
+    padding-right: 8px;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: clip;
 }
 
 
@@ -2980,33 +3248,139 @@ body[data-theme="dark"] .blur-text {
     gap: 6px;
 }
 .ai-response-box h4:first-child { margin-top: 0; }
+
+.ai-response-box br + br {
+    content: "";
+}
+
+.ai-response-box {
+    line-height: 1.95;
+}
+
+.ai-response-box h4 + br {
+    display: none;
+}
 .ai-response-box strong {
-    color: var(--primary);
-    background: var(--primary-container);
-    padding: 2px 6px;
-    border-radius: 4px;
+    color: var(--on-surface);
+    font-weight: 900;
+    padding: 0 4px;
     margin: 0 2px;
+    border-radius: 6px;
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        transparent 28%,
+        rgba(255, 214, 10, 0.00) 28%,
+        rgba(255, 214, 10, 0.38) 29%,
+        rgba(255, 214, 10, 0.38) 88%,
+        transparent 88%,
+        transparent 100%
+    );
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
 }
 
-/* 1. 提升 AI 弹窗的层级，并彻底锁定背景滑动 */
-#ai-modal-overlay, #ai-history-detail-overlay, #ai-sheet-overlay {
-    z-index: 9999 !important; 
-    touch-action: none; /* 彻底封杀背景的意外滑动 */
-    overscroll-behavior: none;
+.ai-key-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    margin: 0 4px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.14);
+    color: #6366f1;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    font-weight: 900;
+    font-size: 0.92em;
+    vertical-align: middle;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
 }
 
-/* 2. 增强弹窗的背景，提高可读性，并且让它变成一个绝对弹性的盒子 */
-#ai-modal-overlay .modal-content, .ai-chat-sheet {
-    background-color: var(--surface) !important; 
+/* AI 日语汉字上方的假名注音 */
+.jp-ruby {
+    ruby-position: over;
+    ruby-align: center;
+    white-space: nowrap;
+    margin: 0 0.05em;
+    font-family: var(--font-jp-sans);
+}
+
+.jp-ruby rb {
+    font-family: var(--font-jp-sans);
+    font-weight: inherit;
+}
+
+.jp-ruby rt {
+    font-family: var(--font-jp-sans);
+    font-size: 0.54em;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--tertiary);
+    opacity: 0.9;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* 带注音的目标词胶囊需要多留一点顶部空间 */
+.ai-key-chip-ruby {
+    padding-top: 7px;
+    padding-bottom: 4px;
+    line-height: 1.45;
+}
+
+.ai-key-chip-ruby .jp-ruby {
+    margin: 0;
+}
+
+/* 为汉字上方的读音留出行间空间 */
+.ai-response-box {
+    line-height: 2.2;
+    overflow: visible;
+}
+
+.ai-chat-bubble-text {
+    overflow: visible;
+}
+
+[data-theme="dark"] .ai-response-box strong {
+    color: var(--on-surface);
+    background: linear-gradient(
+        180deg,
+        transparent 0%,
+        transparent 28%,
+        rgba(255, 214, 10, 0.00) 28%,
+        rgba(255, 214, 10, 0.30) 29%,
+        rgba(255, 214, 10, 0.30) 88%,
+        transparent 88%,
+        transparent 100%
+    );
+}
+
+[data-theme="dark"] .ai-key-chip {
+    background: rgba(129, 140, 248, 0.18);
+    color: #b7bdfc;
+    border-color: rgba(129, 140, 248, 0.26);
+}
+
+/* 1. 提升 AI 弹窗的层级，确保它高于任何卡片 */
+#ai-modal-overlay {
+    z-index: 9999 !important; /* 确保它在最顶层 */
+}
+
+/* 2. 增强弹窗的背景，提高可读性 */
+#ai-modal-overlay .modal-content {
+    background-color: var(--surface) !important; /* 不再仅仅依赖模糊，而是实色填充 */
     backdrop-filter: blur(15px) !important;
     border: 1px solid var(--outline);
     box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
-    /* 关键修复：让容器变成弹性体，适应键盘弹出的挤压 */
-    display: flex !important;
-    flex-direction: column !important;
-    height: 100dvh !important; /* 使用 dVH (动态视口高度)，完美适配手机键盘弹起 */
-    max-height: 100dvh !important; /* 覆盖原来的 85vh 限制 */
-    padding-bottom: 0 !important;
+}
+
+/* 3. 给 AI 内容区增加一点内衬，防止文字贴边 */
+#ai-content-area {
+    padding: 20px !important;
+    color: var(--on-surface) !important;
+    background-color: rgba(255, 255, 255, 0.3); /* 给予微微的纸张底色 */
 }
 #ai-content-area {
     background-color: var(--surface-container) !important; /* 将背景改为卡片专用纸张色 */
@@ -3148,6 +3522,8 @@ body[data-theme="dark"] .blur-text {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    min-width: 0;
     margin-bottom: 8px;
 }
 .ai-history-lang-tag {
@@ -3164,10 +3540,14 @@ body[data-theme="dark"] .blur-text {
     flex-shrink: 0;
 }
 .ai-history-word {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 800;
     font-size: 0.95rem;
     color: var(--on-surface);
-    flex: 1;
 }
 .ai-history-date {
     font-size: 0.75rem;
@@ -3195,19 +3575,21 @@ body[data-theme="dark"] .blur-text {
     line-height: 1.4;
 }
 .ai-history-del-btn {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    width: 30px !important;
-    height: 30px !important;
+    position: static;
+    flex: 0 0 32px;
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
     padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 50% !important;
     background: transparent !important;
     color: var(--accent-red) !important;
     border: none !important;
     box-shadow: none !important;
-    opacity: 0.5;
+    opacity: 0.55;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: opacity 0.2s, transform 0.2s;
 }
 .ai-history-del-btn:active {
     opacity: 1;
@@ -3227,6 +3609,9 @@ body[data-theme="dark"] .blur-text {
     font-size: 0.7rem;
     opacity: 0.5;
     flex-shrink: 0;
+    white-space: nowrap;
+    margin-left: auto;
+    flex-shrink: 0;
     background: rgba(99,102,241,0.08);
     color: #6366f1;
     padding: 2px 8px;
@@ -3240,226 +3625,343 @@ body[data-theme="dark"] .blur-text {
 
 #ai-chat-view {
     position: relative;
-    flex-shrink: 0;
-}
-#ai-tab-chat-messages {
-    flex: 1 1 auto;
+    height: calc(
+        100vh
+        - 204px
+        - env(safe-area-inset-top)
+        - env(safe-area-inset-bottom)
+    );
+    height: calc(
+        100dvh
+        - 204px
+        - env(safe-area-inset-top)
+        - env(safe-area-inset-bottom)
+    );
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 16px;
+    padding-bottom: 0 !important;
 }
+
+#ai-tab-chat-messages {
+    flex: 1;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: auto;
+    padding-bottom: 16px;
+    overscroll-behavior: contain;
+}
+
 #ai-chat-view .ai-chat-input-bar {
     position: relative;
-    bottom: auto;
-    left: auto;
-    transform: none;
     width: 100%;
-    max-width: 100%;
+    max-width: 500px;
     margin-top: auto;
-    flex-shrink: 0;
-    padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    padding: 12px 0;
     background: var(--surface);
     border-top: 1px solid var(--outline);
+    flex-shrink: 0;
     z-index: 10;
 }
+
 [data-theme="dark"] #ai-chat-view .ai-chat-input-bar {
     background: var(--surface);
     border-top-color: rgba(255,255,255,0.08);
 }
 
+[data-theme="dark"] .jp-ruby rt {
+    color: var(--tertiary);
+    opacity: 0.95;
+}
+
+[data-theme="dark"] .ai-key-chip-ruby {
+    background: rgba(129, 140, 248, 0.18);
+    border-color: rgba(129, 140, 248, 0.28);
+}
+
 /* ==========================================
-   ✨ 优化的 AI 对话 UI/UX 体验包
+   输入弹窗重新设计
    ========================================== */
 
-/* 1. 气泡视觉升级与间距呼吸感 */
-.ai-chat-bubble {
-    max-width: 90% !important; /* 气泡稍微拉宽，让大段文字不再拥挤 */
-}
-.ai-chat-bubble-text {
-    padding: 16px 20px !important;
-    border-radius: 20px !important;
-    font-size: 0.95rem !important;
-    line-height: 1.8 !important; /* 更舒展的行高 */
-    box-shadow: 0 4px 12px rgba(115, 102, 88, 0.04) !important;
-}
-/* AI 的气泡：稳重的纸张底色 */
-.ai-chat-bubble-ai .ai-chat-bubble-text {
-    background: var(--surface-container) !important;
-    border: 1px solid rgba(139, 121, 103, 0.08) !important;
-    border-bottom-left-radius: 4px !important;
-}
-/* 用户的气泡：清新的青磁色调 */
-.ai-chat-bubble-user .ai-chat-bubble-text {
-    background: rgba(107, 132, 123, 0.12) !important;
-    border: 1px solid rgba(107, 132, 123, 0.2) !important;
-    border-bottom-right-radius: 4px !important;
-}
-/* 暗黑模式自适应 */
-[data-theme="dark"] .ai-chat-bubble-ai .ai-chat-bubble-text {
-    background: rgba(255, 255, 255, 0.05) !important;
-    border-color: rgba(255, 255, 255, 0.05) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-}
-[data-theme="dark"] .ai-chat-bubble-user .ai-chat-bubble-text {
-    background: rgba(164, 199, 182, 0.15) !important;
-    border-color: rgba(164, 199, 182, 0.2) !important;
+#prompt-overlay {
+    padding: 20px;
 }
 
-/* 2. 重点文字马克笔高亮 */
-.ai-response-box strong {
-    color: var(--tertiary) !important;
-    background: rgba(107, 132, 123, 0.15) !important;
-    padding: 2px 8px !important;
-    border-radius: 6px !important;
-    font-weight: 900 !important;
-    box-shadow: inset 0 -4px 0 rgba(107, 132, 123, 0.2) !important;
-}
-[data-theme="dark"] .ai-response-box strong {
-    color: #ebd5c5 !important;
-    background: rgba(164, 199, 182, 0.25) !important;
-    box-shadow: inset 0 -4px 0 rgba(164, 199, 182, 0.3) !important;
+#prompt-overlay .prompt-dialog-content {
+    width: min(100%, 390px);
+    max-width: 390px;
+    padding: 26px;
+    border-radius: 30px;
+    text-align: left;
+    overflow: visible;
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(255, 255, 255, 0.55),
+            rgba(255, 255, 255, 0.12)
+        ),
+        var(--surface-container);
+
+    border: 1px solid rgba(139, 121, 103, 0.12);
+
+    box-shadow:
+        0 30px 70px rgba(74, 55, 45, 0.20),
+        0 8px 24px rgba(74, 55, 45, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.55);
+
+    transform: translateY(18px) scale(0.96);
+    opacity: 0;
+
+    transition:
+        transform 0.38s var(--spring-snappy),
+        opacity 0.28s ease;
 }
 
-/* 3. 灵动的呼吸点等待动画 */
-.ai-typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 4px;
-}
-.ai-typing-dot {
-    width: 8px;
-    height: 8px;
-    background: var(--tertiary);
-    border-radius: 50%;
-    opacity: 0.4;
-    animation: ai-typing 1.4s infinite ease-in-out both;
-}
-.ai-typing-dot:nth-child(1) { animation-delay: -0.32s; }
-.ai-typing-dot:nth-child(2) { animation-delay: -0.16s; }
-@keyframes ai-typing {
-    0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
-    40% { transform: scale(1); opacity: 1; box-shadow: 0 0 8px var(--tertiary); }
-}
-
-/* 4. 快捷回复药丸与单条复制按钮 */
-.ai-quick-replies {
-    display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding: 0 16px 12px 16px;
-    scrollbar-width: none;
-}
-.ai-quick-replies::-webkit-scrollbar { display: none; }
-.ai-quick-reply-btn {
-    background: var(--surface-container);
-    color: var(--tertiary);
-    border: 1px solid rgba(107, 132, 123, 0.2);
-    padding: 8px 16px;
-    border-radius: var(--radius-full);
-    font-size: 0.85rem;
-    font-weight: 800;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 2px 6px rgba(115, 102, 88, 0.04);
-}
-.ai-quick-reply-btn:active {
-    transform: scale(0.95);
-    background: rgba(107, 132, 123, 0.1);
-}
-[data-theme="dark"] .ai-quick-reply-btn {
-    background: rgba(255, 255, 255, 0.05);
-    color: #a4c7b6;
-    border-color: rgba(255, 255, 255, 0.1);
-}
-
-.ai-msg-action-bar {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 12px;
-    border-top: 1px dashed rgba(139, 121, 103, 0.1);
-    padding-top: 8px;
-}
-[data-theme="dark"] .ai-msg-action-bar { border-top-color: rgba(255, 255, 255, 0.1); }
-.ai-msg-copy-btn {
-    background: transparent;
-    color: var(--on-surface);
-    opacity: 0.5;
-    border: none;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-.ai-msg-copy-btn:active {
+#prompt-overlay.active .prompt-dialog-content {
+    transform: translateY(0) scale(1);
     opacity: 1;
-    transform: scale(0.9);
+}
+
+/* 标题区域 */
+
+.prompt-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.prompt-icon-box {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 16px;
+
     color: var(--tertiary);
-    background: rgba(107, 132, 123, 0.1);
-}
-.ai-msg-copy-btn .material-symbols-rounded { font-size: 1rem; }
+    background: var(--accent-green-bg);
 
-/* 隐藏旧版的“全局复制”大按钮，为独立复制按钮让路 */
-#ai-sheet-copy, #ai-history-detail-copy { display: none !important; }
-/* ==========================================
-   🛠️ 修复 AI 对话界面滑动与排版定位问题
-   ========================================== */
+    border: 1px solid rgba(107, 132, 123, 0.14);
 
-/* 1. 彻底修正弹窗容器：回归原生抽屉逻辑，不强制写死高度 */
-#ai-modal-overlay, #ai-history-detail-overlay, #ai-sheet-overlay {
-    z-index: 9999 !important; 
-    touch-action: none; /* 锁定背景，防止跟着乱晃 */
-}
-.ai-chat-sheet {
-    display: flex !important;
-    flex-direction: column !important;
-    height: 85vh !important; /* 固定抽屉高度为屏幕的85%，保留一点顶部空间 */
-    max-height: 85vh !important;
-    padding-bottom: 0 !important; /* 彻底剥离底部多余的留白 */
+    box-shadow:
+        0 8px 18px rgba(107, 132, 123, 0.10),
+        inset 0 1px 1px rgba(255, 255, 255, 0.36);
 }
 
-/* 2. 聊天记录区：解开所有高度封印，让它真正充满弹性并允许顺滑滚动 */
-.ai-chat-messages,
-#ai-chat-messages,
-#ai-history-detail-messages,
-#ai-tab-chat-messages {
-    flex: 1 1 auto !important; /* 霸占中间所有可用空间 */
-    min-height: 0 !important; /* 关键修复：击碎旧代码的 200px 最小限制 */
-    max-height: none !important; /* 关键修复：击碎旧代码的最大高度限制 */
-    height: auto !important;
-    overflow-y: auto !important; /* 开启上下滑动 */
-    -webkit-overflow-scrolling: touch !important; /* 苹果手机顺滑滚动 */
-    touch-action: pan-y !important; /* 恢复原生的上下滑动识别 */
-    overscroll-behavior-y: contain !important; /* 滑到底不牵连背景 */
-    padding: 16px 8px 20px 8px !important;
+.prompt-icon-box .material-symbols-rounded {
+    font-size: 1.55rem;
 }
 
-/* 3. 输入框精准定位：严格区分弹窗与历史界面 */
-
-/* 仅针对“底部弹窗”里的输入框做弹性吸底 */
-.ai-chat-sheet .ai-chat-input-bar {
-    flex: 0 0 auto !important;
-    width: 100% !important;
-    margin-top: auto !important;
-    background: var(--surface-container) !important; 
-    z-index: 100 !important;
-    padding: 12px 16px !important; 
-    padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; 
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.05) !important; 
-    position: relative !important; 
-    transform: translateZ(0); 
+.prompt-heading {
+    min-width: 0;
+    flex: 1;
+    padding-top: 2px;
 }
 
-/* 暗色模式下输入框的阴影调整 */
-[data-theme="dark"] .ai-chat-input-bar {
-    background: #2a2a2a !important; 
-    box-shadow: 0 -4px 10px rgba(0,0,0,0.2) !important;
+#prompt-title {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: none;
+
+    color: var(--on-surface);
+    font-size: 1.16rem;
+    font-weight: 900;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+}
+
+.prompt-helper {
+    margin: 6px 0 0;
+    color: var(--on-surface);
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.55;
+    opacity: 0.58;
+}
+
+/* 输入框 */
+
+.prompt-field-wrap {
+    position: relative;
+    width: 100%;
+    margin-bottom: 22px;
+}
+
+#prompt-input,
+#prompt-input[type="text"],
+#prompt-input[type="password"] {
+    width: 100%;
+    height: 56px;
+
+    margin: 0;
+    padding: 0 54px 0 18px;
+
+    border: 1.5px solid var(--outline);
+    border-radius: 18px;
+
+    background: rgba(255, 255, 255, 0.34);
+    color: var(--on-surface);
+
+    font-family: var(--font-ui);
+    font-size: 0.96rem;
+    font-weight: 700;
+    text-align: left;
+
+    outline: none;
+    box-shadow:
+        inset 0 2px 5px rgba(74, 55, 45, 0.04),
+        0 4px 14px rgba(74, 55, 45, 0.04);
+
+    transition:
+        border-color 0.22s ease,
+        background 0.22s ease,
+        box-shadow 0.22s ease;
+}
+
+#prompt-input::placeholder {
+    color: var(--on-surface);
+    font-weight: 600;
+    opacity: 0.38;
+}
+
+#prompt-input:focus {
+    border-color: var(--tertiary);
+    background: rgba(255, 255, 255, 0.56);
+
+    box-shadow:
+        0 0 0 4px rgba(107, 132, 123, 0.12),
+        inset 0 2px 5px rgba(74, 55, 45, 0.03);
+}
+
+/* 密钥显示按钮 */
+
+.prompt-visibility-btn {
+    position: absolute;
+    top: 50%;
+    right: 7px;
+    transform: translateY(-50%);
+
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px;
+
+    padding: 0 !important;
+    margin: 0 !important;
+
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+
+    color: var(--on-surface);
+    opacity: 0.55;
+}
+
+.prompt-visibility-btn:active {
+    transform: translateY(-50%) scale(0.90) !important;
+}
+
+.prompt-visibility-btn .material-symbols-rounded {
+    font-size: 1.25rem;
+}
+
+/* 底部按钮 */
+
+.prompt-actions {
+    display: grid;
+    grid-template-columns: 0.86fr 1.14fr;
+    gap: 12px;
+}
+
+#prompt-cancel,
+#prompt-confirm {
+    width: 100%;
+    min-height: 52px;
+    margin: 0;
+    padding: 12px 18px;
+
+    border-radius: 18px;
+    font-size: 0.98rem;
+}
+
+#prompt-cancel {
+    background: transparent !important;
+    border: 1.5px solid var(--outline) !important;
+    box-shadow: none !important;
+    color: var(--on-surface) !important;
+    opacity: 0.72;
+}
+
+#prompt-confirm {
+    background: var(--tertiary) !important;
+    border-color: transparent !important;
+    color: #ffffff !important;
+
+    box-shadow:
+        0 10px 22px rgba(107, 132, 123, 0.20),
+        0 3px 8px rgba(107, 132, 123, 0.12);
+}
+
+#prompt-confirm:active {
+    transform: scale(0.96);
+}
+
+/* 夜间模式 */
+
+[data-theme="dark"] #prompt-overlay .prompt-dialog-content {
+    background:
+        linear-gradient(
+            145deg,
+            rgba(255, 255, 255, 0.055),
+            rgba(255, 255, 255, 0.015)
+        ),
+        #282522;
+
+    border-color: rgba(255, 255, 255, 0.07);
+
+    box-shadow:
+        0 32px 72px rgba(0, 0, 0, 0.58),
+        0 10px 24px rgba(0, 0, 0, 0.32),
+        inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] #prompt-input,
+[data-theme="dark"] #prompt-input[type="text"],
+[data-theme="dark"] #prompt-input[type="password"] {
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(255, 255, 255, 0.10);
+
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, 0.22),
+        0 4px 14px rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="dark"] #prompt-input:focus {
+    background: rgba(255, 255, 255, 0.065);
+    border-color: var(--tertiary);
+
+    box-shadow:
+        0 0 0 4px rgba(164, 199, 182, 0.11),
+        inset 0 2px 5px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="dark"] #prompt-confirm {
+    color: #17221d !important;
+}
+
+/* 小屏幕保护 */
+
+@media (max-width: 360px) {
+    #prompt-overlay .prompt-dialog-content {
+        padding: 22px 18px;
+        border-radius: 26px;
+    }
+
+    .prompt-actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
 }

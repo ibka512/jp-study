@@ -10,6 +10,114 @@ const escapeHTML = (str) => {
     }[tag]));
 };
 
+const escapeRegExp = (str) => {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const JAPANESE_RUBY_INSTRUCTION = `
+
+【日语注音格式规则】
+凡是回答中出现日语，所有包含汉字的日语词语都必须标注假名读音。
+
+请严格使用“日语原文《假名读音》”格式，例如：
+日本語《にほんご》
+勉強《べんきょう》する
+食《た》べる
+気持《きも》ち
+一人《ひとり》
+
+必须根据句子语境选择正确读音。
+纯平假名、纯片假名和中文汉字不要标注。
+不要直接输出 HTML、ruby 标签、括号读音或其他注音格式。
+日语汉字不能遗漏注音。`;
+
+const withJapaneseRubyInstruction = (prompt = '') => {
+    const basePrompt = prompt || '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。';
+
+    if (basePrompt.includes('【日语注音格式规则】')) {
+        return basePrompt;
+    }
+
+    return basePrompt + JAPANESE_RUBY_INSTRUCTION;
+};
+
+const renderAIMessageHTML = (text, targetWord = '') => {
+    let html = escapeHTML(text || '');
+    const safeTargetWord = escapeHTML((targetWord || '').trim());
+    const rubyBlocks = [];
+
+    /*
+     * 把 AI 输出的：
+     * 日本語《にほんご》
+     *
+     * 转换成浏览器原生的汉字上方注音。
+     */
+    html = html.replace(
+        /([\u3400-\u4DBF\u4E00-\u9FFF々〆ヶぁ-ゖァ-ヺー0-9０-９]+)《([ぁ-ゖァ-ヺー・\s]+)》/g,
+        (match, baseText, readingText) => {
+            const containsKanji = /[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/.test(baseText);
+
+            if (!containsKanji) {
+                return match;
+            }
+
+            const token = `@@JP_RUBY_${rubyBlocks.length}@@`;
+
+            let rubyHTML =
+                '<ruby class="jp-ruby">' +
+                    '<rb>' + baseText + '</rb>' +
+                    '<rt>' + readingText.trim() + '</rt>' +
+                '</ruby>';
+
+            /*
+             * 目标词本身继续保留之前的小胶囊高亮。
+             */
+            if (
+                safeTargetWord &&
+                (
+                    safeTargetWord.includes(baseText) ||
+                    baseText.includes(safeTargetWord)
+                )
+            ) {
+                rubyHTML =
+                    '<span class="ai-key-chip ai-key-chip-ruby">' +
+                        rubyHTML +
+                    '</span>';
+            }
+
+            rubyBlocks.push(rubyHTML);
+            return token;
+        }
+    );
+
+    html = html
+        .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+
+    /*
+     * 高亮没有被注音标记包住的目标词。
+     */
+    if (safeTargetWord) {
+        const wordPattern = new RegExp(escapeRegExp(safeTargetWord), 'g');
+
+        html = html.replace(
+            wordPattern,
+            '<span class="ai-key-chip">' + safeTargetWord + '</span>'
+        );
+    }
+
+    /*
+     * 恢复之前暂存的 ruby 注音结构。
+     */
+    html = html.replace(
+        /@@JP_RUBY_(\d+)@@/g,
+        (match, index) => rubyBlocks[Number(index)] || ''
+    );
+
+    return html;
+};
+
 window.createStarParticles = (el) => {
     let rect = el.getBoundingClientRect();
     for (let i = 0; i < 5; i++) {
@@ -83,16 +191,47 @@ window.showConfirm = (title, msg, onConfirm) => {
 };
 
 window.showPrompt = (title, defaultVal, onConfirm) => {
-    document.getElementById('prompt-title').innerHTML = title;
-    let input = document.getElementById('prompt-input');
-    input.value = defaultVal || ''; 
+    const titleEl = document.getElementById('prompt-title');
+    const helperEl = document.getElementById('prompt-helper');
+    const iconEl = document.getElementById('prompt-icon');
+    const visibilityBtn = document.getElementById('prompt-visibility');
+    const input = document.getElementById('prompt-input');
+
+    titleEl.textContent = title;
+    helperEl.hidden = true;
+    helperEl.textContent = '';
+
+    iconEl.textContent = 'edit';
+
+    input.type = 'text';
+    input.autocomplete = 'off';
+    input.placeholder = '请输入内容';
+    input.value = defaultVal || '';
+
+    visibilityBtn.hidden = true;
+
     window.toggleModal('prompt-overlay', true);
-    setTimeout(() => input.focus(), 100);
-    document.getElementById('prompt-confirm').onclick = () => { 
+
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 100);
+
+    document.getElementById('prompt-confirm').onclick = () => {
         Hardware.vibrate(15);
-        let val = input.value.trim(); if(val) { window.toggleModal('prompt-overlay', false); onConfirm(val); }
+
+        const val = input.value.trim();
+
+        if (val) {
+            window.toggleModal('prompt-overlay', false);
+            onConfirm(val);
+        }
     };
-    document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
+
+    document.getElementById('prompt-cancel').onclick = () => {
+        Hardware.vibrate(10);
+        window.toggleModal('prompt-overlay', false);
+    };
 };
 
 const Nav = {
@@ -210,7 +349,7 @@ const BottomSheet = {
         let titleMap = {
             'test-range-select': '选择检验范围',
             'test-display-select': '默认显示模式',
-            'next-display-mode': '遮盖模式',
+            'next-display-mode': (Model.state.mode === 'rote-learning' && Model.state.currentLangMode === 'en') ? '选择强化模式' : '遮盖模式',
             'wb-folder-filter': '选择词库',
             'move-dest-select': '移动至目标文件夹'
         };
@@ -819,6 +958,56 @@ if (engine === 'azure') {
 
 const View = {
   getEl: (id) => document.getElementById(id),
+
+  playStudyFeedback(type) {
+      const card = this.getEl('flash-card');
+      if (!card) return;
+
+      const correctClass = 'study-feedback-correct';
+      const wrongClass = 'study-feedback-wrong';
+      const activeClass = type === 'correct' ? correctClass : wrongClass;
+
+      card.classList.remove(correctClass, wrongClass);
+      void card.offsetWidth;
+      card.classList.add(activeClass);
+
+      window.setTimeout(() => {
+          card.classList.remove(activeClass);
+      }, type === 'correct' ? 360 : 300);
+  },
+
+  revealStudyElement(el) {
+      if (!el) return;
+
+      el.classList.remove('blur-text', 'answer-reveal');
+      el.removeAttribute('aria-hidden');
+
+      void el.offsetWidth;
+      el.classList.add('answer-reveal');
+
+      window.setTimeout(() => {
+          el.classList.remove('answer-reveal');
+      }, 460);
+  },
+
+  revealStudyAnswer() {
+      const elements = [
+          this.getEl('w-word'),
+          this.getEl('w-kana'),
+          this.getEl('w-type'),
+          this.getEl('w-meaning'),
+          this.getEl('w-roots'),
+          this.getEl('w-example-box')
+      ].filter(el => {
+          return el && el.style.display !== 'none' && !el.classList.contains('hidden');
+      });
+
+      elements.forEach((el, index) => {
+          window.setTimeout(() => {
+              this.revealStudyElement(el);
+          }, index * 40);
+      });
+  },
   
   showPage(pageId) {
       let studyArea = this.getEl('study-area');
@@ -1153,9 +1342,18 @@ if (!tabsContainer.querySelector('.active')) {
       
       try {
           let catVal = cat || 'default';
-          let words = Model.db.map((w, i) => ({w, i})).filter(item => {
-              return Model.checkFilter(item.w, catVal);
-          });
+          let currentLang = Model.state.currentLangMode;
+
+          let words = Model.db
+              .map((w, i) => ({ w, i }))
+              .filter(item => {
+                  let wordLang = item.w.lang || 'ja';
+
+                  return (
+                      wordLang === currentLang &&
+                      Model.checkFilter(item.w, catVal)
+                  );
+              });
 
           if (words.length === 0) {
               let emptyText = "当前空空如也";
@@ -1181,12 +1379,20 @@ if (!tabsContainer.querySelector('.active')) {
           let i = 0; let total = words.length;
           let fragment = document.createDocumentFragment();
           
-          let activeTabEl = document.querySelector('#gs-tabs .active');
-          let catLabel = activeTabEl ? activeTabEl.innerText : (catVal === 'default' ? '默认词库' : catVal);
+          let currentTabEl = Array.from(
+              document.querySelectorAll('#gs-tabs .g-tab')
+          ).find(tab => tab.dataset.cat === catVal);
 
-while (i * 10 < total) {
-    let startIdx = i * 10;
-    let endIdx = Math.min(startIdx + 10, total);
+          let catLabel = currentTabEl
+              ? currentTabEl.innerText
+              : (catVal === 'default' ? '默认词库' : catVal);
+
+const GROUP_SIZE = 10;
+const GROUP_STEP = 7;
+
+while (i * GROUP_STEP < total) {
+    let startIdx = i * GROUP_STEP;
+    let endIdx = Math.min(startIdx + GROUP_SIZE, total);
               let btn = document.createElement('div');
               btn.className = 'bs-option';
               btn.setAttribute('tabindex', '0');
@@ -1238,8 +1444,12 @@ while (i * 10 < total) {
     
     let modeSel = this.getEl('next-display-mode');
     if (modeSel) {
-        modeSel.options[1].text = Model.state.currentLangMode === 'en' ? '英文' : '汉字';
-        modeSel.options[2].text = Model.state.currentLangMode === 'en' ? '音标' : '假名';
+        const isEnglishBook = Model.state.currentLangMode === 'en';
+        modeSel.options[0].text = '全显';
+        modeSel.options[1].text = isEnglishBook ? '英文' : '汉字';
+        modeSel.options[2].text = isEnglishBook ? '音标' : '假名';
+        modeSel.options[3].text = '释义';
+        modeSel.options[0].style.display = '';
     }
 
     this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
@@ -1481,7 +1691,22 @@ if (aiPanel) aiPanel.classList.add('hidden');
     card.querySelector('.watermark-layer').style.background = visuals.bg;
     this.getEl('flash-watermark').innerHTML = visuals.wm; 
     
-    card.classList.remove('anim-slide-next','anim-slide-prev'); void card.offsetWidth;
+    card.classList.remove(
+    'anim-slide-next',
+    'anim-slide-prev',
+    'anim-slide-out-left',
+    'anim-slide-out-right',
+    'anim-slide-in-right',
+    'anim-slide-in-left',
+    'study-card-exit-next',
+    'study-card-exit-prev',
+    'study-card-enter-next',
+    'study-card-enter-prev',
+    'study-feedback-correct',
+    'study-feedback-wrong',
+    'shimmering'
+);
+void card.offsetWidth;
     
     // 提取公共无障碍播报逻辑，自动过滤掉非纯文本的假名修饰符
     const triggerSRAnnouncement = () => {
@@ -1500,32 +1725,51 @@ if (aiPanel) aiPanel.classList.add('hidden');
     if (anim !== 'none') {
         Model.state.isAnimating = true;
 
-        card.classList.remove('shimmering');
-        void card.offsetWidth; 
-        card.classList.add('shimmering');
+        const exitClass = anim === 'next'
+            ? 'study-card-exit-next'
+            : 'study-card-exit-prev';
 
-        card.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right');
-        setTimeout(() => {
-            this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
-            
-            // 🟢 在切卡动画中途、新 DOM 树内容装载完毕时，立刻执行无障碍播报
+        const enterClass = anim === 'next'
+            ? 'study-card-enter-next'
+            : 'study-card-enter-prev';
+
+        card.classList.add(exitClass);
+
+        window.setTimeout(() => {
+            this.updateCardContent(
+                w,
+                visuals,
+                mode,
+                forceRoteFull,
+                isMemTest,
+                isRote,
+                isFilterTest
+            );
+
             triggerSRAnnouncement();
 
-            card.classList.remove('anim-slide-out-left', 'anim-slide-out-right');
-            card.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left');
-            
-            setTimeout(() => { 
-                Model.state.isAnimating = false;
-                card.classList.remove('shimmering');
-            }, 600); 
-        }, 300); 
-    } else {
-        this.updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest);
-        
-        // 🟢 无动画直接渲染时，即时执行无障碍播报
-        triggerSRAnnouncement();
+            card.classList.remove(exitClass);
+            void card.offsetWidth;
+            card.classList.add(enterClass);
 
-        Model.state.isAnimating = false; 
+            window.setTimeout(() => {
+                card.classList.remove(enterClass);
+                Model.state.isAnimating = false;
+            }, 330);
+        }, 180);
+    } else {
+        this.updateCardContent(
+            w,
+            visuals,
+            mode,
+            forceRoteFull,
+            isMemTest,
+            isRote,
+            isFilterTest
+        );
+
+        triggerSRAnnouncement();
+        Model.state.isAnimating = false;
     }
   },
 
@@ -1680,42 +1924,107 @@ if (aiPanel) aiPanel.classList.add('hidden');
         showWord = false;
     }
     
-    if (isRote && mode !== 'all' && !forceRoteFull) {
-        if (mode === 'word') { showKana = Model.state.mtStep > 1; showMeaning = false; } 
-        else if (mode === 'kana') { 
-            if (isEnglish) { showMeaning = false; } 
-            else { showWord = Model.state.mtStep > 1; showMeaning = false; }
-        } 
-        else if (mode === 'meaning') { showKana = Model.state.mtStep > 1; showWord = false; }
+        if (isRote && mode !== 'all' && !forceRoteFull) {
+        if (mode === 'word') {
+            if (isEnglish) {
+                /*
+                 * 英语“英文”模式：
+                 * 先显示释义，让用户根据释义拼写英文。
+                 */
+                showWord = false;
+                showKana = false;
+                showMeaning = true;
+            } else {
+                showKana = Model.state.mtStep > 1;
+                showMeaning = false;
+            }
+        } else if (mode === 'kana') {
+            if (isEnglish) {
+                showWord = false;
+                showKana = true;
+                showMeaning = false;
+            } else {
+                showWord = Model.state.mtStep > 1;
+                showMeaning = false;
+            }
+        } else if (mode === 'meaning') {
+            showWord = false;
+            showKana = isEnglish ? false : Model.state.mtStep > 1;
+            showMeaning = true;
+        }
     }
 
-        let finalWord = (!showWord && !isMemTest) ? mask(w.word) : w.word;
+    const wordIsMasked = !showWord && !isMemTest;
+
+    /*
+     * 英文单词隐藏时固定使用三个方块。
+     * 不再按照单词字母数量生成方块，避免长单词冲出卡片。
+     */
+    let finalWord = wordIsMasked
+        ? (isEnglish ? maskFixed : mask(w.word))
+        : w.word;
+
     let wWordEl = this.getEl('w-word');
     wWordEl.innerText = finalWord;
-    
-    let wLen = Array.from(finalWord || '').length;
+
+    let wLen = Array.from(w.word || '').length;
+
     if (isEnglish) {
-        // 英语专用的巨型动态字号阶梯
-        if (wLen >= 14) wWordEl.style.fontSize = '1.8rem';      // 极长词 (administration)
-        else if (wLen >= 11) wWordEl.style.fontSize = '2.2rem'; // 超长词 (accommodate)
-        else if (wLen >= 8) wWordEl.style.fontSize = '2.8rem';  // 较长词 (absolute)
-        else if (wLen >= 5) wWordEl.style.fontSize = '3.5rem';  // 常规词 (abandon)
-        else wWordEl.style.fontSize = '4.2rem';                 // 极短词 (cat) - 巨大震撼
+        if (wordIsMasked) {
+            wWordEl.style.fontSize = '2.8rem';
+        } else if (wLen >= 14) {
+            wWordEl.style.fontSize = '1.8rem';
+        } else if (wLen >= 11) {
+            wWordEl.style.fontSize = '2.2rem';
+        } else if (wLen >= 8) {
+            wWordEl.style.fontSize = '2.8rem';
+        } else if (wLen >= 5) {
+            wWordEl.style.fontSize = '3.5rem';
+        } else {
+            wWordEl.style.fontSize = '4.2rem';
+        }
     } else {
-        // 日语保持原样
-        if (wLen >= 10) wWordEl.style.fontSize = '1.8rem';
-        else if (wLen >= 7) wWordEl.style.fontSize = '2.2rem';
-        else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
-        else wWordEl.style.fontSize = ''; 
+        if (wLen >= 10) {
+            wWordEl.style.fontSize = '1.8rem';
+        } else if (wLen >= 7) {
+            wWordEl.style.fontSize = '2.2rem';
+        } else if (wLen >= 5) {
+            wWordEl.style.fontSize = '2.6rem';
+        } else {
+            wWordEl.style.fontSize = '';
+        }
     }
  
 
+    const isEnglishRoteSpell =
+        isEnglish &&
+        isRote &&
+        !forceRoteFull &&
+        Model.state.mtStep === 1 &&
+        (mode === 'word' || mode === 'meaning');
+
+    const isEnglishMemorySpell =
+        isEnglish &&
+        isMemTest &&
+        Model.state.mtRound === 2;
+
+    const hideEnglishPhonetic =
+        isEnglish &&
+        (
+            isDtSpell ||
+            isEnglishRoteSpell ||
+            isEnglishMemorySpell
+        );
+
     if (!isEnglish) {
-        this.getEl('w-kana').innerText = (!showKana && !isMemTest) ? mask((w.kana || '').replace(/[【】\[\]()]/g,'')) : (w.kana || '');
+        this.getEl('w-kana').innerText =
+            (!showKana && !isMemTest)
+                ? mask((w.kana || '').replace(/[【】\[\]()]/g, ''))
+                : (w.kana || '');
     } else {
-        // 恢复为纯文本（背词界面已有专门的全局发音按钮）
-        this.getEl('w-kana').style.display = 'block';
         this.getEl('w-kana').innerText = w.phonetic || '';
+        this.getEl('w-kana').style.display =
+            hideEnglishPhonetic ? 'none' : 'block';
     }
     this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
     this.getEl('w-type').innerHTML = visuals.tagsHTML; 
@@ -1744,14 +2053,24 @@ if (aiPanel) aiPanel.classList.add('hidden');
     }
 
     if (!isMemTest && !isRote) {
-        this.getEl('w-kana').style.display = isDtSpell ? 'none' : 'block';
-        this.getEl('w-meaning').style.display = isDtChoice ? 'none' : 'block';
+        this.getEl('w-kana').style.display =
+            hideEnglishPhonetic ? 'none' : 'block';
+
+        this.getEl('w-meaning').style.display =
+            isDtChoice ? 'none' : 'block';
     } else if (!isMemTest) {
-        this.getEl('w-kana').style.display = 'block';
+        this.getEl('w-kana').style.display =
+            hideEnglishPhonetic ? 'none' : 'block';
+
         this.getEl('w-meaning').style.display = 'block';
     }
     
-    let hideSpeaker = isDtSpell || isMemTest || (isRote && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
+    const isEnglishRoteTraining = isEnglish && isRote && !forceRoteFull;
+    let hideSpeaker =
+        isDtSpell ||
+        isMemTest ||
+        isEnglishRoteTraining ||
+        (isRote && !isEnglish && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
     this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
     
     let displayTrigger = this.getEl('btn-display-mode-trigger');
@@ -1939,49 +2258,317 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       }
   },
   
-  renderMemoryTestUI(wObj, displayMode) {
-      let mtWarning = this.getEl('mt-warning'); if(mtWarning) mtWarning.classList.add('hidden'); 
-      this.getEl('mt-spell-area').classList.add('hidden'); 
-      this.getEl('mt-choice-area').classList.add('hidden');
-      
-      let blindAudioUi = this.getEl('mt-blind-audio-ui');
+  setEnglishCardWord(wObj, masked = false, visible = true) {
+      const wordEl = this.getEl('w-word');
+      if (!wordEl) return;
+
+      if (!visible) {
+          wordEl.style.display = 'none';
+          return;
+      }
+
+      wordEl.innerText = masked ? '■■■' : (wObj.word || '');
+      wordEl.style.display = 'block';
+
+      if (masked) {
+          wordEl.style.fontSize = '2.8rem';
+          return;
+      }
+
+      const wordLength = Array.from(wObj.word || '').length;
+      if (wordLength >= 14) wordEl.style.fontSize = '1.8rem';
+      else if (wordLength >= 11) wordEl.style.fontSize = '2.2rem';
+      else if (wordLength >= 8) wordEl.style.fontSize = '2.8rem';
+      else if (wordLength >= 5) wordEl.style.fontSize = '3.5rem';
+      else wordEl.style.fontSize = '4.2rem';
+  },
+
+  showEnglishRoteFullCard(wObj) {
+      const phoneticEl = this.getEl('w-kana');
+      const meaningEl = this.getEl('w-meaning');
+      const typeEl = this.getEl('w-type');
+      const rootsEl = this.getEl('w-roots');
+      const exampleEl = this.getEl('w-example-box');
+      const blindAudioUi = this.getEl('mt-blind-audio-ui');
+
       if (blindAudioUi) blindAudioUi.classList.add('hidden');
 
-      let isMemTest = Model.state.mode === 'memory-test';
+      this.setEnglishCardWord(wObj, false, true);
+
+      if (phoneticEl) {
+          phoneticEl.innerText = wObj.phonetic || '';
+          phoneticEl.style.display = 'block';
+      }
+
+      if (meaningEl) {
+          meaningEl.innerText = wObj.meaning || '';
+          meaningEl.style.display = 'block';
+      }
+
+      if (typeEl) typeEl.style.display = 'flex';
+
+      if (rootsEl) {
+          const showRoots = localStorage.getItem('showRoots') !== 'false';
+          if (showRoots && wObj.roots) {
+              rootsEl.innerHTML = this.renderRoots(wObj.roots, false, false);
+              rootsEl.style.display = 'flex';
+          } else {
+              rootsEl.style.display = 'none';
+          }
+      }
+
+      this.renderExampleBox(wObj.example, 'w-example-box', 'normal', wObj);
+      if (exampleEl && wObj.example) exampleEl.style.display = 'block';
+
+      this.syncRootsDisplay();
+      this.revealStudyAnswer();
+  },
+
+  renderEnglishRoteUI(wObj, displayMode) {
+      const mtWarning = this.getEl('mt-warning');
+      const spellArea = this.getEl('mt-spell-area');
+      const choiceArea = this.getEl('mt-choice-area');
+      const blindAudioUi = this.getEl('mt-blind-audio-ui');
+      const wordEl = this.getEl('w-word');
+      const phoneticEl = this.getEl('w-kana');
+      const meaningEl = this.getEl('w-meaning');
+      const typeEl = this.getEl('w-type');
+      const rootsEl = this.getEl('w-roots');
+      const exampleEl = this.getEl('w-example-box');
+      const speakerEl = this.getEl('btn-speaker');
+
+      if (mtWarning) mtWarning.classList.add('hidden');
+      if (spellArea) spellArea.classList.add('hidden');
+      if (choiceArea) choiceArea.classList.add('hidden');
+      if (blindAudioUi) blindAudioUi.classList.add('hidden');
+
+      let mode = ['word', 'kana', 'meaning'].includes(displayMode)
+          ? displayMode
+          : 'word';
+
+      if (mode !== displayMode) {
+          const modeSelect = this.getEl('next-display-mode');
+          if (modeSelect) {
+              modeSelect.value = mode;
+              modeSelect.dispatchEvent(new Event('facade-update'));
+          }
+          localStorage.setItem('displayMode', mode);
+      }
+
+      const step = Model.state.mtStep;
       let currentTestType = '';
       let isMeaning = false;
       let targetText = '';
 
-            if (isMemTest) {
+      [wordEl, phoneticEl, meaningEl, typeEl].forEach(el => {
+          if (!el) return;
+          el.classList.remove('blur-text');
+          el.removeAttribute('aria-hidden');
+      });
+
+      if (wordEl) wordEl.style.display = 'none';
+      if (phoneticEl) phoneticEl.style.display = 'none';
+      if (meaningEl) meaningEl.style.display = 'none';
+      if (typeEl) typeEl.style.display = 'none';
+      if (rootsEl) rootsEl.style.display = 'none';
+      if (exampleEl) exampleEl.style.display = 'none';
+      if (speakerEl) speakerEl.style.display = 'none';
+
+      if (mode === 'word') {
+          if (step === 1) {
+              currentTestType = 'spell';
+              this.setEnglishCardWord(wObj, true, true);
+
+              if (meaningEl) {
+                  meaningEl.innerText = wObj.meaning || '';
+                  meaningEl.style.display = 'block';
+              }
+              if (typeEl) typeEl.style.display = 'flex';
+          } else {
+              currentTestType = 'choice-meaning';
+              isMeaning = true;
+              targetText = wObj.meaning || '';
+              this.setEnglishCardWord(wObj, false, true);
+
+              if (phoneticEl) {
+                  phoneticEl.innerText = wObj.phonetic || '';
+                  phoneticEl.style.display = 'block';
+              }
+              if (typeEl) typeEl.style.display = 'flex';
+          }
+      } else if (mode === 'kana') {
+          if (step === 1) {
+              currentTestType = 'choice-word';
+              isMeaning = false;
+              targetText = wObj.word || '';
+
+              if (blindAudioUi) blindAudioUi.classList.remove('hidden');
+
+              requestAnimationFrame(() => {
+                  Hardware.unlockSpeech();
+                  Hardware.speakWord(wObj);
+              });
+          } else {
+              currentTestType = 'choice-meaning';
+              isMeaning = true;
+              targetText = wObj.meaning || '';
+              this.setEnglishCardWord(wObj, false, true);
+
+              if (phoneticEl) {
+                  phoneticEl.innerText = wObj.phonetic || '';
+                  phoneticEl.style.display = 'block';
+              }
+              if (typeEl) typeEl.style.display = 'flex';
+          }
+      } else {
+          if (step === 1) {
+              currentTestType = 'choice-meaning';
+              isMeaning = true;
+              targetText = wObj.meaning || '';
+              this.setEnglishCardWord(wObj, false, true);
+
+              if (phoneticEl) {
+                  phoneticEl.innerText = wObj.phonetic || '';
+                  phoneticEl.style.display = 'block';
+              }
+              if (typeEl) typeEl.style.display = 'flex';
+          } else {
+              currentTestType = 'choice-word';
+              isMeaning = false;
+              targetText = wObj.word || '';
+              this.setEnglishCardWord(wObj, true, true);
+
+              if (meaningEl) {
+                  meaningEl.innerText = wObj.meaning || '';
+                  meaningEl.style.display = 'block';
+              }
+              if (typeEl) typeEl.style.display = 'flex';
+          }
+      }
+
+      if (currentTestType === 'spell') {
+          if (spellArea) spellArea.classList.remove('hidden');
+          RomajiEngine.reset();
+          EnglishInput.reset();
+
+          const inputEl = this.getEl('mt-spell-input');
+          inputEl.innerHTML = '';
+          inputEl.classList.remove('error-state', 'shake-anim');
+          this.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, mode);
+          return;
+      }
+
+      if (choiceArea) choiceArea.classList.remove('hidden');
+
+      const wordLang = wObj.lang || 'en';
+      let pool = Model.db.filter(x => {
+          return (
+              (x.lang || 'ja') === wordLang &&
+              x.folder === wObj.folder &&
+              x.type === wObj.type &&
+              x.word !== wObj.word
+          );
+      });
+
+      if (pool.length < 3) {
+          pool = Model.db.filter(x => {
+              return (
+                  (x.lang || 'ja') === wordLang &&
+                  x.word !== wObj.word
+              );
+          });
+      }
+
+      pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
+
+      let choices = [{ text: targetText, correct: true }];
+      pool.forEach(x => {
+          choices.push({
+              text: isMeaning ? x.meaning : x.word,
+              correct: false
+          });
+      });
+      choices.sort(() => Math.random() - 0.5);
+
+      const choiceButtons = this.getEl('mt-choice-buttons');
+      choiceButtons.innerHTML = '';
+
+      choices.forEach((choice, index) => {
+          const btn = document.createElement('div');
+          btn.className = 'dt-choice-btn choice-flip-anim';
+          btn.setAttribute('tabindex', '0');
+          btn.setAttribute('role', 'button');
+
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'choice-label';
+          labelSpan.innerText = String.fromCharCode(65 + index) + '.';
+
+          const textSpan = document.createElement('span');
+          textSpan.innerText = choice.text;
+
+          btn.appendChild(labelSpan);
+          btn.appendChild(textSpan);
+          btn.onpointerdown = e => {
+              e.preventDefault();
+              Controller.handleMtChoiceClick(
+                  btn,
+                  choice.correct,
+                  wObj,
+                  mode
+              );
+          };
+          choiceButtons.appendChild(btn);
+      });
+  },
+
+  renderMemoryTestUI(wObj, displayMode) {
+      let mtWarning = this.getEl('mt-warning');
+      if (mtWarning) mtWarning.classList.add('hidden');
+
+      this.getEl('mt-spell-area').classList.add('hidden');
+      this.getEl('mt-choice-area').classList.add('hidden');
+
+      let blindAudioUi = this.getEl('mt-blind-audio-ui');
+      if (blindAudioUi) blindAudioUi.classList.add('hidden');
+
+      let isMemTest = Model.state.mode === 'memory-test';
+
+      if (!isMemTest && wObj.lang === 'en') {
+          this.renderEnglishRoteUI(wObj, displayMode);
+          return;
+      }
+
+      let currentTestType = '';
+      let isMeaning = false;
+      let targetText = '';
+
+      if (isMemTest) {
           this.getEl('w-word').style.display = 'none';
           this.getEl('w-kana').style.display = 'none';
           this.getEl('w-meaning').style.display = 'none';
           this.getEl('w-type').style.display = 'none';
 
-          
           let round = Model.state.mtRound;
           let step = Model.state.mtStep;
           const isEnglishMt = wObj.lang === 'en';
-          
-          if (round === 1) { 
-              if(blindAudioUi) blindAudioUi.classList.remove('hidden');
+
+          if (round === 1) {
+              if (blindAudioUi) blindAudioUi.classList.remove('hidden');
               currentTestType = 'choice';
               isMeaning = true;
               targetText = wObj.meaning;
-} else if (round === 2) {
+          } else if (round === 2) {
               if (isEnglishMt) {
-                  // 英语第二轮：听力拼写
-                  if(blindAudioUi) blindAudioUi.classList.remove('hidden');
+                  if (blindAudioUi) blindAudioUi.classList.remove('hidden');
                   currentTestType = 'spell';
-              } else {                  if (step === 1) { 
-                      if(blindAudioUi) blindAudioUi.classList.remove('hidden');
-                      currentTestType = 'choice';
-                      isMeaning = false;
-                      targetText = wObj.word;
-                  } else if (step === 2) { 
-                      this.getEl('w-word').style.display = 'block';
-                      currentTestType = 'spell';
-                  }
+              } else if (step === 1) {
+                  if (blindAudioUi) blindAudioUi.classList.remove('hidden');
+                  currentTestType = 'choice';
+                  isMeaning = false;
+                  targetText = wObj.word;
+              } else if (step === 2) {
+                  this.getEl('w-word').style.display = 'block';
+                  currentTestType = 'spell';
               }
           } else if (round === 3) {
               if (isEnglishMt) {
@@ -1990,55 +2577,121 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
                   currentTestType = 'choice';
                   isMeaning = true;
                   targetText = wObj.meaning;
-              } else {
-                  if (step === 1) { 
-                      this.getEl('w-kana').style.display = 'block';
-                      currentTestType = 'choice';
-                      isMeaning = true;
-                      targetText = wObj.meaning;
-                  } else if (step === 2) { 
-                      this.getEl('w-kana').style.display = 'block';
-                      this.getEl('w-meaning').style.display = 'block';
-                      currentTestType = 'choice';
-                      isMeaning = false;
-                      targetText = wObj.word;
-                  }
+              } else if (step === 1) {
+                  this.getEl('w-kana').style.display = 'block';
+                  currentTestType = 'choice';
+                  isMeaning = true;
+                  targetText = wObj.meaning;
+              } else if (step === 2) {
+                  this.getEl('w-kana').style.display = 'block';
+                  this.getEl('w-meaning').style.display = 'block';
+                  currentTestType = 'choice';
+                  isMeaning = false;
+                  targetText = wObj.word;
               }
           }
       } else {
-          if (displayMode === 'all') { if(mtWarning) mtWarning.classList.remove('hidden'); return; }
-          if (displayMode === 'word') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-meaning'; } 
-          else if (displayMode === 'kana') { currentTestType = (Model.state.mtStep === 1) ? 'choice-word' : 'choice-meaning'; } 
-          else if (displayMode === 'meaning') { currentTestType = (Model.state.mtStep === 1) ? 'spell' : 'choice-word'; }
-          isMeaning = currentTestType === 'choice-meaning'; 
+          if (displayMode === 'all') {
+              if (mtWarning) mtWarning.classList.remove('hidden');
+              return;
+          }
+
+          if (displayMode === 'word') {
+              currentTestType = Model.state.mtStep === 1
+                  ? 'spell'
+                  : 'choice-meaning';
+          } else if (displayMode === 'kana') {
+              currentTestType = Model.state.mtStep === 1
+                  ? 'choice-word'
+                  : 'choice-meaning';
+          } else if (displayMode === 'meaning') {
+              currentTestType = Model.state.mtStep === 1
+                  ? 'spell'
+                  : 'choice-word';
+          }
+
+          isMeaning = currentTestType === 'choice-meaning';
           targetText = isMeaning ? wObj.meaning : wObj.word;
       }
 
       if (currentTestType === 'spell') {
           this.getEl('mt-spell-area').classList.remove('hidden');
-          RomajiEngine.reset(); EnglishInput.reset();
-          let inputEl = this.getEl('mt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
-          View.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, displayMode);
+          RomajiEngine.reset();
+          EnglishInput.reset();
+
+          let inputEl = this.getEl('mt-spell-input');
+          inputEl.innerHTML = '';
+          inputEl.classList.remove('error-state', 'shake-anim');
+          this.renderQwertyKeyboard(
+              'mt-spell-keyboard',
+              inputEl,
+              wObj,
+              displayMode
+          );
+          return;
       }
- else if (currentTestType.startsWith('choice')) {
+
+      if (currentTestType.startsWith('choice')) {
           this.getEl('mt-choice-area').classList.remove('hidden');
-          let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word);
-          if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word); 
+
+          const wordLang = wObj.lang || 'ja';
+          let pool = Model.db.filter(x => {
+              return (
+                  (x.lang || 'ja') === wordLang &&
+                  x.folder === wObj.folder &&
+                  x.type === wObj.type &&
+                  x.word !== wObj.word
+              );
+          });
+
+          if (pool.length < 3) {
+              pool = Model.db.filter(x => {
+                  return (
+                      (x.lang || 'ja') === wordLang &&
+                      x.word !== wObj.word
+                  );
+              });
+          }
+
           pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-          let choices = [{text: targetText, correct: true}];
-          pool.forEach(x => choices.push({text: isMeaning ? x.meaning : x.word, correct: false})); choices.sort(() => Math.random() - 0.5); 
-          
-          let cb = this.getEl('mt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach((c, idx) => { 
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn choice-flip-anim'; 
+
+          let choices = [{ text: targetText, correct: true }];
+          pool.forEach(x => {
+              choices.push({
+                  text: isMeaning ? x.meaning : x.word,
+                  correct: false
+              });
+          });
+          choices.sort(() => Math.random() - 0.5);
+
+          let cb = this.getEl('mt-choice-buttons');
+          cb.innerHTML = '';
+
+          choices.forEach((choice, index) => {
+              let btn = document.createElement('div');
+              btn.className = 'dt-choice-btn choice-flip-anim';
               btn.setAttribute('tabindex', '0');
               btn.setAttribute('role', 'button');
-              let label = String.fromCharCode(65 + idx); 
-              let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
-              let textSpan = document.createElement('span'); textSpan.innerText = c.text;
-              btn.appendChild(labelSpan); btn.appendChild(textSpan);
-              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleMtChoiceClick(btn, c.correct, wObj, displayMode); }; 
-              cb.appendChild(btn); 
+
+              let labelSpan = document.createElement('span');
+              labelSpan.className = 'choice-label';
+              labelSpan.innerText = String.fromCharCode(65 + index) + '.';
+
+              let textSpan = document.createElement('span');
+              textSpan.innerText = choice.text;
+
+              btn.appendChild(labelSpan);
+              btn.appendChild(textSpan);
+              btn.onpointerdown = e => {
+                  e.preventDefault();
+                  Controller.handleMtChoiceClick(
+                      btn,
+                      choice.correct,
+                      wObj,
+                      displayMode
+                  );
+              };
+              cb.appendChild(btn);
           });
       }
   },
@@ -2057,7 +2710,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       hintBtn.setAttribute('role', 'button');
       const isEnglishKb = wObj.lang === 'en';
       hintBtn.innerHTML = isEnglishKb 
-          ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看单词提示'
+          ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看首字母提示'
           : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
       hintBtn.onpointerdown = (e) => {
           e.preventDefault();
@@ -2065,8 +2718,10 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           if (isEnglishKb) {
               let wWord = View.getEl('w-word');
               if (wWord) {
-                  wWord.innerText = wObj.word;
+                  const firstLetter = (wObj.word || '').charAt(0).toLowerCase();
+                  wWord.innerText = firstLetter ? firstLetter + '···' : '···';
                   wWord.style.display = 'block';
+                  wWord.style.fontSize = '2.8rem';
                   wWord.classList.remove('blur-text');
                   wWord.removeAttribute('aria-hidden');
                   wWord.classList.add('hint-pop-anim');
@@ -2559,22 +3214,56 @@ setupVirtualScroll() {
     });
 
     View.getEl('btn-custom-group-select').addEventListener('click', () => {
-        Hardware.playSound('click'); Hardware.vibrate(15);
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+
+        View.updateGroupTabs();
+
+        const savedGroupKey =
+            Model.state.currentGroupKey ||
+            localStorage.getItem('lastCustomGroupVal') ||
+            '';
+
+        const [, savedCat] = savedGroupKey.split('|');
+
+        const tabs = Array.from(
+            View.getEl('gs-tabs').querySelectorAll('.g-tab')
+        );
+
+        const targetTab =
+            tabs.find(tab => tab.dataset.cat === savedCat) ||
+            tabs.find(tab => tab.classList.contains('active')) ||
+            tabs[0];
+
+        tabs.forEach(tab => {
+            tab.classList.toggle('active', tab === targetTab);
+        });
+
+        const activeCat = targetTab
+            ? targetTab.dataset.cat
+            : 'default';
+
         window.toggleModal('group-select-overlay', true);
+
         setTimeout(() => {
-            let activeTabEl = document.querySelector('#gs-tabs .active');
-            let activeTab = activeTabEl ? activeTabEl.dataset.cat : 'default';
-            View.renderGroupBottomSheet(activeTab);
+            View.renderGroupBottomSheet(activeCat);
         }, 10);
     });
 
     View.getEl('gs-tabs').addEventListener('click', (e) => {
-        let tab = e.target.closest('.g-tab');
+        const tab = e.target.closest('.g-tab');
         if (!tab) return;
+
         Hardware.playSound('click');
-        setTimeout(() => {
-            View.renderGroupBottomSheet(tab.dataset.cat);
-        }, 10);
+        Hardware.vibrate(10);
+
+        View.getEl('gs-tabs')
+            .querySelectorAll('.g-tab')
+            .forEach(item => {
+                item.classList.toggle('active', item === tab);
+            });
+
+        View.renderGroupBottomSheet(tab.dataset.cat);
     });
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
@@ -2603,7 +3292,17 @@ setupVirtualScroll() {
         Model.state.ftState = 'B'; 
         View.renderStudyCard('none'); 
     });
-    View.getEl('ft-know').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.ftState = 'C'; View.renderStudyCard('none'); });
+    View.getEl('ft-know').addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(20);
+
+        Model.state.ftState = 'C';
+        View.renderStudyCard('none');
+
+        requestAnimationFrame(() => {
+            View.revealStudyAnswer();
+        });
+    });
     View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
     View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
 
@@ -2750,13 +3449,6 @@ let btnNewAIChat = View.getEl('btn-new-ai-chat');
 if (btnNewAIChat) {
     btnNewAIChat.addEventListener('click', () => {
         Hardware.vibrate(15);
-        let headerH = document.getElementById('global-header')?.offsetHeight || 104;
-        let navH = document.getElementById('bottom-nav')?.offsetHeight || 90;
-        let chatView = View.getEl('ai-chat-view');
-        if (chatView) {
-            chatView.style.display = 'flex';
-            chatView.style.height = (window.innerHeight - headerH - navH) + 'px';
-        }
         Controller.aiTabChat.activeIdx = -1;
         Controller.aiTabChat.messages = [];
         Controller.aiTabChat.systemPrompt = '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。';
@@ -2772,9 +3464,9 @@ if (btnNewAIChat) {
         if (titleEl) titleEl.innerText = '自由对话';
         if (messagesEl) messagesEl.innerHTML = '';
         if (inputEl) inputEl.value = '';
-        if (listView) listView.classList.add('hidden');
+                if (listView) listView.classList.add('hidden');
         if (chatView) chatView.classList.remove('hidden');
-        setTimeout(() => { if (inputEl) inputEl.focus(); }, 200);
+
     });
 }
 
@@ -3018,31 +3710,57 @@ if (aiCloseBtn) {
     if (panel) panel.classList.add('hidden');
     return;
 }
-        let target = e.target.closest('.blur-target, .wb-blur-trigger'); 
+        let target = e.target.closest('.blur-target, .wb-blur-trigger');
 
-            if (target && target.classList.contains('blur-text') || (target && target.parentElement.classList.contains('blur-text'))) { 
-                let el = target.classList.contains('blur-text') ? target : target.parentElement; 
-                el.classList.remove('blur-text'); 
-                el.removeAttribute('aria-hidden');
-                
-                // --- 词根词缀同步解锁逻辑 ---
-                if (el.id === 'w-word') {
-                    document.querySelectorAll('#w-roots .r-text').forEach(n => { n.classList.remove('blur-text'); n.removeAttribute('aria-hidden'); });
-                } else if (el.id === 'w-meaning') {
-                    document.querySelectorAll('#w-roots .r-mean').forEach(n => { n.classList.remove('blur-text'); n.removeAttribute('aria-hidden'); });
-                } else if (el.classList.contains('r-text')) {
-                    let wWord = document.getElementById('w-word');
-                    if(wWord) { wWord.classList.remove('blur-text'); wWord.removeAttribute('aria-hidden'); }
-                    document.querySelectorAll('#w-roots .r-text').forEach(n => { n.classList.remove('blur-text'); n.removeAttribute('aria-hidden'); });
-                } else if (el.classList.contains('r-mean')) {
-                    let wMean = document.getElementById('w-meaning');
-                    if(wMean) { wMean.classList.remove('blur-text'); wMean.removeAttribute('aria-hidden'); }
-                    document.querySelectorAll('#w-roots .r-mean').forEach(n => { n.classList.remove('blur-text'); n.removeAttribute('aria-hidden'); });
+        if (
+            target &&
+            (
+                target.classList.contains('blur-text') ||
+                (
+                    target.parentElement &&
+                    target.parentElement.classList.contains('blur-text')
+                )
+            )
+        ) {
+            let el = target.classList.contains('blur-text')
+                ? target
+                : target.parentElement;
+
+            View.revealStudyElement(el);
+
+            if (el.id === 'w-word') {
+                document.querySelectorAll('#w-roots .r-text').forEach(n => {
+                    View.revealStudyElement(n);
+                });
+            } else if (el.id === 'w-meaning') {
+                document.querySelectorAll('#w-roots .r-mean').forEach(n => {
+                    View.revealStudyElement(n);
+                });
+            } else if (el.classList.contains('r-text')) {
+                let wWord = document.getElementById('w-word');
+
+                if (wWord) {
+                    View.revealStudyElement(wWord);
                 }
-                
-                Hardware.playSound('click'); 
-                Hardware.vibrate(15); 
-            } 
+
+                document.querySelectorAll('#w-roots .r-text').forEach(n => {
+                    View.revealStudyElement(n);
+                });
+            } else if (el.classList.contains('r-mean')) {
+                let wMean = document.getElementById('w-meaning');
+
+                if (wMean) {
+                    View.revealStudyElement(wMean);
+                }
+
+                document.querySelectorAll('#w-roots .r-mean').forEach(n => {
+                    View.revealStudyElement(n);
+                });
+            }
+
+            Hardware.playSound('click');
+            Hardware.vibrate(15);
+        }
 
         let exJp = e.target.closest('.dt-ex-jp'); 
         if (exJp) { 
@@ -3470,26 +4188,128 @@ if (aiCloseBtn) {
   },
 
     startPendulum(launchMode = 'pendulum') {
-    let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || '默认词库';
-    let defCat = defFolder === '默认词库' ? 'default' : defFolder;
-    
-    let groupKey = Model.state.currentGroupKey || localStorage.getItem('lastCustomGroupVal') || `group|${defCat}|0`;
+    const currentLang = Model.state.currentLangMode;
+
+    const defFolder =
+        Model.folders.find(folder => {
+            return (Model.folderLangs[folder] || 'ja') === currentLang;
+        }) || '默认词库';
+
+    const defCat =
+        defFolder === '默认词库'
+            ? 'default'
+            : defFolder;
+
+    let groupKey =
+        Model.state.currentGroupKey ||
+        localStorage.getItem('lastCustomGroupVal') ||
+        `group|${defCat}|0`;
+
+    let [prefix, catName, indexText] = groupKey.split('|');
+    let groupIndex = Number.parseInt(indexText, 10);
+
+    if (
+        prefix !== 'group' ||
+        !Number.isInteger(groupIndex) ||
+        groupIndex < 0
+    ) {
+        catName = defCat;
+        groupIndex = 0;
+        groupKey = `group|${defCat}|0`;
+    }
+
+    const GROUP_SIZE = 10;
+const GROUP_STEP = 7;
+const startIdx = groupIndex * GROUP_STEP;
+
+    const groupWords = Model.db
+        .map((w, i) => ({ w, i }))
+        .filter(item => {
+            const wordLang = item.w.lang || 'ja';
+
+            return (
+                wordLang === currentLang &&
+                Model.checkFilter(item.w, catName)
+            );
+        });
+
+    const sourceWords = groupWords.slice(
+        startIdx,
+        startIdx + GROUP_SIZE
+    );
+
+    if (sourceWords.length === 0) {
+        return showToast('所选范围内暂无词汇哦');
+    }
+
+    const virtualLabels = {
+        virtual_cleared: '完全通关',
+        virtual_uncleared: '所有未通关',
+        virtual_miss_kanji:
+            currentLang === 'en'
+                ? '未掌握拼写'
+                : '未了解汉字',
+        virtual_miss_kana:
+            currentLang === 'en'
+                ? '未掌握听力'
+                : '未了解读音',
+        virtual_miss_meaning: '未了解释义',
+        virtual_starred: '收藏'
+    };
+
+    const categoryLabel =
+        catName === 'default'
+            ? '默认词库'
+            : (virtualLabels[catName] || catName);
+
+    const actualEnd = startIdx + sourceWords.length;
+
+    const groupLabel =
+        `${categoryLabel} (第 ${startIdx + 1}-${actualEnd} 词)`;
+
     Model.state.currentGroupKey = groupKey;
-    if (!Model.state.currentGroupLabel) { Model.state.currentGroupLabel = localStorage.getItem('lastCustomGroupTxt') || `${defFolder} (第 1-10 词)`; }
-    let [prefix, catName, idxStr] = groupKey.split('|'); 
- 
-    let idx = parseInt(idxStr); let startIdx = idx * 7; let endIdx = startIdx + 10;
-    let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-        return Model.checkFilter(item.w, catName);
-    }).slice(startIdx, endIdx);
-    if(sourceWords.length === 0) return showToast("所选范围内暂无词汇哦");
+    Model.state.currentGroupLabel = groupLabel;
+
+    const groupText = View.getEl('custom-group-text');
+    if (groupText) {
+        groupText.innerText = groupLabel;
+    }
+
+    localStorage.setItem('lastCustomGroupVal', groupKey);
+    localStorage.setItem('lastCustomGroupTxt', groupLabel);
     Hardware.playSound('click'); 
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxSessionCombo = 0; Model.state.sessionSaved = false; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
     if (launchMode === 'memory-test') { Model.state.mtRound = 1; Model.state.mtBaseQueue = sourceWords.map(x => x.i); Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Model.state.totalTestWords = Model.state.studyQueue.length; } 
     else { Model.state.studyQueue = []; let len = sourceWords.length; for (let i = 0; i < len; i++) { Model.state.studyQueue.push(sourceWords[i].i); for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i); for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i); } }
     Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     View.updateComboBadge();
-    let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode; View.getEl('next-display-mode').dispatchEvent(new Event('facade-update'));
+    const modeSelect = View.getEl('next-display-mode');
+    let savedMode = localStorage.getItem('displayMode') || 'all';
+    const isEnglishRote = currentLang === 'en' && launchMode === 'rote-learning';
+
+    if (modeSelect) {
+        if (isEnglishRote) {
+            modeSelect.options[0].text = '全显预览';
+            modeSelect.options[0].style.display = 'none';
+            modeSelect.options[1].text = '拼写强化';
+            modeSelect.options[2].text = '听力强化';
+            modeSelect.options[3].text = '释义强化';
+
+            if (!['word', 'kana', 'meaning'].includes(savedMode)) {
+                savedMode = 'word';
+                localStorage.setItem('displayMode', savedMode);
+            }
+        } else {
+            modeSelect.options[0].text = '全显';
+            modeSelect.options[0].style.display = '';
+            modeSelect.options[1].text = currentLang === 'en' ? '英文' : '汉字';
+            modeSelect.options[2].text = currentLang === 'en' ? '音标' : '假名';
+            modeSelect.options[3].text = '释义';
+        }
+
+        modeSelect.value = savedMode;
+        modeSelect.dispatchEvent(new Event('facade-update'));
+    }
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
@@ -3498,8 +4318,20 @@ if (aiCloseBtn) {
       let displayMode = View.getEl('test-display-select').value || 'kana';
       let isSkipEnabled = localStorage.getItem('skipMastered') === 'true';
 
-      let sourceWords = Model.db.map((w, i) => ({w, i})).filter(item => {
-          let inRange = (cat === 'all') ? true : Model.checkFilter(item.w, cat);
+      let sourceWords = Model.db
+          .map((w, i) => ({ w, i }))
+          .filter(item => {
+          let wordLang = item.w.lang || 'ja';
+
+          if (wordLang !== Model.state.currentLangMode) {
+              return false;
+          }
+
+          let inRange =
+              cat === 'all'
+                  ? true
+                  : Model.checkFilter(item.w, cat);
+
           if (!inRange) return false;
 
           if (isSkipEnabled) {
@@ -3538,113 +4370,231 @@ if (aiCloseBtn) {
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
-  processFilterTestResult(isCorrect) {
+    processFilterTestResult(isCorrect) {
+      if (Model.state.isAnimating) return;
+      Model.state.isAnimating = true;
+
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
       let wordKey = w.word;
       const isEnglish = w.lang === 'en';
-      
-      if (!Model.mtWordClears[wordKey] || typeof Model.mtWordClears[wordKey] !== 'object') {
-          Model.mtWordClears[wordKey] = { kanji: false, kana: false, meaning: false };
+
+      if (
+          !Model.mtWordClears[wordKey] ||
+          typeof Model.mtWordClears[wordKey] !== 'object'
+      ) {
+          Model.mtWordClears[wordKey] = {
+              kanji: false,
+              kana: false,
+              meaning: false
+          };
       }
 
       let mode = View.getEl('test-display-select').value || 'kana';
-      // 英语模式：kana 不存在 → 映射为 word；audio 保留为听力辨音
-      if (isEnglish && mode === 'kana') mode = 'word';
-      
-      if (isCorrect) {
-          if (mode === 'word') Model.mtWordClears[wordKey].kanji = true;
-          else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = true;
-          else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = true;
 
-          // 日语及英语：任意两杠亮 → 第三杠自动亮（加速通关）
-          if (Model.mtWordClears[wordKey].kana && Model.mtWordClears[wordKey].meaning) {
+      if (isEnglish && mode === 'kana') {
+          mode = 'word';
+      }
+
+      if (isCorrect) {
+          if (mode === 'word') {
+              Model.mtWordClears[wordKey].kanji = true;
+          } else if (mode === 'kana' || mode === 'audio') {
+              Model.mtWordClears[wordKey].kana = true;
+          } else if (mode === 'meaning') {
+              Model.mtWordClears[wordKey].meaning = true;
+          }
+
+          if (
+              Model.mtWordClears[wordKey].kana &&
+              Model.mtWordClears[wordKey].meaning
+          ) {
               Model.mtWordClears[wordKey].kanji = true;
           }
-          if (Model.mtWordClears[wordKey].kanji && Model.mtWordClears[wordKey].meaning) {
+
+          if (
+              Model.mtWordClears[wordKey].kanji &&
+              Model.mtWordClears[wordKey].meaning
+          ) {
               Model.mtWordClears[wordKey].kana = true;
           }
-          if (Model.mtWordClears[wordKey].kanji && Model.mtWordClears[wordKey].kana) {
+
+          if (
+              Model.mtWordClears[wordKey].kanji &&
+              Model.mtWordClears[wordKey].kana
+          ) {
               Model.mtWordClears[wordKey].meaning = true;
           }
       } else {
-          if (mode === 'word') Model.mtWordClears[wordKey].kanji = false;
-          else if (mode === 'kana' || mode === 'audio') Model.mtWordClears[wordKey].kana = false;
-          else if (mode === 'meaning') Model.mtWordClears[wordKey].meaning = false;
+          if (mode === 'word') {
+              Model.mtWordClears[wordKey].kanji = false;
+          } else if (mode === 'kana' || mode === 'audio') {
+              Model.mtWordClears[wordKey].kana = false;
+          } else if (mode === 'meaning') {
+              Model.mtWordClears[wordKey].meaning = false;
+          }
       }
 
-      Model.saveClears(); 
-      Model.state.currentIndex++; 
-      Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false;
-      
-      if (Model.state.currentIndex >= Model.state.studyQueue.length) { 
-          Hardware.playSound('success'); Hardware.vibrate(1000); 
-          showToast("恭喜，全部靶向检验完成！"); 
-          View.getEl('btn-exit-study').click(); 
-      } else { 
-          View.renderStudyCard('next'); 
-      }
+      Model.saveClears();
+      View.playStudyFeedback(isCorrect ? 'correct' : 'wrong');
+
+      window.setTimeout(() => {
+          Model.state.currentIndex++;
+          Model.state.ftState = 'A';
+          Model.state.ftHint = null;
+          Model.state.ftShowKanaHint = false;
+
+          if (Model.state.currentIndex >= Model.state.studyQueue.length) {
+              Model.state.isAnimating = false;
+              Hardware.playSound('success');
+              Hardware.vibrate(1000);
+              showToast('恭喜，全部靶向检验完成！');
+              View.getEl('btn-exit-study').click();
+          } else {
+              View.renderStudyCard('next');
+          }
+      }, isCorrect ? 380 : 320);
   },
 
   handleSpellConfirm(inputEl, wObj, displayMode) {
       if (Model.state.isAnimating) return;
+
       const isEnglish = wObj.lang === 'en';
-      
-      let targetClean, inputClean;
+      const isEnglishRote =
+          isEnglish && Model.state.mode === 'rote-learning';
+
+      let targetClean;
+      let inputClean;
+
       if (isEnglish) {
-          // English: compare typed English word directly
           targetClean = (wObj.word || '').toLowerCase().trim();
           inputClean = (EnglishInput.buffer || '').toLowerCase().trim();
       } else {
-          targetClean = (wObj.kana || '').replace(/[【】\[\]()]/g,'');
+          targetClean = (wObj.kana || '').replace(/[【】\[\]()]/g, '');
           inputClean = RomajiEngine.getFinalText();
       }
-      
+
       if (!inputClean) return;
 
       if (inputClean === targetClean) {
-          Model.state.isAnimating = true; Hardware.playSound('success'); Hardware.vibrate(50);
-          Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
-          
+          Model.state.isAnimating = true;
+          Hardware.playSound('success');
+          Hardware.vibrate(50);
+          View.playStudyFeedback('correct');
+
+          Model.state.comboCount++;
+          Model.state.maxSessionCombo = Math.max(
+              Model.state.maxSessionCombo,
+              Model.state.comboCount
+          );
+          View.updateComboBadge();
+
+          if (isEnglishRote) {
+              View.showEnglishRoteFullCard(wObj);
+              EnglishInput.reset();
+
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 700);
+              return;
+          }
+
           let wWord = View.getEl('w-word');
+          let wKana = View.getEl('w-kana');
           let wMeaning = View.getEl('w-meaning');
-          if(wWord) wWord.style.display = 'block';
-          if(wMeaning) wMeaning.style.display = 'block';
+
+          if (wWord) {
+              wWord.innerText = wObj.word || '';
+              wWord.style.display = 'block';
+          }
+
+          if (wKana) {
+              wKana.innerText = isEnglish
+                  ? (wObj.phonetic || '')
+                  : (wObj.kana || '');
+              wKana.style.display = 'block';
+          }
+
+          if (wMeaning) {
+              wMeaning.innerText = wObj.meaning || '';
+              wMeaning.style.display = 'block';
+          }
+
           View.syncRootsDisplay();
+          View.revealStudyAnswer();
 
           if (Model.state.mode === 'dual-track') {
-              setTimeout(() => this.dtAdvanceNext(), 300);
-          } else {
-              if (Model.state.mode === 'memory-test') { 
-                  if (!isEnglish) {
-                      View.getEl('w-kana').innerText = wObj.kana; View.getEl('w-kana').style.display = 'block'; 
-                  }
-                  setTimeout(() => this.mtAdvanceNext(), 600); 
-              } else { 
-                  if (!isEnglish && (displayMode === 'word' || displayMode === 'meaning')) { View.getEl('w-kana').innerText = wObj.kana; } 
-                  setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 500); 
+              setTimeout(() => this.dtAdvanceNext(), 420);
+          } else if (Model.state.mode === 'memory-test') {
+              if (!isEnglish) {
+                  View.getEl('w-kana').innerText = wObj.kana;
+                  View.getEl('w-kana').style.display = 'block';
               }
+              setTimeout(() => this.mtAdvanceNext(), 600);
+          } else {
+              if (
+                  !isEnglish &&
+                  (displayMode === 'word' || displayMode === 'meaning')
+              ) {
+                  View.getEl('w-kana').innerText = wObj.kana;
+              }
+
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 500);
           }
+
           if (isEnglish) EnglishInput.reset();
-      } else {
-          Hardware.playSound('error'); Hardware.vibrate(60);
-          inputEl.classList.remove('shake-anim'); void inputEl.offsetWidth; 
-          inputEl.classList.add('shake-anim', 'error-state');
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge();
-          Model.state.currentWordFailed = true;
-          
-          Model.state.spellFailCount = (Model.state.spellFailCount || 0) + 1;
-          if (Model.state.spellFailCount >= 2) {
-              let activeKbId = Model.state.mode === 'dual-track' ? 'dt-spell-keyboard' : 'mt-spell-keyboard';
-              let hintWrap = View.getEl(activeKbId + '-hint-wrap');
-              if (hintWrap) hintWrap.classList.add('show');
-          }
+          return;
+      }
+
+      Hardware.playSound('error');
+      Hardware.vibrate(60);
+      View.playStudyFeedback('wrong');
+
+      inputEl.classList.remove('shake-anim');
+      void inputEl.offsetWidth;
+      inputEl.classList.add('shake-anim', 'error-state');
+
+      Model.state.comboCount = Math.max(0, Model.state.comboCount - 3);
+      View.updateComboBadge();
+      Model.state.currentWordFailed = true;
+
+      Model.state.spellFailCount =
+          (Model.state.spellFailCount || 0) + 1;
+
+      if (Model.state.spellFailCount >= 2) {
+          let activeKbId = Model.state.mode === 'dual-track'
+              ? 'dt-spell-keyboard'
+              : 'mt-spell-keyboard';
+          let hintWrap = View.getEl(activeKbId + '-hint-wrap');
+          if (hintWrap) hintWrap.classList.add('show');
+      }
+
+      if (isEnglishRote && Model.state.spellFailCount >= 3) {
+          Hardware.unlockSpeech();
+          Hardware.speakWord(wObj);
       }
   },
 
   handleDtChoiceClick(btn, isCorrect) {
       if (Model.state.isAnimating) return;
       if (isCorrect) {
-          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
+          Model.state.isAnimating = true;
+          btn.classList.add('correct');
+          Hardware.playSound('success');
+          Hardware.vibrate(40);
+          View.playStudyFeedback('correct');
+
+          Model.state.comboCount++;
+          Model.state.maxSessionCombo = Math.max(
+              Model.state.maxSessionCombo,
+              Model.state.comboCount
+          );
+          View.updateComboBadge();
           
           let wMeaning = View.getEl('w-meaning');
           if(wMeaning) { wMeaning.style.display = 'block'; View.syncRootsDisplay(); }
@@ -3665,8 +4615,11 @@ if (aiCloseBtn) {
 });
           document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
       } else { 
-          Hardware.playSound('error'); Hardware.vibrate(50); 
-          btn.classList.remove('shake-anim', 'wrong'); 
+          Hardware.playSound('error');
+          Hardware.vibrate(50);
+          View.playStudyFeedback('wrong');
+
+          btn.classList.remove('shake-anim', 'wrong');
           requestAnimationFrame(() => {
               void btn.offsetWidth; 
               btn.classList.add('shake-anim', 'wrong'); 
@@ -3677,18 +4630,159 @@ if (aiCloseBtn) {
 
   handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
       if (Model.state.isAnimating) return;
-      if (isCorrect) {
-          Model.state.isAnimating = true; btn.classList.add('correct'); Hardware.playSound('success'); Hardware.vibrate(40); Model.state.comboCount++; Model.state.maxSessionCombo = Math.max(Model.state.maxSessionCombo, Model.state.comboCount); View.updateComboBadge();
-          if (Model.state.mode === 'memory-test') {
-              let round = Model.state.mtRound; let step = Model.state.mtStep;
-              if (round === 1) { View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block'; View.syncRootsDisplay(); View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300); document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); } 
-              else if (round === 2) { if (step === 1) { View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block'; View.syncRootsDisplay(); View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } } 
-              else if (round === 3) { if (step === 1) { View.getEl('w-meaning').innerText = wObj.meaning; View.getEl('w-meaning').style.display = 'block'; View.syncRootsDisplay(); View.getEl('w-meaning').classList.add('shake-anim'); setTimeout(() => View.getEl('w-meaning').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } else if (step === 2) { View.getEl('w-word').innerText = wObj.word; View.getEl('w-word').style.display = 'block'; View.syncRootsDisplay(); View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); } }
-          } else {
-              if (Model.state.mtStep === 1) { View.getEl('w-word').innerText = wObj.word; View.syncRootsDisplay(); View.getEl('w-word').classList.add('shake-anim'); setTimeout(() => View.getEl('w-word').classList.remove('shake-anim'), 300); setTimeout(() => { Model.state.mtStep = 2; Model.state.isAnimating = false; View.renderMemoryTestUI(wObj, displayMode); }, 600); } 
-              else { if (displayMode === 'word' || displayMode === 'kana') { View.getEl('w-meaning').innerText = wObj.meaning; } else if (displayMode === 'meaning') { View.getEl('w-word').innerText = wObj.word; } View.syncRootsDisplay(); View.getEl('w-example-box').style.display = 'block'; document.querySelectorAll('#mt-choice-buttons .dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.mtAdvanceNext(), 800); }
+
+      if (!isCorrect) {
+          Hardware.playSound('error');
+          Hardware.vibrate(50);
+          View.playStudyFeedback('wrong');
+
+          btn.classList.remove('shake-anim', 'wrong');
+          void btn.offsetWidth;
+          btn.classList.add('shake-anim', 'wrong');
+
+          Model.state.comboCount = Math.max(
+              0,
+              Model.state.comboCount - 3
+          );
+          View.updateComboBadge();
+          Model.state.currentWordFailed = true;
+          return;
+      }
+
+      Model.state.isAnimating = true;
+      btn.classList.add('correct');
+      Hardware.playSound('success');
+      Hardware.vibrate(40);
+      View.playStudyFeedback('correct');
+
+      Model.state.comboCount++;
+      Model.state.maxSessionCombo = Math.max(
+          Model.state.maxSessionCombo,
+          Model.state.comboCount
+      );
+      View.updateComboBadge();
+
+      const disableChoiceButtons = () => {
+          document
+              .querySelectorAll('#mt-choice-buttons .dt-choice-btn')
+              .forEach(button => {
+                  button.style.pointerEvents = 'none';
+              });
+      };
+
+      if (Model.state.mode === 'memory-test') {
+          let round = Model.state.mtRound;
+          let step = Model.state.mtStep;
+
+          if (round === 1) {
+              View.getEl('w-meaning').innerText = wObj.meaning;
+              View.getEl('w-meaning').style.display = 'block';
+              View.syncRootsDisplay();
+              View.revealStudyElement(View.getEl('w-meaning'));
+              disableChoiceButtons();
+              setTimeout(() => this.mtAdvanceNext(), 800);
+          } else if (round === 2 && step === 1) {
+              View.getEl('w-word').innerText = wObj.word;
+              View.getEl('w-word').style.display = 'block';
+              View.syncRootsDisplay();
+              View.revealStudyElement(View.getEl('w-word'));
+
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 600);
+          } else if (round === 3 && step === 1) {
+              View.getEl('w-meaning').innerText = wObj.meaning;
+              View.getEl('w-meaning').style.display = 'block';
+              View.syncRootsDisplay();
+              View.revealStudyElement(View.getEl('w-meaning'));
+
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderMemoryTestUI(wObj, displayMode);
+              }, 600);
+          } else if (round === 3 && step === 2) {
+              View.getEl('w-word').innerText = wObj.word;
+              View.getEl('w-word').style.display = 'block';
+              View.syncRootsDisplay();
+              View.revealStudyElement(View.getEl('w-word'));
+              disableChoiceButtons();
+              setTimeout(() => this.mtAdvanceNext(), 800);
           }
-      } else { Hardware.playSound('error'); Hardware.vibrate(50); btn.classList.remove('shake-anim', 'wrong'); void btn.offsetWidth; btn.classList.add('shake-anim', 'wrong'); Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); Model.state.currentWordFailed = true; }
+          return;
+      }
+
+      const isEnglishRote =
+          wObj.lang === 'en' &&
+          Model.state.mode === 'rote-learning';
+
+      if (isEnglishRote) {
+          const step = Model.state.mtStep;
+          const blindAudioUi = View.getEl('mt-blind-audio-ui');
+          const phoneticEl = View.getEl('w-kana');
+          const meaningEl = View.getEl('w-meaning');
+          const typeEl = View.getEl('w-type');
+
+          disableChoiceButtons();
+
+          if (step === 1) {
+              if (displayMode === 'kana') {
+                  if (blindAudioUi) blindAudioUi.classList.add('hidden');
+                  View.setEnglishCardWord(wObj, false, true);
+
+                  if (phoneticEl) {
+                      phoneticEl.innerText = wObj.phonetic || '';
+                      phoneticEl.style.display = 'block';
+                  }
+                  if (typeEl) typeEl.style.display = 'flex';
+
+                  View.revealStudyElement(View.getEl('w-word'));
+                  View.revealStudyElement(phoneticEl);
+              } else if (displayMode === 'meaning') {
+                  if (meaningEl) {
+                      meaningEl.innerText = wObj.meaning || '';
+                      meaningEl.style.display = 'block';
+                      View.revealStudyElement(meaningEl);
+                  }
+              }
+
+              setTimeout(() => {
+                  Model.state.mtStep = 2;
+                  Model.state.isAnimating = false;
+                  View.renderEnglishRoteUI(wObj, displayMode);
+              }, 650);
+              return;
+          }
+
+          View.showEnglishRoteFullCard(wObj);
+          setTimeout(() => this.mtAdvanceNext(), 850);
+          return;
+      }
+
+      if (Model.state.mtStep === 1) {
+          View.getEl('w-word').innerText = wObj.word;
+          View.syncRootsDisplay();
+          View.revealStudyElement(View.getEl('w-word'));
+
+          setTimeout(() => {
+              Model.state.mtStep = 2;
+              Model.state.isAnimating = false;
+              View.renderMemoryTestUI(wObj, displayMode);
+          }, 600);
+      } else {
+          if (displayMode === 'word' || displayMode === 'kana') {
+              View.getEl('w-meaning').innerText = wObj.meaning;
+          } else if (displayMode === 'meaning') {
+              View.getEl('w-word').innerText = wObj.word;
+          }
+
+          View.syncRootsDisplay();
+          View.getEl('w-example-box').style.display = 'block';
+          disableChoiceButtons();
+          setTimeout(() => this.mtAdvanceNext(), 800);
+      }
   },
 
   dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
@@ -4054,11 +5148,35 @@ openAISheet(sentence, word, lang) {
     if (!apiKey) {
         let self = this;
         Hardware.vibrate(20);
-        document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6366f1; vertical-align:middle; margin-right:6px;">vpn_key</span> 配置 DeepSeek API Key';
-        let input = document.getElementById('prompt-input');
-        input.type = 'password';
-        input.placeholder = '粘贴你的 API Key (sk-...)';
-        input.value = '';
+        const promptTitle = document.getElementById('prompt-title');
+const promptHelper = document.getElementById('prompt-helper');
+const promptIcon = document.getElementById('prompt-icon');
+const visibilityBtn = document.getElementById('prompt-visibility');
+let input = document.getElementById('prompt-input');
+
+promptTitle.textContent = '配置 DeepSeek API Key';
+
+promptHelper.textContent =
+    '密钥会保存在当前设备，并仅用于发送 AI 请求。';
+promptHelper.hidden = false;
+
+promptIcon.textContent = 'vpn_key';
+
+input.type = 'password';
+input.autocomplete = 'new-password';
+input.placeholder = '粘贴 API Key（sk-…）';
+input.value = '';
+
+visibilityBtn.hidden = false;
+visibilityBtn.title = '显示密钥';
+visibilityBtn.setAttribute('aria-label', '显示密钥');
+
+const visibilityIcon =
+    visibilityBtn.querySelector('.material-symbols-rounded');
+
+if (visibilityIcon) {
+    visibilityIcon.textContent = 'visibility';
+}
         window.toggleModal('prompt-overlay', true);
         setTimeout(() => input.focus(), 100);
         document.getElementById('prompt-confirm').onclick = () => { 
@@ -4103,9 +5221,9 @@ openAISheet(sentence, word, lang) {
         chatArea.innerHTML = this.aiCache[cacheKey];
         if (copyBtn) copyBtn.style.display = 'flex';
         this._scrollChatToBottom();
-        if (inputEl) setTimeout(() => inputEl.focus(), 300);
         return;
     }
+
     
     chatArea.innerHTML = '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:85%;"></div><div class="ai-skel-bar" style="width:60%;"></div><div class="ai-skel-bar" style="width:92%;"></div><div class="ai-skel-bar" style="width:45%;"></div><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:35%;"></div></div></div>';
     this._scrollChatToBottom();
@@ -4169,15 +5287,15 @@ renderAIHistory() {
         let isEnglish = conv.lang === 'en';
         let wordDisplay = conv.word || '自由对话';
         html += '<div class="ai-history-card" data-idx="' + idx + '" tabindex="0" role="button">';
-        html += '<div class="ai-history-card-top">';
-        html += '<span class="ai-history-lang-tag">' + (isEnglish ? 'EN' : '日') + '</span>';
-        html += '<span class="ai-history-word">' + escapeHTML(wordDisplay) + '</span>';
-        html += '<span class="ai-history-msgcount">' + msgCount + ' 条对话</span>';
-        html += '</div>';
-        html += '<div class="ai-history-preview">' + escapeHTML(preview || '点击继续对话...') + '</div>';
-        html += '<div class="ai-history-date">' + escapeHTML(conv.date) + '</div>';
-        html += '<button class="ai-history-del-btn" data-idx="' + idx + '"><span class="material-symbols-rounded">delete</span></button>';
-        html += '</div>';
+html += '<div class="ai-history-card-top">';
+html += '<span class="ai-history-lang-tag">' + (isEnglish ? 'EN' : '日') + '</span>';
+html += '<span class="ai-history-word">' + escapeHTML(wordDisplay) + '</span>';
+html += '<span class="ai-history-msgcount">' + msgCount + ' 条对话</span>';
+html += '<button class="ai-history-del-btn" data-idx="' + idx + '" title="删除这条对话" aria-label="删除这条对话"><span class="material-symbols-rounded">delete</span></button>';
+html += '</div>';
+html += '<div class="ai-history-preview">' + escapeHTML(preview || '点击继续对话。') + '</div>';
+html += '<div class="ai-history-date">' + escapeHTML(conv.date) + '</div>';
+html += '</div>';
     });
     listEl.innerHTML = html;
     
@@ -4218,12 +5336,6 @@ openAIChatFromTab(idx) {
     let inputEl = View.getEl('ai-tab-chat-input');
     if (!messagesEl || !chatView || !listView) return;
     
-    // 计算可用高度，让消息区域可以滚动
-    let headerH = document.getElementById('global-header')?.offsetHeight || 104;
-    let navH = document.getElementById('bottom-nav')?.offsetHeight || 90;
-    chatView.style.display = 'flex';
-    chatView.style.height = (window.innerHeight - headerH - navH) + 'px';
-    
     this.aiTabChat.activeIdx = idx;
     this.aiTabChat.messages = conv.messages ? [...conv.messages] : [];
     this.aiTabChat.systemPrompt = conv.systemPrompt || '';
@@ -4237,26 +5349,22 @@ openAIChatFromTab(idx) {
     
     let html = '';
     let msgs = this.aiTabChat.messages;
-    if (msgs && msgs.length > 0) {
-        msgs.forEach(msg => {
-            if (msg.role === 'assistant') {
-                let renderText = escapeHTML(msg.content)
-                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br>');
-                html += '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">' + renderText + '</div></div>';
-            } else if (msg.role === 'user') {
-                html += '<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">' + escapeHTML(msg.content) + '</div></div>';
-            }
-        });
-    }
+if (msgs && msgs.length > 0) {
+    msgs.forEach(msg => {
+        if (msg.role === 'assistant') {
+            let renderText = renderAIMessageHTML(msg.content, conv.word || '');
+            html += '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">' + renderText + '</div></div>';
+        } else if (msg.role === 'user') {
+            html += '<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">' + escapeHTML(msg.content) + '</div></div>';
+        }
+    });
+}
     messagesEl.innerHTML = html;
     
     listView.classList.add('hidden');
     chatView.classList.remove('hidden');
     setTimeout(() => {
         messagesEl.scrollTop = messagesEl.scrollHeight;
-        if (inputEl) inputEl.focus();
     }, 100);
 },
 
@@ -4270,11 +5378,6 @@ closeAITabChat() {
     this.aiTabChat.cacheKey = '';
     this.aiTabChat.sentence = '';
     this.aiTabChat.word = '';
-    let chatView = View.getEl('ai-chat-view');
-    if (chatView) {
-        chatView.style.display = 'none';
-        chatView.style.height = '';
-    }
     this.renderAIHistory();
 },
 
@@ -4317,12 +5420,24 @@ sendAITabMessage() {
     messagesEl.appendChild(aiBubble);
     this._scrollTabChatToBottom();
     
-    let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。' }, ...this.aiTabChat.messages.slice(0, -1)];
+    let messagesToSend = [
+    {
+        role: 'system',
+        content: withJapaneseRubyInstruction(this.aiTabChat.systemPrompt)
+    },
+    ...this.aiTabChat.messages.slice(0, -1)
+];
     this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
 },
 
 async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
-    let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。' }, ...this.aiTabChat.messages.slice(0, -1)];
+    let messagesToSend = [
+    {
+        role: 'system',
+        content: withJapaneseRubyInstruction(this.aiTabChat.systemPrompt)
+    },
+    ...this.aiTabChat.messages.slice(0, -1)
+];
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
@@ -4361,12 +5476,8 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
                         let chunk = data.choices[0].delta.content;
                         if (chunk) {
                             fullText += chunk;
-                            let renderText = escapeHTML(fullText)
-                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\n/g, '<br>');
-                            textDiv.innerHTML = renderText;
-                            this._scrollTabChatToBottom();
+                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.aiTabChat.word || '');
+this._scrollTabChatToBottom();
                         }
                     } catch (e) {}
                 }
@@ -4376,12 +5487,6 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
         this.aiTabChat.messages.push({ role: 'assistant', content: fullText });
         this._saveTabChat();
         if (sendBtn) sendBtn.disabled = false;
-        setTimeout(() => {
-            let inputEl = View.getEl('ai-tab-chat-input');
-            if (inputEl && document.getElementById('tab-ai-history').classList.contains('active')) {
-                inputEl.focus();
-            }
-        }, 200);
     } catch (err) {
         aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
         if (sendBtn) sendBtn.disabled = false;
@@ -4427,7 +5532,13 @@ sendAIMessage() {
     chatArea.appendChild(aiBubble);
     this._scrollChatToBottom();
     
-    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+    let messagesToSend = [
+    {
+        role: 'system',
+        content: withJapaneseRubyInstruction(this.currentChat.systemPrompt)
+    },
+    ...this.currentChat.messages
+];
     this._streamChatResponse(apiKey, aiBubble, sendBtn);
 },
 
@@ -4443,7 +5554,13 @@ _startChatStream(apiKey, chatArea, copyBtn, inputEl) {
 },
 
 async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
-    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
+    let messagesToSend = [
+    {
+        role: 'system',
+        content: withJapaneseRubyInstruction(this.currentChat.systemPrompt)
+    },
+    ...this.currentChat.messages
+];
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
@@ -4460,11 +5577,35 @@ async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
         if (btn) btn.onclick = () => {
             let self = this;
             Hardware.vibrate(15);
-            document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6366f1; vertical-align:middle; margin-right:6px;">vpn_key</span> 重新输入 API Key';
-            let pInput = document.getElementById('prompt-input');
-            pInput.type = 'password';
-            pInput.placeholder = '粘贴你的 API Key (sk-...)';
-            pInput.value = '';
+            const promptTitle = document.getElementById('prompt-title');
+const promptHelper = document.getElementById('prompt-helper');
+const promptIcon = document.getElementById('prompt-icon');
+const visibilityBtn = document.getElementById('prompt-visibility');
+let pInput = document.getElementById('prompt-input');
+
+promptTitle.textContent = '重新输入 API Key';
+
+promptHelper.textContent =
+    '新密钥会替换当前设备中保存的旧密钥。';
+promptHelper.hidden = false;
+
+promptIcon.textContent = 'vpn_key';
+
+pInput.type = 'password';
+pInput.autocomplete = 'new-password';
+pInput.placeholder = '粘贴新的 API Key（sk-…）';
+pInput.value = '';
+
+visibilityBtn.hidden = false;
+visibilityBtn.title = '显示密钥';
+visibilityBtn.setAttribute('aria-label', '显示密钥');
+
+const visibilityIcon =
+    visibilityBtn.querySelector('.material-symbols-rounded');
+
+if (visibilityIcon) {
+    visibilityIcon.textContent = 'visibility';
+}
             window.toggleModal('prompt-overlay', true);
             setTimeout(() => pInput.focus(), 100);
             document.getElementById('prompt-confirm').onclick = () => { 
@@ -4509,12 +5650,8 @@ async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
                         let chunk = data.choices[0].delta.content;
                         if (chunk) {
                             fullText += chunk;
-                            let renderText = escapeHTML(fullText)
-                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\n/g, '<br>');
-                            textDiv.innerHTML = renderText;
-                            this._scrollChatToBottom();
+                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.currentChat.word || '');
+this._scrollChatToBottom();
                         }
                     } catch (e) {}
                 }
@@ -4523,7 +5660,7 @@ async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
         
         this.currentChat.messages.push({ role: 'assistant', content: fullText });
         
-        if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
+                if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
             let chatArea = View.getEl('ai-chat-messages');
             if (chatArea) {
                 Controller.aiCache[this.currentChat.cacheKey] = chatArea.innerHTML;
@@ -4531,7 +5668,7 @@ async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
         }
         if (copyBtn) copyBtn.style.display = 'flex';
         if (sendBtn) sendBtn.disabled = false;
-        if (inputEl) setTimeout(() => inputEl.focus(), 300);
+
     } catch (err) {
         aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">wifi_off</span>连接失败：' + escapeHTML(err.message) + '</div>';
         if (sendBtn) sendBtn.disabled = false;
@@ -4547,7 +5684,16 @@ async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copy
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'user', content: prompt}], stream: true })
+            body: JSON.stringify({
+    model: 'deepseek-chat',
+    messages: [
+        {
+            role: 'user',
+            content: withJapaneseRubyInstruction(prompt)
+        }
+    ],
+    stream: true
+})
         });
         
         if (!response.ok) {
@@ -4584,12 +5730,8 @@ async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copy
                         let chunk = data.choices[0].delta.content;
                         if (chunk) {
                             fullText += chunk;
-                            let renderText = escapeHTML(fullText)
-                                .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                .replace(/\n/g, '<br>');
-                            box.innerHTML = renderText;
-                            container.scrollTop = container.scrollHeight;
+                            box.innerHTML = renderAIMessageHTML(fullText, word || '');
+container.scrollTop = container.scrollHeight;
                         }
                     } catch (e) {}
                 }
@@ -4607,324 +5749,53 @@ async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copy
 }
 };
 
-window.onload = () => Controller.init();
+window.onload = () => {
+    const visibilityBtn =
+        document.getElementById('prompt-visibility');
 
-/* ==========================================
-   ✨ 优化的 AI 对话逻辑拦截包
-   ========================================== */
-Object.assign(Controller, {
-    openAISheet(sentence, word, lang) {
-        if (!navigator.onLine) { window.showToast('AI 导师需要联网才能工作哦，请检查网络~'); return; }
-        let apiKey = localStorage.getItem('deepseekApiKey');
-        if (!apiKey) {
-            let self = this;
-            Hardware.vibrate(20);
-            document.getElementById('prompt-title').innerHTML = '<span class="material-symbols-rounded" style="color:#6b847b; vertical-align:middle; margin-right:6px;">vpn_key</span> 配置 API Key';
-            let input = document.getElementById('prompt-input');
-            input.type = 'password';
-            input.placeholder = '粘贴你的 API Key (sk-...)';
-            input.value = '';
-            window.toggleModal('prompt-overlay', true);
-            setTimeout(() => input.focus(), 100);
-            document.getElementById('prompt-confirm').onclick = () => {
-                Hardware.vibrate(15);
-                let val = input.value.trim();
-                if(val) {
-                    localStorage.setItem('deepseekApiKey', val);
-                    let settingInput = View.getEl('setting-ai-key');
-                    if (settingInput) settingInput.value = val;
-                    window.toggleModal('prompt-overlay', false);
-                    window.showToast('API Key 已保存');
-                    self.openAISheet(sentence, word, lang);
-                }
-            };
-            document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
-            return;
-        }
-        let cacheKey = sentence + '|||' + word;
-        let chatArea = View.getEl('ai-chat-messages');
-        let inputEl = View.getEl('ai-chat-input');
-        if (!chatArea) return;
-        window.toggleModal('ai-sheet-overlay', true);
-        if (inputEl) inputEl.value = '';
+    const input =
+        document.getElementById('prompt-input');
 
-        // 渲染快捷回复药丸
-        this._renderQuickReplies(View.getEl('ai-sheet-overlay').querySelector('.ai-chat-sheet'), inputEl, View.getEl('ai-chat-send'), lang === 'en');
+    if (visibilityBtn && input) {
+        visibilityBtn.addEventListener('click', () => {
+            Hardware.vibrate(10);
 
-        const isEnglish = lang === 'en';
-        let systemPrompt = isEnglish
-            ? `你是精通多语言的私人外教。用户正在学习以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`
-            : `你是精通多语言的私人外教。用户正在学习以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`;
+            const shouldShow =
+                input.type === 'password';
 
-        this.currentChat = { systemPrompt: systemPrompt, messages: [], cacheKey: cacheKey, sentence: sentence, word: word, lang: lang };
+            input.type =
+                shouldShow ? 'text' : 'password';
 
-        if (this.aiCache[cacheKey]) {
-            chatArea.innerHTML = this.aiCache[cacheKey];
-            this._scrollChatToBottom();
-            if (inputEl) setTimeout(() => inputEl.focus(), 300);
-            return;
-        }
+            const icon =
+                visibilityBtn.querySelector(
+                    '.material-symbols-rounded'
+                );
 
-        // 使用新版的呼吸点动画
-        chatArea.innerHTML = '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div></div>';
-        this._scrollChatToBottom();
-        this._startChatStream(apiKey, chatArea, null, inputEl);
-    },
+            if (icon) {
+                icon.textContent =
+                    shouldShow
+                        ? 'visibility_off'
+                        : 'visibility';
+            }
 
-    _renderQuickReplies(container, inputEl, sendBtn, isEnglish) {
-        let old = container.querySelector('.ai-quick-replies');
-        if(old) old.remove();
-        let wrapper = document.createElement('div');
-        wrapper.className = 'ai-quick-replies';
-        let replies = isEnglish ? ["再给个更简单的例句", "这个词有哪些同义词？", "用它模拟个日常对话"] : ["再给个更简单的例句", "这个词有什么近义词？", "用它模拟个日常对话"];
-        replies.forEach(text => {
-            let btn = document.createElement('button');
-            btn.className = 'ai-quick-reply-btn';
-            btn.innerText = text;
-            btn.onclick = () => {
-                Hardware.vibrate(15);
-                inputEl.value = text;
-                sendBtn.click();
-                wrapper.remove(); // 点击后消失
-            };
-            wrapper.appendChild(btn);
+            visibilityBtn.title =
+                shouldShow ? '隐藏密钥' : '显示密钥';
+
+            visibilityBtn.setAttribute(
+                'aria-label',
+                shouldShow ? '隐藏密钥' : '显示密钥'
+            );
+
+            input.focus();
+
+            try {
+                input.setSelectionRange(
+                    input.value.length,
+                    input.value.length
+                );
+            } catch (error) {}
         });
-        let inputBar = container.querySelector('.ai-chat-input-bar');
-        if(inputBar) container.insertBefore(wrapper, inputBar);
-    },
-
-    sendAIMessage() {
-        let inputEl = View.getEl('ai-chat-input');
-        let chatArea = View.getEl('ai-chat-messages');
-        let sendBtn = View.getEl('ai-chat-send');
-        if (!inputEl || !chatArea) return;
-        let text = inputEl.value.trim();
-        if (!text) return;
-        let apiKey = localStorage.getItem('deepseekApiKey');
-        if (!apiKey) return;
-
-        inputEl.value = '';
-        if (sendBtn) sendBtn.disabled = true;
-
-        let qr = chatArea.parentElement.querySelector('.ai-quick-replies');
-        if(qr) qr.remove();
-
-        this.currentChat.messages.push({ role: 'user', content: text });
-        let userBubble = document.createElement('div');
-        userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
-        userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
-        chatArea.appendChild(userBubble);
-
-        let aiBubble = document.createElement('div');
-        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
-        aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div>';
-        chatArea.appendChild(aiBubble);
-        this._scrollChatToBottom();
-
-        let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
-        this._streamChatResponse(apiKey, aiBubble, sendBtn, null, inputEl);
-    },
-
-    sendAITabMessage() {
-        let inputEl = View.getEl('ai-tab-chat-input');
-        let messagesEl = View.getEl('ai-tab-chat-messages');
-        let sendBtn = View.getEl('ai-tab-chat-send');
-        if (!inputEl || !messagesEl) return;
-        let text = inputEl.value.trim();
-        if (!text) return;
-        let apiKey = localStorage.getItem('deepseekApiKey');
-        if (!apiKey) { window.showToast('请先配置 DeepSeek API Key'); return; }
-        inputEl.value = '';
-        if (sendBtn) sendBtn.disabled = true;
-
-        let qr = messagesEl.parentElement.querySelector('.ai-quick-replies');
-        if(qr) qr.remove();
-
-        this.aiTabChat.messages.push({ role: 'user', content: text });
-
-        let userBubble = document.createElement('div');
-        userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
-        userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
-        messagesEl.appendChild(userBubble);
-
-        let aiBubble = document.createElement('div');
-        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
-        aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-typing-indicator"><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div><div class="ai-typing-dot"></div></div></div>';
-        messagesEl.appendChild(aiBubble);
-        this._scrollTabChatToBottom();
-
-        this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
-    },
-
-    async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
-        let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }, ...this.currentChat.messages];
-        try {
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
-            });
-
-            if (!response.ok) throw new Error('网络请求失败');
-
-            let fullText = '';
-            let textDiv = document.createElement('div');
-            textDiv.className = 'ai-chat-bubble-text ai-response-box';
-            aiBubble.innerHTML = '';
-            aiBubble.appendChild(textDiv);
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                let chunkStr = decoder.decode(value, {stream: true});
-                let lines = chunkStr.split('\n');
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        try {
-                            let data = JSON.parse(line.slice(6));
-                            let chunk = data.choices[0].delta.content;
-                            if (chunk) {
-                                fullText += chunk;
-                                let renderText = escapeHTML(fullText)
-                                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                    .replace(/\n/g, '<br>');
-                                textDiv.innerHTML = renderText;
-                                this._scrollChatToBottom();
-                            }
-                        } catch (e) {}
-                    }
-                }
-            }
-            
-            // 为每条对话独立附加专属的复制按钮
-            textDiv.innerHTML += `<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div>`;
-
-            this.currentChat.messages.push({ role: 'assistant', content: fullText });
-
-            if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
-                let chatArea = View.getEl('ai-chat-messages');
-                if (chatArea) { Controller.aiCache[this.currentChat.cacheKey] = chatArea.innerHTML; }
-            }
-            if (sendBtn) sendBtn.disabled = false;
-            if (inputEl) setTimeout(() => inputEl.focus(), 300);
-        } catch (err) {
-            aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败：' + escapeHTML(err.message) + '</div>';
-            if (sendBtn) sendBtn.disabled = false;
-        }
-    },
-
-    async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
-        let messagesToSend = [{ role: 'system', content: this.aiTabChat.systemPrompt || '你是私人外教。' }, ...this.aiTabChat.messages.slice(0, -1)];
-        try {
-            const response = await fetch('https://api.deepseek.com/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
-            });
-
-            if (!response.ok) throw new Error('网络请求失败');
-
-            let fullText = '';
-            let textDiv = document.createElement('div');
-            textDiv.className = 'ai-chat-bubble-text ai-response-box';
-            aiBubble.innerHTML = '';
-            aiBubble.appendChild(textDiv);
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder("utf-8");
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                let chunkStr = decoder.decode(value, {stream: true});
-                let lines = chunkStr.split('\n');
-                for (let line of lines) {
-                    line = line.trim();
-                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        try {
-                            let data = JSON.parse(line.slice(6));
-                            let chunk = data.choices[0].delta.content;
-                            if (chunk) {
-                                fullText += chunk;
-                                let renderText = escapeHTML(fullText)
-                                    .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                                    .replace(/\n/g, '<br>');
-                                textDiv.innerHTML = renderText;
-                                this._scrollTabChatToBottom();
-                            }
-                        } catch (e) {}
-                    }
-                }
-            }
-
-            textDiv.innerHTML += `<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div>`;
-
-            this.aiTabChat.messages.push({ role: 'assistant', content: fullText });
-            this._saveTabChat();
-            if (sendBtn) sendBtn.disabled = false;
-            setTimeout(() => {
-                let inputEl = View.getEl('ai-tab-chat-input');
-                if (inputEl && document.getElementById('tab-ai-history').classList.contains('active')) {
-                    inputEl.focus();
-                }
-            }, 200);
-        } catch (err) {
-            aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
-            if (sendBtn) sendBtn.disabled = false;
-        }
-    },
-
-    openAIChatFromTab(idx) {
-        let conv = Model.aiConversations[idx];
-        if (!conv) return;
-        let listView = View.getEl('ai-list-view');
-        let chatView = View.getEl('ai-chat-view');
-        let messagesEl = View.getEl('ai-tab-chat-messages');
-        let titleEl = View.getEl('ai-chat-view-title');
-        let inputEl = View.getEl('ai-tab-chat-input');
-        if (!messagesEl || !chatView || !listView) return;
-
-        this.aiTabChat.activeIdx = idx;
-        this.aiTabChat.messages = conv.messages ? [...conv.messages] : [];
-        this.aiTabChat.systemPrompt = conv.systemPrompt || '';
-        this.aiTabChat.cacheKey = conv.cacheKey || '';
-        this.aiTabChat.sentence = conv.sentence || '';
-        this.aiTabChat.word = conv.word || '';
-        this.aiTabChat.lang = conv.lang || 'ja';
-
-        if (titleEl) titleEl.innerText = conv.word || '自由对话';
-        if (inputEl) inputEl.value = '';
-
-        let html = '';
-        let msgs = this.aiTabChat.messages;
-        if (msgs && msgs.length > 0) {
-            msgs.forEach(msg => {
-                if (msg.role === 'assistant') {
-                    let renderText = escapeHTML(msg.content)
-                        .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\n/g, '<br>');
-                    html += `<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">${renderText}<div class="ai-msg-action-bar"><button class="ai-msg-copy-btn" onclick="Hardware.vibrate(10); navigator.clipboard.writeText(this.parentElement.parentElement.innerText.replace('复制', '').trim()).then(()=>window.showToast('已复制内容'))"><span class="material-symbols-rounded">content_copy</span> 复制</button></div></div></div>`;
-                } else if (msg.role === 'user') {
-                    html += `<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">${escapeHTML(msg.content)}</div></div>`;
-                }
-            });
-        }
-        messagesEl.innerHTML = html;
-
-        this._renderQuickReplies(chatView, inputEl, View.getEl('ai-tab-chat-send'), conv.lang === 'en');
-
-        listView.classList.add('hidden');
-        chatView.classList.remove('hidden');
-        setTimeout(() => {
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-            if (inputEl) inputEl.focus();
-        }, 100);
     }
-});
+
+    Controller.init();
+};

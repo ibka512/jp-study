@@ -228,7 +228,8 @@
       <div style="font-size: 0.85rem; opacity: 0.4;">在学习时点击例句旁的 ✨ 图标即可开始</div>
     </div>
   </div>
-  <div id="ai-chat-view" class="hidden" style="display:none;flex-direction:column;">
+    <div id="ai-chat-view" class="hidden" style="display:flex; flex-direction:column; flex:1; padding-bottom: calc(60px + env(safe-area-inset-bottom));">
+
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
       <button id="btn-ai-chat-back" class="glass-icon-btn" title="返回列表">
         <span class="material-symbols-rounded">arrow_back</span>
@@ -603,12 +604,58 @@
 </div>
 
 <div id="prompt-overlay" class="modal-overlay">
-    <div class="dialog-content">
-        <h3 id="prompt-title" style="border:none; margin-bottom:16px; justify-content:center;">输入</h3>
-        <input type="text" id="prompt-input" style="text-align:center; font-weight:700; border-radius: 999px;" />
-        <div class="flex-row" style="margin-bottom:0;">
-            <button id="prompt-cancel" class="btn-outline" style="flex:1;">取消</button>
-            <button id="prompt-confirm" style="flex:1;">确定</button>
+    <div
+        class="dialog-content prompt-dialog-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prompt-title"
+    >
+        <div class="prompt-dialog-header">
+            <div class="prompt-icon-box" aria-hidden="true">
+                <span id="prompt-icon" class="material-symbols-rounded">
+                    edit
+                </span>
+            </div>
+
+            <div class="prompt-heading">
+                <h3 id="prompt-title">输入内容</h3>
+
+                <p id="prompt-helper" class="prompt-helper" hidden>
+                    请输入需要保存的内容
+                </p>
+            </div>
+        </div>
+
+        <div class="prompt-field-wrap">
+            <input
+                type="text"
+                id="prompt-input"
+                autocomplete="off"
+                spellcheck="false"
+            />
+
+            <button
+                type="button"
+                id="prompt-visibility"
+                class="glass-icon-btn prompt-visibility-btn"
+                title="显示密钥"
+                aria-label="显示密钥"
+                hidden
+            >
+                <span class="material-symbols-rounded">
+                    visibility
+                </span>
+            </button>
+        </div>
+
+        <div class="prompt-actions">
+            <button id="prompt-cancel" class="btn-outline">
+                取消
+            </button>
+
+            <button id="prompt-confirm">
+                确定
+            </button>
         </div>
     </div>
 </div>
@@ -679,9 +726,7 @@
   </div>
 </div>
 
-<script src="https://npm.elemecdn.com/idb-keyval@6/dist/umd.js"></script>
-<script id="MathJax-script" async src="https://npm.elemecdn.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 <script src="data.js"></script> 
 <script src="english-data.js"></script>
 <script src="app.js"></script>

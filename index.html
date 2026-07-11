@@ -14,7 +14,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#8b7967">
+<meta name="theme-color" content="#756554">
 <title>钟日</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0" rel="stylesheet" />
@@ -32,6 +32,11 @@
 <div id="sr-announcer" aria-live="assertive" aria-atomic="true" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;"></div>
 
 <div id="toast" class="toast" aria-live="polite" role="status"></div>
+
+<div id="action-toast" class="action-toast" role="status" aria-live="polite">
+  <span id="action-toast-message" class="action-toast-message"></span>
+  <button id="action-toast-action" type="button" hidden>撤销</button>
+</div>
 
 <div class="global-header" id="global-header">
   <div class="header-titles">
@@ -168,22 +173,75 @@
       <input type="text" id="wb-search-input" placeholder="搜索汉字、假名或释义..." style="margin-bottom: 0; padding-left: 48px; border-radius: var(--radius-full); background: var(--surface-container); border: 2px solid var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); height: 52px; font-size: 1rem;">
     </div>
 
-    <div class="flex-row" style="justify-content: space-between; margin-bottom: 24px; flex-wrap: nowrap; gap: 12px;">
+    <div class="flex-row" style="justify-content: space-between; margin-bottom: 16px; flex-wrap: nowrap; gap: 12px;">
       <div class="custom-select-wrapper" style="flex: 1;">
           <select id="wb-folder-filter" style="display:none;"></select>
       </div>
-      <button id="btn-view-settings" class="glass-icon-btn" title="视图与排版设置">
+
+      <button
+        id="btn-view-settings"
+        class="glass-icon-btn"
+        title="视图与排版设置"
+      >
           <span class="material-symbols-rounded">pageview</span>
+      </button>
+    </div>
+
+    <div class="wordbank-meta-filters" aria-label="级别与难度筛选">
+      <div class="custom-select-wrapper">
+        <select id="wb-level-filter">
+          <option value="">全部级别</option>
+        </select>
+      </div>
+      <div class="custom-select-wrapper">
+        <select id="wb-difficulty-filter">
+          <option value="">全部难度</option>
+          <option value="1">1 · 入门</option>
+          <option value="2">2 · 较易</option>
+          <option value="3">3 · 中等</option>
+          <option value="4">4 · 较难</option>
+          <option value="5">5 · 困难</option>
+          <option value="__unassigned__">难度未定</option>
+        </select>
+      </div>
+    </div>
+
+    <div
+      id="wrongbook-toolbar"
+      class="wrongbook-toolbar"
+      hidden
+    >
+      <div class="wrongbook-toolbar-copy">
+        <span class="material-symbols-rounded">error_med</span>
+
+        <div>
+          <strong>智能错题本</strong>
+          <small id="wrongbook-count">0 词</small>
+        </div>
+      </div>
+
+      <button
+        id="btn-start-wrongbook"
+        class="icon-text-gap"
+        type="button"
+      >
+        <span class="material-symbols-rounded">school</span>
+        开始专项
       </button>
     </div>
 
     <div class="card-panel" style="margin-bottom: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 16px;">
         <h3 style="margin: 0; border: none; padding: 0;"><span class="material-symbols-rounded">folder_managed</span> 词汇与文件管理</h3>
-        <div style="display: flex; gap: 8px;">
-           <button id="wb-manage-toggle" class="glass-icon-btn" title="管理编辑"><span class="material-symbols-rounded" id="manage-icon">edit</span></button>
-           <button id="wb-batch-toggle" class="glass-icon-btn" title="多选模式"><span class="material-symbols-rounded" id="batch-icon">checklist_rtl</span></button>
-        </div>
+        <button
+          id="wb-manage-toggle"
+          class="wordbank-manage-toggle icon-text-gap"
+          title="管理词汇"
+          aria-pressed="false"
+        >
+          <span class="material-symbols-rounded" id="manage-icon">edit_note</span>
+          <span id="manage-label">管理</span>
+        </button>
       </div>
       <div class="flex-row" style="margin-bottom: 0; gap: 12px;">
          <button id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--on-surface); padding: 12px; font-size: 0.95rem; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">create_new_folder</span> 新建夹</button>
@@ -260,286 +318,390 @@
 </div>
 
   <div id="tab-settings" class="tab-content hidden">
-    <!-- 词书选择书架 -->
-    <div class="card-panel" style="margin-bottom: 24px; padding: 20px;">
-      <h3 style="margin-bottom: 16px; border: none; padding-bottom: 0;"><span class="material-symbols-rounded">library_books</span> 词书选择</h3>
-      <div class="book-shelf">
-        <div class="book-card jp-book" data-lang="ja">
-          <span class="watermark-book">あ</span>
-          <div class="book-title">日语模式</div>
-        </div>
-        <div class="book-card en-book" data-lang="en">
-          <span class="watermark-book">A</span>
-          <div class="book-title">英语模式</div>
-        </div>
-      </div>
-    </div>
+    <div class="settings-shell">
+      <div id="settings-home" class="settings-home">
+        <div class="card-panel settings-mode-card">
+          <div class="settings-home-heading">
+            <div>
+              <span class="settings-eyebrow">学习环境</span>
+              <h3><span class="material-symbols-rounded">library_books</span> 词书选择</h3>
+            </div>
+          </div>
 
-    <div class="card-panel">
-      <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
-<div class="setting-desc" style="margin-bottom: 8px;">
-  导出词库、学习进度、收藏、AI 对话和偏好设置，用于防止数据丢失或更换设备。
-</div>
-
-<div class="setting-desc" style="margin-bottom: 18px; color: var(--tertiary);">
-  出于安全考虑，备份文件不会包含 DeepSeek API Key。
-</div>
-
-<div class="flex-row" style="margin-bottom: 12px; gap: 12px;">
-  <button
-    id="btn-export-backup"
-    class="btn-outline icon-text-gap"
-    style="flex: 1;"
-  >
-    <span
-      class="material-symbols-rounded"
-      style="font-size: 1.1rem;"
-    >
-      download
-    </span>
-    导出备份
-  </button>
-
-  <button
-    id="btn-import-backup"
-    class="btn-outline icon-text-gap"
-    style="flex: 1; border-color: var(--tertiary); color: var(--tertiary);"
-  >
-    <span
-      class="material-symbols-rounded"
-      style="font-size: 1.1rem;"
-    >
-      upload
-    </span>
-    导入恢复
-  </button>
-
-  <input
-    type="file"
-    id="file-import-backup"
-    accept=".json,application/json"
-    style="display: none;"
-  >
-</div>
-
-<button
-  id="btn-undo-import"
-  class="btn-outline icon-text-gap"
-  style="
-    display: none;
-    width: 100%;
-    margin: 0;
-    border-color: var(--outline);
-    color: var(--on-surface);
-    opacity: 0.78;
-  "
->
-  <span
-    class="material-symbols-rounded"
-    style="font-size: 1.1rem;"
-  >
-    restore
-  </span>
-  撤销上次数据操作
-</button>
-
-<div
-  id="backup-restore-note"
-  class="setting-desc"
-  style="
-    display: none;
-    margin-top: 10px;
-    text-align: center;
-  "
->
-  已保存上次数据操作前的恢复点
-</div>
-    </div>
-
-    <div class="card-panel">
-      <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">tune</span> 偏好设置</h3>
-
-            <div class="setting-item en-only" style="display: none;">
-        <div class="setting-info">
-          <div class="setting-title">显示词根词缀公式</div>
-          <div class="setting-desc">在英语模式下，将单词拆解为胶囊公式辅助记忆</div>
-        </div>
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-show-roots" class="tactile-switch" checked>
-          <span class="tactile-slider"></span>
-        </label>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">自动朗读单词</div>
-          <div class="setting-desc">切换卡片时自动使用系统 TTS 朗读</div>
-        </div>
-
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-auto-speak" class="tactile-switch">
-          <span class="tactile-slider"></span>
-        </label>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">夜间按钮质感</div>
-          <div class="setting-desc">在夜间模式下，使主页学习按钮呈现半透明叠加效果</div>
-        </div>
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-dark-btn" class="tactile-switch">
-          <span class="tactile-slider"></span>
-        </label>
-      </div>
-
-            <div class="setting-item setting-choice-item">
-        <div class="setting-info">
-          <div class="setting-title">词汇排列方式</div>
-          <div class="setting-desc">决定筛选检验时，新词、薄弱词与已掌握词的先后顺序</div>
-        </div>
-        <div class="custom-select-wrapper setting-compact-wrapper setting-order-wrapper">
-          <select id="setting-word-order-mode">
-            <option value="weak-first">薄弱词优先</option>
-            <option value="new-first">新词优先</option>
-            <option value="original">词库原顺序</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="setting-item jp-only">
-    <div class="setting-info">
-        <div class="setting-title">原生假名排版 (Ruby)</div>
-          <div class="setting-desc">开启使用原生 Ruby 标签排版假名，关闭则使用 MathJax 公式引擎</div>
-        </div>
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-ruby-render" class="tactile-switch">
-          <span class="tactile-slider"></span>
-        </label>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">智能跳过已亮维度</div>
-          <div class="setting-desc">筛选检验时，自动剔除当前模式下已点亮对应杠的词汇</div>
-        </div>
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-skip-mastered" class="tactile-switch">
-          <span class="tactile-slider"></span>
-        </label>
-      </div>
-
-            <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">AI 引擎 (DeepSeek)</div>
-          <div class="setting-desc">输入 DeepSeek API Key 解锁例句智能解析</div>
-        </div>
-        <div class="custom-select-wrapper setting-compact-wrapper">
-          <input type="password" id="setting-ai-key" placeholder="sk-..." style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface); font-family: monospace;">
-        </div>
-      </div>
-
-      <div class="setting-item">
-        <div class="setting-info">
-          <div class="setting-title">发音引擎 (TTS)</div>
-          <div class="setting-desc">选择单词朗读的语音来源 (建议选择微软)</div>
-        </div>
-        <div class="custom-select-wrapper setting-compact-wrapper">
-          <select id="setting-tts-engine">
-            <option value="azure">微软语音</option>
-            <option value="youdao">网易有道</option>
-            <option value="local">系统自带</option>
-          </select>
-        </div>
-      </div>
-
-
-
-      <div class="setting-item" style="border-bottom: none;">
-        <div class="setting-info">
-          <div class="setting-title">触感反馈测试</div>
-          <div class="setting-desc">点击测试设备是否支持震动（iOS 系统不支持）</div>
-        </div>
-        <button id="btn-test-vibrate" class="btn-setting-action">测试震动</button>
-      </div>
-    </div>
-
-    <div class="card-panel import-card">
-      <h3 style="margin-bottom: 12px;"><span class="material-symbols-rounded">playlist_add</span> 批量导入词汇</h3>
-      <div class="setting-desc import-section-desc">选择语言和目标词库后粘贴内容。点击检查时会先显示可导入词、重复词和错误行，不会立即写入。</div>
-
-      <div class="import-control-grid">
-        <div class="import-control-item">
-          <label for="import-lang-select">词汇语言</label>
-          <div class="custom-select-wrapper">
-            <select id="import-lang-select">
-              <option value="ja">日语</option>
-              <option value="en">英语</option>
-            </select>
+          <div class="book-shelf">
+            <div class="book-card jp-book" data-lang="ja">
+              <span class="watermark-book">あ</span>
+              <div class="book-title">日语模式</div>
+            </div>
+            <div class="book-card en-book" data-lang="en">
+              <span class="watermark-book">A</span>
+              <div class="book-title">英语模式</div>
+            </div>
           </div>
         </div>
 
-        <div class="import-control-item">
-          <label for="import-folder-select">目标词库</label>
-          <div class="custom-select-wrapper">
-            <select id="import-folder-select">
-              <option value="">正在读取词库…</option>
-            </select>
+        <div class="settings-category-grid">
+          <button class="settings-category-card" type="button" data-open-settings-section="learning">
+            <span class="settings-category-icon"><span class="material-symbols-rounded">school</span></span>
+            <span class="settings-category-copy">
+              <strong>学习与复习</strong>
+              <small>排序、跳过规则、错题本与 AI 小测记录</small>
+            </span>
+            <span class="settings-category-tail">
+              <span class="settings-count-pill"><b id="settings-wrong-count">0</b> 错题</span>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </span>
+          </button>
+
+          <button class="settings-category-card" type="button" data-open-settings-section="display">
+            <span class="settings-category-icon"><span class="material-symbols-rounded">volume_up</span></span>
+            <span class="settings-category-copy">
+              <strong>朗读与显示</strong>
+              <small>自动朗读、词根、Ruby、暗色质感与发音引擎</small>
+            </span>
+            <span class="settings-category-tail"><span class="material-symbols-rounded">chevron_right</span></span>
+          </button>
+
+          <button class="settings-category-card" type="button" data-open-settings-section="ai">
+            <span class="settings-category-icon"><span class="material-symbols-rounded">auto_awesome</span></span>
+            <span class="settings-category-copy">
+              <strong>AI 导师</strong>
+              <small>API Key、词汇提取、质量检查与对话管理</small>
+            </span>
+            <span class="settings-category-tail">
+              <span class="settings-count-pill"><b id="settings-quiz-count">0</b> 小测</span>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </span>
+          </button>
+
+          <button class="settings-category-card" type="button" data-open-settings-section="library">
+            <span class="settings-category-icon"><span class="material-symbols-rounded">folder_copy</span></span>
+            <span class="settings-category-copy">
+              <strong>词库与导入</strong>
+              <small>批量导入、重复词处理与最近删除</small>
+            </span>
+            <span class="settings-category-tail">
+              <span class="settings-count-pill"><b id="settings-trash-count">0</b> 删除</span>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </span>
+          </button>
+
+          <button class="settings-category-card" type="button" data-open-settings-section="app">
+            <span class="settings-category-icon"><span class="material-symbols-rounded">shield</span></span>
+            <span class="settings-category-copy">
+              <strong>备份与应用</strong>
+              <small>备份恢复、数据清理、版本与离线状态</small>
+            </span>
+            <span class="settings-category-tail">
+              <span id="settings-online-status" class="settings-status-dot" data-state="online">在线</span>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <section class="settings-section" data-settings-section="learning" hidden>
+        <div class="settings-section-header">
+          <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <div><span>学习与复习</span><small>让学习记录更贴近真实掌握情况</small></div>
+        </div>
+
+        <div class="card-panel settings-detail-card">
+          <div class="setting-item setting-choice-item">
+            <div class="setting-info">
+              <div class="setting-title">词汇排列方式</div>
+              <div class="setting-desc">决定筛选检验时，新词、薄弱词与已掌握词的先后顺序</div>
+            </div>
+            <div class="custom-select-wrapper setting-compact-wrapper setting-order-wrapper">
+              <select id="setting-word-order-mode">
+                <option value="weak-first">薄弱词优先</option>
+                <option value="new-first">新词优先</option>
+                <option value="original">词库原顺序</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-title">智能跳过已亮维度</div>
+              <div class="setting-desc">筛选检验时，自动剔除当前模式下已经掌握的内容</div>
+            </div>
+            <label class="tactile-switch-wrap">
+              <input type="checkbox" id="setting-skip-mastered" class="tactile-switch">
+              <span class="tactile-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-title">记录智能错题</div>
+              <div class="setting-desc">保存拼写、听力、读音、释义与用法错误，连续答对后自动标记为已解决</div>
+            </div>
+            <label class="tactile-switch-wrap">
+              <input type="checkbox" id="setting-wrongbook-enabled" class="tactile-switch" checked>
+              <span class="tactile-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item" style="border-bottom:none;">
+            <div class="setting-info">
+              <div class="setting-title">AI 小测写入学习记录</div>
+              <div class="setting-desc">答错已入库词汇时写入错题本；关闭后只保留本次小测结果</div>
+            </div>
+            <label class="tactile-switch-wrap">
+              <input type="checkbox" id="setting-ai-quiz-record" class="tactile-switch" checked>
+              <span class="tactile-slider"></span>
+            </label>
           </div>
         </div>
-      </div>
 
-      <div class="import-control-item import-duplicate-control">
-        <label for="import-duplicate-mode">遇到同词库内的重复词</label>
-        <div class="custom-select-wrapper">
-          <select id="import-duplicate-mode">
-            <option value="skip">跳过重复词</option>
-            <option value="overwrite">用新内容覆盖</option>
-            <option value="keep">保留两个词条</option>
-          </select>
+        <div class="settings-note-card">
+          <span class="material-symbols-rounded">tips_and_updates</span>
+          <div><strong>错题不会永久钉住</strong><small>同一词连续答对 3 次后会进入“已解决”，以后再次答错仍会重新出现。</small></div>
         </div>
-      </div>
+      </section>
 
-      <div class="import-format-box">
-        <div class="import-format-heading"><span class="material-symbols-rounded">description</span> 当前格式</div>
-        <div id="import-format-text" class="import-format-code">单词,假名,词性,释义,例句</div>
-        <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。</div>
-      </div>
-
-      <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
-      <button id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span> 检查并导入</button>
-    </div>
-
-    <div class="card-panel data-clean-card">
-      <h3 style="margin-bottom: 12px;"><span class="material-symbols-rounded">settings_backup_restore</span> 数据清理与恢复</h3>
-      <div class="setting-desc import-section-desc">三种操作彼此独立。执行前都会自动保存恢复点，可在上方撤销。</div>
-
-      <div class="data-action-row">
-        <div class="data-action-copy">
-          <div class="setting-title">重新开始学习</div>
-          <div class="setting-desc">清空掌握度、通关和学习记录，保留词库、收藏、AI 对话和设置。</div>
+      <section class="settings-section" data-settings-section="display" hidden>
+        <div class="settings-section-header">
+          <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
+          <div><span>朗读与显示</span><small>控制卡片呈现、发音与触感反馈</small></div>
         </div>
-        <button id="btn-reset-progress" class="btn-outline data-action-btn">清空进度</button>
-      </div>
 
-      <div class="data-action-row">
-        <div class="data-action-copy">
-          <div class="setting-title">恢复内置词库</div>
-          <div class="setting-desc">移除个人导入词汇和自建词库，重新载入内置词；学习记录会尽量保留。</div>
+        <div class="card-panel settings-detail-card">
+          <div class="setting-item en-only" style="display:none;">
+            <div class="setting-info">
+              <div class="setting-title">显示词根词缀公式</div>
+              <div class="setting-desc">在英语模式下，将单词拆解为胶囊公式辅助记忆</div>
+            </div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-show-roots" class="tactile-switch" checked><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">自动朗读单词</div><div class="setting-desc">切换学习卡片时自动朗读</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-auto-speak" class="tactile-switch"><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item jp-only">
+            <div class="setting-info"><div class="setting-title">原生假名排版（Ruby）</div><div class="setting-desc">开启使用原生 Ruby 标签，关闭则使用 MathJax</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-ruby-render" class="tactile-switch"><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">夜间按钮质感</div><div class="setting-desc">暗色模式下使用更通透的半透明叠加效果</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-dark-btn" class="tactile-switch"><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item setting-choice-item">
+            <div class="setting-info"><div class="setting-title">发音引擎（TTS）</div><div class="setting-desc">选择单词朗读的语音来源</div></div>
+            <div class="custom-select-wrapper setting-compact-wrapper">
+              <select id="setting-tts-engine">
+                <option value="azure">微软语音</option>
+                <option value="youdao">网易有道</option>
+                <option value="local">系统自带</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-item" style="border-bottom:none;">
+            <div class="setting-info"><div class="setting-title">触感反馈测试</div><div class="setting-desc">检查当前设备是否支持震动</div></div>
+            <button id="btn-test-vibrate" class="btn-setting-action">测试震动</button>
+          </div>
         </div>
-        <button id="btn-remove-imported" class="btn-outline data-action-btn">恢复词库</button>
-      </div>
+      </section>
 
-      <div class="danger-zone full-reset-zone">
-        <div class="setting-title" style="color: var(--accent-red);">完全重置应用</div>
-        <div class="setting-desc full-reset-desc">删除词库改动、收藏、学习记录、AI 对话和偏好设置，恢复首次打开状态。DeepSeek API Key 会保留。</div>
-        <button id="btn-reset" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">delete_forever</span> 完全重置</button>
-      </div>
+      <section class="settings-section" data-settings-section="ai" hidden>
+        <div class="settings-section-header">
+          <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
+          <div><span>AI 导师</span><small>管理模型连接与 AI 学习内容</small></div>
+        </div>
+
+        <div class="card-panel settings-detail-card">
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">AI 引擎（DeepSeek）</div><div class="setting-desc">密钥仅保存在当前设备，不会写入备份</div></div>
+            <div class="custom-select-wrapper setting-key-wrapper">
+              <input type="password" id="setting-ai-key" placeholder="sk-..." autocomplete="new-password">
+            </div>
+          </div>
+
+          <div class="setting-item" style="border-bottom:none;">
+            <div class="setting-info"><div class="setting-title">清理 AI 对话历史</div><div class="setting-desc">对话会先进入回收站，7 天内仍可恢复</div></div>
+            <button id="btn-settings-clear-ai-history" class="btn-setting-action">移入回收站</button>
+          </div>
+        </div>
+
+        <div class="card-panel settings-detail-card ai-capability-panel">
+          <div class="ai-capability-grid">
+            <div class="ai-capability-card"><span class="material-symbols-rounded">library_add</span><strong>提取词汇</strong><small>从回答中挑选日英词汇并自动补全信息</small></div>
+            <div class="ai-capability-card"><span class="material-symbols-rounded">fact_check</span><strong>质量检查</strong><small>保存前检查音标、假名、词性、释义和例句</small></div>
+            <div class="ai-capability-card"><span class="material-symbols-rounded">quiz</span><strong>结构化小测</strong><small>把拼写、释义、用法和语法题写入学习记录</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section" data-settings-section="library" hidden>
+        <div class="settings-section-header">
+          <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
+          <div><span>词库与导入</span><small>批量加入词汇，并管理最近删除</small></div>
+        </div>
+
+        <div class="card-panel import-card">
+          <h3><span class="material-symbols-rounded">playlist_add</span> 批量导入词汇</h3>
+          <div id="import-section-desc" class="setting-desc import-section-desc">先检查可导入词、重复词与错误行，再确认写入。</div>
+
+          <div class="import-mode-switch" role="group" aria-label="导入方式">
+            <button type="button" class="import-mode-btn active" data-import-mode="manual" aria-pressed="true">
+              <span class="material-symbols-rounded">description</span>
+              <span><strong>普通导入</strong><small>粘贴完整词条</small></span>
+            </button>
+            <button type="button" class="import-mode-btn" data-import-mode="ai" aria-pressed="false">
+              <span class="material-symbols-rounded">auto_fix_high</span>
+              <span><strong>AI 智能补全</strong><small>只输入单词</small></span>
+            </button>
+          </div>
+
+          <div class="import-control-grid">
+            <div class="import-control-item">
+              <label for="import-lang-select">词汇语言</label>
+              <div class="custom-select-wrapper"><select id="import-lang-select"><option value="ja">日语</option><option value="en">英语</option></select></div>
+            </div>
+            <div class="import-control-item">
+              <label for="import-folder-select">目标词库</label>
+              <div class="custom-select-wrapper"><select id="import-folder-select"><option value="">正在读取词库…</option></select></div>
+            </div>
+            <div class="import-control-item">
+              <label for="import-level-select">批次级别</label>
+              <div class="custom-select-wrapper"><select id="import-level-select"><option value="">未分级</option></select></div>
+            </div>
+            <div class="import-control-item">
+              <label for="import-difficulty-select">批次难度</label>
+              <div class="custom-select-wrapper">
+                <select id="import-difficulty-select">
+                  <option value="0">难度未定</option>
+                  <option value="1">1 · 入门</option>
+                  <option value="2">2 · 较易</option>
+                  <option value="3">3 · 中等</option>
+                  <option value="4">4 · 较难</option>
+                  <option value="5">5 · 困难</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="import-control-item import-tags-control">
+            <label for="import-tags-input">批次标签</label>
+            <input id="import-tags-input" type="text" placeholder="如：高频、口语、多义">
+            <small>使用顿号或逗号分隔；保存后仍可逐词修改。</small>
+          </div>
+
+          <div class="import-control-item import-duplicate-control">
+            <label id="import-duplicate-label" for="import-duplicate-mode">遇到同词库内的重复词</label>
+            <div class="custom-select-wrapper"><select id="import-duplicate-mode"><option value="skip">跳过重复词</option><option value="overwrite">用新内容覆盖</option><option value="keep">保留两个词条</option></select></div>
+          </div>
+
+          <label id="import-ai-star-option" class="import-ai-star-option" hidden>
+            <input type="checkbox" id="import-ai-add-star">
+            <span class="import-ai-star-check"><span class="material-symbols-rounded">star</span></span>
+            <span><strong>AI 补全后同时加入收藏</strong><small>保存前仍可在预览页修改</small></span>
+          </label>
+
+          <div class="import-format-box">
+            <div class="import-format-heading"><span class="material-symbols-rounded">description</span> 当前格式</div>
+            <div id="import-format-text" class="import-format-code">单词,假名,词性,释义,例句</div>
+            <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。</div>
+          </div>
+
+          <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
+          <div id="ai-import-input-note" class="ai-import-input-note" hidden>
+            <span class="material-symbols-rounded">info</span>
+            <span>每行一个词，一次最多处理 100 个；系统会自动按每批 20 个调用 AI。</span>
+          </div>
+          <button id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span><span id="btn-import-label">检查并导入</span></button>
+        </div>
+
+        <div class="card-panel library-audit-card">
+          <div class="library-audit-header">
+            <div>
+              <h3><span class="material-symbols-rounded">fact_check</span> 词库数据检查</h3>
+              <p>检查重复 ID、重复词、缺少级别与难度、读音、音标和例句翻译。</p>
+            </div>
+            <button id="btn-run-library-audit" type="button" class="btn-outline">
+              <span class="material-symbols-rounded">rule</span>
+              开始检查
+            </button>
+          </div>
+          <div id="library-audit-result" class="library-audit-result" hidden>
+            <div id="library-audit-summary"></div>
+            <div id="library-audit-issues" class="library-audit-issues"></div>
+          </div>
+        </div>
+
+        <div class="card-panel recycle-bin-card">
+          <div class="recycle-bin-header">
+            <div><h3><span class="material-symbols-rounded">delete_sweep</span> 最近删除</h3><p>词汇、例句和 AI 对话保留 7 天，到期后自动清理。</p></div>
+            <span id="recycle-bin-count" class="recycle-bin-count">0 项</span>
+          </div>
+
+          <div id="recycle-bin-empty" class="recycle-bin-empty">
+            <span class="material-symbols-rounded">inbox</span>
+            <strong>回收站是空的</strong>
+            <small>删除内容后，可以在这里恢复。</small>
+          </div>
+          <div id="recycle-bin-list" class="recycle-bin-list"></div>
+          <button id="btn-clear-recycle-bin" type="button" class="btn-outline recycle-clear-btn" disabled><span class="material-symbols-rounded">delete_forever</span> 清空回收站</button>
+        </div>
+      </section>
+
+      <section class="settings-section" data-settings-section="app" hidden>
+        <div class="settings-section-header">
+          <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
+          <div><span>备份与应用</span><small>保护数据，并查看当前运行状态</small></div>
+        </div>
+
+        <div class="card-panel settings-detail-card">
+          <h3><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
+          <div class="setting-desc settings-section-intro">导出词库、学习记录、错题本、AI 小测、AI 对话和偏好设置。DeepSeek API Key 不会写入备份。</div>
+          <div class="backup-action-grid">
+            <button id="btn-export-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">download</span> 导出备份</button>
+            <button id="btn-import-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">upload</span> 导入恢复</button>
+            <input type="file" id="file-import-backup" accept=".json,application/json" hidden>
+          </div>
+          <button id="btn-undo-import" class="btn-outline icon-text-gap settings-full-button" style="display:none;"><span class="material-symbols-rounded">restore</span> 撤销上次数据操作</button>
+          <div id="backup-restore-note" class="setting-desc settings-center-note" style="display:none;">已保存上次数据操作前的恢复点</div>
+        </div>
+
+        <div class="card-panel app-status-card">
+          <h3><span class="material-symbols-rounded">info</span> 应用状态</h3>
+          <div class="app-status-row"><span>版本</span><strong>V7 · 第三轮</strong></div>
+          <div class="app-status-row"><span>网络</span><strong id="settings-online-status-detail">跟随系统</strong></div>
+          <div class="app-status-row"><span>离线学习</span><strong>词库与学习可用</strong></div>
+          <div class="app-status-row"><span>AI 功能</span><strong>需要联网</strong></div>
+        </div>
+
+        <div class="card-panel data-clean-card">
+          <h3><span class="material-symbols-rounded">settings_backup_restore</span> 数据清理与恢复</h3>
+          <div class="setting-desc import-section-desc">大型操作仍会弹出确认，并自动保存恢复点。</div>
+          <div class="data-action-row">
+            <div class="data-action-copy"><div class="setting-title">重新开始学习</div><div class="setting-desc">清空掌握度、通关和学习记录，保留词库与设置。</div></div>
+            <button id="btn-reset-progress" class="btn-outline data-action-btn">清空进度</button>
+          </div>
+          <div class="data-action-row">
+            <div class="data-action-copy"><div class="setting-title">恢复内置词库</div><div class="setting-desc">移除个人导入词汇与自建词库，重新载入内置词。</div></div>
+            <button id="btn-remove-imported" class="btn-outline data-action-btn">恢复词库</button>
+          </div>
+          <div class="danger-zone full-reset-zone">
+            <div class="setting-title">完全重置应用</div>
+            <div class="setting-desc full-reset-desc">删除词库改动、收藏、学习记录、错题、AI 对话与偏好设置。DeepSeek API Key 会保留。</div>
+            <button id="btn-reset" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">delete_forever</span> 完全重置</button>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
 
-<!-- 以下学习区、底部导航、所有弹窗保持不变，略 -->
+<!-- 以下学习区、底部导航与弹窗 -->
 <div id="study-area" class="hidden fullscreen-overlay">
   <div id="study-top-bar" class="study-header">
     <div class="sh-left">
@@ -663,13 +825,11 @@
     <div class="bottom-sheet group-bs" style="padding: 0;">
         <div class="bs-handle" style="margin-top: 20px; margin-bottom: 12px;"></div>
         <h3 style="text-align:center; margin-bottom: 16px; border:none; justify-content:center; color: var(--on-surface);">学习/复习范围</h3>
-        <div class="group-tabs" id="gs-tabs">
-            <div class="g-tab active" data-cat="default">默认词库</div>
-            <div class="g-tab" data-cat="virtual_cleared">已通关</div>
-            <div class="g-tab" data-cat="virtual_uncleared">未通关</div>
-            <div class="g-tab" data-cat="virtual_starred">收藏</div>
-        </div>
-        <div id="group-list-container" class="bs-scrollable-content" style="padding: 16px 20px 40px; max-height: 50vh;"></div>
+        <div
+            id="group-list-container"
+            class="bs-scrollable-content group-range-sections"
+            aria-label="学习与复习范围"
+        ></div>
     </div>
 </div>
 
@@ -856,6 +1016,343 @@
         </div>
     </div>
 </div>
+
+<div id="ai-word-collector-overlay" class="modal-overlay" style="align-items: flex-end; z-index: 5200;">
+    <div class="bottom-sheet ai-word-collector-sheet">
+        <div class="bs-handle"></div>
+
+        <div class="ai-word-collector-header">
+            <div>
+                <div class="ai-word-collector-title">
+                    <span id="ai-word-collector-icon" class="material-symbols-rounded">playlist_add</span>
+                    <span id="ai-word-collector-title-text">从回答加入词库</span>
+                </div>
+                <div id="ai-word-collector-subtitle" class="ai-word-collector-subtitle">
+                    先选择词汇，再由 AI 补全并预览
+                </div>
+            </div>
+
+            <button
+                type="button"
+                id="ai-word-collector-close"
+                class="glass-icon-btn"
+                title="关闭"
+                aria-label="关闭词汇提取"
+            >
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+
+        <div id="ai-word-step-loading" class="ai-word-step ai-word-loading-step" hidden>
+            <div class="ai-word-loading-mark">
+                <span class="material-symbols-rounded">auto_awesome</span>
+            </div>
+            <div id="ai-word-loading-text" class="ai-word-loading-text">
+                正在整理词汇…
+            </div>
+            <div id="ai-word-loading-note" class="ai-word-loading-note">
+                内容较多时可能需要等待几秒
+            </div>
+
+            <div id="ai-import-loading-progress" class="ai-import-loading-progress" hidden>
+                <div class="ai-import-progress-head">
+                    <span id="ai-import-progress-label">准备中</span>
+                    <strong id="ai-import-progress-count">0 / 0</strong>
+                </div>
+                <div class="ai-import-progress-track" aria-hidden="true">
+                    <div id="ai-import-progress-bar" class="ai-import-progress-bar"></div>
+                </div>
+            </div>
+
+            <div id="ai-import-failure-box" class="ai-import-failure-box" hidden>
+                <div class="ai-import-failure-title">
+                    <span class="material-symbols-rounded">error_med</span>
+                    <strong id="ai-import-failure-title-text">部分词汇补全失败</strong>
+                </div>
+                <div id="ai-import-failure-list" class="ai-import-failure-list"></div>
+                <button type="button" id="ai-import-retry" class="btn-outline">
+                    <span class="material-symbols-rounded">refresh</span>
+                    仅重试失败词
+                </button>
+            </div>
+        </div>
+
+        <div id="ai-word-step-select" class="ai-word-step" hidden>
+            <div class="ai-word-step-toolbar">
+                <span id="ai-word-selected-count">已选 0 / 0</span>
+                <button type="button" id="ai-word-select-all" class="ai-word-text-btn">
+                    全选 / 取消
+                </button>
+            </div>
+
+            <div id="ai-word-candidate-list" class="ai-word-candidate-list"></div>
+
+            <div class="ai-word-bottom-actions">
+                <button type="button" class="btn-outline" id="ai-word-select-cancel">
+                    取消
+                </button>
+                <button type="button" id="ai-word-enrich">
+                    <span class="material-symbols-rounded">auto_fix_high</span>
+                    AI 补全并预览
+                </button>
+            </div>
+        </div>
+
+        <div id="ai-word-step-preview" class="ai-word-step" hidden>
+            <div class="ai-word-save-options">
+                <div class="ai-word-folder-group" hidden>
+                    <label for="ai-word-folder-ja">日语词汇保存到</label>
+                    <select id="ai-word-folder-ja">
+                        <option value="默认词库">默认词库</option>
+                    </select>
+                </div>
+
+                <div class="ai-word-folder-group" hidden>
+                    <label for="ai-word-folder-en">英语词汇保存到</label>
+                    <select id="ai-word-folder-en">
+                        <option value="四级词汇">四级词汇</option>
+                    </select>
+                </div>
+
+                <div class="ai-word-folder-group ai-word-duplicate-group">
+                    <label for="ai-word-duplicate-mode">遇到已经存在的词</label>
+                    <select id="ai-word-duplicate-mode">
+                        <option value="skip">跳过重复词</option>
+                        <option value="overwrite">更新已有词条</option>
+                        <option value="keep">保留为新词条</option>
+                    </select>
+                </div>
+
+                <label class="ai-word-star-option">
+                    <input type="checkbox" id="ai-word-add-star">
+                    <span class="ai-word-star-check">
+                        <span class="material-symbols-rounded">star</span>
+                    </span>
+                    <span>
+                        <strong>同时加入收藏</strong>
+                        <small>词汇仍会正常保存到上方词库</small>
+                    </span>
+                </label>
+            </div>
+
+            <div class="ai-word-preview-heading-row">
+                <strong>保存前检查</strong>
+                <span>所有内容都可以修改</span>
+            </div>
+
+            <div id="ai-import-preview-note" class="ai-import-preview-note" hidden>
+                <div>
+                    <strong id="ai-import-preview-note-title">部分词汇尚未补全</strong>
+                    <small id="ai-import-preview-note-text"></small>
+                </div>
+                <button type="button" id="ai-import-preview-retry" class="btn-outline">
+                    <span class="material-symbols-rounded">refresh</span>
+                    重试失败词
+                </button>
+            </div>
+
+            <div id="ai-word-preview-list" class="ai-word-preview-list"></div>
+
+            <div class="ai-word-bottom-actions">
+                <button type="button" id="ai-word-back" class="btn-outline">
+                    <span id="ai-word-back-label">返回选择</span>
+                </button>
+                <button type="button" id="ai-word-save">
+                    <span class="material-symbols-rounded">library_add</span>
+                    确认加入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div
+  id="ai-quiz-overlay"
+  class="modal-overlay"
+  style="align-items: flex-end; z-index: 5300;"
+>
+  <div class="bottom-sheet ai-quiz-sheet">
+    <div class="bs-handle"></div>
+
+    <div class="ai-quiz-header">
+      <div>
+        <div class="ai-quiz-heading">
+          <span class="material-symbols-rounded">quiz</span>
+          <span id="ai-quiz-title">本次小测</span>
+        </div>
+
+        <div
+          id="ai-quiz-progress"
+          class="ai-quiz-progress"
+        >
+          1 / 3
+        </div>
+      </div>
+
+      <button
+        id="ai-quiz-close"
+        class="glass-icon-btn"
+        type="button"
+        title="关闭小测"
+      >
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+
+    <div
+      id="ai-quiz-loading"
+      class="ai-quiz-loading"
+    >
+      <div class="ai-quiz-loading-icon">
+        <span class="material-symbols-rounded">psychology</span>
+      </div>
+
+      <strong>正在根据刚才的内容生成小测…</strong>
+
+      <small>
+        题目会自动区分拼写、释义、用法和语法
+      </small>
+    </div>
+
+    <div
+      id="ai-quiz-question-stage"
+      class="ai-quiz-question-stage"
+      hidden
+    >
+      <div class="ai-quiz-meta-row">
+        <span
+          id="ai-quiz-type"
+          class="ai-quiz-type"
+        >
+          释义
+        </span>
+
+        <span
+          id="ai-quiz-word"
+          class="ai-quiz-word"
+          hidden
+        ></span>
+      </div>
+
+      <div
+        id="ai-quiz-prompt"
+        class="ai-quiz-prompt"
+      ></div>
+
+      <div
+        id="ai-quiz-options"
+        class="ai-quiz-options"
+      ></div>
+
+      <div
+        id="ai-quiz-input-wrap"
+        class="ai-quiz-input-wrap"
+        hidden
+      >
+        <input
+          id="ai-quiz-input"
+          type="text"
+          autocomplete="off"
+          placeholder="输入你的答案"
+        >
+      </div>
+
+      <div
+        id="ai-quiz-feedback"
+        class="ai-quiz-feedback"
+        hidden
+      ></div>
+
+      <div class="ai-quiz-actions">
+        <button
+          id="ai-quiz-submit"
+          type="button"
+        >
+          提交答案
+        </button>
+
+        <button
+          id="ai-quiz-next"
+          type="button"
+          hidden
+        >
+          下一题
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="ai-quiz-result-stage"
+      class="ai-quiz-result-stage"
+      hidden
+    >
+      <div class="ai-quiz-result-icon">
+        <span class="material-symbols-rounded">
+          workspace_premium
+        </span>
+      </div>
+
+      <div class="ai-quiz-result-label">
+        本次小测完成
+      </div>
+
+      <div
+        id="ai-quiz-result-score"
+        class="ai-quiz-result-score"
+      >
+        0 / 3
+      </div>
+
+      <div class="ai-quiz-weak-heading">
+        需要巩固
+      </div>
+
+      <div
+        id="ai-quiz-weak-list"
+        class="ai-quiz-weak-list"
+      ></div>
+
+      <button
+        id="ai-quiz-import-missing"
+        type="button"
+        class="btn-outline"
+        hidden
+      >
+        <span class="material-symbols-rounded">
+          library_add
+        </span>
+
+        将未入库错词加入词库
+      </button>
+
+      <div class="ai-quiz-result-actions">
+        <button
+          id="ai-quiz-open-wrongbook"
+          type="button"
+          class="btn-outline"
+        >
+          查看错题
+        </button>
+
+        <button
+          id="ai-quiz-retry"
+          type="button"
+          class="btn-outline"
+        >
+          再练一次
+        </button>
+
+        <button
+          id="ai-quiz-done"
+          type="button"
+        >
+          完成
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="dialog-overlay" class="modal-overlay">
     <div class="dialog-content">
         <h3 id="dialog-title" style="border:none; margin-bottom:12px; justify-content:center;">提示</h3>
@@ -926,12 +1423,31 @@
 
 <div id="edit-overlay" class="modal-overlay">
     <div class="dialog-content edit-modal-content">
-        <h3 style="border:none; margin-bottom:20px; justify-content:center;"><span class="material-symbols-rounded">edit_square</span> 编辑单词</h3>
-        <div class="edit-input-group"><label>单词</label><input type="text" id="edit-word"></div>
-        <div class="edit-input-group"><label>假名</label><input type="text" id="edit-kana"></div>
-        <div class="edit-input-group"><label>词性</label><input type="text" id="edit-type"></div>
-        <div class="edit-input-group"><label>释义</label><input type="text" id="edit-meaning"></div>
-        <div class="edit-input-group en-only" style="display: none;"><label>词根拆解 (如: in(否定)-vis(看)-ible(形))</label><input type="text" id="edit-roots"></div>
+        <h3 id="edit-dialog-title" style="border:none; margin-bottom:20px; justify-content:center;"><span class="material-symbols-rounded">edit_square</span> 编辑单词</h3>
+        <div class="edit-input-group"><label for="edit-word">单词</label><input type="text" id="edit-word"></div>
+        <div class="edit-input-group"><label for="edit-kana" id="edit-reading-label">假名</label><input type="text" id="edit-kana"></div>
+        <div class="edit-input-group"><label for="edit-type">词性</label><input type="text" id="edit-type"></div>
+        <div class="edit-input-group"><label for="edit-meaning">释义</label><input type="text" id="edit-meaning"></div>
+        <div class="edit-input-group"><label for="edit-example">例句</label><textarea id="edit-example" rows="3" placeholder="目标语言例句 / 中文翻译"></textarea></div>
+        <div class="edit-meta-grid">
+          <div class="edit-input-group">
+            <label for="edit-level">级别</label>
+            <select id="edit-level"><option value="">未分级</option></select>
+          </div>
+          <div class="edit-input-group">
+            <label for="edit-difficulty">难度</label>
+            <select id="edit-difficulty">
+              <option value="0">难度未定</option>
+              <option value="1">1 · 入门</option>
+              <option value="2">2 · 较易</option>
+              <option value="3">3 · 中等</option>
+              <option value="4">4 · 较难</option>
+              <option value="5">5 · 困难</option>
+            </select>
+          </div>
+        </div>
+        <div class="edit-input-group"><label for="edit-tags">标签</label><input type="text" id="edit-tags" placeholder="如：高频、口语、多义"></div>
+        <div class="edit-input-group en-only" id="edit-roots-group" style="display: none;"><label for="edit-roots">词根拆解</label><input type="text" id="edit-roots" placeholder="如：in(否定)-vis(看)-ible(形)"></div>
         <div class="flex-row" style="margin-top: 24px; margin-bottom: 0;">
             <button id="btn-save-edit" style="flex: 1; background: var(--tertiary);">保存修改</button>
             <button id="btn-cancel-edit" class="btn-outline" style="flex: 1;">放弃</button>
@@ -960,14 +1476,28 @@
     <button class="detail-nav-btn" id="detail-next"><span class="material-symbols-rounded">chevron_right</span></button>
     <div id="dt-anim-wrapper" class="detail-anim-wrapper">
       <div class="dt-word" id="dt-word">单词</div>
+      <div id="dt-meta" class="dt-meta-row"></div>
       <div class="info-row-group">
           <div class="dt-kana" id="dt-kana">假名</div>
           <div class="dt-type" id="dt-type"></div>
           <div class="dt-roots" id="dt-roots" style="display:none;"></div>
           <div class="dt-mean" id="dt-mean">释义</div>
       </div>
-      <div class="dt-example-box" id="dt-example-box"></div>
-      <div class="ai-inline-panel hidden" id="dt-ai-inline-panel">
+      <div
+        class="dt-example-box"
+        id="dt-example-box"
+      ></div>
+
+      <div
+        id="dt-wrong-summary"
+        class="dt-wrong-summary"
+        hidden
+      ></div>
+
+      <div
+        class="ai-inline-panel hidden"
+        id="dt-ai-inline-panel"
+      >
         <div class="ai-inline-header">
           <div class="ai-inline-title">
             <span class="material-symbols-rounded">auto_awesome</span>
@@ -981,12 +1511,25 @@
   </div>
 </div>
 
-<div id="batch-bar" class="batch-bar" style="display: none;">
+<div id="batch-bar" class="batch-bar" style="display: none;" role="toolbar" aria-label="词汇管理操作">
   <span class="batch-count">已选 <span id="batch-count-num">0</span> 词</span>
-  <div style="display: flex; gap: 10px;">
-    <button id="btn-batch-move" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">move_item</span> 移动</button>
-    <button id="btn-batch-del" style="background: var(--accent-red); color: var(--on-primary);" class="icon-text-gap"><span class="material-symbols-rounded" style="font-size:1.2rem;">delete</span> 删除</button>
-    <button id="btn-batch-cancel" class="btn-outline" style="border: 2px solid var(--outline); box-shadow: none;">取消</button>
+  <div class="batch-actions">
+    <button id="btn-batch-move" class="batch-action-btn icon-text-gap" disabled>
+      <span class="material-symbols-rounded">drive_file_move</span>
+      <span class="batch-action-label">移动</span>
+    </button>
+    <button id="btn-batch-edit" class="batch-action-btn icon-text-gap" hidden>
+      <span class="material-symbols-rounded">edit</span>
+      <span class="batch-action-label">编辑</span>
+    </button>
+    <button id="btn-batch-del" class="batch-action-btn batch-action-danger icon-text-gap" disabled>
+      <span class="material-symbols-rounded">delete</span>
+      <span class="batch-action-label">删除</span>
+    </button>
+    <button id="btn-batch-cancel" class="batch-action-btn batch-action-done icon-text-gap">
+      <span class="material-symbols-rounded">done</span>
+      <span class="batch-action-label">完成</span>
+    </button>
   </div>
 </div>
 

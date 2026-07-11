@@ -2,11 +2,11 @@
   * 钟日 - 核心控制逻辑
  */
 
-const DATA_SCHEMA_VERSION = 2;
+const DATA_SCHEMA_VERSION = 6;
 const MIGRATION_SNAPSHOT_KEY = 'migrationSafetySnapshot_v1';
 
 const BACKUP_FORMAT_ID = 'zhongri-backup';
-const BACKUP_FORMAT_VERSION = 5;
+const BACKUP_FORMAT_VERSION = 8;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const BACKUP_PREFERENCE_KEYS = Object.freeze([
@@ -36,6 +36,876 @@ const escapeHTML = (str) => {
 
 const escapeRegExp = (str) => {
     return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+
+const normalizeEntryText = (value, useCompatibility = true) => {
+    const source = String(value ?? '');
+
+    return source
+        .normalize(useCompatibility ? 'NFKC' : 'NFC')
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .trim();
+};
+
+const normalizeHeadword = (value, lang = 'ja') => {
+    let text = normalizeEntryText(value)
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/\s*([-‐‑‒–—])\s*/g, '-')
+        .trim();
+
+    if (lang === 'en') {
+        text = text
+            .replace(/\s*'\s*/g, "'")
+            .replace(/\s+/g, ' ');
+    }
+
+    return text;
+};
+
+const normalizeWordType = (value) => {
+    const aliasMap = new Map([
+        ['名', '名词'],
+        ['名词', '名词'],
+        ['名詞', '名词'],
+        ['noun', '名词'],
+        ['n', '名词'],
+        ['动', '动词'],
+        ['動', '动词'],
+        ['动词', '动词'],
+        ['動詞', '动词'],
+        ['verb', '动词'],
+        ['v', '动词'],
+        ['形', '形容词'],
+        ['形容词', '形容词'],
+        ['形容詞', '形容词'],
+        ['adjective', '形容词'],
+        ['adj', '形容词'],
+        ['形动', '形容动词'],
+        ['形動', '形容动词'],
+        ['形容动词', '形容动词'],
+        ['形容動詞', '形容动词'],
+        ['ナ形容词', '形容动词'],
+        ['ナ形容詞', '形容动词'],
+        ['副', '副词'],
+        ['副词', '副词'],
+        ['副詞', '副词'],
+        ['adverb', '副词'],
+        ['adv', '副词'],
+        ['代', '代词'],
+        ['代词', '代词'],
+        ['代詞', '代词'],
+        ['pronoun', '代词'],
+        ['pron', '代词'],
+        ['介词', '介词'],
+        ['介詞', '介词'],
+        ['前置词', '介词'],
+        ['前置詞', '介词'],
+        ['preposition', '介词'],
+        ['prep', '介词'],
+        ['连词', '连词'],
+        ['連詞', '连词'],
+        ['接续词', '连词'],
+        ['接続詞', '连词'],
+        ['conjunction', '连词'],
+        ['conj', '连词'],
+        ['助词', '助词'],
+        ['助詞', '助词'],
+        ['助动词', '助动词'],
+        ['助動詞', '助动词'],
+        ['感叹词', '感叹词'],
+        ['感嘆詞', '感叹词'],
+        ['冠词', '冠词'],
+        ['冠詞', '冠词'],
+        ['article', '冠词'],
+        ['短语', '短语'],
+        ['词组', '短语'],
+        ['固定搭配', '固定搭配'],
+        ['惯用语', '惯用语'],
+        ['慣用句', '惯用语'],
+        ['熟语', '熟语'],
+        ['熟語', '熟语'],
+        ['数词', '数词'],
+        ['数詞', '数词'],
+        ['量词', '量词'],
+        ['量詞', '量词'],
+        ['接头词', '接头词'],
+        ['接頭辞', '接头词'],
+        ['接尾词', '接尾词'],
+        ['接尾辞', '接尾词']
+    ]);
+
+    const source = normalizeEntryText(value)
+        .replace(/[／/、，,;；|＋+&＆]+/g, '・')
+        .replace(/\s*・\s*/g, '・')
+        .replace(/・{2,}/g, '・')
+        .replace(/^・|・$/g, '');
+
+    const parts = source
+        .split('・')
+        .map(part => {
+            let token = part
+                .replace(/\s+/g, '')
+                .replace(/[.]$/g, '')
+                .replace(/名詞/g, '名词')
+                .replace(/動詞/g, '动词')
+                .replace(/形容詞/g, '形容词')
+                .replace(/形容動詞/g, '形容动词')
+                .replace(/副詞/g, '副词')
+                .replace(/代詞/g, '代词')
+                .replace(/介詞/g, '介词')
+                .replace(/接続詞/g, '连词')
+                .replace(/助動詞/g, '助动词')
+                .replace(/自動詞/g, '自动词')
+                .replace(/他動詞/g, '他动词')
+                .replace(/サ変/g, 'サ变');
+
+            const lower = token.toLowerCase();
+
+            if (aliasMap.has(token)) {
+                return aliasMap.get(token);
+            }
+
+            if (aliasMap.has(lower)) {
+                return aliasMap.get(lower);
+            }
+
+            const suruMatch = token.match(
+                /^サ变(?:动词)?(?:する)?([自他]?)$/
+            );
+
+            if (suruMatch) {
+                return `サ变动词する${suruMatch[1] || ''}`;
+            }
+
+            if (/^形动(?:词)?$/.test(token)) {
+                return '形容动词';
+            }
+
+            return token;
+        })
+        .filter(Boolean);
+
+    return [...new Set(parts)].join('・');
+};
+
+const normalizeMeaningText = (value) => {
+    const source = normalizeEntryText(value, false)
+        .replace(/\r?\n+/g, '；')
+        .replace(/[、,，;；]+/g, '；')
+        .replace(/\s*；\s*/g, '；')
+        .replace(/；{2,}/g, '；')
+        .replace(/^；|；$/g, '');
+
+    return [...new Set(
+        source
+            .split('；')
+            .map(part => part.trim())
+            .filter(Boolean)
+    )].join('；');
+};
+
+const normalizePhoneticText = (value) => {
+    let text = normalizeEntryText(value, false)
+        .replace(/^\s*[\/\[【(（]+/, '')
+        .replace(/[\/\]】)）]+\s*$/, '')
+        .trim();
+
+    if (!text) {
+        return '';
+    }
+
+    text = text.replace(/\s+/g, ' ');
+
+    return `/${text}/`;
+};
+
+const normalizeKanaText = (value) => {
+    return normalizeEntryText(value)
+        .replace(/[【】\[\]()（）]/g, '')
+        .replace(/\s+/g, '');
+};
+
+const normalizeRootsText = (value) => {
+    const text = normalizeEntryText(value, false)
+        .replace(/[（]/g, '(')
+        .replace(/[）]/g, ')')
+        .replace(/[‐‑‒–—−]+/g, '-')
+        .replace(/\s*-\s*/g, '-')
+        .replace(/-{2,}/g, '-')
+        .trim();
+
+    if (
+        /^(?:无|暂无|不确定|无法可靠拆解|none|null|n\/a)$/i
+            .test(text)
+    ) {
+        return '';
+    }
+
+    return text;
+};
+
+const WORD_LEVEL_OPTIONS = Object.freeze({
+    ja: Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']),
+    en: Object.freeze(['CET-4', 'CET-6'])
+});
+
+const DIFFICULTY_LABELS = Object.freeze({
+    0: '难度未定',
+    1: '入门',
+    2: '较易',
+    3: '中等',
+    4: '较难',
+    5: '困难'
+});
+
+const normalizeWordLevel = (value, lang = 'ja') => {
+    const raw = normalizeEntryText(value)
+        .toUpperCase()
+        .replace(/\s+/g, '')
+        .replace(/^JLPT[-_]?/, '')
+        .replace(/^CET[-_]?([46])$/, 'CET-$1')
+        .replace(/^大学英语([四六])级$/, match => {
+            return match.includes('四') ? 'CET-4' : 'CET-6';
+        });
+
+    if (!raw) {
+        return '';
+    }
+
+    if (lang === 'ja') {
+        const normalized = /^N[1-5]$/.test(raw)
+            ? raw
+            : '';
+
+        return normalized;
+    }
+
+    if (/^(?:CET-?4|四级)$/.test(raw)) {
+        return 'CET-4';
+    }
+
+    if (/^(?:CET-?6|六级)$/.test(raw)) {
+        return 'CET-6';
+    }
+
+    return '';
+};
+
+const normalizeWordDifficulty = value => {
+    const parsed = Number.parseInt(value, 10);
+
+    if (!Number.isFinite(parsed)) {
+        return 0;
+    }
+
+    return Math.min(5, Math.max(0, parsed));
+};
+
+const normalizeWordTags = value => {
+    const source = Array.isArray(value)
+        ? value
+        : String(value ?? '')
+            .split(/[、,，;；|｜/]+/);
+
+    return [
+        ...new Set(
+            source
+                .map(tag => normalizeEntryText(tag))
+                .filter(Boolean)
+        )
+    ].slice(0, 12);
+};
+
+const getDifficultyLabel = value => {
+    return DIFFICULTY_LABELS[
+        normalizeWordDifficulty(value)
+    ] || DIFFICULTY_LABELS[0];
+};
+
+const getWordMetadataHTML = (
+    entry = {},
+    {
+        compact = false,
+        showUnassigned = false,
+        includeTags = false,
+        includeBuiltIn = false
+    } = {}
+) => {
+    const lang = entry.lang === 'en' ? 'en' : 'ja';
+    const level = normalizeWordLevel(entry.level, lang);
+    const difficulty = normalizeWordDifficulty(
+        entry.difficulty
+    );
+    const tags = normalizeWordTags(entry.tags);
+    const chips = [];
+
+    if (level) {
+        chips.push(
+            `<span class="word-meta-chip is-level">${escapeHTML(level)}</span>`
+        );
+    } else if (showUnassigned) {
+        chips.push(
+            '<span class="word-meta-chip is-muted">未分级</span>'
+        );
+    }
+
+    if (difficulty > 0) {
+        chips.push(
+            `<span class="word-meta-chip is-difficulty difficulty-${difficulty}">` +
+                `${compact ? difficulty + '·' + escapeHTML(getDifficultyLabel(difficulty)) : escapeHTML(getDifficultyLabel(difficulty))}` +
+            '</span>'
+        );
+    } else if (showUnassigned && !compact) {
+        chips.push(
+            '<span class="word-meta-chip is-muted">难度未定</span>'
+        );
+    }
+
+    if (includeBuiltIn && entry.builtIn === true) {
+        chips.push(
+            '<span class="word-meta-chip is-built-in">内置</span>'
+        );
+    }
+
+    if (includeTags) {
+        tags.forEach(tag => {
+            chips.push(
+                `<span class="word-meta-chip is-tag">${escapeHTML(tag)}</span>`
+            );
+        });
+    }
+
+    return chips.join('');
+};
+
+const validateVocabularyData = (entries = []) => {
+    const issues = [];
+    const idMap = new Map();
+    const identityMap = new Map();
+
+    const addIssue = (
+        severity,
+        index,
+        word,
+        message,
+        field = ''
+    ) => {
+        issues.push({
+            severity,
+            index,
+            word: String(word || `第 ${index + 1} 条`),
+            message,
+            field
+        });
+    };
+
+    entries.forEach((rawEntry, index) => {
+        const raw = rawEntry && typeof rawEntry === 'object'
+            ? rawEntry
+            : {};
+        const lang = raw.lang === 'en' ? 'en' : 'ja';
+        const normalized = normalizeWordEntry(
+            raw,
+            { preserveWord: true }
+        );
+        const wordLabel = normalized.word || `第 ${index + 1} 条`;
+        const id = String(raw._id || '').trim();
+
+        if (!id) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                '缺少稳定 ID（_id）',
+                '_id'
+            );
+        } else if (idMap.has(id)) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                `稳定 ID 与第 ${idMap.get(id) + 1} 条重复：${id}`,
+                '_id'
+            );
+        } else {
+            idMap.set(id, index);
+        }
+
+        if (!normalized.word) {
+            addIssue('error', index, wordLabel, '缺少单词', 'word');
+        }
+
+        if (!normalized.type) {
+            addIssue('error', index, wordLabel, '缺少词性', 'type');
+        }
+
+        if (!normalized.meaning) {
+            addIssue('error', index, wordLabel, '缺少中文释义', 'meaning');
+        }
+
+        const identity =
+            `${lang}::${normalizeHeadword(normalized.word, lang).toLowerCase()}`;
+
+        if (normalized.word) {
+            if (identityMap.has(identity)) {
+                const firstIndex = identityMap.get(identity);
+                const bothBuiltIn =
+                    raw.builtIn === true &&
+                    entries[firstIndex]?.builtIn === true;
+
+                addIssue(
+                    bothBuiltIn ? 'error' : 'warning',
+                    index,
+                    wordLabel,
+                    `与第 ${firstIndex + 1} 条同语言同词重复`,
+                    'word'
+                );
+            } else {
+                identityMap.set(identity, index);
+            }
+        }
+
+        const rawLevel = normalizeEntryText(raw.level || '');
+        const normalizedLevel = normalizeWordLevel(rawLevel, lang);
+
+        if (rawLevel && !normalizedLevel) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                lang === 'en'
+                    ? '级别只能是 CET-4 或 CET-6'
+                    : '级别只能是 N5、N4、N3、N2 或 N1',
+                'level'
+            );
+        } else if (raw.builtIn === true && !normalizedLevel) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                '内置词缺少级别',
+                'level'
+            );
+        }
+
+        const rawDifficulty = raw.difficulty;
+        const difficulty = normalizeWordDifficulty(rawDifficulty);
+
+        if (
+            rawDifficulty !== undefined &&
+            rawDifficulty !== null &&
+            String(rawDifficulty).trim() !== '' &&
+            Number(rawDifficulty) !== 0 &&
+            (
+                !Number.isInteger(Number(rawDifficulty)) ||
+                Number(rawDifficulty) < 1 ||
+                Number(rawDifficulty) > 5
+            )
+        ) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                '难度必须是 1～5 的整数',
+                'difficulty'
+            );
+        } else if (raw.builtIn === true && difficulty === 0) {
+            addIssue(
+                'error',
+                index,
+                wordLabel,
+                '内置词缺少难度',
+                'difficulty'
+            );
+        }
+
+        if (lang === 'ja') {
+            const containsKanji =
+                /[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/
+                    .test(normalized.word);
+
+            if (containsKanji && !normalized.kana) {
+                addIssue(
+                    'error',
+                    index,
+                    wordLabel,
+                    '日语汉字词缺少假名',
+                    'kana'
+                );
+            }
+        } else if (!normalized.phonetic) {
+            addIssue(
+                raw.builtIn === true ? 'error' : 'warning',
+                index,
+                wordLabel,
+                '英语词缺少音标',
+                'phonetic'
+            );
+        }
+
+        if (!normalized.example) {
+            addIssue(
+                'warning',
+                index,
+                wordLabel,
+                '缺少例句',
+                'example'
+            );
+        } else {
+            const exampleBlocks = normalized.example
+                .split('||')
+                .map(block => block.trim())
+                .filter(Boolean);
+
+            const missingTranslation = exampleBlocks.some(block => {
+                const divider = findExampleDividerIndex(block);
+                return divider <= 0 || divider >= block.length - 1;
+            });
+
+            if (missingTranslation) {
+                addIssue(
+                    'warning',
+                    index,
+                    wordLabel,
+                    '部分例句缺少中文翻译',
+                    'example'
+                );
+            }
+        }
+    });
+
+    const errors = issues.filter(issue => {
+        return issue.severity === 'error';
+    });
+    const warnings = issues.filter(issue => {
+        return issue.severity === 'warning';
+    });
+
+    return {
+        total: entries.length,
+        japanese: entries.filter(entry => {
+            return (entry?.lang || 'ja') === 'ja';
+        }).length,
+        english: entries.filter(entry => {
+            return entry?.lang === 'en';
+        }).length,
+        builtIn: entries.filter(entry => {
+            return entry?.builtIn === true;
+        }).length,
+        errors,
+        warnings,
+        issues,
+        passed: errors.length === 0
+    };
+};
+
+const findExampleDividerIndex = (block) => {
+    const spacedDivider = block.search(/\s\/\s/);
+
+    if (spacedDivider !== -1) {
+        return spacedDivider + 1;
+    }
+
+    for (
+        let index = block.lastIndexOf('/');
+        index !== -1;
+        index = block.lastIndexOf('/', index - 1)
+    ) {
+        const translation = block
+            .slice(index + 1)
+            .trim();
+
+        if (
+            translation &&
+            /[\u3400-\u4DBF\u4E00-\u9FFF]/
+                .test(translation)
+        ) {
+            return index;
+        }
+    }
+
+    return -1;
+};
+
+const normalizeExampleBlock = (value) => {
+    const block = normalizeEntryText(value, false)
+        .replace(/\r?\n+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!block) {
+        return '';
+    }
+
+    const dividerIndex = findExampleDividerIndex(block);
+
+    if (dividerIndex <= 0 || dividerIndex >= block.length - 1) {
+        return block;
+    }
+
+    const original = block
+        .slice(0, dividerIndex)
+        .trim();
+
+    const translation = block
+        .slice(dividerIndex + 1)
+        .trim();
+
+    if (!original || !translation) {
+        return block;
+    }
+
+    return `${original} / ${translation}`;
+};
+
+const normalizeExampleText = (value, lang = '') => {
+    const source = String(value ?? '')
+        .normalize('NFC')
+        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+        .replace(/／/g, '/')
+        .replace(/[｜|]{2}/g, '||')
+        .trim();
+
+    if (!source) {
+        return '';
+    }
+
+    let blocks = source
+        .split(/\s*\|\|\s*/)
+        .map(block => block.trim())
+        .filter(Boolean);
+
+    const allBlocksHaveNoDivider = blocks.every(block => {
+        return findExampleDividerIndex(block) === -1;
+    });
+
+    /*
+     * 只在能够明确判断“原文 + 中文翻译”时，
+     * 才把相邻的两个 || 区块配成一条例句。
+     * 这样不会把两个独立外语例句误拼成一组翻译。
+     */
+    const canPairAsBilingual =
+        blocks.length >= 2 &&
+        blocks.length % 2 === 0 &&
+        allBlocksHaveNoDivider &&
+        blocks.every((block, index) => {
+            if (index % 2 === 1) {
+                return /[\u3400-\u4DBF\u4E00-\u9FFF]/
+                    .test(block);
+            }
+
+            if (lang === 'en') {
+                return /[A-Za-z]/.test(block);
+            }
+
+            if (lang === 'ja') {
+                return /[ぁ-ゖァ-ヺー]/u.test(block);
+            }
+
+            return false;
+        });
+
+    if (canPairAsBilingual) {
+        const pairedBlocks = [];
+
+        for (let index = 0; index < blocks.length; index += 2) {
+            pairedBlocks.push(
+                `${blocks[index]} / ${blocks[index + 1]}`
+            );
+        }
+
+        blocks = pairedBlocks;
+    }
+
+    const normalizedBlocks = blocks
+        .map(normalizeExampleBlock)
+        .filter(Boolean);
+
+    return [...new Set(normalizedBlocks)].join(' || ');
+};
+
+const normalizeWordEntry = (
+    entry = {},
+    { preserveWord = false } = {}
+) => {
+    const lang = entry.lang === 'en' ? 'en' : 'ja';
+
+    const normalized = {
+        ...entry,
+        lang,
+        word: preserveWord
+            ? String(entry.word ?? '')
+            : normalizeHeadword(entry.word, lang),
+        type: normalizeWordType(entry.type),
+        meaning: normalizeMeaningText(entry.meaning),
+        example: normalizeExampleText(entry.example, lang),
+        folder: normalizeEntryText(entry.folder || ''),
+        level: normalizeWordLevel(entry.level, lang),
+        difficulty: normalizeWordDifficulty(entry.difficulty),
+        tags: normalizeWordTags(entry.tags),
+        builtIn: entry.builtIn === true
+    };
+
+    if (lang === 'en') {
+        normalized.phonetic = normalizePhoneticText(
+            entry.phonetic
+        );
+        normalized.roots = normalizeRootsText(entry.roots);
+    } else {
+        normalized.kana = normalizeKanaText(entry.kana);
+        normalized.roots = '';
+    }
+
+    return normalized;
+};
+
+const getWordEntryQuality = (entry = {}) => {
+    const normalized = normalizeWordEntry(entry);
+    const items = [];
+
+    const add = (level, text, field = '') => {
+        items.push({ level, text, field });
+    };
+
+    const missingBaseFields = [];
+
+    if (!normalized.word) {
+        missingBaseFields.push('单词');
+        add('error', '缺少单词', 'word');
+    }
+
+    if (!normalized.type) {
+        missingBaseFields.push('词性');
+        add('error', '缺少词性', 'type');
+    }
+
+    if (!normalized.meaning) {
+        missingBaseFields.push('释义');
+        add('error', '缺少中文释义', 'meaning');
+    }
+
+    if (missingBaseFields.length === 0) {
+        add('ok', '单词、词性和释义完整');
+    }
+
+    const typeParts = normalized.type
+        .split('・')
+        .filter(Boolean);
+
+    const knownTypePattern =
+        /^(?:名词|动词|形容词|形容动词|副词|代词|介词|连词|助词|助动词|感叹词|冠词|自动词|他动词|短语|固定搭配|惯用语|熟语|数词|量词|接头词|接尾词|サ变动词する[自他]?)$/;
+
+    if (
+        normalized.type &&
+        typeParts.some(type => {
+            return !knownTypePattern.test(type);
+        })
+    ) {
+        add(
+            'warn',
+            '有无法识别的词性，请确认写法',
+            'type'
+        );
+    } else if (normalized.type) {
+        add('ok', '词性格式可以识别');
+    }
+
+    if (normalized.lang === 'en') {
+        if (!normalized.phonetic) {
+            add('warn', '缺少音标，仍可保存', 'phonetic');
+        } else if (!/^\/[^/]+\/$/.test(normalized.phonetic)) {
+            add('warn', '音标格式建议核对', 'phonetic');
+        } else {
+            add('ok', '音标格式正常');
+        }
+
+        if (normalized.roots) {
+            add(
+                'warn',
+                'AI 词根仅供辅助，建议人工核对',
+                'roots'
+            );
+        } else {
+            add('info', '词根不确定时留空是正常的');
+        }
+    } else {
+        const containsKanji =
+            /[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/
+                .test(normalized.word);
+
+        if (containsKanji && !normalized.kana) {
+            add('warn', '汉字词缺少假名', 'kana');
+        } else if (
+            normalized.kana &&
+            !/^[ぁ-ゖァ-ヺー・]+$/u.test(normalized.kana)
+        ) {
+            add('warn', '假名中含有异常字符', 'kana');
+        } else if (normalized.kana) {
+            add('ok', '假名格式正常');
+        }
+    }
+
+    if (!normalized.example) {
+        add('warn', '缺少例句，仍可保存', 'example');
+    } else {
+        const exampleBlocks = normalized.example
+            .split('||')
+            .map(block => block.trim())
+            .filter(Boolean);
+
+        const allHaveTranslation = exampleBlocks.every(block => {
+            const index = findExampleDividerIndex(block);
+
+            return (
+                index > 0 &&
+                index < block.length - 1
+            );
+        });
+
+        if (allHaveTranslation) {
+            add('ok', '例句包含对应翻译');
+        } else {
+            add(
+                'warn',
+                '部分例句缺少中文翻译',
+                'example'
+            );
+        }
+    }
+
+    if (normalized.level) {
+        add('ok', `级别：${normalized.level}`);
+    } else if (normalized.builtIn) {
+        add('warn', '内置词缺少级别', 'level');
+    } else {
+        add('info', '个人词汇可以不填写考试级别');
+    }
+
+    if (normalized.difficulty > 0) {
+        add(
+            'ok',
+            `难度：${getDifficultyLabel(normalized.difficulty)}`
+        );
+    } else if (normalized.builtIn) {
+        add('warn', '内置词缺少难度', 'difficulty');
+    } else {
+        add('info', '尚未设置难度');
+    }
+
+    return {
+        normalized,
+        items,
+        errorCount: items.filter(item => {
+            return item.level === 'error';
+        }).length,
+        warningCount: items.filter(item => {
+            return item.level === 'warn';
+        }).length
+    };
 };
 
 const JAPANESE_RUBY_INSTRUCTION = `
@@ -389,7 +1259,6 @@ inputs.forEach(el => {
             Model.state.selectedSet.clear();
             
             View.updateWordbankUI(); 
-            document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.remove('active'));
             Model.state.renderedStartIndex = -1; 
         }
 
@@ -483,10 +1352,56 @@ const BottomSheet = {
         });
 
         /*
-         * 为所有带有顶部横条的底部抽屉
-         * 自动安装拖动关闭功能。
+         * 为所有底部抽屉安装右上角收起按钮，
+         * 同时保留原有的拖动关闭能力。
          */
+        this.installCollapseButtons();
         this.initDragSupport();
+    },
+
+    installCollapseButtons() {
+        document
+            .querySelectorAll('.modal-overlay .bottom-sheet')
+            .forEach(sheet => {
+                const alreadyInstalled =
+                    Array.from(sheet.children).some(child => {
+                        return child.classList?.contains(
+                            'sheet-collapse-btn'
+                        );
+                    });
+
+                if (alreadyInstalled) {
+                    return;
+                }
+
+                const overlay =
+                    sheet.closest('.modal-overlay');
+
+                if (!overlay?.id) {
+                    return;
+                }
+
+                const button =
+                    document.createElement('button');
+
+                button.type = 'button';
+                button.className = 'sheet-collapse-btn';
+                button.title = '收起抽屉';
+                button.setAttribute('aria-label', '收起抽屉');
+                button.innerHTML = `
+                    <span class="material-symbols-rounded">
+                        keyboard_arrow_down
+                    </span>
+                `;
+
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    Hardware.vibrate(10);
+                    window.toggleModal(overlay.id, false);
+                });
+
+                sheet.insertBefore(button, sheet.firstChild);
+            });
     },
 
     initDragSupport() {
@@ -854,51 +1769,527 @@ const BottomSheet = {
     },
 
     open(selectEl, textSpan) {
-        let container = document.getElementById('bs-options'); container.innerHTML = '';
-        let titleMap = {
+        const container =
+            document.getElementById('bs-options');
+
+        const overlay =
+            document.getElementById('bs-overlay');
+
+        const isWordbankPicker =
+            selectEl.id === 'wb-folder-filter';
+
+        const isRangePicker =
+            selectEl.id === 'test-range-select';
+
+        const isDisplayModePicker = [
+            'next-display-mode',
+            'test-display-select'
+        ].includes(selectEl.id);
+
+        container.innerHTML = '';
+        container.className = 'bs-options';
+
+        [
+            'wordbank-picker-open',
+            'range-picker-open',
+            'display-mode-picker-open',
+            'compact-picker-open'
+        ].forEach(className => {
+            overlay?.classList.remove(className);
+        });
+
+        container.classList.toggle(
+            'is-wordbank-picker',
+            isWordbankPicker
+        );
+
+        container.classList.toggle(
+            'is-range-picker',
+            isRangePicker
+        );
+
+        container.classList.toggle(
+            'is-display-mode-picker',
+            isDisplayModePicker
+        );
+
+        overlay?.classList.toggle(
+            'wordbank-picker-open',
+            isWordbankPicker
+        );
+
+        overlay?.classList.toggle(
+            'range-picker-open',
+            isRangePicker
+        );
+
+        overlay?.classList.toggle(
+            'display-mode-picker-open',
+            isDisplayModePicker
+        );
+
+        const titleMap = {
             'test-range-select': '选择检验范围',
             'test-display-select': '默认显示模式',
-            'next-display-mode': (Model.state.mode === 'rote-learning' && Model.state.currentLangMode === 'en') ? '选择强化模式' : '遮盖模式',
+            'next-display-mode': (
+                Model.state.mode === 'rote-learning' &&
+                Model.state.currentLangMode === 'en'
+            )
+                ? '选择强化模式'
+                : '遮盖模式',
             'wb-folder-filter': '选择词库',
+            'wb-level-filter': '选择考试级别',
+            'wb-difficulty-filter': '选择学习难度',
             'move-dest-select': '移动至目标文件夹',
             'import-lang-select': '选择词汇语言',
             'import-folder-select': '选择目标词库',
+            'import-level-select': '选择批次级别',
+            'import-difficulty-select': '选择批次难度',
             'import-duplicate-mode': '选择重复词处理方式',
             'setting-word-order-mode': '选择词汇排列方式'
         };
-        document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
-        
-        Array.from(selectEl.options).forEach(opt => {
-            if (opt.style.display === 'none') return; // 遇到隐藏选项，直接跳过不画
-            let btn = document.createElement('div');
-            btn.className = 'bs-option ' + (opt.selected ? 'selected' : '');
-            btn.setAttribute('tabindex', '0');
-            btn.setAttribute('role', 'button');
-            
-            if (selectEl.id === 'test-range-select' || selectEl.id === 'wb-folder-filter' || selectEl.id === 'import-folder-select') {
-                let iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">folder</span>`;
-                if (opt.value === 'all') iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">grid_view</span>`;
-                else if (opt.value === 'virtual_starred') iconHTML = `<span class="material-symbols-rounded" style="color:#fbbc04; font-variation-settings: 'FILL' 1;">star</span>`;
-                else if (opt.value === 'virtual_cleared') iconHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary);">workspace_premium</span>`;
-                else if (opt.value === 'virtual_uncleared') iconHTML = `<span class="material-symbols-rounded" style="color:var(--outline);">hourglass_empty</span>`;
-                btn.innerHTML = `<div style="display:flex; align-items:center; gap:8px; justify-content:center;">${iconHTML}<span>${opt.text}</span></div>`;
-            } else {
-                btn.innerText = opt.text;
+
+        document.getElementById('bs-title').innerText =
+            titleMap[selectEl.id] || '请选择';
+
+        const visibleOptions =
+            Array.from(selectEl.options).filter(option => {
+                return option.style.display !== 'none';
+            });
+
+        const longestOptionLength =
+            visibleOptions.reduce((maxLength, option) => {
+                return Math.max(
+                    maxLength,
+                    Array.from(option.text.trim()).length
+                );
+            }, 0);
+
+        const saveSelection = option => {
+            Hardware.vibrate(15);
+            selectEl.value = option.value;
+
+            if (selectEl.id === 'test-range-select') {
+                localStorage.setItem(
+                    'lastTestRange',
+                    option.value
+                );
             }
 
-            btn.onclick = () => {
-                Hardware.vibrate(15);
-                selectEl.value = opt.value;
-                if (selectEl.id === 'test-range-select') localStorage.setItem('lastTestRange', opt.value);
-                if (selectEl.id === 'test-display-select') localStorage.setItem('lastTestDisplay', opt.value);
-                if (selectEl.id === 'wb-folder-filter') localStorage.setItem('lastSelectedFolder', opt.value);
-                
-                selectEl.dispatchEvent(new Event('facade-update'));
-                selectEl.dispatchEvent(new Event('change')); 
-                window.toggleModal('bs-overlay', false);
+            if (selectEl.id === 'test-display-select') {
+                localStorage.setItem(
+                    'lastTestDisplay',
+                    option.value
+                );
+            }
+
+            if (selectEl.id === 'wb-folder-filter') {
+                localStorage.setItem(
+                    'lastSelectedFolder',
+                    option.value
+                );
+            }
+
+            selectEl.dispatchEvent(
+                new Event('facade-update')
+            );
+
+            selectEl.dispatchEvent(
+                new Event('change')
+            );
+
+            window.toggleModal('bs-overlay', false);
+        };
+
+        const countWordsForOption = option => {
+            if (!isWordbankPicker && !isRangePicker) {
+                return null;
+            }
+
+            return Model.db.filter(word => {
+                if (
+                    (word.lang || 'ja') !==
+                    Model.state.currentLangMode
+                ) {
+                    return false;
+                }
+
+                return option.value === 'all'
+                    ? true
+                    : Model.checkFilter(
+                          word,
+                          option.value
+                      );
+            }).length;
+        };
+
+        const displayIconMap = {
+            all: 'visibility',
+            word: 'text_fields',
+            kana: 'record_voice_over',
+            meaning: 'translate',
+            audio: 'headphones',
+            spell: 'spellcheck'
+        };
+
+        const genericIconMap = {
+            all: 'grid_view',
+            ja: 'translate',
+            en: 'abc',
+            N5: 'looks_5',
+            N4: 'looks_4',
+            N3: 'looks_3',
+            N2: 'looks_two',
+            N1: 'looks_one',
+            'CET-4': 'filter_4',
+            'CET-6': 'filter_6',
+            '1': 'filter_1',
+            '2': 'filter_2',
+            '3': 'filter_3',
+            '4': 'filter_4',
+            '5': 'filter_5',
+            skip: 'skip_next',
+            update: 'sync',
+            keep: 'content_copy'
+        };
+
+        const makeButton = (option, meta = {}) => {
+            const button = document.createElement('div');
+            const count = countWordsForOption(option);
+
+            button.className = 'bs-option';
+            button.classList.toggle('selected', option.selected);
+            button.classList.toggle('is-wide', Boolean(meta.wide));
+            button.classList.toggle(
+                'is-featured',
+                Boolean(meta.featured)
+            );
+
+            button.setAttribute('tabindex', '0');
+            button.setAttribute('role', 'button');
+            button.setAttribute(
+                'aria-pressed',
+                option.selected ? 'true' : 'false'
+            );
+
+            const icon =
+                meta.icon ||
+                (isDisplayModePicker
+                    ? displayIconMap[option.value]
+                    : genericIconMap[option.value]) ||
+                'tune';
+
+            button.innerHTML = `
+                <span class="bs-option-icon material-symbols-rounded">
+                    ${icon}
+                </span>
+
+                <span class="bs-option-label">
+                    ${escapeHTML(meta.label || option.text)}
+                </span>
+
+                ${
+                    count === null
+                        ? ''
+                        : `
+                            <span class="bs-option-count">
+                                ${count}
+                            </span>
+                        `
+                }
+
+                <span class="bs-option-check material-symbols-rounded">
+                    check
+                </span>
+            `;
+
+            button.addEventListener('click', () => {
+                saveSelection(option);
+            });
+
+            button.addEventListener('keydown', event => {
+                if (
+                    event.key !== 'Enter' &&
+                    event.key !== ' '
+                ) {
+                    return;
+                }
+
+                event.preventDefault();
+                saveSelection(option);
+            });
+
+            return button;
+        };
+
+        const buildGroupedPicker = (
+            groupDefinitions,
+            resolveMeta
+        ) => {
+            const groups = {};
+
+            groupDefinitions.forEach(([key, title]) => {
+                const section =
+                    document.createElement('section');
+
+                const heading =
+                    document.createElement('div');
+
+                const grid =
+                    document.createElement('div');
+
+                section.className =
+                    `bs-option-group bs-option-group-${key}`;
+
+                section.hidden = true;
+                heading.className = 'bs-option-group-title';
+                heading.textContent = title;
+                grid.className = 'bs-option-grid';
+
+                section.appendChild(heading);
+                section.appendChild(grid);
+                container.appendChild(section);
+
+                groups[key] = { section, grid };
+            });
+
+            visibleOptions.forEach(option => {
+                const meta = resolveMeta(option);
+                const target = groups[meta.group];
+
+                if (!target) {
+                    return;
+                }
+
+                target.section.hidden = false;
+                target.grid.appendChild(
+                    makeButton(option, meta)
+                );
+            });
+        };
+
+        if (isWordbankPicker) {
+            const metaMap = {
+                all: ['quick', '查看所有', 'grid_view'],
+                virtual_starred: [
+                    'quick',
+                    '收藏词汇',
+                    'star'
+                ],
+                virtual_wrong_all: [
+                    'wrong',
+                    '智能错题本',
+                    'error_med',
+                    true,
+                    true
+                ],
+                virtual_wrong_spell: [
+                    'wrong',
+                    '拼写',
+                    'spellcheck'
+                ],
+                virtual_wrong_listening: [
+                    'wrong',
+                    '听力',
+                    'headphones'
+                ],
+                virtual_wrong_reading: [
+                    'wrong',
+                    '读音',
+                    'record_voice_over'
+                ],
+                virtual_wrong_meaning: [
+                    'wrong',
+                    '释义',
+                    'translate'
+                ],
+                virtual_wrong_ai: [
+                    'wrong',
+                    'AI 小测',
+                    'quiz'
+                ],
+                virtual_wrong_repeated: [
+                    'wrong',
+                    '反复出错',
+                    'priority_high'
+                ],
+                virtual_wrong_resolved: [
+                    'wrong',
+                    '已解决',
+                    'task_alt',
+                    true
+                ],
+                virtual_cleared: [
+                    'progress',
+                    '完全通关',
+                    'workspace_premium'
+                ],
+                virtual_uncleared: [
+                    'progress',
+                    '未通关',
+                    'hourglass_empty'
+                ],
+                virtual_know_kanji: [
+                    'progress',
+                    Model.state.currentLangMode === 'en'
+                        ? '拼写掌握'
+                        : '汉字了解',
+                    'visibility'
+                ],
+                virtual_know_kana: [
+                    'progress',
+                    Model.state.currentLangMode === 'en'
+                        ? '听力掌握'
+                        : '读音了解',
+                    Model.state.currentLangMode === 'en'
+                        ? 'hearing'
+                        : 'record_voice_over'
+                ],
+                virtual_know_meaning: [
+                    'progress',
+                    '释义了解',
+                    'psychology_alt'
+                ]
             };
-            container.appendChild(btn);
-        });
+
+            buildGroupedPicker(
+                [
+                    ['quick', '快捷入口'],
+                    ['wrong', '错题本'],
+                    ['progress', '学习状态'],
+                    ['folders', '我的词库']
+                ],
+                option => {
+                    const fixed = metaMap[option.value];
+
+                    if (fixed) {
+                        return {
+                            group: fixed[0],
+                            label: fixed[1],
+                            icon: fixed[2],
+                            wide: Boolean(fixed[3]),
+                            featured: Boolean(fixed[4])
+                        };
+                    }
+
+                    const label = option.text.trim();
+
+                    return {
+                        group: 'folders',
+                        label,
+                        icon: option.value === 'default'
+                            ? 'library_books'
+                            : 'folder',
+                        wide: Array.from(label).length >= 9
+                    };
+                }
+            );
+        } else if (isRangePicker) {
+            buildGroupedPicker(
+                [
+                    ['folders', '词库'],
+                    ['quick', '快捷范围'],
+                    ['weak', '专项攻坚'],
+                    ['review', '复习巩固']
+                ],
+                option => {
+                    const value = option.value;
+                    const label = option.text
+                        .replace(/^专项攻坚[:：]\s*/, '')
+                        .replace(/^复习巩固[:：]\s*/, '')
+                        .trim();
+
+                    if (value.startsWith('virtual_miss_')) {
+                        const icon = value.endsWith('kanji')
+                            ? 'spellcheck'
+                            : value.endsWith('kana')
+                                ? 'headphones'
+                                : 'translate';
+
+                        return {
+                            group: 'weak',
+                            label,
+                            icon
+                        };
+                    }
+
+                    if (value.startsWith('virtual_know_')) {
+                        const icon = value.endsWith('kanji')
+                            ? 'verified'
+                            : value.endsWith('kana')
+                                ? 'hearing_disabled'
+                                : 'psychology_alt';
+
+                        return {
+                            group: 'review',
+                            label,
+                            icon
+                        };
+                    }
+
+                    if (value === 'virtual_starred') {
+                        return {
+                            group: 'quick',
+                            label: '收藏词汇',
+                            icon: 'star'
+                        };
+                    }
+
+                    if (value === 'virtual_cleared') {
+                        return {
+                            group: 'quick',
+                            label: '完全通关',
+                            icon: 'workspace_premium'
+                        };
+                    }
+
+                    if (value === 'virtual_uncleared') {
+                        return {
+                            group: 'quick',
+                            label: '所有未通关',
+                            icon: 'hourglass_empty'
+                        };
+                    }
+
+                    return {
+                        group: 'folders',
+                        label: option.text,
+                        icon: 'folder',
+                        wide:
+                            Array.from(option.text).length >= 10
+                    };
+                }
+            );
+        } else {
+            const useCompactGrid =
+                visibleOptions.length >= 2 &&
+                visibleOptions.length <= 8 &&
+                longestOptionLength <= 18;
+
+            container.classList.toggle(
+                'is-compact-grid',
+                useCompactGrid
+            );
+
+            container.classList.toggle(
+                'is-compact-list',
+                !useCompactGrid
+            );
+
+            container.classList.toggle(
+                'is-display-mode-picker',
+                isDisplayModePicker
+            );
+
+            overlay?.classList.add('compact-picker-open');
+
+            visibleOptions.forEach(option => {
+                container.appendChild(
+                    makeButton(option)
+                );
+            });
+        }
+
         window.toggleModal('bs-overlay', true);
     }
 };
@@ -1187,12 +2578,101 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
       let clearsChanged = false;
 
       /*
-       * 旧日语词没有语言字段时，
-       * 自动补成日语，而不是删除重建。
+       * 旧日语词没有语言字段时自动补成日语，
+       * 同时补齐级别、难度、标签和内置标记。
        */
+      const defaultIdentities = new Set([
+          ...(typeof DefaultWords !== 'undefined'
+              ? DefaultWords.map(word => {
+                    return `ja::${word.folder || '默认词库'}::${word.word}`;
+                })
+              : []),
+          ...(typeof DefaultEnglishWords !== 'undefined'
+              ? DefaultEnglishWords.map(word => {
+                    return `en::${word.folder || '英语词库'}::${word.word}`;
+                })
+              : [])
+      ]);
+
       for (const word of this.db) {
           if (!word.lang) {
               word.lang = 'ja';
+              dbChanged = true;
+          }
+
+          const identity =
+              `${word.lang === 'en' ? 'en' : 'ja'}::` +
+              `${word.folder || (word.lang === 'en' ? '英语词库' : '默认词库')}::` +
+              `${word.word || ''}`;
+
+          if (typeof word.builtIn !== 'boolean') {
+              word.builtIn = defaultIdentities.has(identity);
+              dbChanged = true;
+          }
+
+          if (!Array.isArray(word.tags)) {
+              word.tags = normalizeWordTags(word.tags);
+              dbChanged = true;
+          }
+
+          const normalizedDifficulty =
+              normalizeWordDifficulty(word.difficulty);
+
+          if (word.difficulty !== normalizedDifficulty) {
+              word.difficulty = normalizedDifficulty;
+              dbChanged = true;
+          }
+
+          const normalizedLevel =
+              normalizeWordLevel(word.level, word.lang);
+
+          if (
+              !normalizedLevel &&
+              word.builtIn === true &&
+              word.lang === 'en' &&
+              word.folder === '四级词汇'
+          ) {
+              word.level = 'CET-4';
+              dbChanged = true;
+          } else if (String(word.level || '') !== normalizedLevel) {
+              word.level = normalizedLevel;
+              dbChanged = true;
+          }
+      }
+
+      /*
+       * 统一旧词条的词性、读音、释义与例句格式。
+       * 迁移时保留原单词文字，避免影响现有收藏与学习记录。
+       */
+      for (const word of this.db) {
+          const normalized = normalizeWordEntry(
+              word,
+              { preserveWord: true }
+          );
+
+          const trackedFields = [
+              'type',
+              'meaning',
+              'example',
+              'folder',
+              'phonetic',
+              'kana',
+              'roots',
+              'level',
+              'difficulty',
+              'tags',
+              'builtIn'
+          ];
+
+          const hasChange = trackedFields.some(field => {
+              return (
+                  String(word[field] ?? '') !==
+                  String(normalized[field] ?? '')
+              );
+          });
+
+          if (hasChange) {
+              Object.assign(word, normalized);
               dbChanged = true;
           }
       }
@@ -1304,7 +2784,8 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
 
               if (!existingEnglishWords.has(identity)) {
                   this.db.push({
-                      ...defaultWord
+                      ...defaultWord,
+                      builtIn: true
                   });
 
                   existingEnglishWords.add(identity);
@@ -1405,10 +2886,19 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
             ]);
             ['myWordDB_v3', 'myFolders_v3', 'myFolderLangs', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
         } else {
-            this.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); 
+            this.db = DefaultWords.map(w => ({
+                ...w,
+                folder: "默认词库",
+                builtIn: true
+            })); 
             // Also include English default words
             if (typeof DefaultEnglishWords !== 'undefined') {
-                this.db = this.db.concat(DefaultEnglishWords.map(w => ({...w})));
+                this.db = this.db.concat(
+                    DefaultEnglishWords.map(w => ({
+                        ...w,
+                        builtIn: true
+                    }))
+                );
                 this.folders.push("四级词汇");
                 this.folderLangs["四级词汇"] = "en";
             }
@@ -1476,8 +2966,33 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
 },
 
   saveDB() {
-      if (!this.idbAvailable) { localStorage.setItem('myWordDB_v3', JSON.stringify(this.db)); return Promise.resolve(); }
-      return idbKeyval.set('myWordDB_v3', this.db);
+      /*
+       * 所有保存入口共用同一套格式整理规则。
+       * preserveWord 保留词汇身份，避免收藏与掌握记录突然失联。
+       */
+      this.db.forEach(word => {
+          Object.assign(
+              word,
+              normalizeWordEntry(
+                  word,
+                  { preserveWord: true }
+              )
+          );
+      });
+
+      if (!this.idbAvailable) {
+          localStorage.setItem(
+              'myWordDB_v3',
+              JSON.stringify(this.db)
+          );
+
+          return Promise.resolve();
+      }
+
+      return idbKeyval.set(
+          'myWordDB_v3',
+          this.db
+      );
   },
   saveFolders() {
       if (!this.idbAvailable) { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); return Promise.resolve(); }
@@ -1943,35 +3458,152 @@ const View = {
     
     // English words: use simple PoS abbreviations as watermark
     if (lang === 'en') {
-        let enWm = '';
-        if (typeStr.includes('名词')) enWm = 'n.';
-        else if (typeStr.includes('动词')) enWm = 'v.';
-        else if (typeStr.includes('形容词') && !typeStr.includes('形容动词')) enWm = 'adj.';
-        else if (typeStr.includes('副词')) enWm = 'adv.';
-        else if (typeStr.includes('介词')) enWm = 'prep.';
-        else if (typeStr.includes('连词') || typeStr.includes('连接')) enWm = 'conj.';
-        else if (typeStr.includes('代词')) enWm = 'pron.';
-        else enWm = typeStr.charAt(0);
-        
-        const getCat = (t) => {
-            if (t.includes('形容动词') || t.includes('形动') || t.includes('形容词')) return { color: 'var(--bg-adj)' };
-            if (t.includes('动词')) return { color: 'var(--bg-verb)' };
-            if (t.includes('名词')) return { color: 'var(--bg-noun)' };
-            if (t.includes('副词') || t.includes('接')) return { color: 'var(--bg-adv)' };
-            return { color: 'var(--bg-other)' }; 
+        /*
+         * 显示层继续兼容多种词性分隔符，
+         * 即使旧数据尚未经过迁移，也能正确显示双色卡片。
+         */
+        let tags = String(typeStr)
+            .split(/[・/／、,，;；|]+/)
+            .map(type => type.trim())
+            .filter(Boolean);
+
+        if (tags.length === 0) {
+            tags = [String(typeStr).trim()];
+        }
+
+        const getEnglishWatermark = type => {
+            if (type.includes('名词') || type === '名') {
+                return 'n.';
+            }
+
+            if (type.includes('动词') || type === '动') {
+                return 'v.';
+            }
+
+            if (
+                type.includes('形容词') &&
+                !type.includes('形容动词')
+            ) {
+                return 'adj.';
+            }
+
+            if (type.includes('副词')) {
+                return 'adv.';
+            }
+
+            if (type.includes('介词')) {
+                return 'prep.';
+            }
+
+            if (
+                type.includes('连词') ||
+                type.includes('连接')
+            ) {
+                return 'conj.';
+            }
+
+            if (type.includes('代词')) {
+                return 'pron.';
+            }
+
+            return type.charAt(0);
         };
-        let tags = typeStr.split('・').map(t => t.trim()).filter(t => t);
-        if (tags.length === 0) tags = [typeStr];
-        let mainColors = [];
-        let tagsHTML = tags.map(t => {
-            let catInfo = getCat(t); mainColors.push(catInfo.color);
-            return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
-        }).join('');
-        let uniqueColors = [...new Set(mainColors)];
-        let bg = uniqueColors[0] || 'var(--surface-container)';
-        if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
-        if (bg === 'var(--surface-container)' && tagsHTML) bg = 'var(--bg-other)';
-        return { bg, wm: enWm, tagsHTML };
+
+        const watermarkItems = [
+            ...new Set(
+                tags
+                    .map(getEnglishWatermark)
+                    .filter(Boolean)
+            )
+        ].slice(0, 2);
+
+        const enWm =
+            watermarkItems.length > 1
+                ? `<span class="wm-multi">${watermarkItems.join('・')}</span>`
+                : (watermarkItems[0] || '');
+
+        const getCat = type => {
+            if (
+                type.includes('形容动词') ||
+                type.includes('形动') ||
+                type.includes('形容词')
+            ) {
+                return { color: 'var(--bg-adj)' };
+            }
+
+            if (
+                type.includes('动词') ||
+                type === '动'
+            ) {
+                return { color: 'var(--bg-verb)' };
+            }
+
+            if (
+                type.includes('名词') ||
+                type === '名'
+            ) {
+                return { color: 'var(--bg-noun)' };
+            }
+
+            if (
+                type.includes('副词') ||
+                type.includes('接')
+            ) {
+                return { color: 'var(--bg-adv)' };
+            }
+
+            if (type.includes('代词')) {
+                return { color: 'var(--bg-pronoun)' };
+            }
+
+            return { color: 'var(--bg-other)' };
+        };
+
+        const mainColors = [];
+
+        const tagsHTML = tags
+            .map(type => {
+                const catInfo = getCat(type);
+                mainColors.push(catInfo.color);
+
+                return (
+                    `<span class="type-capsule" ` +
+                    `style="background: ${catInfo.color};">` +
+                    `${escapeHTML(type)}` +
+                    `</span>`
+                );
+            })
+            .join('');
+
+        const uniqueColors = [
+            ...new Set(mainColors)
+        ];
+
+        let bg =
+            uniqueColors[0] ||
+            'var(--surface-container)';
+
+        if (uniqueColors.length >= 2) {
+            bg =
+                `linear-gradient(` +
+                `135deg, ` +
+                `${uniqueColors[0]} 50%, ` +
+                `${uniqueColors[1]} 50%` +
+                `)`;
+        }
+
+        if (
+            bg === 'var(--surface-container)' &&
+            tagsHTML
+        ) {
+            bg = 'var(--bg-other)';
+        }
+
+        return {
+            bg,
+            wm: enWm,
+            tagsHTML
+        };
     }
     
     // Japanese words: keep original grammar character watermark
@@ -2102,152 +3734,509 @@ const View = {
 
 
 
-  updateGroupTabs() {
-      let tabsContainer = this.getEl('gs-tabs');
-      if (!tabsContainer) return;
-      
-      let currentActive = tabsContainer.querySelector('.active') ? tabsContainer.querySelector('.active').dataset.cat : 'default';
-      tabsContainer.innerHTML = '';
-      
-      Model.folders.forEach(f => {
-          if ((Model.folderLangs[f] || 'ja') !== Model.state.currentLangMode) return;
-          let catVal = f === '默认词库' ? 'default' : f;
-          let tab = document.createElement('div');
-          tab.className = `g-tab ${currentActive === catVal ? 'active' : ''}`;
-          tab.dataset.cat = catVal;
-          tab.innerText = f;
-          tab.setAttribute('tabindex', '0');
-          tab.setAttribute('role', 'button');
-          tabsContainer.appendChild(tab);
-      });
-      
-            let isEnTab = Model.state.currentLangMode === 'en';
-      const virtuals = [
-          { cat: 'virtual_cleared', text: '完全通关' },
-          { cat: 'virtual_uncleared', text: '所有未通关' },
-          { cat: 'virtual_miss_kanji', text: isEnTab ? '未掌握拼写' : '未了解汉字' },
-          { cat: 'virtual_miss_kana', text: isEnTab ? '未掌握听力' : '未了解读音' },
-          { cat: 'virtual_miss_meaning', text: '未了解释义' },
-          { cat: 'virtual_starred', text: '收藏' }
-      ];
+  renderGroupRangePicker() {
+      const container =
+          this.getEl('group-list-container');
 
-      virtuals.forEach(v => {
-          let tab = document.createElement('div');
-          tab.className = `g-tab ${currentActive === v.cat ? 'active' : ''}`;
-          tab.dataset.cat = v.cat;
-          tab.innerText = v.text;
+      if (!container) {
+          return;
+      }
 
-          tab.setAttribute('tabindex', '0');
-          tab.setAttribute('role', 'button');
-          tabsContainer.appendChild(tab);
-      });
-
-if (!tabsContainer.querySelector('.active')) {
-          let firstTab = tabsContainer.querySelector('.g-tab');
-          if(firstTab) firstTab.classList.add('active');
-      }  },
-
-  renderGroupBottomSheet(cat) {
-      let container = this.getEl('group-list-container');
-      if (!container) return;
       container.innerHTML = '';
-      
+      container.className =
+          'bs-scrollable-content group-range-sections';
+      container.classList.remove('is-empty');
+
       try {
-          let catVal = cat || 'default';
-          let currentLang = Model.state.currentLangMode;
+          const currentLang =
+              Model.state.currentLangMode;
 
-          let words = Model.db
-              .map((w, i) => ({ w, i }))
-              .filter(item => {
-                  let wordLang = item.w.lang || 'ja';
+          const isEnglish =
+              currentLang === 'en';
 
-                  return (
-                      wordLang === currentLang &&
-                      Model.checkFilter(item.w, catVal)
-                  );
-              });
+          const entries = [];
 
-          if (words.length === 0) {
-              let emptyText = "当前空空如也";
-              let iconStr = "spa"; 
-              let jpTitle = "【 空 無 】";
-              
-              if(catVal === 'virtual_starred') { emptyText = "暂无收藏，去发现心动词汇吧"; }
-              if(catVal === 'virtual_cleared') { emptyText = "路漫漫其修远兮，继续攀登吧"; }
-              if(catVal === 'virtual_uncleared' || catVal.includes('virtual_miss_')) { 
-                  emptyText = "此维度盲区已彻底扫清！"; 
-                  iconStr = "radio_button_unchecked"; 
-                  jpTitle = "【 円 相 】";
+          /*
+           * 当前语言下的真实词库直接分组展示。
+           * 不再先切换标签，再进行第二次选择。
+           */
+          Model.folders.forEach(folder => {
+              if (
+                  (
+                      Model.folderLangs[folder] ||
+                      'ja'
+                  ) !== currentLang
+              ) {
+                  return;
               }
-              
-              container.innerHTML = `<div style="text-align:center; padding: 60px 20px;">
-                  <span class="material-symbols-rounded" style="font-size: 4.5rem; opacity: 0.4; margin-bottom: 20px; color: #8F9779;">${iconStr}</span>
-                  <div style="font-size: 1.2rem; font-weight: 800; color: var(--on-surface); opacity: 0.8; font-family: var(--font-jp-serif), serif; letter-spacing: 2px;">${jpTitle}</div>
-                  <div style="font-weight: 500; font-size: 0.95rem; opacity: 0.6; color: var(--on-surface); margin-top: 12px;">${emptyText}</div>
-              </div>`;
+
+              entries.push({
+                  cat:
+                      folder === '默认词库'
+                          ? 'default'
+                          : folder,
+                  text: folder,
+                  icon:
+                      folder === '默认词库'
+                          ? 'library_books'
+                          : 'folder',
+                  tone: 'library'
+              });
+          });
+
+          /*
+           * 学习状态与薄弱项也放在同一页中，
+           * 形成与“选择词库”一致的分栏式结构。
+           */
+          entries.push(
+              {
+                  cat: 'virtual_starred',
+                  text: '收藏词汇',
+                  icon: 'star',
+                  tone: 'favorite'
+              },
+              {
+                  cat: 'virtual_cleared',
+                  text: '完全通关',
+                  icon: 'workspace_premium',
+                  tone: 'review'
+              },
+              {
+                  cat: 'virtual_uncleared',
+                  text: '所有未通关',
+                  icon: 'hourglass_empty',
+                  tone: 'review'
+              },
+              {
+                  cat: 'virtual_miss_kanji',
+                  text: isEnglish
+                      ? '未掌握拼写'
+                      : '未了解汉字',
+                  icon: 'spellcheck',
+                  tone: 'weak'
+              },
+              {
+                  cat: 'virtual_miss_kana',
+                  text: isEnglish
+                      ? '未掌握听力'
+                      : '未了解读音',
+                  icon: isEnglish
+                      ? 'headphones'
+                      : 'record_voice_over',
+                  tone: 'weak'
+              },
+              {
+                  cat: 'virtual_miss_meaning',
+                  text: '未了解释义',
+                  icon: 'translate',
+                  tone: 'weak'
+              }
+          );
+
+          const selectedGroup =
+              Model.state.currentGroupKey ||
+              localStorage.getItem(
+                  'lastCustomGroupVal'
+              ) ||
+              '';
+
+          const GROUP_SIZE = 10;
+          const GROUP_STEP = 7;
+          const fragment =
+              document.createDocumentFragment();
+
+          let visibleSectionCount = 0;
+
+          entries.forEach(entry => {
+              const words =
+                  Model.db.filter(word => {
+                      return (
+                          (
+                              word.lang ||
+                              'ja'
+                          ) === currentLang &&
+                          Model.checkFilter(
+                              word,
+                              entry.cat
+                          )
+                      );
+                  });
+
+              /* 空分类不占据抽屉空间。 */
+              if (words.length === 0) {
+                  return;
+              }
+
+              visibleSectionCount++;
+
+              const section =
+                  document.createElement(
+                      'section'
+                  );
+
+              section.className =
+                  `group-range-section ` +
+                  `is-${entry.tone}`;
+
+              const heading =
+                  document.createElement(
+                      'div'
+                  );
+
+              heading.className =
+                  'group-range-section-head';
+
+              heading.innerHTML = `
+                  <span
+                      class="group-range-section-icon material-symbols-rounded"
+                      aria-hidden="true"
+                  >
+                      ${entry.icon}
+                  </span>
+
+                  <span
+                      class="group-range-section-title"
+                  >
+                      ${escapeHTML(entry.text)}
+                  </span>
+
+                  <span
+                      class="group-range-section-count"
+                  >
+                      ${words.length} 词
+                  </span>
+              `;
+
+              const grid =
+                  document.createElement(
+                      'div'
+                  );
+
+              grid.className =
+                  'group-range-section-grid';
+
+              let groupIndex = 0;
+
+              while (
+                  groupIndex * GROUP_STEP <
+                  words.length
+              ) {
+                  const startIndex =
+                      groupIndex * GROUP_STEP;
+
+                  const endIndex =
+                      Math.min(
+                          startIndex + GROUP_SIZE,
+                          words.length
+                      );
+
+                  const groupValue =
+                      `group|${entry.cat}|${groupIndex}`;
+
+                  const selected =
+                      selectedGroup === groupValue;
+
+                  const clearCount =
+                      Model.mtGroupClears[
+                          groupValue
+                      ] || 0;
+
+                  const button =
+                      document.createElement(
+                          'div'
+                      );
+
+                  button.className =
+                      `bs-option group-range-option ` +
+                      `${selected ? 'selected' : ''}`;
+
+                  button.setAttribute(
+                      'tabindex',
+                      '0'
+                  );
+
+                  button.setAttribute(
+                      'role',
+                      'button'
+                  );
+
+                  button.setAttribute(
+                      'aria-pressed',
+                      selected ? 'true' : 'false'
+                  );
+
+                  let badgeHTML = '';
+
+                  if (
+                      entry.cat !==
+                          'virtual_uncleared' &&
+                      (
+                          clearCount > 0 ||
+                          entry.cat ===
+                              'virtual_cleared'
+                      )
+                  ) {
+                      let badgeClass =
+                          'hanko-bronze';
+
+                      if (
+                          clearCount >= 10 ||
+                          entry.cat ===
+                              'virtual_cleared'
+                      ) {
+                          badgeClass =
+                              'hanko-diamond';
+                      } else if (
+                          clearCount >= 5
+                      ) {
+                          badgeClass =
+                              'hanko-gold';
+                      } else if (
+                          clearCount >= 3
+                      ) {
+                          badgeClass =
+                              'hanko-silver';
+                      }
+
+                      badgeHTML = `
+                          <span
+                              class="hanko-badge ${badgeClass}"
+                              aria-hidden="true"
+                          ></span>
+                      `;
+                  }
+
+                  const rangeTitle =
+                      words.length <= GROUP_SIZE
+                          ? `全部 ${words.length} 词`
+                          : (
+                              `第 ${startIndex + 1}` +
+                              `–${endIndex} 词`
+                          );
+
+                  button.innerHTML = `
+                      <span
+                          class="group-range-icon material-symbols-rounded"
+                          aria-hidden="true"
+                      >
+                          view_module
+                      </span>
+
+                      <span
+                          class="group-range-copy"
+                      >
+                          <strong>
+                              ${rangeTitle}
+                          </strong>
+
+                          <small>
+                              ${endIndex - startIndex}
+                              个词
+                          </small>
+                      </span>
+
+                      ${badgeHTML}
+
+                      <span
+                          class="group-range-check material-symbols-rounded"
+                          aria-hidden="true"
+                      >
+                          check
+                      </span>
+                  `;
+
+                  const displayText =
+                      `${entry.text} ` +
+                      `(第 ${startIndex + 1}` +
+                      `-${endIndex} 词)`;
+
+                  const choose = () => {
+                      Hardware.playSound('click');
+                      Hardware.vibrate(15);
+
+                      Model.state.currentGroupKey =
+                          groupValue;
+
+                      Model.state.currentGroupLabel =
+                          displayText;
+
+                      const textElement =
+                          this.getEl(
+                              'custom-group-text'
+                          );
+
+                      if (textElement) {
+                          textElement.innerText =
+                              displayText;
+                      }
+
+                      localStorage.setItem(
+                          'lastCustomGroupVal',
+                          groupValue
+                      );
+
+                      localStorage.setItem(
+                          'lastCustomGroupTxt',
+                          displayText
+                      );
+
+                      window.toggleModal(
+                          'group-select-overlay',
+                          false
+                      );
+                  };
+
+                  button.addEventListener(
+                      'click',
+                      choose
+                  );
+
+                  button.addEventListener(
+                      'keydown',
+                      event => {
+                          if (
+                              event.key !== 'Enter' &&
+                              event.key !== ' '
+                          ) {
+                              return;
+                          }
+
+                          event.preventDefault();
+                          choose();
+                      }
+                  );
+
+                  grid.appendChild(button);
+                  groupIndex++;
+
+                  if (groupIndex > 1000) {
+                      break;
+                  }
+              }
+
+              section.appendChild(heading);
+              section.appendChild(grid);
+              fragment.appendChild(section);
+          });
+
+          if (visibleSectionCount === 0) {
+              container.classList.add(
+                  'is-empty'
+              );
+
+              container.innerHTML = `
+                  <div class="group-range-empty">
+                      <span
+                          class="material-symbols-rounded"
+                          aria-hidden="true"
+                      >
+                          spa
+                      </span>
+
+                      <strong>
+                          当前没有可选择的学习范围
+                      </strong>
+                  </div>
+              `;
+
               return;
           }
 
-          let i = 0; let total = words.length;
-          let fragment = document.createDocumentFragment();
-          
-          let currentTabEl = Array.from(
-              document.querySelectorAll('#gs-tabs .g-tab')
-          ).find(tab => tab.dataset.cat === catVal);
-
-          let catLabel = currentTabEl
-              ? currentTabEl.innerText
-              : (catVal === 'default' ? '默认词库' : catVal);
-
-const GROUP_SIZE = 10;
-const GROUP_STEP = 7;
-
-while (i * GROUP_STEP < total) {
-    let startIdx = i * GROUP_STEP;
-    let endIdx = Math.min(startIdx + GROUP_SIZE, total);
-              let btn = document.createElement('div');
-              btn.className = 'bs-option';
-              btn.setAttribute('tabindex', '0');
-              btn.setAttribute('role', 'button');
-              
-              let groupVal = `group|${catVal}|${i}`;
-              let clears = Model.mtGroupClears[groupVal] || 0;
-              let badgeHTML = '';
-              
-              if (catVal !== 'virtual_uncleared' && (clears > 0 || catVal === 'virtual_cleared')) {
-                  let badgeClass = 'hanko-bronze'; 
-                  if (clears >= 10 || catVal === 'virtual_cleared') badgeClass = 'hanko-diamond'; 
-                  else if (clears >= 5) badgeClass = 'hanko-gold';
-                  else if (clears >= 3) badgeClass = 'hanko-silver';
-                  badgeHTML = `<span class="hanko-badge ${badgeClass}"></span>`;
-              }
-              
-              btn.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><span>第 ${startIdx + 1}-${endIdx} 词</span>${badgeHTML}</div>`;
-
-              let displayTxt = `${catLabel} (第 ${startIdx + 1}-${endIdx} 词)`;
-
-              if (localStorage.getItem('lastCustomGroupVal') === groupVal) {
-                  btn.classList.add('selected');
-              }
-
-              btn.onclick = () => {
-                  Hardware.playSound('click'); Hardware.vibrate(15);
-                  Model.state.currentGroupKey = groupVal;
-                  Model.state.currentGroupLabel = displayTxt;
-                  this.getEl('custom-group-text').innerText = displayTxt;
-                  localStorage.setItem('lastCustomGroupVal', groupVal);
-                  localStorage.setItem('lastCustomGroupTxt', displayTxt);
-                  window.toggleModal('group-select-overlay', false);
-              };
-              fragment.appendChild(btn);
-              i++;
-              if (i > 1000) break; 
-          }
           container.appendChild(fragment);
-      } catch(err) {
-          console.error(err);
-          container.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--accent-red); font-size: 0.9rem;">加载出错，请重试或重置应用</div>`;
+      } catch (error) {
+          console.error(
+              '[Group Range Picker]',
+              error
+          );
+
+          container.classList.add(
+              'is-empty'
+          );
+
+          container.innerHTML = `
+              <div
+                  class="group-range-empty is-error"
+              >
+                  <span
+                      class="material-symbols-rounded"
+                      aria-hidden="true"
+                  >
+                      error
+                  </span>
+
+                  <strong>
+                      加载出错，请重试
+                  </strong>
+              </div>
+          `;
       }
+  },
+
+  updateWordbankManagementUI() {
+    const isManaging = Model.state.batchMode;
+    const selectedCount = Model.state.selectedSet.size;
+
+    const batchBar = this.getEl('batch-bar');
+    const countNum = this.getEl('batch-count-num');
+    const manageBtn = this.getEl('wb-manage-toggle');
+    const manageIcon = this.getEl('manage-icon');
+    const manageLabel = this.getEl('manage-label');
+    const moveBtn = this.getEl('btn-batch-move');
+    const editBtn = this.getEl('btn-batch-edit');
+    const deleteBtn = this.getEl('btn-batch-del');
+    const grid = this.getEl('wb-grid');
+
+    if (batchBar) {
+        batchBar.style.display = isManaging ? 'flex' : 'none';
+    }
+
+    if (countNum) {
+        countNum.innerText = selectedCount;
+    }
+
+    if (manageBtn) {
+        manageBtn.classList.toggle('active', isManaging);
+        manageBtn.setAttribute(
+            'aria-pressed',
+            String(isManaging)
+        );
+        manageBtn.title = isManaging
+            ? '完成管理'
+            : '管理词汇';
+    }
+
+    if (manageIcon) {
+        manageIcon.innerText = isManaging
+            ? 'done'
+            : 'edit_note';
+    }
+
+    if (manageLabel) {
+        manageLabel.innerText = isManaging
+            ? '完成'
+            : '管理';
+    }
+
+    if (grid) {
+        grid.classList.toggle(
+            'is-managing',
+            isManaging
+        );
+    }
+
+    const hasSelection = selectedCount > 0;
+
+    if (moveBtn) {
+        moveBtn.disabled = !hasSelection;
+    }
+
+    if (deleteBtn) {
+        deleteBtn.disabled = !hasSelection;
+    }
+
+    if (editBtn) {
+        editBtn.hidden = selectedCount !== 1;
+    }
   },
 
   updateWordbankUI() {
@@ -2264,19 +4253,7 @@ while (i * GROUP_STEP < total) {
         modeSel.options[0].style.display = '';
     }
 
-    this.getEl('batch-bar').style.display = Model.state.batchMode ? 'flex' : 'none'; this.getEl('batch-count-num').innerText = Model.state.selectedSet.size;
-    
-    let batchBtn = this.getEl('wb-batch-toggle');
-    if(batchBtn) {
-        batchBtn.style.color = Model.state.batchMode ? "var(--tertiary)" : "var(--primary)";
-        batchBtn.style.boxShadow = Model.state.batchMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
-    }
-    
-    let manageBtn = this.getEl('wb-manage-toggle');
-    if(manageBtn) {
-        manageBtn.style.color = Model.state.manageMode ? "var(--tertiary)" : "var(--primary)";
-        manageBtn.style.boxShadow = Model.state.manageMode ? "inset 0 2px 4px rgba(0,0,0,0.1), 0 1px 2px var(--paper-shadow)" : "";
-    }
+    this.updateWordbankManagementUI();
 
     let selFilter = this.getEl('wb-folder-filter'); 
     let currentVal = selFilter.value;
@@ -2325,7 +4302,14 @@ while (i * GROUP_STEP < total) {
     }
 
 
-    this.updateGroupTabs();
+    const groupOverlay =
+        this.getEl('group-select-overlay');
+
+    if (
+        groupOverlay?.classList.contains('active')
+    ) {
+        this.renderGroupRangePicker();
+    }
   },
 
   renderDashboard() {
@@ -3013,7 +4997,8 @@ void card.offsetWidth;
         let safeCnPart = escapeHTML(cnPart);
         
                 let wordLang = targetWordObj ? (targetWordObj.lang || 'ja') : 'ja';
-let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" data-lang="${wordLang}">auto_awesome</span>`;
+        let targetWordIndex = targetWordObj ? Model.db.indexOf(targetWordObj) : -1;
+let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" data-lang="${wordLang}" data-word-index="${targetWordIndex}">auto_awesome</span>`;
         let jpBoxHTML = `<div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="display:flex; align-items:flex-start; gap:6px;"><span class="material-symbols-rounded ex-speaker" style="flex-shrink:0;">volume_up</span><span style="flex:1;">${safeJpPart}</span>${sparkBtnHTML}</div>`;
 
         if (mode === 'choice' && cnPart) { 
@@ -3695,6 +5680,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let renderFingerprint = '';
       let bgStyle = '';
       let isHintCard = (idx === -999);
+      let isChecked = false;
 
       if (isHintCard) {
           bgStyle = 'transparent';
@@ -3712,7 +5698,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; 
           let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; 
           let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
-          let isChecked = Model.state.selectedSet.has(idx);
+          isChecked = Model.state.selectedSet.has(idx);
 
           // 统一三杠体系：兼容旧英语 {word, meaning} 格式
           let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
@@ -3732,7 +5718,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           let starClass = starFilled ? 'active' : '';
 
           let topRightHTML = '';
-          if (Model.state.batchMode || Model.state.manageMode) {
+          if (Model.state.batchMode) {
               topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
           } else {
               topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
@@ -3748,18 +5734,21 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
             ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
             <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
             ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>`}
-            <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>
-            <div class="wb-manage-overlay ${Model.state.manageMode ? 'active' : ''}">
-                <button class="wb-btn-move btn-wb-move"><span class="material-symbols-rounded">move_item</span></button>
-                <button class="wb-btn-edit btn-wb-edit"><span class="material-symbols-rounded">edit</span></button>
-                <button class="wb-btn-del btn-wb-del"><span class="material-symbols-rounded">delete</span></button>
-            </div>`;
+            <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
 
           renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
       }
 
       if (index < existingCards.length) {
           let card = existingCards[index];
+          card.classList.toggle(
+              'is-selected',
+              !isHintCard && isChecked
+          );
+          card.setAttribute(
+              'aria-pressed',
+              String(!isHintCard && isChecked)
+          );
           if (card.dataset.fingerprint !== renderFingerprint) {
               card.style.background = bgStyle;
               card.style.boxShadow = isHintCard ? 'none' : '';
@@ -3770,9 +5759,17 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           }
       } else {
           let card = document.createElement('div');
-          card.className = 'wb-card';
+          card.className =
+              'wb-card' +
+              (!isHintCard && isChecked
+                  ? ' is-selected'
+                  : '');
           card.setAttribute('tabindex', '0');
           card.setAttribute('role', 'button');
+          card.setAttribute(
+              'aria-pressed',
+              String(!isHintCard && isChecked)
+          );
           card.style.background = bgStyle;
           card.style.boxShadow = isHintCard ? 'none' : '';
           card.style.border = isHintCard ? 'none' : '';
@@ -4017,6 +6014,14 @@ const buildAIChatSystemPrompt = (presetId, lang) => {
 
 const Controller = {
   aiCache: {},
+  aiActionPayloads: {},
+  aiActionSerial: 0,
+  pendingWordDraft: null,
+  aiWordCollection: {
+      sourcePayload: null,
+      candidates: [],
+      drafts: []
+  },
   currentChat: { systemPrompt: '', messages: [], cacheKey: '' },
 
   aiTabChat: {
@@ -4234,58 +6239,22 @@ setupVirtualScroll() {
         });
     });
 
-    View.getEl('btn-custom-group-select').addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.vibrate(15);
+    View.getEl(
+        'btn-custom-group-select'
+    ).addEventListener(
+        'click',
+        () => {
+            Hardware.playSound('click');
+            Hardware.vibrate(15);
 
-        View.updateGroupTabs();
+            View.renderGroupRangePicker();
 
-        const savedGroupKey =
-            Model.state.currentGroupKey ||
-            localStorage.getItem('lastCustomGroupVal') ||
-            '';
-
-        const [, savedCat] = savedGroupKey.split('|');
-
-        const tabs = Array.from(
-            View.getEl('gs-tabs').querySelectorAll('.g-tab')
-        );
-
-        const targetTab =
-            tabs.find(tab => tab.dataset.cat === savedCat) ||
-            tabs.find(tab => tab.classList.contains('active')) ||
-            tabs[0];
-
-        tabs.forEach(tab => {
-            tab.classList.toggle('active', tab === targetTab);
-        });
-
-        const activeCat = targetTab
-            ? targetTab.dataset.cat
-            : 'default';
-
-        window.toggleModal('group-select-overlay', true);
-
-        setTimeout(() => {
-            View.renderGroupBottomSheet(activeCat);
-        }, 10);
-    });
-
-    View.getEl('gs-tabs').addEventListener('click', (e) => {
-        const tab = e.target.closest('.g-tab');
-        if (!tab) return;
-
-        Hardware.playSound('click');
-        Hardware.vibrate(10);
-
-        View.getEl('gs-tabs')
-            .querySelectorAll('.g-tab')
-            .forEach(item => {
-                item.classList.toggle('active', item === tab);
-            });
-
-        View.renderGroupBottomSheet(tab.dataset.cat);
-    });
+            window.toggleModal(
+                'group-select-overlay',
+                true
+            );
+        }
+    );
 
     View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
     View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
@@ -4485,6 +6454,135 @@ if (aiSheetCopy) {
         }
     });
 }
+let aiWordCollectorClose =
+    View.getEl('ai-word-collector-close');
+
+if (aiWordCollectorClose) {
+    aiWordCollectorClose.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(10);
+            Controller._closeAIWordCollector();
+        }
+    );
+}
+
+let aiWordCandidateList =
+    View.getEl('ai-word-candidate-list');
+
+if (aiWordCandidateList) {
+    aiWordCandidateList.addEventListener(
+        'change',
+        () => {
+            Controller._updateAIWordCandidateCount();
+        }
+    );
+}
+
+let aiWordPreviewList =
+    View.getEl('ai-word-preview-list');
+
+if (aiWordPreviewList) {
+    aiWordPreviewList.addEventListener(
+        'input',
+        event => {
+            const field = event.target.closest(
+                '[data-ai-draft-index][data-ai-draft-field]'
+            );
+
+            if (field) {
+                Controller._updateAIWordDraftField(
+                    field,
+                    false
+                );
+            }
+        }
+    );
+
+    aiWordPreviewList.addEventListener(
+        'change',
+        event => {
+            const field = event.target.closest(
+                '[data-ai-draft-index][data-ai-draft-field]'
+            );
+
+            if (field) {
+                Controller._updateAIWordDraftField(
+                    field,
+                    true
+                );
+            }
+        }
+    );
+}
+
+let aiWordSelectAll =
+    View.getEl('ai-word-select-all');
+
+if (aiWordSelectAll) {
+    aiWordSelectAll.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(10);
+            Controller._toggleAllAIWordCandidates();
+        }
+    );
+}
+
+let aiWordSelectCancel =
+    View.getEl('ai-word-select-cancel');
+
+if (aiWordSelectCancel) {
+    aiWordSelectCancel.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(10);
+            Controller._closeAIWordCollector();
+        }
+    );
+}
+
+let aiWordEnrich =
+    View.getEl('ai-word-enrich');
+
+if (aiWordEnrich) {
+    aiWordEnrich.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(15);
+            Controller._enrichSelectedAIWords();
+        }
+    );
+}
+
+let aiWordBack =
+    View.getEl('ai-word-back');
+
+if (aiWordBack) {
+    aiWordBack.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(10);
+            Controller._showAIWordCollectorStage(
+                'select'
+            );
+        }
+    );
+}
+
+let aiWordSave =
+    View.getEl('ai-word-save');
+
+if (aiWordSave) {
+    aiWordSave.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(18);
+            Controller._saveAIWordDrafts();
+        }
+    );
+}
+
 let btnNewAIChat = View.getEl('btn-new-ai-chat');
 
 if (btnNewAIChat) {
@@ -4852,8 +6950,23 @@ if (testVibrateBtn) {
         let aiBtn = e.target.closest('.ai-sparkle-btn, .ai-sparkle-capsule, .ai-sparkle-icon');
 if (aiBtn) {
     Hardware.vibrate(15);
-    Controller.openAISheet(aiBtn.dataset.sentence, aiBtn.dataset.word, aiBtn.dataset.lang || 'ja');
+    Controller.openAISheet(
+        aiBtn.dataset.sentence,
+        aiBtn.dataset.word,
+        aiBtn.dataset.lang || 'ja',
+        Number(aiBtn.dataset.wordIndex)
+    );
     return; 
+}
+
+        let aiResponseAction = e.target.closest('.ai-response-action');
+if (aiResponseAction) {
+    Hardware.vibrate(12);
+    Controller.handleAIResponseAction(
+        aiResponseAction.dataset.action,
+        aiResponseAction.dataset.payloadId
+    );
+    return;
 }
         // AI 内联面板关闭按钮
 let aiCloseBtn = e.target.closest('.ai-inline-close-btn');
@@ -4953,7 +7066,7 @@ if (aiCloseBtn) {
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-manage-overlay, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || Model.state.manageMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
@@ -4962,24 +7075,86 @@ if (aiCloseBtn) {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
       if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
-      if (e.target.closest('.btn-wb-move')) { Hardware.playSound('click'); Hardware.vibrate(15); this.openMoveModal(idx); return; }
-      if (e.target.closest('.btn-wb-edit')) { Hardware.playSound('click'); Hardware.vibrate(15); this.editWord(idx); return; }
-      if (e.target.closest('.btn-wb-del')) { Hardware.playSound('click'); Hardware.vibrate(15); this.deleteWord(idx); return; }
-      if (Model.state.batchMode && !e.target.closest('.wb-blur-trigger')) { if (Model.state.selectedSet.has(idx)) Model.state.selectedSet.delete(idx); else Model.state.selectedSet.add(idx); Hardware.playSound('click'); Hardware.vibrate(10); View.updateWordbankUI(); let checkEl = card.querySelector('.wb-checkbox'); if (checkEl) { checkEl.classList.toggle('checked'); checkEl.innerText = Model.state.selectedSet.has(idx) ? '✓' : ''; } }
+      if (Model.state.batchMode) {
+          e.stopPropagation();
+
+          if (Model.state.selectedSet.has(idx)) {
+              Model.state.selectedSet.delete(idx);
+          } else {
+              Model.state.selectedSet.add(idx);
+          }
+
+          const isSelected =
+              Model.state.selectedSet.has(idx);
+
+          Hardware.playSound('click');
+          Hardware.vibrate(10);
+
+          card.classList.toggle(
+              'is-selected',
+              isSelected
+          );
+          card.setAttribute(
+              'aria-pressed',
+              String(isSelected)
+          );
+
+          const checkEl =
+              card.querySelector('.wb-checkbox');
+
+          if (checkEl) {
+              checkEl.classList.toggle(
+                  'checked',
+                  isSelected
+              );
+              checkEl.innerText =
+                  isSelected ? '✓' : '';
+          }
+
+          View.updateWordbankManagementUI();
+      }
     });
 
-    View.getEl('wb-manage-toggle').addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(20); if(Model.state.batchMode) this.toggleBatchMode(); Model.state.manageMode = !Model.state.manageMode; View.updateWordbankUI(); document.querySelectorAll('.wb-manage-overlay').forEach(el => el.classList.toggle('active', Model.state.manageMode)); });
-    View.getEl('wb-batch-toggle').addEventListener('click', () => this.toggleBatchMode()); 
-    View.getEl('btn-batch-cancel').addEventListener('click', () => this.toggleBatchMode());
+    View.getEl('wb-manage-toggle').addEventListener(
+        'click',
+        () => this.toggleBatchMode()
+    );
+    View.getEl('btn-batch-cancel').addEventListener(
+        'click',
+        () => this.toggleBatchMode(false)
+    );
     View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); 
     View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
-    View.getEl('btn-batch-move').addEventListener('click', () => { Hardware.vibrate(15); this.openMoveModal(-2); }); 
-    View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
+    View.getEl('btn-batch-move').addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(15);
+            this.openMoveModal(-2);
+        }
+    );
+    View.getEl('btn-batch-edit').addEventListener(
+        'click',
+        () => {
+            if (Model.state.selectedSet.size !== 1) {
+                return;
+            }
+
+            const [idx] = Model.state.selectedSet;
+            Hardware.playSound('click');
+            Hardware.vibrate(15);
+            this.editWord(idx);
+        }
+    );
+    View.getEl('btn-batch-del').addEventListener(
+        'click',
+        () => this.batchDelete()
+    );
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
     View.getEl('import-lang-select').addEventListener('change', () => {
         this.updateImportFormatUI();
         this.updateImportFolderOptions();
+        this.updateImportMetadataOptions();
     });
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
     View.getEl('btn-reset-progress').addEventListener('click', () => {
@@ -5008,8 +7183,156 @@ if (aiCloseBtn) {
     });
     View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
-    View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); const isEnSave = w.lang === 'en'; if (isEnSave) { w.phonetic = View.getEl('edit-kana').value.trim(); } else { w.kana = View.getEl('edit-kana').value.trim(); } w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); let rootsInput = View.getEl('edit-roots'); if(rootsInput) w.roots = rootsInput.value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
-    View.getEl('btn-cancel-edit').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('edit-overlay', false); });
+    View.getEl('btn-save-edit').addEventListener('click', () => {
+        Hardware.vibrate(20);
+
+        const wordValue =
+            View.getEl('edit-word').value.trim();
+
+        const typeValue =
+            View.getEl('edit-type').value.trim();
+
+        const meaningValue =
+            View.getEl('edit-meaning').value.trim();
+
+        if (!wordValue || !typeValue || !meaningValue) {
+            showToast('请填写单词、词性和释义');
+            return;
+        }
+
+        const readingValue =
+            View.getEl('edit-kana').value.trim();
+
+        const exampleValue =
+            View.getEl('edit-example').value.trim();
+
+        const rootsInput =
+            View.getEl('edit-roots');
+
+        const rootsValue =
+            rootsInput
+                ? rootsInput.value.trim()
+                : '';
+
+        const editLang =
+            Model.editingIdx > -1
+                ? (Model.db[Model.editingIdx]?.lang || 'ja')
+                : (Controller.pendingWordDraft?.lang || 'ja');
+
+        const levelValue = normalizeWordLevel(
+            View.getEl('edit-level')?.value || '',
+            editLang
+        );
+
+        const difficultyValue = normalizeWordDifficulty(
+            View.getEl('edit-difficulty')?.value || 0
+        );
+
+        const tagsValue = normalizeWordTags(
+            View.getEl('edit-tags')?.value || ''
+        );
+
+        if (Model.editingIdx > -1) {
+            const word =
+                Model.db[Model.editingIdx];
+
+            const normalizedEdit = normalizeWordEntry({
+                ...word,
+                word: wordValue,
+                type: typeValue,
+                meaning: meaningValue,
+                example: exampleValue,
+                phonetic:
+                    word.lang === 'en'
+                        ? readingValue
+                        : (word.phonetic || ''),
+                kana:
+                    word.lang === 'en'
+                        ? (word.kana || '')
+                        : readingValue,
+                roots:
+                    word.lang === 'en'
+                        ? rootsValue
+                        : '',
+                level: levelValue,
+                difficulty: difficultyValue,
+                tags: tagsValue
+            });
+
+            Object.assign(word, normalizedEdit);
+
+            Model.saveDB();
+            View.resetWordbankRenderer();
+
+            window.toggleModal(
+                'edit-overlay',
+                false
+            );
+
+            showToast('修改已保存并整理格式');
+            return;
+        }
+
+        const draft =
+            Controller.pendingWordDraft;
+
+        if (!draft) {
+            return;
+        }
+
+        const newWord = normalizeWordEntry({
+            word: wordValue,
+            type: typeValue,
+            meaning: meaningValue,
+            example: exampleValue,
+            folder: draft.folder,
+            lang: draft.lang,
+            phonetic:
+                draft.lang === 'en'
+                    ? readingValue
+                    : '',
+            kana:
+                draft.lang === 'ja'
+                    ? readingValue
+                    : '',
+            roots:
+                draft.lang === 'en'
+                    ? rootsValue
+                    : '',
+            level: levelValue,
+            difficulty: difficultyValue,
+            tags: tagsValue,
+            builtIn: false,
+            isImported: true,
+            importedAt: new Date().toISOString(),
+            srs: {
+                ease: 2.5,
+                interval: 0,
+                nextReview: Date.now()
+            }
+        });
+
+        Model.db.push(newWord);
+        Model.saveDB();
+
+        Controller.pendingWordDraft = null;
+
+        View.updateWordbankUI();
+        View.resetWordbankRenderer();
+
+        window.toggleModal(
+            'edit-overlay',
+            false
+        );
+
+        showToast(`已加入「${wordValue}」`);
+    });
+
+    View.getEl('btn-cancel-edit').addEventListener('click', () => {
+        Hardware.vibrate(10);
+        Controller.pendingWordDraft = null;
+        window.toggleModal('edit-overlay', false);
+    });
 
         // 🟢 WCAG 伪按钮 (role="button") 空格触发机制 (规范：Space 释放时触发)
     document.addEventListener('keyup', (e) => {
@@ -6922,7 +9245,26 @@ const startIdx = groupIndex * GROUP_STEP;
   },
 
 
-  toggleBatchMode() { Hardware.playSound('click'); Hardware.vibrate(20); Model.state.batchMode = !Model.state.batchMode; Model.state.selectedSet.clear(); if (Model.state.batchMode && Model.state.manageMode) { Model.state.manageMode = false; } View.updateWordbankUI(); View.resetWordbankRenderer(); },
+  toggleBatchMode(forceState) {
+      Hardware.playSound('click');
+      Hardware.vibrate(20);
+
+      const nextState =
+          typeof forceState === 'boolean'
+              ? forceState
+              : !Model.state.batchMode;
+
+      if (nextState === Model.state.batchMode) {
+          return;
+      }
+
+      Model.state.batchMode = nextState;
+      Model.state.manageMode = false;
+      Model.state.selectedSet.clear();
+
+      View.updateWordbankUI();
+      View.resetWordbankRenderer();
+  },
   createFolder() { 
     Hardware.vibrate(20); 
     showPrompt("请输入新文件夹名称", "", (name) => { 
@@ -7123,7 +9465,6 @@ const startIdx = groupIndex * GROUP_STEP;
       showToast(`已移至 ${destFolder}`);
   },
 
-  confirmMove() { Hardware.playSound('success'); Hardware.vibrate(40); let dest = View.getEl('move-dest-select').value; if (Model.state.moveTargetIdx === -2) { Model.state.selectedSet.forEach(idx => Model.db[idx].folder = dest); this.toggleBatchMode(); } else { Model.db[Model.state.moveTargetIdx].folder = dest; } Model.saveDB(); window.toggleModal('move-overlay', false); View.resetWordbankRenderer(); showToast("移动成功");},
 batchDelete() { 
     Hardware.playSound('click'); Hardware.vibrate(30); 
     if(Model.state.selectedSet.size === 0) return showToast("请先选择单词"); 
@@ -7148,24 +9489,101 @@ showConfirm('批量删除', '确定要删除选中的所有单词吗？', () => 
         showToast("已批量删除"); 
     }); 
 },
-  editWord(idx) { 
-    Model.editingIdx = idx; 
-    let w = Model.db[idx]; 
-    const isEnEdit = w.lang === 'en';
-    View.getEl('edit-word').value = w.word; 
-    View.getEl('edit-kana').value = isEnEdit ? (w.phonetic || '') : (w.kana || ''); 
-    View.getEl('edit-type').value = w.type; 
-    View.getEl('edit-meaning').value = w.meaning; 
-    let rootsInput = View.getEl('edit-roots');
-    if(rootsInput) rootsInput.value = w.roots || '';
-    // Update the kana label for English
-    const kanaLabels = document.querySelectorAll('#edit-overlay label');
-    kanaLabels.forEach(l => { 
-        if (l.getAttribute('for') === 'edit-kana' || l.textContent.includes('假名')) {
-            l.textContent = isEnEdit ? '音标' : '假名';
-        }
-    });
-    window.toggleModal('edit-overlay', true); 
+  editWord(idx) {
+    Controller.pendingWordDraft = null;
+    Model.editingIdx = idx;
+
+    const word = Model.db[idx];
+    const isEnglish = word.lang === 'en';
+
+    const titleEl =
+        View.getEl('edit-dialog-title');
+
+    const saveBtn =
+        View.getEl('btn-save-edit');
+
+    if (titleEl) {
+        titleEl.innerHTML =
+            '<span class="material-symbols-rounded">edit_square</span> 编辑单词';
+    }
+
+    if (saveBtn) {
+        saveBtn.textContent = '保存修改';
+    }
+
+    View.getEl('edit-word').value =
+        word.word || '';
+
+    View.getEl('edit-kana').value =
+        isEnglish
+            ? (word.phonetic || '')
+            : (word.kana || '');
+
+    View.getEl('edit-type').value =
+        word.type || '';
+
+    View.getEl('edit-meaning').value =
+        word.meaning || '';
+
+    View.getEl('edit-example').value =
+        word.example || '';
+
+    const levelSelect = View.getEl('edit-level');
+    if (levelSelect) {
+        this.populateWordLevelSelect(
+            levelSelect,
+            word.lang || 'ja',
+            word.level || ''
+        );
+    }
+
+    const difficultySelect = View.getEl('edit-difficulty');
+    if (difficultySelect) {
+        difficultySelect.value = String(
+            normalizeWordDifficulty(word.difficulty)
+        );
+        difficultySelect.dispatchEvent(
+            new Event('facade-update')
+        );
+    }
+
+    const tagsInput = View.getEl('edit-tags');
+    if (tagsInput) {
+        tagsInput.value = normalizeWordTags(word.tags).join('、');
+    }
+
+    const rootsInput =
+        View.getEl('edit-roots');
+
+    if (rootsInput) {
+        rootsInput.value =
+            word.roots || '';
+    }
+
+    const readingLabel =
+        View.getEl('edit-reading-label');
+
+    if (readingLabel) {
+        readingLabel.textContent =
+            isEnglish
+                ? '音标'
+                : '假名';
+    }
+
+    const rootsGroup =
+        View.getEl('edit-roots-group');
+
+    if (rootsGroup) {
+        rootsGroup.style.display =
+            isEnglish
+                ? 'block'
+                : 'none';
+    }
+
+    window.toggleModal(
+        'edit-overlay',
+        true
+    );
   },
 deleteWord(idx) { 
     showConfirm('删除单词', '彻底删除该词？', () => { 
@@ -7192,6 +9610,7 @@ deleteWord(idx) {
       langSelect.dispatchEvent(new Event('facade-update'));
       this.updateImportFormatUI();
       this.updateImportFolderOptions();
+      this.updateImportMetadataOptions();
   },
 
   updateImportFormatUI() {
@@ -7202,13 +9621,47 @@ deleteWord(idx) {
 
       if (lang === 'en') {
           if (formatText) formatText.textContent = '单词,音标,词性,释义,例句,词根';
-          if (formatNote) formatNote.textContent = '前四项必填，例句和词根可选；例句含逗号时建议使用 Tab 分隔。';
+          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用上方批次设置，例句含逗号时建议使用 Tab 分隔。';
           if (textarea) textarea.placeholder = 'abandon,/əˈbændən/,动词,放弃,They abandoned the plan.,a(去)-bandon(控制)';
       } else {
           if (formatText) formatText.textContent = '单词,假名,词性,释义,例句';
-          if (formatNote) formatNote.textContent = '前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。';
+          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用上方批次设置，例句含逗号时建议使用 Tab 分隔。';
           if (textarea) textarea.placeholder = '勉強,べんきょう,名・サ变,学习,毎日日本語を勉強する。';
       }
+  },
+
+  populateWordLevelSelect(
+      select,
+      lang,
+      selectedValue = ''
+  ) {
+      if (!select) return;
+
+      const normalizedLang = lang === 'en' ? 'en' : 'ja';
+      const options = WORD_LEVEL_OPTIONS[normalizedLang];
+      const current = normalizeWordLevel(
+          selectedValue,
+          normalizedLang
+      );
+
+      select.innerHTML = '<option value="">未分级</option>' +
+          options.map(level => {
+              return `<option value="${level}">${level}</option>`;
+          }).join('');
+
+      select.value = current;
+      select.dispatchEvent(new Event('facade-update'));
+  },
+
+  updateImportMetadataOptions() {
+      const lang = View.getEl('import-lang-select')?.value || 'ja';
+      const levelSelect = View.getEl('import-level-select');
+
+      this.populateWordLevelSelect(
+          levelSelect,
+          lang,
+          levelSelect?.value || ''
+      );
   },
 
   updateImportFolderOptions() {
@@ -7259,6 +9712,16 @@ deleteWord(idx) {
       const lang = View.getEl('import-lang-select')?.value || 'ja';
       const folder = View.getEl('import-folder-select')?.value || '';
       const duplicateMode = View.getEl('import-duplicate-mode')?.value || 'skip';
+      const batchLevel = normalizeWordLevel(
+          View.getEl('import-level-select')?.value || '',
+          lang
+      );
+      const batchDifficulty = normalizeWordDifficulty(
+          View.getEl('import-difficulty-select')?.value || 0
+      );
+      const batchTags = normalizeWordTags(
+          View.getEl('import-tags-input')?.value || ''
+      );
 
       if (!text) return showToast('请先粘贴词汇');
       if (!folder) return showToast('当前语言没有可用词库');
@@ -7302,25 +9765,37 @@ deleteWord(idx) {
               example = parts.slice(4).join(',');
           }
 
-          const wordData = {
+          const wordData = normalizeWordEntry({
               word,
               type,
               meaning,
               example,
               folder,
               lang,
+              phonetic:
+                  lang === 'en'
+                      ? reading
+                      : '',
+              kana:
+                  lang === 'ja'
+                      ? reading
+                      : '',
+              roots:
+                  lang === 'en'
+                      ? roots
+                      : '',
+              level: batchLevel,
+              difficulty: batchDifficulty,
+              tags: batchTags,
+              builtIn: false,
               isImported: true,
               importedAt: new Date().toISOString(),
-              srs: { ease: 2.5, interval: 0, nextReview: Date.now() }
-          };
-
-          if (lang === 'en') {
-              wordData.phonetic = reading;
-              wordData.roots = roots;
-          } else {
-              wordData.kana = reading;
-              wordData.roots = '';
-          }
+              srs: {
+                  ease: 2.5,
+                  interval: 0,
+                  nextReview: Date.now()
+              }
+          });
 
           const identity = this.getImportIdentity(wordData);
           const isDuplicate = existingSet.has(identity) || inputSet.has(identity);
@@ -7437,13 +9912,22 @@ deleteWord(idx) {
   },
 
   getDefaultLibraryState() {
-      const db = DefaultWords.map(word => ({ ...JSON.parse(JSON.stringify(word)), folder: '默认词库', lang: 'ja' }));
+      const db = DefaultWords.map(word => ({
+          ...JSON.parse(JSON.stringify(word)),
+          folder: '默认词库',
+          lang: 'ja',
+          builtIn: true
+      }));
       const folders = ['默认词库'];
       const folderLangs = { '默认词库': 'ja' };
 
       if (typeof DefaultEnglishWords !== 'undefined') {
           DefaultEnglishWords.forEach(word => {
-              const cloned = { ...JSON.parse(JSON.stringify(word)), lang: 'en' };
+              const cloned = {
+                  ...JSON.parse(JSON.stringify(word)),
+                  lang: 'en',
+                  builtIn: true
+              };
               cloned.folder = cloned.folder || '英语词库';
               db.push(cloned);
               if (!folders.includes(cloned.folder)) folders.push(cloned.folder);
@@ -7683,7 +10167,7 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
       if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
   },
 
-openAISheet(sentence, word, lang) {
+openAISheet(sentence, word, lang, wordIndex = -1) {
     if (!navigator.onLine) { showToast('AI 导师需要联网才能工作哦，请检查网络~'); return; }
     let apiKey = localStorage.getItem('deepseekApiKey');
     if (!apiKey) {
@@ -7729,13 +10213,14 @@ if (visibilityIcon) {
                 if (settingInput) settingInput.value = val;
                 window.toggleModal('prompt-overlay', false);
                 showToast('API Key 已保存');
-                self.openAISheet(sentence, word, lang);
+                self.openAISheet(sentence, word, lang, wordIndex);
             }
         };
         document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
         return;
     }
-    let cacheKey = sentence + '|||' + word;
+        let cacheKey =
+        `example-analysis-v3|||${lang}|||${sentence}|||${word}`;
     let chatArea = View.getEl('ai-chat-messages');
     let copyBtn = View.getEl('ai-sheet-copy');
     let inputEl = View.getEl('ai-chat-input');
@@ -7745,9 +10230,54 @@ if (visibilityIcon) {
     if (inputEl) inputEl.value = '';
     
     const isEnglish = lang === 'en';
+
     let systemPrompt = isEnglish
-        ? `你是精通多语言的私人外教。用户正在学习以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`
-        : `你是精通多语言的私人外教。用户正在学习以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请先按以下结构输出对这条例句的解析：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）\n\n完成解析后，告诉用户可以继续提问。`;
+        ? `你是精通英语教学的私人外教。用户正在学习以下英文例句。
+
+目标词汇：${word}
+例句：${sentence}
+
+请严格遵守以下语言规则：
+1. 你现在只处理英语学习内容。
+2. 除中文讲解和中文翻译外，禁止输出日语。
+3. 禁止生成日语例句、日语假名、日语注音或日语翻译。
+4. 举一反三部分只能生成英语例句和中文翻译。
+
+请严格按以下结构输出，不要添加多余的客套话：
+
+### 🔪 骨架拆解
+（用中文简明拆解英文句子的主谓宾、从句和修饰关系。）
+
+### 💡 核心亮点
+（用中文讲解英文中的地道表达、固定搭配或语法特点。）
+
+### ✍️ 举一反三
+（使用目标词汇 "${word}" 生成2个简短、自然、常用的英语生活例句。每条例句必须单独占一行，并严格写成“英语例句 / 中文翻译”。不要编号，禁止出现日语。）
+
+完成解析后，用中文告诉用户可以继续提问。`
+        : `你是精通日语教学的私人外教。用户正在学习以下日语例句。
+
+目标词汇：${word}
+例句：${sentence}
+
+请严格遵守以下语言规则：
+1. 你现在只处理日语学习内容。
+2. 讲解与翻译使用中文。
+3. 举一反三部分只能生成日语例句和中文翻译。
+4. 日语中包含汉字的词语必须按系统要求标注假名。
+
+请严格按以下结构输出，不要添加多余的客套话：
+
+### 🔪 骨架拆解
+（用中文简明拆解日语句子的语法结构和助词作用。）
+
+### 💡 核心亮点
+（用中文讲解地道表达、词汇搭配或语法特点。）
+
+### ✍️ 举一反三
+（使用目标词汇 "${word}" 生成2个简短、自然、常用的日语生活例句。每条例句必须单独占一行，并严格写成“日语例句 / 中文翻译”。不要编号。）
+
+完成解析后，用中文告诉用户可以继续提问。`;
     
     this.currentChat = {
     systemPrompt: systemPrompt,
@@ -7755,7 +10285,8 @@ if (visibilityIcon) {
     cacheKey: cacheKey,
     sentence: sentence,
     word: word,
-    lang: lang
+    lang: lang,
+    wordIndex: Number.isInteger(wordIndex) ? wordIndex : -1
 };
     
     if (this.aiCache[cacheKey]) {
@@ -7776,6 +10307,1472 @@ if (visibilityIcon) {
         '</div>';
     this._scrollChatToBottom();
     this._startChatStream(apiKey, chatArea, copyBtn, inputEl);
+},
+
+_registerAIActionPayload(payload) {
+    const payloadId =
+        `ai_action_${Date.now()}_${this.aiActionSerial++}`;
+
+    this.aiActionPayloads[payloadId] = payload;
+
+    return payloadId;
+},
+
+_extractAIExamples(text) {
+    const source = String(text || '');
+
+    const sectionMatch = source.match(
+        /(?:###\s*)?✍️\s*举一反三([\s\S]*)/i
+    );
+
+    if (!sectionMatch) {
+        return [];
+    }
+
+    return sectionMatch[1]
+        .split(/\r?\n/)
+        .map(line => {
+            return line
+                .replace(/^\s*(?:[-*•]|\d+[.、)])\s*/, '')
+                .replace(/\*\*/g, '')
+                .trim();
+        })
+        .filter(line => {
+            return (
+                line.includes('/') &&
+                !line.startsWith('###') &&
+                !line.includes('可以继续')
+            );
+        })
+        .slice(0, 2)
+        .map(line => {
+            return line.replace(
+                /([\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]+)《[^》]+》/g,
+                '$1'
+            );
+        });
+},
+
+_appendAIResponseActions(aiBubble, payload) {
+    if (!aiBubble || !payload?.responseText) {
+        return;
+    }
+
+    const oldActions =
+        aiBubble.querySelector('.ai-response-actions');
+
+    if (oldActions) {
+        oldActions.remove();
+    }
+
+    const actions = [];
+
+    actions.push({
+        action: 'quiz',
+        icon: 'quiz',
+        label: '生成小测'
+    });
+
+    if (
+        payload.scope === 'sheet' &&
+        this._extractAIExamples(
+            payload.responseText
+        ).length > 0
+    ) {
+        actions.unshift({
+            action: 'save-examples',
+            icon: 'bookmark_add',
+            label: '保存例句'
+        });
+    }
+
+    if (payload.responseText) {
+        actions.unshift({
+            action: 'extract-words',
+            icon: 'playlist_add',
+            label: '提取词汇'
+        });
+    }
+
+    const payloadId =
+        this._registerAIActionPayload(payload);
+
+    const actionBar =
+        document.createElement('div');
+
+    actionBar.className = 'ai-response-actions';
+
+    actionBar.setAttribute(
+        'aria-label',
+        'AI 回答操作'
+    );
+
+    actionBar.innerHTML = actions
+        .map(item => {
+            return (
+                `<button type="button" class="ai-response-action" ` +
+                `data-action="${item.action}" ` +
+                `data-payload-id="${payloadId}">` +
+                    `<span class="material-symbols-rounded">${item.icon}</span>` +
+                    `<span>${item.label}</span>` +
+                `</button>`
+            );
+        })
+        .join('');
+
+    aiBubble.appendChild(actionBar);
+},
+
+handleAIResponseAction(action, payloadId) {
+    const payload =
+        this.aiActionPayloads[payloadId];
+
+    if (!payload) {
+        showToast('这条操作已经失效，请重新打开回答');
+        return;
+    }
+
+    if (action === 'quiz') {
+        this._startAIQuiz(payload.scope);
+        return;
+    }
+
+    if (action === 'save-examples') {
+        this._saveAIExamples(payload);
+        return;
+    }
+
+    if (action === 'extract-words') {
+        this._beginAIWordExtraction(payload);
+    }
+},
+
+_startAIQuiz(scope) {
+    const quizPrompt =
+        '请根据刚才讲解的内容给我出3道小测题。一次只出一道，不要立刻公布答案，等我回答后再判断并继续下一题。';
+
+    if (scope === 'sheet') {
+        const inputEl = View.getEl('ai-chat-input');
+
+        if (!inputEl) {
+            return;
+        }
+
+        inputEl.value = quizPrompt;
+        this.sendAIMessage();
+        return;
+    }
+
+    const inputEl = View.getEl('ai-tab-chat-input');
+
+    if (!inputEl) {
+        return;
+    }
+
+    inputEl.value = quizPrompt;
+    this.sendAITabMessage();
+},
+
+_saveAIExamples(payload) {
+    const examples =
+        this._extractAIExamples(
+            payload.responseText
+        );
+
+    if (examples.length === 0) {
+        showToast('没有识别到可保存的例句');
+        return;
+    }
+
+    let wordIndex = Number(payload.wordIndex);
+
+    if (
+        !Number.isInteger(wordIndex) ||
+        wordIndex < 0 ||
+        !Model.db[wordIndex]
+    ) {
+        wordIndex = Model.db.findIndex(word => {
+            return (
+                word.word === payload.word &&
+                (word.lang || 'ja') ===
+                    (payload.lang || 'ja')
+            );
+        });
+    }
+
+    if (wordIndex < 0) {
+        showToast('没有找到对应词条');
+        return;
+    }
+
+    const word = Model.db[wordIndex];
+
+    const existingExamples = String(
+        word.example || ''
+    )
+        .split('||')
+        .map(item => item.trim())
+        .filter(Boolean);
+
+    const newExamples = examples.filter(example => {
+        return !existingExamples.includes(example);
+    });
+
+    if (newExamples.length === 0) {
+        showToast('这些例句已经保存过了');
+        return;
+    }
+
+    word.example = normalizeExampleText(
+        [
+            ...existingExamples,
+            ...newExamples
+        ].join(' || '),
+        word.lang || 'ja'
+    );
+
+    Model.saveDB();
+    View.resetWordbankRenderer();
+
+    showToast(
+        `已为「${word.word}」保存 ${newExamples.length} 条例句`
+    );
+},
+
+_resetAIWordCollection() {
+    this.aiWordCollection = {
+        sourcePayload: null,
+        candidates: [],
+        drafts: []
+    };
+},
+
+_closeAIWordCollector() {
+    window.toggleModal(
+        'ai-word-collector-overlay',
+        false
+    );
+
+    this._resetAIWordCollection();
+},
+
+_showAIWordCollectorStage(stage, message = '') {
+    const selectStep =
+        View.getEl('ai-word-step-select');
+
+    const previewStep =
+        View.getEl('ai-word-step-preview');
+
+    const loadingStep =
+        View.getEl('ai-word-step-loading');
+
+    if (selectStep) {
+        selectStep.hidden = stage !== 'select';
+    }
+
+    if (previewStep) {
+        previewStep.hidden = stage !== 'preview';
+    }
+
+    if (loadingStep) {
+        loadingStep.hidden = stage !== 'loading';
+    }
+
+    const loadingText =
+        View.getEl('ai-word-loading-text');
+
+    if (loadingText && message) {
+        loadingText.textContent = message;
+    }
+},
+
+_parseAIJSONObject(content) {
+    const source = String(content || '')
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+    try {
+        return JSON.parse(source);
+    } catch (error) {
+        const firstBrace = source.indexOf('{');
+        const lastBrace = source.lastIndexOf('}');
+
+        if (
+            firstBrace === -1 ||
+            lastBrace <= firstBrace
+        ) {
+            throw new Error(
+                'AI 没有返回可识别的数据'
+            );
+        }
+
+        return JSON.parse(
+            source.slice(
+                firstBrace,
+                lastBrace + 1
+            )
+        );
+    }
+},
+
+async _requestAIJSON(prompt) {
+    const apiKey =
+        localStorage.getItem('deepseekApiKey');
+
+    if (!apiKey) {
+        throw new Error(
+            '请先在设置中配置 DeepSeek API Key'
+        );
+    }
+
+    const response = await fetch(
+        'https://api.deepseek.com/chat/completions',
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                stream: false,
+                temperature: 0.2
+            })
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            `AI 请求失败：${response.status}`
+        );
+    }
+
+    const data = await response.json();
+
+    const content =
+        data.choices?.[0]?.message?.content || '';
+
+    return this._parseAIJSONObject(content);
+},
+
+_normalizeAIWordText(word, lang) {
+    let value = String(word || '')
+        .normalize('NFC')
+        .replace(
+            /[\u200B-\u200D\u2060\uFEFF]/g,
+            ''
+        )
+        .replace(/《[^》]*》/g, '')
+        .replace(/^[\s“”"'‘’「」『』【】()（）]+/, '')
+        .replace(/[\s“”"'‘’「」『』【】()（）.,，。!?！？:：;；]+$/, '')
+        .trim();
+
+    if (lang === 'en') {
+        value = value
+            .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ'’ -]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    return value;
+},
+
+_inferAIWordLang(word, fallback = 'ja') {
+    const value = String(word || '');
+
+    if (/[ぁ-ゖァ-ヺ一-龯々〆ヶ]/.test(value)) {
+        return 'ja';
+    }
+
+    if (/[A-Za-z]/.test(value)) {
+        return 'en';
+    }
+
+    return fallback === 'en'
+        ? 'en'
+        : 'ja';
+},
+
+async _beginAIWordExtraction(payload) {
+    const sourceText = String(
+        payload?.responseText || ''
+    ).trim();
+
+    if (!sourceText) {
+        showToast('这条回答里没有可提取的内容');
+        return;
+    }
+
+    if (!localStorage.getItem('deepseekApiKey')) {
+        showToast('请先在设置中配置 DeepSeek API Key');
+        return;
+    }
+
+    this._resetAIWordCollection();
+
+    this.aiWordCollection.sourcePayload = payload;
+
+    window.toggleModal(
+        'ai-word-collector-overlay',
+        true
+    );
+
+    this._showAIWordCollectorStage(
+        'loading',
+        '正在识别回答中的日语和英语词汇…'
+    );
+
+    const prompt = `请从下面这段语言学习回答中提取适合加入词库的日语或英语词汇。
+
+规则：
+1. 只提取有学习价值的实词、固定搭配或常用短语，不要提取中文翻译、标点、助词、冠词和普通代词。
+2. 日语动词尽量使用辞书形，形容词使用基本形；英语使用词典原形。
+3. 最多返回12项，去除重复项。
+4. lang 只能是 "ja" 或 "en"。
+5. 只输出一个 JSON 对象，不要使用 Markdown，不要添加解释。
+
+格式：
+{"words":[{"word":"達成する","lang":"ja"},{"word":"achieve","lang":"en"}]}
+
+回答内容：
+${sourceText.slice(0, 9000)}`;
+
+    try {
+        const result =
+            await this._requestAIJSON(prompt);
+
+        const rawWords = Array.isArray(result.words)
+            ? result.words
+            : [];
+
+        const fallbackLang =
+            payload?.lang === 'en'
+                ? 'en'
+                : 'ja';
+
+        const seen = new Set();
+        const candidates = [];
+
+        for (const item of rawWords) {
+            const rawWord =
+                typeof item === 'string'
+                    ? item
+                    : item?.word;
+
+            const lang =
+                item?.lang === 'en' ||
+                item?.lang === 'ja'
+                    ? item.lang
+                    : this._inferAIWordLang(
+                        rawWord,
+                        fallbackLang
+                    );
+
+            const word =
+                this._normalizeAIWordText(
+                    rawWord,
+                    lang
+                );
+
+            if (!word) {
+                continue;
+            }
+
+            const key =
+                `${lang}:${lang === 'en' ? word.toLowerCase() : word}`;
+
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+
+            const existingWord =
+                Model.db.find(entry => {
+                    const entryLang =
+                        entry.lang || 'ja';
+
+                    const entryWord =
+                        this._normalizeAIWordText(
+                            entry.word,
+                            entryLang
+                        );
+
+                    return (
+                        entryLang === lang &&
+                        entryWord === word
+                    );
+                });
+
+            candidates.push({
+                word,
+                lang,
+                selected: !existingWord,
+                existingFolder:
+                    existingWord?.folder || ''
+            });
+
+            if (candidates.length >= 12) {
+                break;
+            }
+        }
+
+        if (candidates.length === 0) {
+            this._closeAIWordCollector();
+            showToast('没有识别到适合加入词库的词汇');
+            return;
+        }
+
+        this.aiWordCollection.candidates =
+            candidates;
+
+        this._renderAIWordCandidates();
+
+        this._showAIWordCollectorStage(
+            'select'
+        );
+    } catch (error) {
+        console.error('[AI Word Extract]', error);
+        this._closeAIWordCollector();
+        showToast(
+            error?.message ||
+            '词汇识别失败，请稍后重试'
+        );
+    }
+},
+
+_renderAIWordCandidates() {
+    const list =
+        View.getEl('ai-word-candidate-list');
+
+    if (!list) {
+        return;
+    }
+
+    list.innerHTML =
+        this.aiWordCollection.candidates
+            .map((candidate, index) => {
+                const languageName =
+                    candidate.lang === 'en'
+                        ? '英语'
+                        : '日语';
+
+                const existing =
+                    candidate.existingFolder
+                        ? `<span class="ai-word-existing">已在「${escapeHTML(candidate.existingFolder)}」</span>`
+                        : '';
+
+                return `
+                    <label class="ai-word-candidate">
+                        <input
+                            type="checkbox"
+                            data-ai-word-index="${index}"
+                            ${candidate.selected ? 'checked' : ''}
+                        >
+
+                        <span class="ai-word-checkmark">
+                            <span class="material-symbols-rounded">check</span>
+                        </span>
+
+                        <span class="ai-word-candidate-copy">
+                            <strong>${escapeHTML(candidate.word)}</strong>
+                            <small>${languageName}${existing}</small>
+                        </span>
+                    </label>
+                `;
+            })
+            .join('');
+
+    this._updateAIWordCandidateCount();
+},
+
+_updateAIWordCandidateCount() {
+    const list =
+        View.getEl('ai-word-candidate-list');
+
+    const countEl =
+        View.getEl('ai-word-selected-count');
+
+    const nextBtn =
+        View.getEl('ai-word-enrich');
+
+    if (!list || !countEl) {
+        return;
+    }
+
+    const checked =
+        list.querySelectorAll(
+            'input[type="checkbox"]:checked'
+        ).length;
+
+    countEl.textContent =
+        `已选 ${checked} / ${this.aiWordCollection.candidates.length}`;
+
+    if (nextBtn) {
+        nextBtn.disabled = checked === 0;
+    }
+},
+
+_toggleAllAIWordCandidates() {
+    const list =
+        View.getEl('ai-word-candidate-list');
+
+    if (!list) {
+        return;
+    }
+
+    const checkboxes = Array.from(
+        list.querySelectorAll(
+            'input[type="checkbox"]'
+        )
+    );
+
+    const shouldCheck =
+        checkboxes.some(checkbox => {
+            return !checkbox.checked;
+        });
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = shouldCheck;
+    });
+
+    this._updateAIWordCandidateCount();
+},
+
+_getSelectedAIWordCandidates() {
+    const list =
+        View.getEl('ai-word-candidate-list');
+
+    if (!list) {
+        return [];
+    }
+
+    return Array.from(
+        list.querySelectorAll(
+            'input[type="checkbox"]:checked'
+        )
+    )
+        .map(checkbox => {
+            return this.aiWordCollection.candidates[
+                Number(checkbox.dataset.aiWordIndex)
+            ];
+        })
+        .filter(Boolean);
+},
+
+async _enrichSelectedAIWords() {
+    const selected =
+        this._getSelectedAIWordCandidates();
+
+    if (selected.length === 0) {
+        showToast('请至少选择一个词汇');
+        return;
+    }
+
+    this._showAIWordCollectorStage(
+        'loading',
+        `正在为 ${selected.length} 个词汇补全读音、释义和例句…`
+    );
+
+    const requestedWords = selected
+        .map(item => {
+            return {
+                word: item.word,
+                lang: item.lang
+            };
+        });
+
+    const prompt = `请把下面的日语和英语词汇整理成适合中文学习者保存到词库的完整词条。
+
+规则：
+1. 严格保留输入顺序，每个输入词对应一个结果。
+2. 日语字段：word、lang、kana、type、meaning、example、roots。
+3. 英语字段：word、lang、phonetic、type、meaning、example、roots。
+4. lang 只能是 "ja" 或 "en"。
+5. meaning 使用简洁中文；type 使用中文词性。
+6. example 必须是一条自然、常用的目标语言例句，格式严格为“目标语言例句 / 中文翻译”。
+7. 英语 roots 提供简洁可靠的词根词缀拆解；无法可靠拆解时写空字符串，不要编造。
+8. 日语 roots 一律为空字符串。
+9. 无法确认的字段写空字符串。
+10. 只输出一个 JSON 对象，不要使用 Markdown，不要添加解释。
+
+格式：
+{"items":[{"word":"達成する","lang":"ja","kana":"たっせいする","type":"动词","meaning":"达成；完成","example":"目標を達成するために努力する。 / 为了实现目标而努力。","roots":""},{"word":"achieve","lang":"en","phonetic":"/əˈtʃiːv/","type":"动词","meaning":"达到；实现","example":"She worked hard to achieve her goal. / 她努力实现自己的目标。","roots":"a(去)-chieve(头)"}]}
+
+待整理词汇：
+${JSON.stringify(requestedWords)}`;
+
+    try {
+        const result =
+            await this._requestAIJSON(prompt);
+
+        const rawItems = Array.isArray(result.items)
+            ? result.items
+            : [];
+
+        const drafts = selected.map(candidate => {
+            const matching = rawItems.find(item => {
+                const itemLang =
+                    item?.lang === 'en'
+                        ? 'en'
+                        : 'ja';
+
+                return (
+                    itemLang === candidate.lang &&
+                    this._normalizeAIWordText(
+                        item?.word,
+                        itemLang
+                    ) === candidate.word
+                );
+            }) || {};
+
+            const rawDraft = {
+                word:
+                    String(matching.word || candidate.word),
+                lang: candidate.lang,
+                kana:
+                    candidate.lang === 'ja'
+                        ? String(matching.kana || '')
+                        : '',
+                phonetic:
+                    candidate.lang === 'en'
+                        ? String(matching.phonetic || '')
+                        : '',
+                type:
+                    String(matching.type || ''),
+                meaning:
+                    String(matching.meaning || ''),
+                example:
+                    String(matching.example || ''),
+                roots:
+                    candidate.lang === 'en'
+                        ? String(matching.roots || '')
+                        : ''
+            };
+
+            return this._toAIWordDraft(
+                normalizeWordEntry(rawDraft)
+            );
+        });
+
+        this.aiWordCollection.drafts = drafts;
+
+        this._renderAIWordPreview();
+
+        this._showAIWordCollectorStage(
+            'preview'
+        );
+    } catch (error) {
+        console.error('[AI Word Enrich]', error);
+        this._showAIWordCollectorStage('select');
+        showToast(
+            error?.message ||
+            '词条补全失败，请稍后重试'
+        );
+    }
+},
+
+_ensureLanguageFolder(lang) {
+    const fallback =
+        lang === 'en'
+            ? '四级词汇'
+            : '默认词库';
+
+    let folders = Model.folders.filter(folder => {
+        const folderLang =
+            Model.folderLangs[folder] ||
+            (
+                Model.db.some(word => {
+                    return (
+                        word.folder === folder &&
+                        word.lang === 'en'
+                    );
+                })
+                    ? 'en'
+                    : 'ja'
+            );
+
+        return folderLang === lang;
+    });
+
+    if (folders.length === 0) {
+        if (!Model.folders.includes(fallback)) {
+            Model.folders.push(fallback);
+        }
+
+        Model.folderLangs[fallback] = lang;
+        Model.saveFolders();
+        Model.saveFolderLangs();
+
+        folders = [fallback];
+    }
+
+    return folders;
+},
+
+_updateAIWordFolderSelect(selectId, lang, visible) {
+    const select = View.getEl(selectId);
+    const group = select?.closest('.ai-word-folder-group');
+
+    if (!select || !group) {
+        return;
+    }
+
+    group.hidden = !visible;
+
+    if (!visible) {
+        return;
+    }
+
+    const folders =
+        this._ensureLanguageFolder(lang);
+
+    const lastFolder =
+        localStorage.getItem('lastSelectedFolder');
+
+    const preferred =
+        folders.includes(lastFolder)
+            ? lastFolder
+            : (
+                folders.includes(
+                    lang === 'en'
+                        ? '四级词汇'
+                        : '默认词库'
+                )
+                    ? (
+                        lang === 'en'
+                            ? '四级词汇'
+                            : '默认词库'
+                    )
+                    : folders[0]
+            );
+
+    select.innerHTML = folders
+        .map(folder => {
+            return (
+                `<option value="${escapeHTML(folder)}">` +
+                    `${escapeHTML(folder)}` +
+                '</option>'
+            );
+        })
+        .join('');
+
+    select.value = preferred;
+
+    select.dispatchEvent(
+        new Event('facade-update')
+    );
+},
+
+_toAIWordDraft(entry) {
+    const normalized = normalizeWordEntry(entry);
+
+    return {
+        word: normalized.word || '',
+        lang: normalized.lang === 'en' ? 'en' : 'ja',
+        kana:
+            normalized.lang === 'ja'
+                ? (normalized.kana || '')
+                : '',
+        phonetic:
+            normalized.lang === 'en'
+                ? (normalized.phonetic || '')
+                : '',
+        type: normalized.type || '',
+        meaning: normalized.meaning || '',
+        example: normalized.example || '',
+        roots:
+            normalized.lang === 'en'
+                ? (normalized.roots || '')
+                : '',
+        level: normalized.level || '',
+        difficulty: normalizeWordDifficulty(normalized.difficulty),
+        tags: normalizeWordTags(normalized.tags),
+        builtIn: normalized.builtIn === true
+    };
+},
+
+_renderAIWordQualityHTML(report) {
+    let summaryClass = 'is-ok';
+    let summaryText = '格式正常';
+
+    if (report.errorCount > 0) {
+        summaryClass = 'is-error';
+        summaryText = `${report.errorCount} 项必须补全`;
+    } else if (report.warningCount > 0) {
+        summaryClass = 'is-warning';
+        summaryText = `${report.warningCount} 项建议核对`;
+    }
+
+    const iconMap = {
+        ok: 'check_circle',
+        warn: 'error',
+        error: 'cancel',
+        info: 'info'
+    };
+
+    return `
+        <div class="ai-word-quality-heading">
+            <span>
+                <span class="material-symbols-rounded">fact_check</span>
+                质量检查
+            </span>
+
+            <strong class="ai-word-quality-summary ${summaryClass}">
+                ${summaryText}
+            </strong>
+        </div>
+
+        <div class="ai-word-quality-list">
+            ${report.items.map(item => {
+                const levelClass =
+                    item.level === 'warn'
+                        ? 'warning'
+                        : item.level;
+
+                return `
+                    <div class="ai-word-quality-item is-${levelClass}">
+                        <span class="material-symbols-rounded">
+                            ${iconMap[item.level] || 'info'}
+                        </span>
+                        <span>${escapeHTML(item.text)}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+},
+
+_updateAIWordSaveState() {
+    const saveButton =
+        View.getEl('ai-word-save');
+
+    if (!saveButton) {
+        return;
+    }
+
+    const reports =
+        this.aiWordCollection.drafts.map(draft => {
+            return getWordEntryQuality(draft);
+        });
+
+    const totalErrors = reports.reduce(
+        (sum, report) => {
+            return sum + report.errorCount;
+        },
+        0
+    );
+
+    saveButton.disabled = totalErrors > 0;
+    saveButton.title = totalErrors > 0
+        ? '请先补全质量检查中的红色项目'
+        : '确认加入词库';
+},
+
+_refreshAIWordQualityCard(index) {
+    const qualityBox = document.querySelector(
+        `[data-ai-quality-index="${index}"]`
+    );
+
+    const draft =
+        this.aiWordCollection.drafts[index];
+
+    if (!qualityBox || !draft) {
+        return;
+    }
+
+    qualityBox.innerHTML =
+        this._renderAIWordQualityHTML(
+            getWordEntryQuality(draft)
+        );
+
+    this._updateAIWordSaveState();
+},
+
+_updateAIWordDraftField(field, shouldNormalize) {
+    const index =
+        Number(field.dataset.aiDraftIndex);
+
+    const fieldName =
+        field.dataset.aiDraftField;
+
+    const draft =
+        this.aiWordCollection.drafts[index];
+
+    if (!draft || !fieldName) {
+        return;
+    }
+
+    draft[fieldName] =
+        fieldName === 'tags'
+            ? normalizeWordTags(field.value)
+            : fieldName === 'difficulty'
+                ? normalizeWordDifficulty(field.value)
+                : field.value;
+
+    if (shouldNormalize) {
+        const normalizedDraft =
+            this._toAIWordDraft(draft);
+
+        this.aiWordCollection.drafts[index] =
+            normalizedDraft;
+
+        const card = field.closest(
+            '.ai-word-preview-card'
+        );
+
+        if (card) {
+            card.querySelectorAll(
+                '[data-ai-draft-field]'
+            ).forEach(input => {
+                const name =
+                    input.dataset.aiDraftField;
+
+                if (name in normalizedDraft) {
+                    input.value =
+                        normalizedDraft[name] || '';
+                }
+            });
+        }
+    }
+
+    this._refreshAIWordQualityCard(index);
+},
+
+_renderAIWordPreview() {
+    const list =
+        View.getEl('ai-word-preview-list');
+
+    if (!list) {
+        return;
+    }
+
+    const drafts =
+        this.aiWordCollection.drafts.map(draft => {
+            return this._toAIWordDraft(draft);
+        });
+
+    this.aiWordCollection.drafts = drafts;
+
+    const hasJapanese =
+        drafts.some(draft => draft.lang === 'ja');
+
+    const hasEnglish =
+        drafts.some(draft => draft.lang === 'en');
+
+    this._updateAIWordFolderSelect(
+        'ai-word-folder-ja',
+        'ja',
+        hasJapanese
+    );
+
+    this._updateAIWordFolderSelect(
+        'ai-word-folder-en',
+        'en',
+        hasEnglish
+    );
+
+    list.innerHTML = drafts
+        .map((draft, index) => {
+            const isEnglish =
+                draft.lang === 'en';
+
+            const qualityReport =
+                getWordEntryQuality(draft);
+
+            const readingField = isEnglish
+                ? `
+                    <label class="ai-word-field-group">
+                        <span>音标</span>
+                        <input
+                            type="text"
+                            data-ai-draft-index="${index}"
+                            data-ai-draft-field="phonetic"
+                            value="${escapeHTML(draft.phonetic)}"
+                            placeholder="如：/əˈtʃiːv/"
+                        >
+                    </label>
+                `
+                : `
+                    <label class="ai-word-field-group">
+                        <span>假名</span>
+                        <input
+                            type="text"
+                            data-ai-draft-index="${index}"
+                            data-ai-draft-field="kana"
+                            value="${escapeHTML(draft.kana)}"
+                            placeholder="如：たっせいする"
+                        >
+                    </label>
+                `;
+
+            const rootsField = isEnglish
+                ? `
+                    <label class="ai-word-field-group ai-word-field-wide">
+                        <span>词根词缀</span>
+                        <input
+                            type="text"
+                            data-ai-draft-index="${index}"
+                            data-ai-draft-field="roots"
+                            value="${escapeHTML(draft.roots)}"
+                            placeholder="无法可靠拆解时可以留空"
+                        >
+                    </label>
+                `
+                : '';
+
+            return `
+                <article
+                    class="ai-word-preview-card"
+                    data-ai-preview-index="${index}"
+                >
+                    <div class="ai-word-preview-heading">
+                        <span class="ai-word-language-tag ${isEnglish ? 'is-en' : 'is-ja'}">
+                            ${isEnglish ? 'EN' : '日'}
+                        </span>
+                        <strong>词条 ${index + 1}</strong>
+                    </div>
+
+                    <div
+                        class="ai-word-quality"
+                        data-ai-quality-index="${index}"
+                    >
+                        ${this._renderAIWordQualityHTML(qualityReport)}
+                    </div>
+
+                    <div class="ai-word-preview-grid">
+                        <label class="ai-word-field-group">
+                            <span>单词</span>
+                            <input
+                                type="text"
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="word"
+                                value="${escapeHTML(draft.word)}"
+                            >
+                        </label>
+
+                        ${readingField}
+
+                        <label class="ai-word-field-group">
+                            <span>词性</span>
+                            <input
+                                type="text"
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="type"
+                                value="${escapeHTML(draft.type)}"
+                                placeholder="如：动词"
+                            >
+                        </label>
+
+                        <label class="ai-word-field-group">
+                            <span>级别</span>
+                            <select
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="level"
+                            >
+                                <option value="" ${!draft.level ? 'selected' : ''}>未分级</option>
+                                ${(WORD_LEVEL_OPTIONS[draft.lang] || []).map(level => {
+                                    return `<option value="${level}" ${draft.level === level ? 'selected' : ''}>${level}</option>`;
+                                }).join('')}
+                            </select>
+                        </label>
+
+                        <label class="ai-word-field-group">
+                            <span>难度</span>
+                            <select
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="difficulty"
+                            >
+                                ${Object.entries(DIFFICULTY_LABELS).map(([value, label]) => {
+                                    return `<option value="${value}" ${String(draft.difficulty) === value ? 'selected' : ''}>${value === '0' ? label : value + ' · ' + label}</option>`;
+                                }).join('')}
+                            </select>
+                        </label>
+
+                        <label class="ai-word-field-group ai-word-field-wide">
+                            <span>标签</span>
+                            <input
+                                type="text"
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="tags"
+                                value="${escapeHTML(normalizeWordTags(draft.tags).join('、'))}"
+                                placeholder="如：高频、口语、多义"
+                            >
+                        </label>
+
+                        <label class="ai-word-field-group ai-word-field-wide">
+                            <span>中文释义</span>
+                            <textarea
+                                rows="2"
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="meaning"
+                                placeholder="填写简洁中文释义"
+                            >${escapeHTML(draft.meaning)}</textarea>
+                        </label>
+
+                        <label class="ai-word-field-group ai-word-field-wide">
+                            <span>例句与翻译</span>
+                            <textarea
+                                rows="3"
+                                data-ai-draft-index="${index}"
+                                data-ai-draft-field="example"
+                                placeholder="目标语言例句 / 中文翻译"
+                            >${escapeHTML(draft.example)}</textarea>
+                        </label>
+
+                        ${rootsField}
+                    </div>
+                </article>
+            `;
+        })
+        .join('');
+
+    this._updateAIWordSaveState();
+},
+
+_collectAIWordDraftsFromForm() {
+    const list =
+        View.getEl('ai-word-preview-list');
+
+    if (!list) {
+        return [];
+    }
+
+    const drafts =
+        this.aiWordCollection.drafts.map(draft => {
+            return { ...draft };
+        });
+
+    list.querySelectorAll(
+        '[data-ai-draft-index][data-ai-draft-field]'
+    ).forEach(field => {
+        const index =
+            Number(field.dataset.aiDraftIndex);
+
+        const name =
+            field.dataset.aiDraftField;
+
+        if (!drafts[index] || !name) {
+            return;
+        }
+
+        drafts[index][name] =
+            name === 'tags'
+                ? normalizeWordTags(field.value)
+                : name === 'difficulty'
+                    ? normalizeWordDifficulty(field.value)
+                    : field.value;
+    });
+
+    const normalizedDrafts = drafts.map(draft => {
+        return this._toAIWordDraft(
+            normalizeWordEntry(draft)
+        );
+    });
+
+    for (
+        let index = 0;
+        index < normalizedDrafts.length;
+        index++
+    ) {
+        const report = getWordEntryQuality(
+            normalizedDrafts[index]
+        );
+
+        if (report.errorCount === 0) {
+            continue;
+        }
+
+        const firstError = report.items.find(item => {
+            return item.level === 'error';
+        });
+
+        const fieldName = firstError?.field || 'word';
+
+        const invalidField = list.querySelector(
+            `[data-ai-draft-index="${index}"][data-ai-draft-field="${fieldName}"]`
+        );
+
+        if (invalidField) {
+            invalidField.focus();
+        }
+
+        throw new Error(
+            `请先处理第 ${index + 1} 个词条的红色项目`
+        );
+    }
+
+    this.aiWordCollection.drafts =
+        normalizedDrafts;
+
+    return normalizedDrafts;
+},
+
+_findDuplicateAIWord(draft) {
+    const target =
+        this._normalizeAIWordText(
+            draft.word,
+            draft.lang
+        );
+
+    return Model.db.find(word => {
+        const wordLang =
+            word.lang || 'ja';
+
+        return (
+            wordLang === draft.lang &&
+            this._normalizeAIWordText(
+                word.word,
+                wordLang
+            ) === target
+        );
+    });
+},
+
+async _saveAIWordDrafts() {
+    let drafts;
+
+    try {
+        drafts =
+            this._collectAIWordDraftsFromForm();
+    } catch (error) {
+        showToast(error.message);
+        return;
+    }
+
+    const japaneseFolder =
+        View.getEl('ai-word-folder-ja')?.value ||
+        '默认词库';
+
+    const englishFolder =
+        View.getEl('ai-word-folder-en')?.value ||
+        '四级词汇';
+
+    const duplicateMode =
+        View.getEl('ai-word-duplicate-mode')?.value ||
+        'skip';
+
+    const addToStars = Boolean(
+        View.getEl('ai-word-add-star')?.checked
+    );
+
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    for (const draft of drafts) {
+        const folder =
+            draft.lang === 'en'
+                ? englishFolder
+                : japaneseFolder;
+
+        const duplicate =
+            this._findDuplicateAIWord(draft);
+
+        if (duplicate && duplicateMode === 'skip') {
+            skipped++;
+            continue;
+        }
+
+        const normalizedWord = normalizeWordEntry({
+            word: draft.word,
+            type: draft.type,
+            meaning: draft.meaning,
+            example: draft.example || '',
+            roots:
+                draft.lang === 'en'
+                    ? (draft.roots || '')
+                    : '',
+            phonetic:
+                draft.lang === 'en'
+                    ? (draft.phonetic || '')
+                    : '',
+            kana:
+                draft.lang === 'ja'
+                    ? (draft.kana || '')
+                    : '',
+            lang: draft.lang,
+            folder,
+            level: draft.level || '',
+            difficulty: normalizeWordDifficulty(draft.difficulty),
+            tags: normalizeWordTags(draft.tags),
+            builtIn: draft.builtIn === true,
+            isImported: true,
+            importedAt: new Date().toISOString(),
+            aiGenerated: true,
+            aiConfirmedAt: new Date().toISOString(),
+            srs: {
+                ease: 2.5,
+                interval: 0,
+                nextReview: Date.now()
+            }
+        });
+
+        if (duplicate && duplicateMode === 'overwrite') {
+            const originalFolder =
+                duplicate.folder;
+
+            Object.assign(
+                duplicate,
+                normalizedWord,
+                {
+                    folder: originalFolder || folder
+                }
+            );
+
+            updated++;
+        } else {
+            Model.db.push(normalizedWord);
+            added++;
+        }
+
+        if (
+            addToStars &&
+            !Model.stars.includes(normalizedWord.word)
+        ) {
+            Model.stars.push(normalizedWord.word);
+        }
+    }
+
+    await Promise.all([
+        Model.saveDB(),
+        Model.saveStars()
+    ]);
+
+    View.renderDashboard();
+    View.updateWordbankUI();
+    View.resetWordbankRenderer();
+
+    this._closeAIWordCollector();
+
+    const resultParts = [];
+
+    if (added > 0) {
+        resultParts.push(`新增 ${added}`);
+    }
+
+    if (updated > 0) {
+        resultParts.push(`更新 ${updated}`);
+    }
+
+    if (skipped > 0) {
+        resultParts.push(`跳过 ${skipped}`);
+    }
+
+    showToast(
+        resultParts.length > 0
+            ? `词库已处理：${resultParts.join('，')}`
+            : '没有需要保存的词汇'
+    );
 },
 
 _saveCurrentChat() {
@@ -8602,6 +12599,17 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
             content: fullText
         });
 
+        this._appendAIResponseActions(
+            aiBubble,
+            {
+                scope: 'tab',
+                presetId: this.aiTabChat.presetId,
+                lang: this.aiTabChat.lang,
+                messages: [...this.aiTabChat.messages],
+                responseText: fullText
+            }
+        );
+
         this._saveTabChat();
 
         if (sendBtn) {
@@ -8700,14 +12708,27 @@ _startChatStream(apiKey, chatArea, copyBtn, inputEl) {
     this._streamChatResponse(apiKey, aiBubble, null, copyBtn, inputEl);
 },
 
-async _streamChatResponse(apiKey, aiBubble, sendBtn, copyBtn, inputEl) {
+async _streamChatResponse(
+    apiKey,
+    aiBubble,
+    sendBtn,
+    copyBtn,
+    inputEl
+) {
+    const systemPrompt =
+        this.currentChat.lang === 'ja'
+            ? withJapaneseRubyInstruction(
+                this.currentChat.systemPrompt
+            )
+            : this.currentChat.systemPrompt;
+
     let messagesToSend = [
-    {
-        role: 'system',
-        content: withJapaneseRubyInstruction(this.currentChat.systemPrompt)
-    },
-    ...this.currentChat.messages
-];
+        {
+            role: 'system',
+            content: systemPrompt
+        },
+        ...this.currentChat.messages
+    ];
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
@@ -8843,6 +12864,18 @@ this._scrollChatToBottom();
             role: 'assistant',
             content: fullText
         });
+
+        this._appendAIResponseActions(
+            aiBubble,
+            {
+                scope: 'sheet',
+                word: this.currentChat.word || '',
+                wordIndex: this.currentChat.wordIndex,
+                lang: this.currentChat.lang || 'ja',
+                messages: [...this.currentChat.messages],
+                responseText: fullText
+            }
+        );
         
                 if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
             let chatArea = View.getEl('ai-chat-messages');
@@ -8872,11 +12905,58 @@ this._scrollChatToBottom();
     }
 },
 
-async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copyBtn) {
+async callDeepSeekStream(
+    sentence,
+    word,
+    lang,
+    apiKey,
+    container,
+    cacheKey,
+    copyBtn
+) {
     const isEnglish = lang === 'en';
-    const prompt = isEnglish 
-        ? `你是精通多语言的私人外教。请解析以下英文例句。\n目标词汇：${word}\n例句：${sentence}\n\n请严格按以下结构输出，不要加多余的废话和客套话：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、搭配或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）`
-        : `你是精通多语言的私人外教。请解析以下日语例句。\n目标词汇：${word}\n例句：${sentence}\n\n请严格按以下结构输出，不要加多余的废话和客套话：\n### 🔪 骨架拆解\n（简明扼要地拆解主谓宾等语法结构）\n\n### 💡 核心亮点\n（指出地道表达、词汇连读或语法特殊点）\n\n### ✍️ 举一反三\n（用目标词汇 "${word}" 再给2个更简短、常用的生活例句，必须带中文翻译）`;
+
+    const prompt = isEnglish
+        ? `你是精通英语教学的私人外教。请解析以下英文例句。
+
+目标词汇：${word}
+例句：${sentence}
+
+语言规则：
+1. 除中文讲解和中文翻译外，只能输出英语。
+2. 禁止输出日语、日语假名或日语例句。
+3. 举一反三只能生成英语例句和中文翻译。
+
+请严格按以下结构输出：
+
+### 🔪 骨架拆解
+（用中文简明拆解英文句子的语法结构。）
+
+### 💡 核心亮点
+（用中文指出英文中的地道表达、搭配或语法特点。）
+
+### ✍️ 举一反三
+（使用目标词汇 "${word}" 生成2个简短、常用的英语生活例句。每条例句单独占一行，并严格写成“英语例句 / 中文翻译”。不要编号，禁止出现日语。）`
+        : `你是精通日语教学的私人外教。请解析以下日语例句。
+
+目标词汇：${word}
+例句：${sentence}
+
+语言规则：
+1. 讲解和翻译使用中文。
+2. 举一反三只能生成日语例句和中文翻译。
+3. 日语汉字必须按系统规则标注假名。
+
+请严格按以下结构输出：
+
+### 🔪 骨架拆解
+（用中文简明拆解日语句子的语法结构。）
+
+### 💡 核心亮点
+（用中文指出地道表达、搭配或语法特点。）
+
+### ✍️ 举一反三
+（使用目标词汇 "${word}" 生成2个简短、常用的日语生活例句。每条例句单独占一行，并严格写成“日语例句 / 中文翻译”。不要编号。）`;
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
@@ -8886,7 +12966,9 @@ async callDeepSeekStream(sentence, word, lang, apiKey, container, cacheKey, copy
     messages: [
         {
             role: 'user',
-            content: withJapaneseRubyInstruction(prompt)
+            content: isEnglish
+                ? prompt
+                : withJapaneseRubyInstruction(prompt)
         }
     ],
     stream: true
@@ -8963,6 +13045,3763 @@ container.scrollTop = container.scrollHeight;
     }
 }
 };
+
+/* ==========================================
+   第二、三轮增强：智能错题、结构化 AI 小测、
+   可撤销删除、七天回收站与分组设置页
+   ========================================== */
+(() => {
+    const WRONG_BOOK_KEY = 'wrongBook_v1';
+    const AI_QUIZ_HISTORY_KEY = 'aiQuizHistory_v1';
+    const RECYCLE_BIN_KEY = 'recycleBin_v1';
+    const TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const WRONG_DIMENSION_LABELS = Object.freeze({
+        spell: '拼写',
+        listening: '听力',
+        reading: '读音',
+        meaning: '释义',
+        usage: '用法',
+        grammar: '语法'
+    });
+
+    const deepClone = value => {
+        if (typeof structuredClone === 'function') {
+            try {
+                return structuredClone(value);
+            } catch (error) {}
+        }
+
+        return JSON.parse(JSON.stringify(value));
+    };
+
+    const makeId = prefix => {
+        if (
+            typeof crypto !== 'undefined' &&
+            typeof crypto.randomUUID === 'function'
+        ) {
+            return `${prefix}_${crypto.randomUUID()}`;
+        }
+
+        return (
+            `${prefix}_${Date.now().toString(36)}_` +
+            Math.random().toString(36).slice(2, 10)
+        );
+    };
+
+    const ensureWordId = word => {
+        if (!word || typeof word !== 'object') {
+            return '';
+        }
+
+        if (!word._id) {
+            word._id = makeId('word');
+        }
+
+        return word._id;
+    };
+
+    const normalizeAnswer = value => {
+        return String(value ?? '')
+            .normalize('NFKC')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s\u3000]+/g, ' ')
+            .replace(
+                /[。．.!！?？,，;；:'"“”‘’()（）\[\]【】]/g,
+                ''
+            );
+    };
+
+    const formatRelativeDate = value => {
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return '时间未知';
+        }
+
+        const elapsed = Date.now() - date.getTime();
+
+        if (elapsed < 60 * 1000) {
+            return '刚刚';
+        }
+
+        if (elapsed < 60 * 60 * 1000) {
+            return `${Math.floor(elapsed / 60000)} 分钟前`;
+        }
+
+        if (elapsed < 24 * 60 * 60 * 1000) {
+            return `${Math.floor(elapsed / 3600000)} 小时前`;
+        }
+
+        return `${Math.floor(elapsed / 86400000)} 天前`;
+    };
+
+    let actionToastTimer = null;
+    let actionToastCallback = null;
+
+    window.showActionToast = (
+        message,
+        actionLabel = '',
+        callback = null,
+        duration = 5500
+    ) => {
+        const toast = document.getElementById('action-toast');
+        const messageEl = document.getElementById(
+            'action-toast-message'
+        );
+        const actionBtn = document.getElementById(
+            'action-toast-action'
+        );
+
+        if (!toast || !messageEl || !actionBtn) {
+            showToast(message);
+            return;
+        }
+
+        if (actionToastTimer) {
+            window.clearTimeout(actionToastTimer);
+            actionToastTimer = null;
+        }
+
+        actionToastCallback =
+            typeof callback === 'function'
+                ? callback
+                : null;
+
+        messageEl.textContent = message;
+        actionBtn.textContent = actionLabel;
+        actionBtn.hidden = !actionLabel || !actionToastCallback;
+        toast.classList.add('show');
+
+        actionToastTimer = window.setTimeout(() => {
+            toast.classList.remove('show');
+            actionToastCallback = null;
+            actionToastTimer = null;
+        }, duration);
+    };
+
+    Model.wrongBook = Model.wrongBook || {};
+    Model.aiQuizHistory = Model.aiQuizHistory || [];
+    Model.recycleBin = Model.recycleBin || [];
+    Model.state.isWrongBookPractice = false;
+
+    Model.saveWrongBook = function() {
+        return this.writeStorageValue(
+            WRONG_BOOK_KEY,
+            this.wrongBook
+        );
+    };
+
+    Model.saveAIQuizHistory = function() {
+        return this.writeStorageValue(
+            AI_QUIZ_HISTORY_KEY,
+            this.aiQuizHistory
+        );
+    };
+
+    Model.saveRecycleBin = function() {
+        return this.writeStorageValue(
+            RECYCLE_BIN_KEY,
+            this.recycleBin
+        );
+    };
+
+    Model.cleanupRecycleBin = function() {
+        const now = Date.now();
+        const oldLength = this.recycleBin.length;
+
+        this.recycleBin = this.recycleBin.filter(item => {
+            const expiresAt = Number(item.expiresAt) || 0;
+            return !expiresAt || expiresAt > now;
+        });
+
+        if (this.recycleBin.length !== oldLength) {
+            this.saveRecycleBin();
+        }
+    };
+
+    Model.getWrongRecord = function(word, create = false) {
+        if (!word) {
+            return null;
+        }
+
+        const wordId = ensureWordId(word);
+
+        if (!this.wrongBook[wordId] && create) {
+            this.wrongBook[wordId] = {
+                wordId,
+                word: word.word || '',
+                lang: word.lang || 'ja',
+                folder: word.folder || '',
+                totalWrong: 0,
+                totalCorrect: 0,
+                dimensions: {
+                    spell: 0,
+                    listening: 0,
+                    reading: 0,
+                    meaning: 0,
+                    usage: 0,
+                    grammar: 0
+                },
+                sourceCounts: {
+                    study: 0,
+                    filter: 0,
+                    aiQuiz: 0
+                },
+                recentAnswers: [],
+                correctStreak: 0,
+                lastWrongAt: '',
+                lastCorrectAt: '',
+                status: 'new'
+            };
+        }
+
+        const record = this.wrongBook[wordId] || null;
+
+        if (!record) {
+            return null;
+        }
+
+        record.wordId = wordId;
+        record.word = word.word || record.word || '';
+        record.lang = word.lang || record.lang || 'ja';
+        record.folder = word.folder || record.folder || '';
+        record.totalWrong = Number(record.totalWrong) || 0;
+        record.totalCorrect = Number(record.totalCorrect) || 0;
+        record.correctStreak = Number(record.correctStreak) || 0;
+        record.status = record.status || 'new';
+        record.dimensions = {
+            spell: 0,
+            listening: 0,
+            reading: 0,
+            meaning: 0,
+            usage: 0,
+            grammar: 0,
+            ...(record.dimensions || {})
+        };
+        record.sourceCounts = {
+            study: 0,
+            filter: 0,
+            aiQuiz: 0,
+            ...(record.sourceCounts || {})
+        };
+        record.recentAnswers = Array.isArray(record.recentAnswers)
+            ? record.recentAnswers
+            : [];
+
+        return record;
+    };
+
+    Model.recordStudyResult = function({
+        word,
+        dimension = 'meaning',
+        correct = false,
+        userAnswer = '',
+        correctAnswer = '',
+        source = 'study',
+        question = ''
+    }) {
+        if (
+            !word ||
+            localStorage.getItem('wrongBookEnabled') === 'false'
+        ) {
+            return;
+        }
+
+        const safeDimension = Object.prototype.hasOwnProperty.call(
+            WRONG_DIMENSION_LABELS,
+            dimension
+        )
+            ? dimension
+            : 'meaning';
+
+        const existing = this.getWrongRecord(word, false);
+
+        if (correct && !existing) {
+            return;
+        }
+
+        const record = existing || this.getWrongRecord(word, true);
+        const now = new Date().toISOString();
+
+        if (correct) {
+            record.totalCorrect++;
+            record.correctStreak++;
+            record.lastCorrectAt = now;
+
+            if (record.correctStreak >= 3) {
+                record.status = 'resolved';
+            } else {
+                record.status = 'reinforcing';
+            }
+        } else {
+            record.totalWrong++;
+            record.correctStreak = 0;
+            record.lastWrongAt = now;
+            record.status =
+                record.totalWrong >= 3
+                    ? 'repeated'
+                    : 'new';
+            record.dimensions[safeDimension] =
+                (record.dimensions[safeDimension] || 0) + 1;
+            record.sourceCounts[source] =
+                (record.sourceCounts[source] || 0) + 1;
+        }
+
+        record.recentAnswers.unshift({
+            at: now,
+            correct: Boolean(correct),
+            dimension: safeDimension,
+            userAnswer: String(userAnswer || ''),
+            correctAnswer: String(correctAnswer || ''),
+            source,
+            question: String(question || '')
+        });
+
+        record.recentAnswers = record.recentAnswers.slice(0, 20);
+        this.saveWrongBook();
+    };
+
+    Model.addRecycleItem = function(kind, payload, label, batchId = '') {
+        const now = Date.now();
+        const item = {
+            id: makeId('trash'),
+            batchId,
+            kind,
+            label: String(label || '已删除项目'),
+            deletedAt: new Date(now).toISOString(),
+            expiresAt: now + TRASH_RETENTION_MS,
+            payload: deepClone(payload)
+        };
+
+        this.recycleBin.unshift(item);
+        this.recycleBin = this.recycleBin.slice(0, 300);
+        this.saveRecycleBin();
+        return item;
+    };
+
+    const originalModelInit = Model.init.bind(Model);
+    Model.init = async function() {
+        await originalModelInit();
+
+        this.wrongBook =
+            (await this.readStorageValue(WRONG_BOOK_KEY)) || {};
+        this.aiQuizHistory =
+            (await this.readStorageValue(AI_QUIZ_HISTORY_KEY)) || [];
+        this.recycleBin =
+            (await this.readStorageValue(RECYCLE_BIN_KEY)) || [];
+
+        if (!Array.isArray(this.aiQuizHistory)) {
+            this.aiQuizHistory = [];
+        }
+
+        if (!Array.isArray(this.recycleBin)) {
+            this.recycleBin = [];
+        }
+
+        if (
+            !this.wrongBook ||
+            typeof this.wrongBook !== 'object' ||
+            Array.isArray(this.wrongBook)
+        ) {
+            this.wrongBook = {};
+        }
+
+        let dbChanged = false;
+        this.db.forEach(word => {
+            if (!word._id) {
+                ensureWordId(word);
+                dbChanged = true;
+            }
+        });
+
+        const validWordIds = new Set(
+            this.db.map(word => ensureWordId(word))
+        );
+
+        Object.keys(this.wrongBook).forEach(wordId => {
+            if (!validWordIds.has(wordId)) {
+                delete this.wrongBook[wordId];
+            }
+        });
+
+        this.cleanupRecycleBin();
+
+        if (dbChanged) {
+            await this.saveDB();
+        }
+
+        await Promise.all([
+            this.saveWrongBook(),
+            this.saveAIQuizHistory(),
+            this.saveRecycleBin()
+        ]);
+    };
+
+    const originalSaveDB = Model.saveDB.bind(Model);
+    Model.saveDB = function() {
+        this.db.forEach(word => ensureWordId(word));
+        return originalSaveDB();
+    };
+
+    const originalSaveAllUserData =
+        Model.saveAllUserData.bind(Model);
+    Model.saveAllUserData = async function() {
+        await originalSaveAllUserData();
+        await Promise.all([
+            this.saveWrongBook(),
+            this.saveAIQuizHistory(),
+            this.saveRecycleBin()
+        ]);
+    };
+
+    const originalCheckFilter = Model.checkFilter.bind(Model);
+    Model.checkFilter = function(word, filterName) {
+        const record = this.getWrongRecord(word, false);
+        const hasActiveWrong = Boolean(
+            record &&
+            record.totalWrong > 0 &&
+            record.status !== 'resolved'
+        );
+
+        if (filterName === 'virtual_wrong_all') {
+            return hasActiveWrong;
+        }
+
+        if (filterName === 'virtual_wrong_spell') {
+            return hasActiveWrong && record.dimensions.spell > 0;
+        }
+
+        if (filterName === 'virtual_wrong_listening') {
+            return hasActiveWrong && record.dimensions.listening > 0;
+        }
+
+        if (filterName === 'virtual_wrong_reading') {
+            return hasActiveWrong && record.dimensions.reading > 0;
+        }
+
+        if (filterName === 'virtual_wrong_meaning') {
+            return hasActiveWrong && record.dimensions.meaning > 0;
+        }
+
+        if (filterName === 'virtual_wrong_ai') {
+            return hasActiveWrong && record.sourceCounts.aiQuiz > 0;
+        }
+
+        if (filterName === 'virtual_wrong_repeated') {
+            return record?.status === 'repeated';
+        }
+
+        if (filterName === 'virtual_wrong_resolved') {
+            return record?.status === 'resolved';
+        }
+
+        return originalCheckFilter(word, filterName);
+    };
+
+    const originalUpdateFilteredDb =
+        Model.updateFilteredDb.bind(Model);
+    Model.updateFilteredDb = function(searchQuery, currentFilter) {
+        originalUpdateFilteredDb(searchQuery, currentFilter);
+
+        if (!String(currentFilter).startsWith('virtual_wrong_')) {
+            return;
+        }
+
+        const hint = this.state.filteredDb.find(item => item.idx === -999);
+        const words = this.state.filteredDb.filter(item => item.idx !== -999);
+        const weight = {
+            repeated: 4,
+            new: 3,
+            reinforcing: 2,
+            resolved: 1
+        };
+
+        words.sort((a, b) => {
+            const aRecord = this.getWrongRecord(a.w, false) || {};
+            const bRecord = this.getWrongRecord(b.w, false) || {};
+            const statusDiff =
+                (weight[bRecord.status] || 0) -
+                (weight[aRecord.status] || 0);
+
+            if (statusDiff) {
+                return statusDiff;
+            }
+
+            return (
+                (bRecord.totalWrong || 0) -
+                (aRecord.totalWrong || 0)
+            );
+        });
+
+        this.state.filteredDb = hint ? [hint, ...words] : words;
+    };
+
+    const ensureWrongBookOptions = () => {
+        const select = View.getEl('wb-folder-filter');
+
+        if (!select) {
+            return;
+        }
+
+        const options = [
+            ['智能错题本', 'virtual_wrong_all'],
+            ['错题 · 拼写', 'virtual_wrong_spell'],
+            ['错题 · 听力', 'virtual_wrong_listening'],
+            ['错题 · 读音', 'virtual_wrong_reading'],
+            ['错题 · 释义', 'virtual_wrong_meaning'],
+            ['错题 · AI 小测', 'virtual_wrong_ai'],
+            ['错题 · 反复出错', 'virtual_wrong_repeated'],
+            ['错题 · 已解决', 'virtual_wrong_resolved']
+        ];
+
+        const insertBefore = Array.from(select.options).find(option => {
+            return option.value === 'virtual_cleared';
+        });
+
+        options.forEach(([label, value]) => {
+            if (select.querySelector(`option[value="${value}"]`)) {
+                return;
+            }
+
+            const option = new Option(label, value);
+
+            if (insertBefore) {
+                select.insertBefore(option, insertBefore);
+            } else {
+                select.add(option);
+            }
+        });
+    };
+
+    const updateWrongToolbar = () => {
+        const select = View.getEl('wb-folder-filter');
+        const toolbar = View.getEl('wrongbook-toolbar');
+        const count = View.getEl('wrongbook-count');
+
+        if (!select || !toolbar || !count) {
+            return;
+        }
+
+        const isWrong = String(select.value).startsWith('virtual_wrong_');
+        toolbar.hidden = !isWrong;
+
+        if (!isWrong) {
+            return;
+        }
+
+        const amount = Model.db.filter(word => {
+            return (
+                (word.lang || 'ja') === Model.state.currentLangMode &&
+                Model.checkFilter(word, select.value)
+            );
+        }).length;
+
+        count.textContent = `${amount} 词`;
+    };
+
+    const originalUpdateWordbankUI = View.updateWordbankUI.bind(View);
+    View.updateWordbankUI = function() {
+        const result = originalUpdateWordbankUI();
+        ensureWrongBookOptions();
+        updateWrongToolbar();
+        return result;
+    };
+
+    const renderWrongSummary = word => {
+        const container = View.getEl('dt-wrong-summary');
+
+        if (!container) {
+            return;
+        }
+
+        const record = Model.getWrongRecord(word, false);
+
+        if (!record || record.totalWrong <= 0) {
+            container.hidden = true;
+            container.innerHTML = '';
+            return;
+        }
+
+        const statusText = {
+            new: '新错题',
+            repeated: '反复出错',
+            reinforcing: '正在巩固',
+            resolved: '已解决'
+        }[record.status] || '待巩固';
+
+        const dimensionText = Object.entries(record.dimensions)
+            .filter(([, amount]) => amount > 0)
+            .map(([dimension, amount]) => {
+                return `${WRONG_DIMENSION_LABELS[dimension] || dimension} ${amount}`;
+            })
+            .join(' · ');
+
+        const latestWrong = record.recentAnswers.find(item => {
+            return !item.correct;
+        });
+
+        container.hidden = false;
+        container.innerHTML = `
+            <div class="dt-wrong-summary-head">
+                <span class="material-symbols-rounded">error_med</span>
+                <strong>${escapeHTML(statusText)}</strong>
+                <span>${record.totalWrong} 次错误</span>
+            </div>
+            <div class="dt-wrong-summary-body">
+                <div>${escapeHTML(dimensionText || '暂无维度明细')}</div>
+                ${
+                    latestWrong?.userAnswer
+                        ? `<small>最近错误答案：${escapeHTML(latestWrong.userAnswer)}</small>`
+                        : ''
+                }
+            </div>
+        `;
+    };
+
+    const originalUpdateDetailContent =
+        Controller.updateDetailContent.bind(Controller);
+    Controller.updateDetailContent = function(word, triggerTTS = false) {
+        const result = originalUpdateDetailContent(word, triggerTTS);
+
+        /* 重新带上词条对象，确保英语 AI 解析不会回退到日语。 */
+        View.renderExampleBox(
+            word.example,
+            'dt-example-box',
+            'normal',
+            word
+        );
+
+        renderWrongSummary(word);
+        return result;
+    };
+
+    const resolveStudyDimension = (
+        word,
+        interaction,
+        displayMode = ''
+    ) => {
+        const isEnglish = word?.lang === 'en';
+
+        if (interaction === 'spell') {
+            if (
+                isEnglish &&
+                Model.state.mode === 'memory-test' &&
+                Model.state.mtRound === 2
+            ) {
+                return 'listening';
+            }
+
+            if (
+                isEnglish &&
+                Model.state.mode === 'rote-learning' &&
+                displayMode === 'kana'
+            ) {
+                return 'listening';
+            }
+
+            return isEnglish ? 'spell' : 'reading';
+        }
+
+        if (Model.state.mode === 'dual-track') {
+            return 'meaning';
+        }
+
+        if (displayMode === 'meaning') {
+            return interaction === 'choice'
+                ? isEnglish
+                    ? 'spell'
+                    : 'reading'
+                : 'meaning';
+        }
+
+        if (displayMode === 'kana') {
+            return Model.state.mtStep === 1
+                ? isEnglish
+                    ? 'listening'
+                    : 'reading'
+                : 'meaning';
+        }
+
+        return interaction === 'choice'
+            ? 'meaning'
+            : isEnglish
+                ? 'spell'
+                : 'reading';
+    };
+
+    const correctAnswerFor = (word, dimension) => {
+        if (!word) {
+            return '';
+        }
+
+        if (dimension === 'meaning') {
+            return word.meaning || '';
+        }
+
+        if (dimension === 'reading') {
+            return word.kana || '';
+        }
+
+        return word.word || '';
+    };
+
+    const originalFilterResult =
+        Controller.processFilterTestResult.bind(Controller);
+    Controller.processFilterTestResult = function(isCorrect) {
+        const word = Model.db[
+            Model.state.studyQueue[Model.state.currentIndex]
+        ];
+        let mode = View.getEl('test-display-select')?.value || 'kana';
+
+        if (word?.lang === 'en' && mode === 'kana') {
+            mode = 'word';
+        }
+
+        const dimension = {
+            word: word?.lang === 'en' ? 'spell' : 'reading',
+            kana: word?.lang === 'en' ? 'spell' : 'reading',
+            audio: 'listening',
+            meaning: 'meaning'
+        }[mode] || 'meaning';
+
+        const result = originalFilterResult(isCorrect);
+
+        Model.recordStudyResult({
+            word,
+            dimension,
+            correct: isCorrect,
+            userAnswer: isCorrect ? '自评正确' : '自评错误',
+            correctAnswer: correctAnswerFor(word, dimension),
+            source: 'filter',
+            question: '筛选检验'
+        });
+
+        return result;
+    };
+
+    const originalSpellConfirm =
+        Controller.handleSpellConfirm.bind(Controller);
+    Controller.handleSpellConfirm = function(inputEl, word, displayMode) {
+        if (!word || Model.state.isAnimating) {
+            return originalSpellConfirm(inputEl, word, displayMode);
+        }
+
+        const isEnglish = word.lang === 'en';
+        const target = isEnglish
+            ? String(word.word || '').toLowerCase().trim()
+            : String(word.kana || '').replace(/[【】\[\]()]/g, '');
+        const answer = isEnglish
+            ? String(EnglishInput.buffer || '').toLowerCase().trim()
+            : RomajiEngine.getFinalText();
+
+        const result = originalSpellConfirm(inputEl, word, displayMode);
+
+        if (answer) {
+            const dimension = resolveStudyDimension(
+                word,
+                'spell',
+                displayMode
+            );
+
+            Model.recordStudyResult({
+                word,
+                dimension,
+                correct: answer === target,
+                userAnswer: answer,
+                correctAnswer: target,
+                source: 'study',
+                question: '键盘拼写'
+            });
+        }
+
+        return result;
+    };
+
+    const originalDtChoice =
+        Controller.handleDtChoiceClick.bind(Controller);
+    Controller.handleDtChoiceClick = function(button, isCorrect) {
+        const word = Model.db[
+            Model.state.studyQueue[Model.state.currentIndex]
+        ];
+        const answer =
+            button?.querySelector('span:last-child')?.textContent ||
+            button?.textContent ||
+            '';
+        const result = originalDtChoice(button, isCorrect);
+
+        Model.recordStudyResult({
+            word,
+            dimension: 'meaning',
+            correct: isCorrect,
+            userAnswer: answer,
+            correctAnswer: word?.meaning || '',
+            source: 'study',
+            question: '往复测验释义选择'
+        });
+
+        return result;
+    };
+
+    const originalMtChoice =
+        Controller.handleMtChoiceClick.bind(Controller);
+    Controller.handleMtChoiceClick = function(
+        button,
+        isCorrect,
+        word,
+        displayMode
+    ) {
+        const dimension = resolveStudyDimension(
+            word,
+            'choice',
+            displayMode
+        );
+        const answer =
+            button?.querySelector('span:last-child')?.textContent ||
+            button?.textContent ||
+            '';
+        const result = originalMtChoice(
+            button,
+            isCorrect,
+            word,
+            displayMode
+        );
+
+        Model.recordStudyResult({
+            word,
+            dimension,
+            correct: isCorrect,
+            userAnswer: answer,
+            correctAnswer: correctAnswerFor(word, dimension),
+            source: 'study',
+            question: '循环强记或三轮通关选择题'
+        });
+
+        return result;
+    };
+
+    Controller.startWrongBookPractice = function() {
+        const filter =
+            View.getEl('wb-folder-filter')?.value ||
+            'virtual_wrong_all';
+        const words = Model.db
+            .map((word, index) => ({ word, index }))
+            .filter(item => {
+                return (
+                    (item.word.lang || 'ja') ===
+                        Model.state.currentLangMode &&
+                    Model.checkFilter(item.word, filter)
+                );
+            });
+
+        if (words.length === 0) {
+            showToast('当前错题分类里没有可练习的词');
+            return;
+        }
+
+        words.sort((a, b) => {
+            const aRecord = Model.getWrongRecord(a.word, false) || {};
+            const bRecord = Model.getWrongRecord(b.word, false) || {};
+            return (
+                (bRecord.totalWrong || 0) -
+                (aRecord.totalWrong || 0)
+            );
+        });
+
+        const selected = words.slice(0, 20);
+        Model.state.mode = 'dual-track';
+        Model.state.isWrongBookPractice = true;
+        Model.state.currentIndex = 0;
+        Model.state.dtWordAppearanceMap = {};
+        Model.state.currentWordFailed = false;
+        Model.state.comboCount = 0;
+        Model.state.maxProgressSeen = 0;
+        Model.state.uniqueWordCount = selected.length;
+        Model.state.currentGroupKey = 'wrongbook-practice';
+        Model.state.currentGroupLabel = '错题专项';
+        Model.state.studyQueue = [];
+
+        selected.forEach(item => {
+            Model.state.studyQueue.push(item.index, item.index);
+        });
+
+        Model.state.studyQueue.sort(() => Math.random() - 0.5);
+        Model.state.initialQueueLength = Model.state.studyQueue.length;
+        View.updateComboBadge();
+        View.showPage('study-area');
+
+        const matrix = View.getEl('pixel-matrix');
+        if (matrix) {
+            matrix.innerHTML = '';
+        }
+
+        View.renderStudyCard('none');
+        Hardware.vibrate(40);
+    };
+
+    const originalFinishPendulum =
+        Controller.finishPendulum.bind(Controller);
+    Controller.finishPendulum = function() {
+        if (!Model.state.isWrongBookPractice) {
+            return originalFinishPendulum();
+        }
+
+        Model.state.isWrongBookPractice = false;
+        showToast('错题专项完成，连续答对会逐步移出错题本');
+        View.getEl('btn-exit-study')?.click();
+    };
+
+    /* ---------- 结构化 AI 小测 ---------- */
+    Controller.aiQuizState = {
+        sourcePayload: null,
+        title: '',
+        questions: [],
+        currentIndex: 0,
+        answers: [],
+        selectedOption: '',
+        startedAt: 0,
+        completedAt: 0
+    };
+
+    Controller._resetAIQuizState = function() {
+        this.aiQuizState = {
+            sourcePayload: null,
+            title: '',
+            questions: [],
+            currentIndex: 0,
+            answers: [],
+            selectedOption: '',
+            startedAt: 0,
+            completedAt: 0
+        };
+    };
+
+    Controller._showAIQuizStage = function(stage) {
+        const map = {
+            loading: 'ai-quiz-loading',
+            question: 'ai-quiz-question-stage',
+            result: 'ai-quiz-result-stage'
+        };
+
+        Object.entries(map).forEach(([name, id]) => {
+            const element = View.getEl(id);
+            if (element) {
+                element.hidden = name !== stage;
+            }
+        });
+    };
+
+    Controller._mapAIQuizTypeToDimension = function(question) {
+        if (question.type === 'spell') {
+            return question.lang === 'ja' ? 'reading' : 'spell';
+        }
+
+        if (question.type === 'meaning') {
+            return 'meaning';
+        }
+
+        if (question.type === 'usage') {
+            return 'usage';
+        }
+
+        return 'grammar';
+    };
+
+    Controller._findAIQuizWord = function(question) {
+        if (!question.word) {
+            return null;
+        }
+
+        const lang =
+            question.lang === 'en' || question.lang === 'ja'
+                ? question.lang
+                : /[A-Za-z]/.test(question.word)
+                    ? 'en'
+                    : 'ja';
+        const target = String(question.word).trim().toLowerCase();
+
+        return (
+            Model.db.find(word => {
+                return (
+                    (word.lang || 'ja') === lang &&
+                    String(word.word || '').trim().toLowerCase() === target
+                );
+            }) || null
+        );
+    };
+
+    Controller._startAIQuiz = async function(payload) {
+        const sourceText = String(payload?.responseText || '').trim();
+
+        if (!sourceText) {
+            showToast('这条回答暂时无法生成小测');
+            return;
+        }
+
+        this._resetAIQuizState();
+        this.aiQuizState.sourcePayload = payload;
+        this.aiQuizState.startedAt = Date.now();
+        window.toggleModal('ai-quiz-overlay', true);
+        this._showAIQuizStage('loading');
+
+        const languageRule =
+            payload?.lang === 'en'
+                ? '题目可以包含英语，讲解使用中文，禁止出现日语。'
+                : payload?.lang === 'ja'
+                    ? '题目可以包含日语，讲解使用中文。'
+                    : '根据原回答内容选择英语或日语，讲解使用中文。';
+
+        const prompt = `
+请根据下面的语言学习内容生成3道结构化小测题。
+
+要求：
+1. ${languageRule}
+2. 题型从 spell、meaning、usage、grammar 中选择。
+3. spell 使用 text；其他题型优先使用 choice。
+4. choice 必须提供4个选项，answer 必须与其中一个选项完全一致。
+5. word 填写题目对应的词典原形；纯语法题可以留空。
+6. lang 只能是 en、ja 或空字符串。
+7. explanation 使用简短中文。
+8. 只输出 JSON，不要 Markdown，不要额外说明。
+
+格式：
+{"title":"本次小测","questions":[{"type":"meaning","word":"plan","lang":"en","prompt":"plan 的正确释义是？","answerMode":"choice","options":["计划；打算","飞机","平原","种植"],"answer":"计划；打算","explanation":"plan 作名词表示计划，作动词表示打算。"}]}
+
+学习内容：
+${sourceText.slice(0, 9000)}
+        `.trim();
+
+        try {
+            const result = await this._requestAIJSON(prompt);
+            const questions = (Array.isArray(result.questions)
+                ? result.questions
+                : [])
+                .slice(0, 3)
+                .map((item, index) => {
+                    const answerMode =
+                        item?.answerMode === 'text' ? 'text' : 'choice';
+                    let options = answerMode === 'choice'
+                        ? [...new Set(
+                              (Array.isArray(item?.options)
+                                  ? item.options
+                                  : [])
+                                  .map(option => String(option || '').trim())
+                                  .filter(Boolean)
+                          )].slice(0, 4)
+                        : [];
+                    const answer = String(item?.answer || '').trim();
+
+                    if (
+                        answerMode === 'choice' &&
+                        answer &&
+                        !options.includes(answer)
+                    ) {
+                        options.unshift(answer);
+                    }
+
+                    return {
+                        id: makeId(`quiz_${index}`),
+                        type: ['spell', 'meaning', 'usage', 'grammar'].includes(
+                            item?.type
+                        )
+                            ? item.type
+                            : 'meaning',
+                        word: String(item?.word || '').trim(),
+                        lang:
+                            item?.lang === 'en' || item?.lang === 'ja'
+                                ? item.lang
+                                : '',
+                        prompt: String(item?.prompt || '').trim(),
+                        answerMode,
+                        options: options.slice(0, 4),
+                        answer,
+                        explanation: String(item?.explanation || '').trim()
+                    };
+                })
+                .filter(question => question.prompt && question.answer);
+
+            if (questions.length === 0) {
+                throw new Error('AI 没有生成有效题目');
+            }
+
+            this.aiQuizState.title = String(result.title || '本次小测');
+            this.aiQuizState.questions = questions;
+            this.aiQuizState.currentIndex = 0;
+            this._renderAIQuizQuestion();
+            this._showAIQuizStage('question');
+        } catch (error) {
+            console.error('[AI Quiz]', error);
+            this._closeAIQuiz();
+            showToast(error?.message || '小测生成失败，请稍后重试');
+        }
+    };
+
+    Controller._renderAIQuizQuestion = function() {
+        const state = this.aiQuizState;
+        const question = state.questions[state.currentIndex];
+
+        if (!question) {
+            this._completeAIQuiz();
+            return;
+        }
+
+        state.selectedOption = '';
+
+        const progress = View.getEl('ai-quiz-progress');
+        const title = View.getEl('ai-quiz-title');
+        const type = View.getEl('ai-quiz-type');
+        const prompt = View.getEl('ai-quiz-prompt');
+        const word = View.getEl('ai-quiz-word');
+        const options = View.getEl('ai-quiz-options');
+        const inputWrap = View.getEl('ai-quiz-input-wrap');
+        const input = View.getEl('ai-quiz-input');
+        const feedback = View.getEl('ai-quiz-feedback');
+        const submit = View.getEl('ai-quiz-submit');
+        const next = View.getEl('ai-quiz-next');
+
+        if (progress) {
+            progress.textContent = `${state.currentIndex + 1} / ${state.questions.length}`;
+        }
+        if (title) {
+            title.textContent = state.title;
+        }
+        if (type) {
+            const dimension = this._mapAIQuizTypeToDimension(question);
+            type.textContent = WRONG_DIMENSION_LABELS[dimension] || '小测';
+        }
+        if (prompt) {
+            prompt.textContent = question.prompt;
+        }
+        if (word) {
+            word.textContent = question.word;
+            word.hidden = !question.word;
+        }
+        if (feedback) {
+            feedback.hidden = true;
+            feedback.className = 'ai-quiz-feedback';
+            feedback.innerHTML = '';
+        }
+        if (submit) {
+            submit.hidden = false;
+            submit.disabled = false;
+        }
+        if (next) {
+            next.hidden = true;
+        }
+
+        if (question.answerMode === 'choice') {
+            if (inputWrap) {
+                inputWrap.hidden = true;
+            }
+            if (options) {
+                options.hidden = false;
+                options.innerHTML = question.options
+                    .map(option => {
+                        return `
+                            <button
+                                type="button"
+                                class="ai-quiz-option"
+                                data-quiz-option="${escapeHTML(option)}"
+                            >${escapeHTML(option)}</button>
+                        `;
+                    })
+                    .join('');
+
+                options
+                    .querySelectorAll('.ai-quiz-option')
+                    .forEach(button => {
+                        button.addEventListener('click', () => {
+                            options
+                                .querySelectorAll('.ai-quiz-option')
+                                .forEach(item => {
+                                    item.classList.toggle(
+                                        'selected',
+                                        item === button
+                                    );
+                                });
+                            state.selectedOption =
+                                button.dataset.quizOption || '';
+                        });
+                    });
+            }
+        } else {
+            if (options) {
+                options.hidden = true;
+                options.innerHTML = '';
+            }
+            if (inputWrap) {
+                inputWrap.hidden = false;
+            }
+            if (input) {
+                input.value = '';
+                input.disabled = false;
+                setTimeout(() => input.focus(), 80);
+            }
+        }
+    };
+
+    Controller._submitAIQuizAnswer = function() {
+        const state = this.aiQuizState;
+        const question = state.questions[state.currentIndex];
+
+        if (!question) {
+            return;
+        }
+
+        const input = View.getEl('ai-quiz-input');
+        const userAnswer =
+            question.answerMode === 'choice'
+                ? state.selectedOption
+                : String(input?.value || '').trim();
+
+        if (!userAnswer) {
+            showToast('请先作答');
+            return;
+        }
+
+        const isCorrect =
+            normalizeAnswer(userAnswer) === normalizeAnswer(question.answer);
+        const matchedWord = this._findAIQuizWord(question);
+        const dimension = this._mapAIQuizTypeToDimension(question);
+
+        if (
+            matchedWord &&
+            localStorage.getItem('aiQuizRecord') !== 'false'
+        ) {
+            Model.recordStudyResult({
+                word: matchedWord,
+                dimension,
+                correct: isCorrect,
+                userAnswer,
+                correctAnswer: question.answer,
+                source: 'aiQuiz',
+                question: question.prompt
+            });
+        }
+
+        state.answers.push({
+            questionId: question.id,
+            type: question.type,
+            dimension,
+            word: question.word,
+            lang: question.lang,
+            prompt: question.prompt,
+            userAnswer,
+            correctAnswer: question.answer,
+            explanation: question.explanation,
+            isCorrect,
+            matchedWordId: matchedWord?._id || ''
+        });
+
+        const feedback = View.getEl('ai-quiz-feedback');
+        const submit = View.getEl('ai-quiz-submit');
+        const next = View.getEl('ai-quiz-next');
+        const options = View.getEl('ai-quiz-options');
+
+        if (feedback) {
+            feedback.hidden = false;
+            feedback.className =
+                `ai-quiz-feedback ${isCorrect ? 'is-correct' : 'is-wrong'}`;
+            feedback.innerHTML = `
+                <strong>${isCorrect ? '回答正确' : '回答错误'}</strong>
+                ${
+                    isCorrect
+                        ? ''
+                        : `<div>正确答案：${escapeHTML(question.answer)}</div>`
+                }
+                <p>${escapeHTML(question.explanation || '')}</p>
+            `;
+        }
+
+        if (options) {
+            options.querySelectorAll('.ai-quiz-option').forEach(button => {
+                button.disabled = true;
+                const option = button.dataset.quizOption || '';
+                button.classList.toggle(
+                    'is-answer',
+                    normalizeAnswer(option) === normalizeAnswer(question.answer)
+                );
+                button.classList.toggle(
+                    'is-wrong',
+                    !isCorrect &&
+                        normalizeAnswer(option) === normalizeAnswer(userAnswer)
+                );
+            });
+        }
+
+        if (input) {
+            input.disabled = true;
+        }
+        if (submit) {
+            submit.hidden = true;
+        }
+        if (next) {
+            next.hidden = false;
+            next.textContent =
+                state.currentIndex >= state.questions.length - 1
+                    ? '查看结果'
+                    : '下一题';
+        }
+    };
+
+    Controller._advanceAIQuiz = function() {
+        const input = View.getEl('ai-quiz-input');
+        if (input) {
+            input.disabled = false;
+        }
+
+        this.aiQuizState.currentIndex++;
+
+        if (
+            this.aiQuizState.currentIndex >=
+            this.aiQuizState.questions.length
+        ) {
+            this._completeAIQuiz();
+            return;
+        }
+
+        this._renderAIQuizQuestion();
+    };
+
+    Controller._completeAIQuiz = function() {
+        const state = this.aiQuizState;
+        state.completedAt = Date.now();
+
+        const correctCount = state.answers.filter(answer => {
+            return answer.isCorrect;
+        }).length;
+        const wrongAnswers = state.answers.filter(answer => {
+            return !answer.isCorrect;
+        });
+        const missingWords = wrongAnswers.filter(answer => {
+            return answer.word && !answer.matchedWordId;
+        });
+
+        Model.aiQuizHistory.unshift({
+            id: makeId('ai_quiz'),
+            title: state.title,
+            createdAt: new Date().toISOString(),
+            durationMs: Math.max(0, state.completedAt - state.startedAt),
+            total: state.answers.length,
+            correct: correctCount,
+            answers: deepClone(state.answers)
+        });
+        Model.aiQuizHistory = Model.aiQuizHistory.slice(0, 100);
+        Model.saveAIQuizHistory();
+
+        const score = View.getEl('ai-quiz-result-score');
+        const weakList = View.getEl('ai-quiz-weak-list');
+        const importButton = View.getEl('ai-quiz-import-missing');
+
+        if (score) {
+            score.textContent = `${correctCount} / ${state.answers.length}`;
+        }
+
+        if (weakList) {
+            weakList.innerHTML = wrongAnswers.length
+                ? wrongAnswers
+                      .map(answer => {
+                          const label =
+                              WRONG_DIMENSION_LABELS[answer.dimension] ||
+                              answer.dimension;
+                          return `
+                            <div class="ai-quiz-weak-item">
+                                <div>
+                                    <strong>${escapeHTML(answer.word || '语法题')}</strong>
+                                    <span>${escapeHTML(label)}</span>
+                                    ${
+                                        answer.word && !answer.matchedWordId
+                                            ? '<span class="ai-quiz-missing-tag">未入词库</span>'
+                                            : ''
+                                    }
+                                </div>
+                                <small>${escapeHTML(answer.prompt)}</small>
+                            </div>
+                          `;
+                      })
+                      .join('')
+                : '<div class="ai-quiz-perfect">全部答对，表现很稳！</div>';
+        }
+
+        if (importButton) {
+            importButton.hidden = missingWords.length === 0;
+        }
+
+        this._showAIQuizStage('result');
+        updateSettingsStats();
+    };
+
+    Controller._openWrongBookFromQuiz = function() {
+        this._closeAIQuiz();
+        const navItem = document.querySelector(
+            '.nav-item[data-target="tab-wordbank"]'
+        );
+        Nav.switchTab(
+            'tab-wordbank',
+            'grid_view|全景語彙',
+            navItem
+        );
+        const filter = View.getEl('wb-folder-filter');
+
+        if (filter) {
+            filter.value = 'virtual_wrong_all';
+            filter.dispatchEvent(new Event('facade-update'));
+            filter.dispatchEvent(new Event('change'));
+        }
+    };
+
+    Controller._importMissingAIQuizWords = function() {
+        const missing = this.aiQuizState.answers
+            .filter(answer => {
+                return !answer.isCorrect && answer.word && !answer.matchedWordId;
+            })
+            .map(answer => {
+                const lang =
+                    answer.lang === 'en' || answer.lang === 'ja'
+                        ? answer.lang
+                        : /[A-Za-z]/.test(answer.word)
+                            ? 'en'
+                            : 'ja';
+                return {
+                    word: String(answer.word).trim(),
+                    lang,
+                    selected: true,
+                    existingFolder: ''
+                };
+            })
+            .filter((item, index, list) => {
+                return (
+                    item.word &&
+                    list.findIndex(other => {
+                        return other.lang === item.lang && other.word === item.word;
+                    }) === index
+                );
+            });
+
+        if (!missing.length) {
+            showToast('没有需要加入的词汇');
+            return;
+        }
+
+        this._closeAIQuiz();
+        this._resetAIWordCollection();
+        this.aiWordCollection.candidates = missing;
+        this._renderAIWordCandidates();
+        window.toggleModal('ai-word-collector-overlay', true);
+        this._showAIWordCollectorStage('select');
+    };
+
+    Controller._closeAIQuiz = function() {
+        window.toggleModal('ai-quiz-overlay', false);
+    };
+
+    const originalHandleAIAction =
+        Controller.handleAIResponseAction.bind(Controller);
+    Controller.handleAIResponseAction = function(action, payloadId) {
+        const payload = this.aiActionPayloads[payloadId];
+
+        if (action === 'quiz') {
+            if (!payload) {
+                showToast('这条操作已经失效，请重新打开回答');
+                return;
+            }
+
+            this._startAIQuiz(payload);
+            return;
+        }
+
+        return originalHandleAIAction(action, payloadId);
+    };
+
+    /* ---------- 回收站 ---------- */
+    const removeWordFromActiveData = (word, index) => {
+        const wordId = ensureWordId(word);
+        const snapshot = {
+            word: deepClone(word),
+            originalIndex: index,
+            starred: Model.stars.includes(word.word),
+            clearState: deepClone(Model.mtWordClears[word.word] || null),
+            wrongRecord: deepClone(Model.wrongBook[wordId] || null)
+        };
+
+        Model.db.splice(index, 1);
+        Model.stars = Model.stars.filter(item => item !== word.word);
+        delete Model.mtWordClears[word.word];
+        delete Model.wrongBook[wordId];
+        return snapshot;
+    };
+
+    const persistAfterWordDelete = async () => {
+        await Promise.all([
+            Model.saveDB(),
+            Model.saveStars(),
+            Model.saveClears(),
+            Model.saveWrongBook(),
+            Model.saveRecycleBin()
+        ]);
+        View.updateWordbankUI();
+        View.resetWordbankRenderer();
+        updateSettingsStats();
+        Controller.renderRecycleBin();
+    };
+
+    Controller.restoreTrashItem = async function(itemId, silent = false) {
+        const index = Model.recycleBin.findIndex(item => item.id === itemId);
+
+        if (index < 0) {
+            if (!silent) {
+                showToast('这条内容已经不在回收站中');
+            }
+            return false;
+        }
+
+        const item = Model.recycleBin[index];
+
+        if (item.kind === 'word') {
+            const snapshot = item.payload;
+            const word = deepClone(snapshot.word);
+            ensureWordId(word);
+
+            if (Model.db.some(existing => existing._id === word._id)) {
+                Model.recycleBin.splice(index, 1);
+                await Model.saveRecycleBin();
+                return false;
+            }
+
+            const targetIndex = Math.min(
+                Math.max(Number(snapshot.originalIndex) || 0, 0),
+                Model.db.length
+            );
+            Model.db.splice(targetIndex, 0, word);
+
+            if (snapshot.starred && !Model.stars.includes(word.word)) {
+                Model.stars.push(word.word);
+            }
+
+            if (snapshot.clearState) {
+                Model.mtWordClears[word.word] = deepClone(snapshot.clearState);
+            }
+
+            if (snapshot.wrongRecord) {
+                Model.wrongBook[word._id] = deepClone(snapshot.wrongRecord);
+            }
+        } else if (item.kind === 'conversation') {
+            const targetIndex = Math.min(
+                Math.max(Number(item.payload.originalIndex) || 0, 0),
+                Model.aiConversations.length
+            );
+            Model.aiConversations.splice(
+                targetIndex,
+                0,
+                deepClone(item.payload.conversation)
+            );
+            this._persistConversations();
+        } else if (item.kind === 'example') {
+            const payload = item.payload;
+            const word =
+                Model.db.find(entry => entry._id === payload.wordId) ||
+                Model.db.find(entry => {
+                    return (
+                        entry.word === payload.word &&
+                        (entry.lang || 'ja') === (payload.lang || 'ja')
+                    );
+                });
+
+            if (word) {
+                const examples = String(word.example || '')
+                    .split('||')
+                    .map(example => example.trim())
+                    .filter(Boolean);
+                const targetIndex = Math.min(
+                    Math.max(Number(payload.originalIndex) || 0, 0),
+                    examples.length
+                );
+                examples.splice(targetIndex, 0, payload.example);
+                word.example = examples.join(' || ');
+            }
+        }
+
+        Model.recycleBin.splice(index, 1);
+        await Model.saveAllUserData();
+        View.updateWordbankUI();
+        View.resetWordbankRenderer();
+        this.renderRecycleBin();
+        this.renderAIHistory();
+        updateSettingsStats();
+
+        if (!silent) {
+            showToast('已恢复');
+        }
+
+        return true;
+    };
+
+    Controller.restoreTrashBatch = async function(itemIds) {
+        for (const itemId of itemIds) {
+            await this.restoreTrashItem(itemId, true);
+        }
+
+        showToast('已撤销删除');
+    };
+
+    Controller.permanentlyDeleteTrashItem = async function(itemId) {
+        Model.recycleBin = Model.recycleBin.filter(item => item.id !== itemId);
+        await Model.saveRecycleBin();
+        this.renderRecycleBin();
+        updateSettingsStats();
+        showToast('已永久删除');
+    };
+
+    Controller.deleteWord = async function(index) {
+        const word = Model.db[index];
+
+        if (!word) {
+            return;
+        }
+
+        this.closeDetailIfOpen();
+        const snapshot = removeWordFromActiveData(word, index);
+        const trash = Model.addRecycleItem(
+            'word',
+            snapshot,
+            word.word
+        );
+        await persistAfterWordDelete();
+        showActionToast(
+            `已移入回收站：${word.word}`,
+            '撤销',
+            () => this.restoreTrashBatch([trash.id])
+        );
+    };
+
+    Controller.batchDelete = async function() {
+        if (Model.state.selectedSet.size === 0) {
+            showToast('请先选择单词');
+            return;
+        }
+
+        this.closeDetailIfOpen();
+        const batchId = makeId('trash_batch');
+        const selected = [...Model.state.selectedSet]
+            .sort((a, b) => b - a);
+        const trashIds = [];
+
+        selected.forEach(index => {
+            const word = Model.db[index];
+            if (!word) {
+                return;
+            }
+
+            const snapshot = removeWordFromActiveData(word, index);
+            const trash = Model.addRecycleItem(
+                'word',
+                snapshot,
+                word.word,
+                batchId
+            );
+            trashIds.push(trash.id);
+        });
+
+        Model.state.selectedSet.clear();
+        Model.state.batchMode = false;
+        Model.state.manageMode = false;
+        document
+            .querySelectorAll('.wb-manage-overlay')
+            .forEach(element => element.classList.remove('active'));
+        await persistAfterWordDelete();
+
+        showActionToast(
+            `已将 ${trashIds.length} 个词移入回收站`,
+            '撤销',
+            () => this.restoreTrashBatch([...trashIds].reverse())
+        );
+    };
+
+    Controller.deleteExample = async function(word, exampleIndex) {
+        if (!word) {
+            return;
+        }
+
+        const examples = String(word.example || '')
+            .split('||')
+            .map(example => example.trim())
+            .filter(Boolean);
+        const example = examples[exampleIndex];
+
+        if (!example) {
+            return;
+        }
+
+        examples.splice(exampleIndex, 1);
+        word.example = examples.join(' || ');
+        const trash = Model.addRecycleItem(
+            'example',
+            {
+                wordId: ensureWordId(word),
+                word: word.word,
+                lang: word.lang || 'ja',
+                example,
+                originalIndex: exampleIndex
+            },
+            `${word.word} 的例句`
+        );
+        await Model.saveDB();
+        this.updateDetailContent(word, false);
+        this.renderRecycleBin();
+        showActionToast(
+            '已删除一条例句',
+            '撤销',
+            () => this.restoreTrashBatch([trash.id])
+        );
+    };
+
+    const originalRenderExampleBox =
+        View.renderExampleBox.bind(View);
+    View.renderExampleBox = function(
+        exampleString,
+        boxId,
+        mode = 'normal',
+        word = null
+    ) {
+        const result = originalRenderExampleBox(
+            exampleString,
+            boxId,
+            mode,
+            word
+        );
+
+        if (boxId !== 'dt-example-box' || !word) {
+            return result;
+        }
+
+        const box = this.getEl(boxId);
+        if (!box) {
+            return result;
+        }
+
+        box
+            .querySelectorAll('.ex-item')
+            .forEach((item, index) => {
+                if (
+                    item.querySelector(
+                        '.example-delete-btn'
+                    )
+                ) {
+                    return;
+                }
+
+                const actionRow =
+                    item.querySelector('.dt-ex-jp');
+
+                if (!actionRow) {
+                    return;
+                }
+
+                actionRow.classList.add(
+                    'has-example-actions'
+                );
+
+                const button =
+                    document.createElement('button');
+
+                button.type = 'button';
+                button.className = 'example-delete-btn';
+                button.title = '删除这条例句';
+                button.setAttribute(
+                    'aria-label',
+                    '删除这条例句'
+                );
+                button.innerHTML =
+                    '<span class="material-symbols-rounded">delete_outline</span>';
+
+                button.addEventListener('click', event => {
+                    event.stopPropagation();
+                    Hardware.vibrate(15);
+                    Controller.deleteExample(word, index);
+                });
+
+                const sparkleButton =
+                    actionRow.querySelector(
+                        '.ai-sparkle-icon'
+                    );
+
+                if (sparkleButton) {
+                    sparkleButton.insertAdjacentElement(
+                        'afterend',
+                        button
+                    );
+                } else {
+                    actionRow.appendChild(button);
+                }
+            });
+
+        return result;
+    };
+
+    Controller.renderRecycleBin = function() {
+        Model.cleanupRecycleBin();
+
+        const list = View.getEl('recycle-bin-list');
+        const empty = View.getEl('recycle-bin-empty');
+        const count = View.getEl('recycle-bin-count');
+        const clearButton = View.getEl('btn-clear-recycle-bin');
+
+        if (count) {
+            count.textContent = `${Model.recycleBin.length} 项`;
+        }
+
+        if (clearButton) {
+            clearButton.disabled = Model.recycleBin.length === 0;
+        }
+
+        if (!list || !empty) {
+            return;
+        }
+
+        if (Model.recycleBin.length === 0) {
+            list.innerHTML = '';
+            empty.hidden = false;
+            return;
+        }
+
+        empty.hidden = true;
+        list.innerHTML = Model.recycleBin
+            .map(item => {
+                const kindLabel = {
+                    word: '词汇',
+                    conversation: 'AI 对话',
+                    example: '例句'
+                }[item.kind] || '项目';
+                const daysLeft = Math.max(
+                    1,
+                    Math.ceil((item.expiresAt - Date.now()) / 86400000)
+                );
+
+                return `
+                    <article class="recycle-item" data-trash-id="${item.id}">
+                        <div class="recycle-item-icon">
+                            <span class="material-symbols-rounded">${
+                                item.kind === 'conversation'
+                                    ? 'forum'
+                                    : item.kind === 'example'
+                                        ? 'format_quote'
+                                        : 'dictionary'
+                            }</span>
+                        </div>
+                        <div class="recycle-item-copy">
+                            <div class="recycle-item-title">${escapeHTML(item.label)}</div>
+                            <div class="recycle-item-meta">
+                                ${kindLabel} · ${formatRelativeDate(item.deletedAt)} · ${daysLeft} 天后清理
+                            </div>
+                        </div>
+                        <div class="recycle-item-actions">
+                            <button type="button" data-trash-action="restore">恢复</button>
+                            <button type="button" data-trash-action="delete" class="danger">永久删除</button>
+                        </div>
+                    </article>
+                `;
+            })
+            .join('');
+    };
+
+    Controller.clearRecycleBin = function() {
+        if (!Model.recycleBin.length) {
+            showToast('回收站已经是空的');
+            return;
+        }
+
+        showConfirm(
+            '清空回收站？',
+            '回收站中的词汇、例句和 AI 对话将无法恢复。',
+            async () => {
+                Model.recycleBin = [];
+                await Model.saveRecycleBin();
+                this.renderRecycleBin();
+                updateSettingsStats();
+                showToast('回收站已清空');
+            }
+        );
+    };
+
+    Controller.renderAIHistory = function() {
+        const list = View.getEl('ai-history-list');
+        const empty = View.getEl('ai-history-empty');
+        const chatView = View.getEl('ai-chat-view');
+        const listView = View.getEl('ai-list-view');
+
+        if (chatView) {
+            chatView.classList.add('hidden');
+        }
+        if (listView) {
+            listView.classList.remove('hidden');
+        }
+        if (!list) {
+            return;
+        }
+
+        if (!Model.aiConversations.length) {
+            list.innerHTML = '';
+            if (empty) {
+                empty.style.display = 'block';
+            }
+            return;
+        }
+
+        if (empty) {
+            empty.style.display = 'none';
+        }
+
+        list.innerHTML = Model.aiConversations
+            .map((conversation, index) => {
+                const messages = Array.isArray(conversation.messages)
+                    ? conversation.messages
+                    : [];
+                const lastMessage = messages.at(-1)?.content || '';
+                const preview = lastMessage
+                    .replace(/###.*?\n/g, '')
+                    .replace(/\*\*/g, '')
+                    .replace(/\n/g, ' ')
+                    .slice(0, 60);
+
+                return `
+                    <div class="ai-history-card" data-idx="${index}" tabindex="0" role="button">
+                        <div class="ai-history-card-top">
+                            <span class="ai-history-lang-tag">${conversation.lang === 'en' ? 'EN' : '日'}</span>
+                            <span class="ai-history-word">${escapeHTML(conversation.word || '自由对话')}</span>
+                            <span class="ai-history-msgcount">${messages.length} 条对话</span>
+                            <button class="ai-history-del-btn" data-idx="${index}" title="移入回收站" aria-label="移入回收站">
+                                <span class="material-symbols-rounded">delete</span>
+                            </button>
+                        </div>
+                        <div class="ai-history-preview">${escapeHTML(preview || '点击继续对话。')}</div>
+                        <div class="ai-history-date">${escapeHTML(conversation.date || '')}</div>
+                    </div>
+                `;
+            })
+            .join('');
+
+        list.querySelectorAll('.ai-history-card').forEach(card => {
+            card.addEventListener('click', event => {
+                if (event.target.closest('.ai-history-del-btn')) {
+                    return;
+                }
+                Hardware.vibrate(15);
+                this.openAIChatFromTab(Number(card.dataset.idx));
+            });
+        });
+
+        list.querySelectorAll('.ai-history-del-btn').forEach(button => {
+            button.addEventListener('click', async event => {
+                event.stopPropagation();
+                const index = Number(button.dataset.idx);
+                const conversation = Model.aiConversations[index];
+
+                if (!conversation) {
+                    return;
+                }
+
+                Model.aiConversations.splice(index, 1);
+                const trash = Model.addRecycleItem(
+                    'conversation',
+                    {
+                        conversation,
+                        originalIndex: index
+                    },
+                    conversation.word || '自由对话'
+                );
+                this._persistConversations();
+                this.renderAIHistory();
+                this.renderRecycleBin();
+                updateSettingsStats();
+                showActionToast(
+                    'AI 对话已移入回收站',
+                    '撤销',
+                    () => this.restoreTrashBatch([trash.id])
+                );
+            });
+        });
+    };
+
+    /* ---------- 备份兼容 ---------- */
+    const originalBuildBackup =
+        Controller.buildBackupPayload.bind(Controller);
+    Controller.buildBackupPayload = function(kind = 'manual') {
+        const payload = originalBuildBackup(kind);
+        payload.backupVersion = Math.max(Number(payload.backupVersion) || 0, 7);
+        payload.data.wrongBook = deepClone(Model.wrongBook);
+        payload.data.aiQuizHistory = deepClone(Model.aiQuizHistory);
+        payload.data.recycleBin = deepClone(Model.recycleBin);
+        return payload;
+    };
+
+    const originalNormalizeBackup =
+        Controller.normalizeBackupPayload.bind(Controller);
+    Controller.normalizeBackupPayload = function(rawData) {
+        const payload = originalNormalizeBackup(rawData);
+        const source = rawData?.data || rawData || {};
+        payload.data.wrongBook =
+            source.wrongBook && typeof source.wrongBook === 'object'
+                ? source.wrongBook
+                : {};
+        payload.data.aiQuizHistory = Array.isArray(source.aiQuizHistory)
+            ? source.aiQuizHistory
+            : [];
+        payload.data.recycleBin = Array.isArray(source.recycleBin)
+            ? source.recycleBin
+            : [];
+        return payload;
+    };
+
+    const originalApplyBackup =
+        Controller.applyBackupPayload.bind(Controller);
+    Controller.applyBackupPayload = async function(payload) {
+        await originalApplyBackup(payload);
+        Model.wrongBook = deepClone(payload.data.wrongBook || {});
+        Model.aiQuizHistory = deepClone(payload.data.aiQuizHistory || []);
+        Model.recycleBin = deepClone(payload.data.recycleBin || []);
+        await Promise.all([
+            Model.saveWrongBook(),
+            Model.saveAIQuizHistory(),
+            Model.saveRecycleBin()
+        ]);
+        this.renderRecycleBin();
+        updateSettingsStats();
+    };
+
+    /* ---------- 设置页分组 ---------- */
+    const showSettingsSection = sectionName => {
+        const home = View.getEl('settings-home');
+        const sections = document.querySelectorAll('.settings-section');
+
+        if (home) {
+            home.hidden = Boolean(sectionName);
+        }
+
+        sections.forEach(section => {
+            section.hidden = section.dataset.settingsSection !== sectionName;
+        });
+
+        if (sectionName === 'library') {
+            Controller.renderRecycleBin();
+        }
+
+        updateSettingsStats();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const updateOnlineStatus = () => {
+        const status = View.getEl('settings-online-status');
+        const detail = View.getEl('settings-online-status-detail');
+        const text = navigator.onLine ? '在线' : '离线';
+
+        if (status) {
+            status.textContent = text;
+            status.dataset.state = navigator.onLine ? 'online' : 'offline';
+        }
+
+        if (detail) {
+            detail.textContent = text;
+        }
+    };
+
+    function updateSettingsStats() {
+        const wrongCount = View.getEl('settings-wrong-count');
+        const quizCount = View.getEl('settings-quiz-count');
+        const trashCount = View.getEl('settings-trash-count');
+
+        if (wrongCount) {
+            wrongCount.textContent = Object.values(Model.wrongBook).filter(
+                record => record.totalWrong > 0 && record.status !== 'resolved'
+            ).length;
+        }
+
+        if (quizCount) {
+            quizCount.textContent = Model.aiQuizHistory.length;
+        }
+
+        if (trashCount) {
+            trashCount.textContent = Model.recycleBin.length;
+        }
+
+        updateOnlineStatus();
+    }
+
+    const originalNavSwitch = Nav.switchTab.bind(Nav);
+    Nav.switchTab = function(targetId, titleData, navItemEl) {
+        const result = originalNavSwitch(targetId, titleData, navItemEl);
+        if (targetId === 'tab-settings') {
+            showSettingsSection('');
+        }
+        return result;
+    };
+
+    const originalControllerInit = Controller.init.bind(Controller);
+    Controller.init = async function() {
+        await originalControllerInit();
+
+        ensureWrongBookOptions();
+        updateWrongToolbar();
+        this.renderRecycleBin();
+        updateSettingsStats();
+
+        const actionButton = View.getEl('action-toast-action');
+        if (actionButton) {
+            actionButton.addEventListener('click', () => {
+                const callback = actionToastCallback;
+                actionToastCallback = null;
+                View.getEl('action-toast')?.classList.remove('show');
+                if (actionToastTimer) {
+                    window.clearTimeout(actionToastTimer);
+                    actionToastTimer = null;
+                }
+                callback?.();
+            });
+        }
+
+        View.getEl('btn-start-wrongbook')?.addEventListener('click', () => {
+            Hardware.unlockSpeech();
+            this.startWrongBookPractice();
+        });
+
+        View.getEl('wb-folder-filter')?.addEventListener('change', () => {
+            updateWrongToolbar();
+        });
+
+        const quizBindings = {
+            'ai-quiz-close': () => this._closeAIQuiz(),
+            'ai-quiz-submit': () => this._submitAIQuizAnswer(),
+            'ai-quiz-next': () => this._advanceAIQuiz(),
+            'ai-quiz-done': () => this._closeAIQuiz(),
+            'ai-quiz-retry': () =>
+                this._startAIQuiz(this.aiQuizState.sourcePayload),
+            'ai-quiz-open-wrongbook': () =>
+                this._openWrongBookFromQuiz(),
+            'ai-quiz-import-missing': () =>
+                this._importMissingAIQuizWords()
+        };
+
+        Object.entries(quizBindings).forEach(([id, handler]) => {
+            View.getEl(id)?.addEventListener('click', handler);
+        });
+
+        View.getEl('ai-quiz-input')?.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (!View.getEl('ai-quiz-submit')?.hidden) {
+                    this._submitAIQuizAnswer();
+                }
+            }
+        });
+
+        document
+            .querySelectorAll('[data-open-settings-section]')
+            .forEach(button => {
+                button.addEventListener('click', () => {
+                    Hardware.playSound('click');
+                    Hardware.vibrate(15);
+
+                    showSettingsSection(
+                        button.dataset.openSettingsSection
+                    );
+                });
+            });
+
+        document
+            .querySelectorAll('[data-settings-back]')
+            .forEach(button => {
+                button.addEventListener('click', () => {
+                    Hardware.playSound('click');
+                    Hardware.vibrate(10);
+
+                    showSettingsSection('');
+                });
+            });
+
+        View.getEl('recycle-bin-list')?.addEventListener('click', event => {
+            const button = event.target.closest('[data-trash-action]');
+            const item = event.target.closest('[data-trash-id]');
+
+            if (!button || !item) {
+                return;
+            }
+
+            const itemId = item.dataset.trashId;
+            if (button.dataset.trashAction === 'restore') {
+                this.restoreTrashItem(itemId);
+            } else {
+                this.permanentlyDeleteTrashItem(itemId);
+            }
+        });
+
+        View.getEl('btn-clear-recycle-bin')?.addEventListener('click', () => {
+            this.clearRecycleBin();
+        });
+
+        const clearAIButton = View.getEl('btn-settings-clear-ai-history');
+        if (clearAIButton) {
+            clearAIButton.addEventListener('click', () => {
+                if (!Model.aiConversations.length) {
+                    showToast('暂无 AI 对话记录');
+                    return;
+                }
+
+                showConfirm(
+                    '清空 AI 对话？',
+                    '所有对话会移入回收站，可在 7 天内恢复。',
+                    async () => {
+                        const batchId = makeId('conversation_batch');
+                        const ids = [];
+                        [...Model.aiConversations]
+                            .reverse()
+                            .forEach((conversation, reverseIndex) => {
+                                const originalIndex =
+                                    Model.aiConversations.length -
+                                    1 -
+                                    reverseIndex;
+                                const item = Model.addRecycleItem(
+                                    'conversation',
+                                    { conversation, originalIndex },
+                                    conversation.word || '自由对话',
+                                    batchId
+                                );
+                                ids.push(item.id);
+                            });
+                        Model.aiConversations = [];
+                        this._persistConversations();
+                        this.renderAIHistory();
+                        this.renderRecycleBin();
+                        updateSettingsStats();
+                        showActionToast(
+                            `已将 ${ids.length} 条对话移入回收站`,
+                            '撤销',
+                            () => this.restoreTrashBatch(ids.reverse())
+                        );
+                    }
+                );
+            });
+        }
+
+        const wrongBookToggle = View.getEl('setting-wrongbook-enabled');
+        if (wrongBookToggle) {
+            wrongBookToggle.checked =
+                localStorage.getItem('wrongBookEnabled') !== 'false';
+            wrongBookToggle.addEventListener('change', event => {
+                localStorage.setItem(
+                    'wrongBookEnabled',
+                    event.target.checked
+                );
+                showToast(
+                    event.target.checked
+                        ? '已开启错题记录'
+                        : '已暂停记录新错题'
+                );
+            });
+        }
+
+        const quizRecordToggle = View.getEl('setting-ai-quiz-record');
+        if (quizRecordToggle) {
+            quizRecordToggle.checked =
+                localStorage.getItem('aiQuizRecord') !== 'false';
+            quizRecordToggle.addEventListener('change', event => {
+                localStorage.setItem('aiQuizRecord', event.target.checked);
+                showToast(
+                    event.target.checked
+                        ? 'AI 小测会写入学习记录'
+                        : 'AI 小测仅保留结果，不影响错题本'
+                );
+            });
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+    };
+})();
+
+
+/* ==========================================
+   第四轮：批量导入加入 AI 智能补全
+   ========================================== */
+(() => {
+    const AI_IMPORT_BATCH_SIZE = 20;
+    const AI_IMPORT_MAX_WORDS = 100;
+
+    const originalInitializeImportPanel =
+        Controller.initializeImportPanel.bind(Controller);
+
+    const originalUpdateImportFormatUI =
+        Controller.updateImportFormatUI.bind(Controller);
+
+    const originalImportWords =
+        Controller.importWords.bind(Controller);
+
+    const originalCloseAIWordCollector =
+        Controller._closeAIWordCollector.bind(Controller);
+
+    const originalSaveAIWordDrafts =
+        Controller._saveAIWordDrafts.bind(Controller);
+
+    const originalControllerInit =
+        Controller.init.bind(Controller);
+
+    Controller.importMode =
+        localStorage.getItem('importMode') === 'ai'
+            ? 'ai'
+            : 'manual';
+
+    Controller.aiImportState = {
+        lang: 'ja',
+        folder: '',
+        duplicateMode: 'skip',
+        addToStars: false,
+        level: '',
+        difficulty: 0,
+        tags: [],
+        totalInput: 0,
+        skippedExisting: 0,
+        invalidLines: [],
+        candidates: [],
+        successes: [],
+        failed: [],
+        running: false
+    };
+
+    Controller.initializeImportPanel = function() {
+        originalInitializeImportPanel();
+        this.setImportMode(this.importMode, false);
+    };
+
+    Controller.setImportMode = function(
+        mode,
+        announce = true
+    ) {
+        const nextMode =
+            mode === 'ai'
+                ? 'ai'
+                : 'manual';
+
+        this.importMode = nextMode;
+        localStorage.setItem('importMode', nextMode);
+
+        document
+            .querySelectorAll('[data-import-mode]')
+            .forEach(button => {
+                const active =
+                    button.dataset.importMode === nextMode;
+
+                button.classList.toggle('active', active);
+                button.setAttribute(
+                    'aria-pressed',
+                    String(active)
+                );
+            });
+
+        const starOption =
+            View.getEl('import-ai-star-option');
+
+        const inputNote =
+            View.getEl('ai-import-input-note');
+
+        if (starOption) {
+            starOption.hidden = nextMode !== 'ai';
+        }
+
+        if (inputNote) {
+            inputNote.hidden = nextMode !== 'ai';
+        }
+
+        this.updateImportFormatUI();
+
+        if (announce) {
+            showToast(
+                nextMode === 'ai'
+                    ? '已切换到 AI 智能补全'
+                    : '已切换到普通导入'
+            );
+        }
+    };
+
+    Controller.updateImportFormatUI = function() {
+        if (this.importMode !== 'ai') {
+            originalUpdateImportFormatUI();
+
+            const description =
+                View.getEl('import-section-desc');
+
+            const duplicateLabel =
+                View.getEl('import-duplicate-label');
+
+            const buttonLabel =
+                View.getEl('btn-import-label');
+
+            const buttonIcon =
+                View.getEl('btn-import')
+                    ?.querySelector('.material-symbols-rounded');
+
+            if (description) {
+                description.textContent =
+                    '先检查可导入词、重复词与错误行，再确认写入。';
+            }
+
+            if (duplicateLabel) {
+                duplicateLabel.textContent =
+                    '遇到同词库内的重复词';
+            }
+
+            if (buttonLabel) {
+                buttonLabel.textContent = '检查并导入';
+            }
+
+            if (buttonIcon) {
+                buttonIcon.textContent = 'fact_check';
+            }
+
+            return;
+        }
+
+        const lang =
+            View.getEl('import-lang-select')?.value || 'ja';
+
+        const formatText =
+            View.getEl('import-format-text');
+
+        const formatNote =
+            View.getEl('import-format-note');
+
+        const textarea =
+            View.getEl('custom-input');
+
+        const description =
+            View.getEl('import-section-desc');
+
+        const duplicateLabel =
+            View.getEl('import-duplicate-label');
+
+        const buttonLabel =
+            View.getEl('btn-import-label');
+
+        const buttonIcon =
+            View.getEl('btn-import')
+                ?.querySelector('.material-symbols-rounded');
+
+        if (description) {
+            description.textContent =
+                '每行只输入一个单词，AI 会补全读音、词性、释义、例句与其他信息。';
+        }
+
+        if (duplicateLabel) {
+            duplicateLabel.textContent =
+                '遇到词库中已经存在的词';
+        }
+
+        if (formatText) {
+            formatText.textContent =
+                lang === 'en'
+                    ? '每行一个英语单词或常用短语'
+                    : '每行一个日语单词或常用短语';
+        }
+
+        if (formatNote) {
+            formatNote.textContent =
+                lang === 'en'
+                    ? '例如：abandon、ability、take part in。英语会自动统一为词典形式。'
+                    : '例如：計画、努力する、役に立つ。动词和形容词建议输入基本形。';
+        }
+
+        if (textarea) {
+            textarea.placeholder =
+                lang === 'en'
+                    ? 'abandon\nability\ntake part in'
+                    : '計画\n努力する\n役に立つ';
+        }
+
+        if (buttonLabel) {
+            buttonLabel.textContent = '让 AI 补全';
+        }
+
+        if (buttonIcon) {
+            buttonIcon.textContent = 'auto_fix_high';
+        }
+    };
+
+    Controller.importWords = function() {
+        if (this.importMode === 'ai') {
+            return this._startAIImport();
+        }
+
+        return originalImportWords();
+    };
+
+    Controller._parseAIImportInput = function(
+        text,
+        lang
+    ) {
+        const invalidLines = [];
+        const seen = new Set();
+        const words = [];
+
+        const rawLines = String(text || '')
+            .split(/\r?\n/)
+            .map((line, index) => ({
+                line,
+                number: index + 1
+            }));
+
+        for (const item of rawLines) {
+            let value = String(item.line || '')
+                .replace(
+                    /^\s*(?:[-*•·]+|\d+[.)、．])\s*/,
+                    ''
+                )
+                .trim();
+
+            if (!value) {
+                continue;
+            }
+
+            value = this._normalizeAIWordText(
+                value,
+                lang
+            );
+
+            const validLanguage =
+                lang === 'en'
+                    ? (
+                        /[A-Za-z]/.test(value) &&
+                        !/[ぁ-ゖァ-ヺ一-龯々〆ヶ]/u.test(value)
+                    )
+                    : /[ぁ-ゖァ-ヺ一-龯々〆ヶ]/u.test(value);
+
+            if (!value || !validLanguage) {
+                invalidLines.push({
+                    number: item.number,
+                    value: String(item.line || '').trim(),
+                    reason:
+                        lang === 'en'
+                            ? '不像有效英语词汇'
+                            : '不像有效日语词汇'
+                });
+
+                continue;
+            }
+
+            if (value.length > 80) {
+                invalidLines.push({
+                    number: item.number,
+                    value,
+                    reason: '内容过长'
+                });
+
+                continue;
+            }
+
+            const key =
+                `${lang}:` +
+                (lang === 'en'
+                    ? value.toLowerCase()
+                    : value);
+
+            if (seen.has(key)) {
+                continue;
+            }
+
+            seen.add(key);
+            words.push({
+                word: value,
+                lang
+            });
+        }
+
+        return {
+            words: words.slice(0, AI_IMPORT_MAX_WORDS),
+            invalidLines,
+            truncatedCount:
+                Math.max(0, words.length - AI_IMPORT_MAX_WORDS),
+            rawNonEmptyCount:
+                rawLines.filter(item => item.line.trim()).length
+        };
+    };
+
+    Controller._findExistingAIImportWord = function(
+        candidate
+    ) {
+        const target =
+            this._normalizeAIWordText(
+                candidate.word,
+                candidate.lang
+            );
+
+        return Model.db.find(entry => {
+            const entryLang = entry.lang || 'ja';
+
+            return (
+                entryLang === candidate.lang &&
+                this._normalizeAIWordText(
+                    entry.word,
+                    entryLang
+                ) === target
+            );
+        }) || null;
+    };
+
+    Controller._buildAIImportPrompt = function(
+        candidates,
+        lang
+    ) {
+        const batchLevel = candidates[0]?.level || '';
+        const batchDifficulty = normalizeWordDifficulty(
+            candidates[0]?.difficulty
+        );
+        const batchTags = normalizeWordTags(
+            candidates[0]?.tags
+        );
+
+        const languageRules =
+            lang === 'en'
+                ? `
+英语字段要求：
+- word：严格保留输入词的词典形式，不要翻译。
+- phonetic：使用常见 IPA，并用 / / 包裹；无法确认时留空。
+- type：使用中文词性；多词性使用“・”分隔。
+- meaning：使用简洁中文，多义项使用“；”分隔。
+- roots：只写可靠、简洁的词根词缀；不确定时留空，禁止编造。
+- example：一条自然常用的英语例句，严格写成“英语例句 / 中文翻译”。
+- kana：必须为空字符串。`
+                : `
+日语字段要求：
+- word：严格保留输入词的基本形，不要翻译。
+- kana：只写对应假名读音，不要括号或注音符号。
+- type：使用中文词性；多词性使用“・”分隔；サ变词可写“名词・サ变动词する”。
+- meaning：使用简洁中文，多义项使用“；”分隔。
+- example：一条自然常用的日语例句，严格写成“日语例句 / 中文翻译”。
+- phonetic 和 roots：必须为空字符串。`;
+
+        return `请把下面的${lang === 'en' ? '英语' : '日语'}词汇补全成适合中文学习者保存到词库的完整词条。
+
+通用规则：
+1. 严格保持输入顺序，每个输入词必须对应一个结果，不能遗漏、合并或增加词汇。
+2. lang 必须统一为 "${lang}"。
+3. 所有字段都必须存在；无法可靠确认的字段写空字符串。
+4. level 固定为 "${batchLevel}"，不要自行改成其他考试级别。
+5. difficulty 使用 1～5；批次预设为 ${batchDifficulty || 0}，当预设为 0 时请按实际学习难度估计。
+6. tags 最多 3 个简短中文标签；优先保留批次标签 ${JSON.stringify(batchTags)}，并可补充必要标签。
+7. 只输出一个 JSON 对象，不要使用 Markdown，不要添加解释。
+8. 输出格式必须是：
+{"items":[{"word":"","lang":"${lang}","kana":"","phonetic":"","type":"","meaning":"","example":"","roots":"","level":"","difficulty":0,"tags":[]}]}
+${languageRules}
+
+待补全词汇：
+${JSON.stringify(candidates.map(item => ({
+            word: item.word,
+            lang: item.lang
+        })))}`;
+    };
+
+    Controller._requestAIImportBatch = async function(
+        candidates
+    ) {
+        if (!Array.isArray(candidates) || candidates.length === 0) {
+            return {
+                successes: [],
+                failed: []
+            };
+        }
+
+        const lang = candidates[0].lang;
+        const prompt =
+            this._buildAIImportPrompt(candidates, lang);
+
+        try {
+            const result =
+                await this._requestAIJSON(prompt);
+
+            const rawItems =
+                Array.isArray(result.items)
+                    ? result.items
+                    : [];
+
+            const itemMap = new Map();
+
+            rawItems.forEach(item => {
+                const itemLang =
+                    item?.lang === 'en'
+                        ? 'en'
+                        : 'ja';
+
+                const key =
+                    `${itemLang}:` +
+                    this._normalizeAIWordText(
+                        item?.word,
+                        itemLang
+                    );
+
+                if (!itemMap.has(key)) {
+                    itemMap.set(key, item);
+                }
+            });
+
+            const successes = [];
+            const failed = [];
+
+            candidates.forEach((candidate, index) => {
+                const key =
+                    `${candidate.lang}:` +
+                    this._normalizeAIWordText(
+                        candidate.word,
+                        candidate.lang
+                    );
+
+                let matching = itemMap.get(key);
+
+                if (
+                    !matching &&
+                    rawItems.length === candidates.length
+                ) {
+                    const positional = rawItems[index];
+                    const positionalLang =
+                        positional?.lang === 'en'
+                            ? 'en'
+                            : 'ja';
+
+                    if (positionalLang === candidate.lang) {
+                        matching = positional;
+                    }
+                }
+
+                if (!matching) {
+                    failed.push({
+                        ...candidate,
+                        reason: 'AI 未返回对应词条'
+                    });
+                    return;
+                }
+
+                const rawDraft = {
+                    word: candidate.word,
+                    lang: candidate.lang,
+                    kana:
+                        candidate.lang === 'ja'
+                            ? String(matching.kana || '')
+                            : '',
+                    phonetic:
+                        candidate.lang === 'en'
+                            ? String(matching.phonetic || '')
+                            : '',
+                    type: String(matching.type || ''),
+                    meaning: String(matching.meaning || ''),
+                    example: String(matching.example || ''),
+                    roots:
+                        candidate.lang === 'en'
+                            ? String(matching.roots || '')
+                            : '',
+                    level: candidate.level || '',
+                    difficulty:
+                        candidate.difficulty > 0
+                            ? candidate.difficulty
+                            : normalizeWordDifficulty(
+                                  matching.difficulty
+                              ),
+                    tags:
+                        candidate.tags?.length
+                            ? candidate.tags
+                            : normalizeWordTags(matching.tags),
+                    builtIn: false
+                };
+
+                successes.push(
+                    this._toAIWordDraft(
+                        normalizeWordEntry(rawDraft)
+                    )
+                );
+            });
+
+            return {
+                successes,
+                failed
+            };
+        } catch (error) {
+            return {
+                successes: [],
+                failed: candidates.map(candidate => ({
+                    ...candidate,
+                    reason:
+                        error?.message || '请求失败'
+                }))
+            };
+        }
+    };
+
+    Controller._setAIImportCollectorContext = function() {
+        const title =
+            View.getEl('ai-word-collector-title-text');
+
+        const subtitle =
+            View.getEl('ai-word-collector-subtitle');
+
+        const icon =
+            View.getEl('ai-word-collector-icon');
+
+        const backLabel =
+            View.getEl('ai-word-back-label');
+
+        const progress =
+            View.getEl('ai-import-loading-progress');
+
+        if (title) {
+            title.textContent = 'AI 智能导入';
+        }
+
+        if (subtitle) {
+            subtitle.textContent =
+                `每批最多 ${AI_IMPORT_BATCH_SIZE} 个，完成后先预览再保存`;
+        }
+
+        if (icon) {
+            icon.textContent = 'auto_fix_high';
+        }
+
+        if (backLabel) {
+            backLabel.textContent = '返回导入';
+        }
+
+        if (progress) {
+            progress.hidden = false;
+        }
+    };
+
+    Controller._resetAIImportCollectorContext = function() {
+        const title =
+            View.getEl('ai-word-collector-title-text');
+
+        const subtitle =
+            View.getEl('ai-word-collector-subtitle');
+
+        const icon =
+            View.getEl('ai-word-collector-icon');
+
+        const backLabel =
+            View.getEl('ai-word-back-label');
+
+        const progress =
+            View.getEl('ai-import-loading-progress');
+
+        const failureBox =
+            View.getEl('ai-import-failure-box');
+
+        const previewNote =
+            View.getEl('ai-import-preview-note');
+
+        if (title) {
+            title.textContent = '从回答加入词库';
+        }
+
+        if (subtitle) {
+            subtitle.textContent =
+                '先选择词汇，再由 AI 补全并预览';
+        }
+
+        if (icon) {
+            icon.textContent = 'playlist_add';
+        }
+
+        if (backLabel) {
+            backLabel.textContent = '返回选择';
+        }
+
+        if (progress) {
+            progress.hidden = true;
+        }
+
+        if (failureBox) {
+            failureBox.hidden = true;
+        }
+
+        if (previewNote) {
+            previewNote.hidden = true;
+        }
+    };
+
+    Controller._updateAIImportProgress = function(
+        done,
+        total,
+        label
+    ) {
+        const progressLabel =
+            View.getEl('ai-import-progress-label');
+
+        const progressCount =
+            View.getEl('ai-import-progress-count');
+
+        const progressBar =
+            View.getEl('ai-import-progress-bar');
+
+        const loadingText =
+            View.getEl('ai-word-loading-text');
+
+        const safeTotal = Math.max(1, total);
+        const percent = Math.min(
+            100,
+            Math.max(0, done / safeTotal * 100)
+        );
+
+        if (progressLabel) {
+            progressLabel.textContent =
+                label || '正在补全';
+        }
+
+        if (progressCount) {
+            progressCount.textContent =
+                `${Math.min(done, total)} / ${total}`;
+        }
+
+        if (progressBar) {
+            progressBar.style.width = `${percent}%`;
+        }
+
+        if (loadingText) {
+            loadingText.textContent =
+                done >= total
+                    ? 'AI 补全完成，正在整理预览…'
+                    : `正在补全第 ${Math.floor(done / AI_IMPORT_BATCH_SIZE) + 1} 批词汇…`;
+        }
+    };
+
+    Controller._renderAIImportFailures = function(
+        stage = 'loading'
+    ) {
+        const failed =
+            this.aiImportState.failed || [];
+
+        const failureBox =
+            View.getEl('ai-import-failure-box');
+
+        const failureTitle =
+            View.getEl('ai-import-failure-title-text');
+
+        const failureList =
+            View.getEl('ai-import-failure-list');
+
+        const previewNote =
+            View.getEl('ai-import-preview-note');
+
+        const previewTitle =
+            View.getEl('ai-import-preview-note-title');
+
+        const previewText =
+            View.getEl('ai-import-preview-note-text');
+
+        if (failureBox) {
+            failureBox.hidden =
+                stage !== 'loading' || failed.length === 0;
+        }
+
+        if (failureTitle) {
+            failureTitle.textContent =
+                `${failed.length} 个词汇补全失败`;
+        }
+
+        if (failureList) {
+            failureList.innerHTML = failed
+                .slice(0, 30)
+                .map(item => {
+                    return `<span title="${escapeHTML(item.reason || '')}">${escapeHTML(item.word)}</span>`;
+                })
+                .join('');
+        }
+
+        if (previewNote) {
+            previewNote.hidden =
+                stage !== 'preview' || failed.length === 0;
+        }
+
+        if (previewTitle) {
+            previewTitle.textContent =
+                `${failed.length} 个词汇尚未补全`;
+        }
+
+        if (previewText) {
+            const names = failed
+                .slice(0, 6)
+                .map(item => item.word)
+                .join('、');
+
+            previewText.textContent =
+                names +
+                (failed.length > 6
+                    ? ` 等 ${failed.length} 个词`
+                    : '') +
+                '。已完成的词条可以先检查，也可以只重试这些失败词。';
+        }
+    };
+
+    Controller._applyAIImportPreviewSettings = function() {
+        const state = this.aiImportState;
+        const folderSelect =
+            View.getEl(
+                state.lang === 'en'
+                    ? 'ai-word-folder-en'
+                    : 'ai-word-folder-ja'
+            );
+
+        if (folderSelect) {
+            const hasFolder = Array.from(
+                folderSelect.options
+            ).some(option => option.value === state.folder);
+
+            if (hasFolder) {
+                folderSelect.value = state.folder;
+                folderSelect.dispatchEvent(
+                    new Event('facade-update')
+                );
+            }
+        }
+
+        const duplicateSelect =
+            View.getEl('ai-word-duplicate-mode');
+
+        if (duplicateSelect) {
+            duplicateSelect.value = state.duplicateMode;
+            duplicateSelect.dispatchEvent(
+                new Event('facade-update')
+            );
+        }
+
+        const starInput =
+            View.getEl('ai-word-add-star');
+
+        if (starInput) {
+            starInput.checked = state.addToStars;
+        }
+    };
+
+    Controller._startAIImport = async function() {
+        Hardware.playSound('click');
+        Hardware.vibrate(18);
+
+        if (this.aiImportState.running) {
+            return;
+        }
+
+        if (!localStorage.getItem('deepseekApiKey')) {
+            showToast('请先在设置中配置 DeepSeek API Key');
+            return;
+        }
+
+        const text =
+            View.getEl('custom-input')?.value || '';
+
+        const lang =
+            View.getEl('import-lang-select')?.value || 'ja';
+
+        const folder =
+            View.getEl('import-folder-select')?.value || '';
+
+        const duplicateMode =
+            View.getEl('import-duplicate-mode')?.value || 'skip';
+
+        const addToStars = Boolean(
+            View.getEl('import-ai-add-star')?.checked
+        );
+
+        const level = normalizeWordLevel(
+            View.getEl('import-level-select')?.value || '',
+            lang
+        );
+
+        const difficulty = normalizeWordDifficulty(
+            View.getEl('import-difficulty-select')?.value || 0
+        );
+
+        const tags = normalizeWordTags(
+            View.getEl('import-tags-input')?.value || ''
+        );
+
+        if (!text.trim()) {
+            showToast('请先输入要补全的单词');
+            return;
+        }
+
+        if (!folder) {
+            showToast('当前语言没有可用词库');
+            return;
+        }
+
+        const parsed =
+            this._parseAIImportInput(text, lang);
+
+        if (parsed.words.length === 0) {
+            showToast(
+                lang === 'en'
+                    ? '没有识别到有效英语词汇'
+                    : '没有识别到有效日语词汇'
+            );
+            return;
+        }
+
+        let skippedExisting = 0;
+        const candidates = [];
+
+        for (const candidate of parsed.words) {
+            const existing =
+                this._findExistingAIImportWord(candidate);
+
+            if (existing && duplicateMode === 'skip') {
+                skippedExisting++;
+                continue;
+            }
+
+            candidates.push({
+                ...candidate,
+                level,
+                difficulty,
+                tags,
+                builtIn: false,
+                existingFolder: existing?.folder || ''
+            });
+        }
+
+        if (candidates.length === 0) {
+            showToast(
+                `识别到的 ${parsed.words.length} 个词都已存在，已按设置跳过`
+            );
+            return;
+        }
+
+        this.aiImportState = {
+            lang,
+            folder,
+            duplicateMode,
+            addToStars,
+            level,
+            difficulty,
+            tags,
+            totalInput: parsed.rawNonEmptyCount,
+            skippedExisting,
+            invalidLines: parsed.invalidLines,
+            truncatedCount: parsed.truncatedCount,
+            candidates,
+            successes: [],
+            failed: [],
+            running: true
+        };
+
+        this._resetAIWordCollection();
+
+        this.aiWordCollection.sourcePayload = {
+            scope: 'import',
+            lang,
+            folder,
+            duplicateMode,
+            addToStars,
+            level,
+            difficulty,
+            tags
+        };
+
+        window.toggleModal(
+            'ai-word-collector-overlay',
+            true
+        );
+
+        this._setAIImportCollectorContext();
+
+        this._showAIWordCollectorStage(
+            'loading',
+            `准备为 ${candidates.length} 个词汇补全信息…`
+        );
+
+        const loadingNote =
+            View.getEl('ai-word-loading-note');
+
+        if (loadingNote) {
+            const notes = [];
+
+            if (skippedExisting > 0) {
+                notes.push(`已提前跳过 ${skippedExisting} 个重复词`);
+            }
+
+            if (parsed.invalidLines.length > 0) {
+                notes.push(`忽略 ${parsed.invalidLines.length} 行无效内容`);
+            }
+
+            if (parsed.truncatedCount > 0) {
+                notes.push(`超过上限的 ${parsed.truncatedCount} 个词暂未处理`);
+            }
+
+            loadingNote.textContent =
+                notes.length > 0
+                    ? notes.join(' · ')
+                    : `系统会自动分为 ${Math.ceil(candidates.length / AI_IMPORT_BATCH_SIZE)} 批处理`;
+        }
+
+        this._updateAIImportProgress(
+            0,
+            candidates.length,
+            '正在准备'
+        );
+
+        await this._runAIImportCandidates(
+            candidates,
+            false
+        );
+    };
+
+    Controller._runAIImportCandidates = async function(
+        candidates,
+        isRetry = false
+    ) {
+        const total = candidates.length;
+        let processed = 0;
+        const runSuccesses = [];
+        const runFailures = [];
+
+        this.aiImportState.running = true;
+
+        this._showAIWordCollectorStage(
+            'loading',
+            isRetry
+                ? `正在重试 ${total} 个失败词…`
+                : `正在补全 ${total} 个词汇…`
+        );
+
+        this._renderAIImportFailures('none');
+
+        for (
+            let start = 0;
+            start < candidates.length;
+            start += AI_IMPORT_BATCH_SIZE
+        ) {
+            const batch = candidates.slice(
+                start,
+                start + AI_IMPORT_BATCH_SIZE
+            );
+
+            const batchNumber =
+                Math.floor(start / AI_IMPORT_BATCH_SIZE) + 1;
+
+            const batchTotal =
+                Math.ceil(candidates.length / AI_IMPORT_BATCH_SIZE);
+
+            this._updateAIImportProgress(
+                processed,
+                total,
+                `第 ${batchNumber} / ${batchTotal} 批`
+            );
+
+            const result =
+                await this._requestAIImportBatch(batch);
+
+            runSuccesses.push(...result.successes);
+            runFailures.push(...result.failed);
+
+            processed += batch.length;
+
+            this._updateAIImportProgress(
+                processed,
+                total,
+                `第 ${batchNumber} / ${batchTotal} 批`
+            );
+        }
+
+        const successMap = new Map();
+
+        [
+            ...(isRetry
+                ? this.aiImportState.successes
+                : []),
+            ...runSuccesses
+        ].forEach(draft => {
+            const key =
+                `${draft.lang}:` +
+                this._normalizeAIWordText(
+                    draft.word,
+                    draft.lang
+                );
+
+            successMap.set(key, draft);
+        });
+
+        this.aiImportState.successes =
+            Array.from(successMap.values());
+
+        this.aiImportState.failed = runFailures;
+        this.aiImportState.running = false;
+
+        if (this.aiImportState.successes.length === 0) {
+            const loadingText =
+                View.getEl('ai-word-loading-text');
+
+            if (loadingText) {
+                loadingText.textContent =
+                    '这次没有成功补全任何词汇';
+            }
+
+            this._renderAIImportFailures('loading');
+            return;
+        }
+
+        this.aiWordCollection.drafts =
+            this.aiImportState.successes.map(draft => ({
+                ...draft
+            }));
+
+        this._renderAIWordPreview();
+        this._applyAIImportPreviewSettings();
+        this._renderAIImportFailures('preview');
+
+        this._showAIWordCollectorStage('preview');
+
+        showToast(
+            this.aiImportState.failed.length > 0
+                ? `已补全 ${this.aiImportState.successes.length} 个，${this.aiImportState.failed.length} 个待重试`
+                : `已补全 ${this.aiImportState.successes.length} 个词汇，请检查后保存`
+        );
+    };
+
+    Controller._retryAIImportFailures = async function() {
+        if (this.aiImportState.running) {
+            return;
+        }
+
+        const failed =
+            (this.aiImportState.failed || [])
+                .map(item => ({
+                    word: item.word,
+                    lang: item.lang
+                }));
+
+        if (failed.length === 0) {
+            showToast('没有需要重试的词汇');
+            return;
+        }
+
+        this._setAIImportCollectorContext();
+        this._updateAIImportProgress(
+            0,
+            failed.length,
+            '正在准备重试'
+        );
+
+        await this._runAIImportCandidates(
+            failed,
+            true
+        );
+    };
+
+    Controller._closeAIWordCollector = function() {
+        originalCloseAIWordCollector();
+        this._resetAIImportCollectorContext();
+        this.aiImportState.running = false;
+    };
+
+    Controller._saveAIWordDrafts = async function() {
+        const wasAIImport =
+            this.aiWordCollection?.sourcePayload?.scope === 'import';
+
+        await originalSaveAIWordDrafts();
+
+        const overlay =
+            View.getEl('ai-word-collector-overlay');
+
+        if (
+            wasAIImport &&
+            overlay &&
+            !overlay.classList.contains('active')
+        ) {
+            const textarea =
+                View.getEl('custom-input');
+
+            if (textarea) {
+                textarea.value = '';
+            }
+
+            this.aiImportState = {
+                lang: 'ja',
+                folder: '',
+                duplicateMode: 'skip',
+                addToStars: false,
+                level: '',
+                difficulty: 0,
+                tags: [],
+                totalInput: 0,
+                skippedExisting: 0,
+                invalidLines: [],
+                candidates: [],
+                successes: [],
+                failed: [],
+                running: false
+            };
+        }
+    };
+
+    Controller.init = async function() {
+        await originalControllerInit();
+
+        document
+            .querySelectorAll('[data-import-mode]')
+            .forEach(button => {
+                button.addEventListener('click', () => {
+                    Hardware.playSound('click');
+                    Hardware.vibrate(12);
+                    this.setImportMode(
+                        button.dataset.importMode
+                    );
+                });
+            });
+
+        View.getEl('ai-import-retry')
+            ?.addEventListener('click', () => {
+                Hardware.vibrate(15);
+                this._retryAIImportFailures();
+            });
+
+        View.getEl('ai-import-preview-retry')
+            ?.addEventListener('click', () => {
+                Hardware.vibrate(15);
+                this._retryAIImportFailures();
+            });
+
+        View.getEl('ai-word-back')
+            ?.addEventListener(
+                'click',
+                event => {
+                    if (
+                        this.aiWordCollection
+                            ?.sourcePayload
+                            ?.scope === 'import'
+                    ) {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        Hardware.vibrate(10);
+                        this._closeAIWordCollector();
+                    }
+                },
+                true
+            );
+
+        this.setImportMode(
+            this.importMode,
+            false
+        );
+    };
+})();
+
+
+/* ==========================================
+   第五轮：词库级别、难度、标签与数据检查
+   ========================================== */
+(() => {
+    const getFilterStorageKey = (name, lang) => {
+        return `wordbank_${name}_${lang === 'en' ? 'en' : 'ja'}`;
+    };
+
+    const syncWordbankMetadataFilters = () => {
+        const lang = Model.state.currentLangMode === 'en' ? 'en' : 'ja';
+        const levelSelect = View.getEl('wb-level-filter');
+        const difficultySelect = View.getEl('wb-difficulty-filter');
+
+        if (levelSelect) {
+            const saved = localStorage.getItem(
+                getFilterStorageKey('level', lang)
+            ) || '';
+
+            levelSelect.innerHTML =
+                '<option value="">全部级别</option>' +
+                (WORD_LEVEL_OPTIONS[lang] || [])
+                    .map(level => {
+                        return `<option value="${level}">${level}</option>`;
+                    })
+                    .join('') +
+                '<option value="__unassigned__">未分级</option>';
+
+            levelSelect.value = Array.from(levelSelect.options)
+                .some(option => option.value === saved)
+                    ? saved
+                    : '';
+
+            levelSelect.dispatchEvent(
+                new Event('facade-update')
+            );
+        }
+
+        if (difficultySelect) {
+            const saved = localStorage.getItem(
+                getFilterStorageKey('difficulty', lang)
+            ) || '';
+
+            difficultySelect.value = Array.from(
+                difficultySelect.options
+            ).some(option => option.value === saved)
+                ? saved
+                : '';
+
+            difficultySelect.dispatchEvent(
+                new Event('facade-update')
+            );
+        }
+    };
+
+    const originalUpdateWordbankUI =
+        View.updateWordbankUI.bind(View);
+
+    View.updateWordbankUI = function() {
+        const result = originalUpdateWordbankUI();
+        syncWordbankMetadataFilters();
+        return result;
+    };
+
+    const originalUpdateFilteredDb =
+        Model.updateFilteredDb.bind(Model);
+
+    Model.updateFilteredDb = function(
+        searchQuery,
+        currentFilter
+    ) {
+        originalUpdateFilteredDb(
+            searchQuery,
+            currentFilter
+        );
+
+        const levelFilter =
+            View.getEl('wb-level-filter')?.value || '';
+        const difficultyFilter =
+            View.getEl('wb-difficulty-filter')?.value || '';
+
+        const hint = this.state.filteredDb.find(item => {
+            return item.idx === -999;
+        });
+
+        const words = this.state.filteredDb.filter(item => {
+            if (item.idx === -999) {
+                return false;
+            }
+
+            const lang = item.w.lang === 'en' ? 'en' : 'ja';
+            const level = normalizeWordLevel(item.w.level, lang);
+            const difficulty = normalizeWordDifficulty(
+                item.w.difficulty
+            );
+
+            const levelMatches =
+                !levelFilter ||
+                (levelFilter === '__unassigned__'
+                    ? !level
+                    : level === levelFilter);
+
+            const difficultyMatches =
+                !difficultyFilter ||
+                (difficultyFilter === '__unassigned__'
+                    ? difficulty === 0
+                    : difficulty === Number(difficultyFilter));
+
+            return levelMatches && difficultyMatches;
+        });
+
+        this.state.filteredDb = hint
+            ? [hint, ...words]
+            : words;
+    };
+
+    const decorateWordbankCards = () => {
+        document
+            .querySelectorAll('.wb-card[data-idx]')
+            .forEach(card => {
+                const index = Number(card.dataset.idx);
+
+                if (!Number.isInteger(index) || index < 0) {
+                    return;
+                }
+
+                const word = Model.db[index];
+                const wordNode = card.querySelector('.wb-c-word');
+
+                if (!word || !wordNode) {
+                    return;
+                }
+
+                let meta = card.querySelector('.wb-meta-row');
+
+                if (!meta) {
+                    meta = document.createElement('div');
+                    meta.className = 'wb-meta-row';
+                    wordNode.insertAdjacentElement('afterend', meta);
+                }
+
+                const html = getWordMetadataHTML(word, {
+                    compact: true,
+                    showUnassigned: false
+                });
+
+                meta.innerHTML = html;
+                meta.hidden = !html;
+            });
+    };
+
+    const originalRenderVirtualGrid =
+        View.renderVirtualGrid.bind(View);
+
+    View.renderVirtualGrid = function() {
+        const result = originalRenderVirtualGrid();
+        decorateWordbankCards();
+        return result;
+    };
+
+    const originalUpdateDetailContent =
+        Controller.updateDetailContent.bind(Controller);
+
+    Controller.updateDetailContent = function(
+        word,
+        triggerTTS = false
+    ) {
+        const result = originalUpdateDetailContent(
+            word,
+            triggerTTS
+        );
+
+        const meta = View.getEl('dt-meta');
+
+        if (meta) {
+            meta.innerHTML = getWordMetadataHTML(word, {
+                showUnassigned: true,
+                includeTags: true,
+                includeBuiltIn: true
+            });
+        }
+
+        return result;
+    };
+
+    Controller.renderVocabularyAudit = function(report) {
+        const resultBox = View.getEl('library-audit-result');
+        const summary = View.getEl('library-audit-summary');
+        const issueList = View.getEl('library-audit-issues');
+
+        if (!resultBox || !summary || !issueList) {
+            return;
+        }
+
+        resultBox.hidden = false;
+        resultBox.dataset.state = report.passed
+            ? (report.warnings.length ? 'warning' : 'ok')
+            : 'error';
+
+        summary.innerHTML = `
+            <div class="library-audit-score">
+                <span class="material-symbols-rounded">
+                    ${report.passed ? 'verified' : 'error_med'}
+                </span>
+                <div>
+                    <strong>
+                        ${report.passed ? '没有阻断问题' : `${report.errors.length} 个必须修复的问题`}
+                    </strong>
+                    <small>
+                        共 ${report.total} 词 · 日语 ${report.japanese} · 英语 ${report.english} · 内置 ${report.builtIn} · 提醒 ${report.warnings.length}
+                    </small>
+                </div>
+            </div>
+        `;
+
+        const visibleIssues = report.issues.slice(0, 100);
+
+        issueList.innerHTML = visibleIssues.length
+            ? visibleIssues.map(issue => {
+                return `
+                    <div class="library-audit-issue is-${issue.severity}">
+                        <span class="material-symbols-rounded">
+                            ${issue.severity === 'error' ? 'cancel' : 'error'}
+                        </span>
+                        <div>
+                            <strong>${escapeHTML(issue.word)}</strong>
+                            <small>第 ${issue.index + 1} 条 · ${escapeHTML(issue.message)}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('')
+            : `
+                <div class="library-audit-perfect">
+                    <span class="material-symbols-rounded">task_alt</span>
+                    当前词库通过完整检查，可以继续扩充。
+                </div>
+            `;
+
+        if (report.issues.length > 100) {
+            issueList.insertAdjacentHTML(
+                'beforeend',
+                `<div class="library-audit-more">另有 ${report.issues.length - 100} 条问题，请在浏览器控制台查看完整报告。</div>`
+            );
+        }
+    };
+
+    Controller.runVocabularyAudit = function() {
+        const report = validateVocabularyData(Model.db);
+        this.renderVocabularyAudit(report);
+
+        console.groupCollapsed(
+            `[词库检查] ${report.errors.length} 错误 / ${report.warnings.length} 提醒`
+        );
+        console.table(report.issues);
+        console.groupEnd();
+
+        showToast(
+            report.passed
+                ? (report.warnings.length
+                    ? `检查完成：${report.warnings.length} 条提醒`
+                    : '词库检查通过')
+                : `发现 ${report.errors.length} 个必须修复的问题`
+        );
+    };
+
+    const originalControllerInit =
+        Controller.init.bind(Controller);
+
+    Controller.init = async function() {
+        await originalControllerInit();
+
+        syncWordbankMetadataFilters();
+        this.updateImportMetadataOptions();
+
+        const bindFilter = (id, name) => {
+            const select = View.getEl(id);
+
+            if (!select || select.dataset.metaFilterReady === 'true') {
+                return;
+            }
+
+            select.dataset.metaFilterReady = 'true';
+            select.addEventListener('change', () => {
+                const lang = Model.state.currentLangMode === 'en'
+                    ? 'en'
+                    : 'ja';
+
+                localStorage.setItem(
+                    getFilterStorageKey(name, lang),
+                    select.value
+                );
+
+                View.resetWordbankRenderer();
+            });
+        };
+
+        bindFilter('wb-level-filter', 'level');
+        bindFilter('wb-difficulty-filter', 'difficulty');
+
+        View.getEl('btn-run-library-audit')
+            ?.addEventListener('click', () => {
+                Hardware.vibrate(15);
+                this.runVocabularyAudit();
+            });
+
+        View.getEl('edit-level')?.addEventListener('change', event => {
+            event.target.dispatchEvent(new Event('facade-update'));
+        });
+
+        View.getEl('edit-difficulty')?.addEventListener('change', event => {
+            event.target.dispatchEvent(new Event('facade-update'));
+        });
+
+        decorateWordbankCards();
+    };
+})();
 
 window.onload = () => {
     const visibilityBtn =

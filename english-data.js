@@ -255,3 +255,13 @@ const DefaultEnglishWords = [
   lang: "en"
 }
 ];
+
+
+/* 第五轮元数据默认值：当前英语样例属于四级词库，难度等待逐词标注。 */
+DefaultEnglishWords.forEach((word, index) => {
+  word._id = word._id || `en-cet4-${String(index + 1).padStart(6, '0')}`;
+  word.level = word.level || 'CET-4';
+  word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
+  word.tags = Array.isArray(word.tags) ? word.tags : [];
+  word.builtIn = true;
+});

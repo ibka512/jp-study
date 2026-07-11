@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v1783759578'; // 自动更新了缓存版本号
+const CACHE_NAME = 'pendulum-v1783792247'; // V10：统一抽屉样式、范围网格与例句操作栏
 const ASSETS = [
   './',
   './index.html',

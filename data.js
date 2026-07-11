@@ -206,3 +206,13 @@ const DefaultWords = [
 ];
 
 const Gojuon = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ".split('');
+
+
+/* 第五轮元数据默认值：后续正式词库请在每条数据中明确填写 level 与 difficulty。 */
+DefaultWords.forEach((word, index) => {
+  word._id = word._id || `ja-built-in-${String(index + 1).padStart(6, '0')}`;
+  word.level = word.level || '';
+  word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
+  word.tags = Array.isArray(word.tags) ? word.tags : [];
+  word.builtIn = true;
+});

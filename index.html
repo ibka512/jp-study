@@ -49,7 +49,7 @@
           <div class="stats-grid" style="flex-wrap: nowrap; margin-bottom: 0;">
             <div class="stat-item" style="flex: 1;"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
             <div class="stat-item" style="flex: 1;"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
-            <div class="stat-item" style="flex: 2; background: var(--accent-green-bg); border: 2px dashed var(--tertiary); display: flex; flex-direction: column; justify-content: center;">
+            <div class="stat-item stat-item-accent" style="flex: 2; display: flex; flex-direction: column; justify-content: center;">
               <div class="stat-number" id="db-total-count" style="color: var(--tertiary); font-size: 1.6rem;">0</div>
               <div class="stat-label" style="color: var(--tertiary); font-weight: 800;">词库词汇</div>
             </div>
@@ -218,12 +218,12 @@
         </button>
       </div>
       <button id="btn-new-ai-chat" class="icon-text-gap" style="width:100%; padding: 14px; border-radius: var(--radius-full); border: 2px dashed var(--outline); background: transparent; font-size: 0.95rem; font-weight: 700; color: var(--on-surface); opacity: 0.8;">
-        <span class="material-symbols-rounded" style="color:#6366f1;">add_comment</span> 开始新对话
+        <span class="material-symbols-rounded ai-accent-icon">add_comment</span> 开始新对话
       </button>
     </div>
     <div id="ai-history-list"></div>
     <div id="ai-history-empty" style="text-align: center; padding: 60px 20px; display: none;">
-      <span class="material-symbols-rounded" style="font-size: 4rem; opacity: 0.15; color: #6366f1; margin-bottom: 16px;">auto_awesome</span>
+      <span class="material-symbols-rounded ai-empty-icon">auto_awesome</span>
       <div style="font-size: 1rem; font-weight: 800; opacity: 0.5; margin-bottom: 6px;">尚无对话记录</div>
       <div style="font-size: 0.85rem; opacity: 0.4;">在学习时点击例句旁的 ✨ 图标即可开始</div>
     </div>
@@ -234,8 +234,21 @@
       <button id="btn-ai-chat-back" class="glass-icon-btn" title="返回列表">
         <span class="material-symbols-rounded">arrow_back</span>
       </button>
-      <span id="ai-chat-view-title" style="font-weight:800; font-size:1.05rem; color:var(--on-surface);">对话</span>
+            <span id="ai-chat-view-title" style="font-weight:800; font-size:1.05rem; color:var(--on-surface);">对话</span>
     </div>
+
+    <div id="ai-chat-welcome" class="ai-chat-welcome hidden">
+      <div id="ai-chat-mode-label" class="ai-chat-mode-label">
+        自由答疑 · 日语
+      </div>
+
+      <div id="ai-chat-welcome-text" class="ai-chat-welcome-text">
+        选择一个快捷问题，或直接在下方输入。
+      </div>
+
+      <div id="ai-chat-quick-actions" class="ai-chat-quick-actions"></div>
+    </div>
+
     <div class="ai-chat-messages" id="ai-tab-chat-messages" style="flex:1; min-height:300px; max-height:none;"></div>
     <div class="ai-chat-input-bar" style="padding-left:0; padding-right:0;">
       <input type="text" id="ai-tab-chat-input" placeholder="继续提问，和 AI 深入探讨..." autocomplete="off">
@@ -327,7 +340,7 @@
   >
     restore
   </span>
-  撤销上次导入
+  撤销上次数据操作
 </button>
 
 <div
@@ -339,7 +352,7 @@
     text-align: center;
   "
 >
-  已保存导入前的恢复点
+  已保存上次数据操作前的恢复点
 </div>
     </div>
 
@@ -380,15 +393,18 @@
         </label>
       </div>
 
-      <div class="setting-item">
+            <div class="setting-item setting-choice-item">
         <div class="setting-info">
-          <div class="setting-title">已测词汇后置</div>
-          <div class="setting-desc">在筛选检验时，将曾标记为"忘记/错误"的词汇排在末尾</div>
+          <div class="setting-title">词汇排列方式</div>
+          <div class="setting-desc">决定筛选检验时，新词、薄弱词与已掌握词的先后顺序</div>
         </div>
-        <label class="tactile-switch-wrap">
-          <input type="checkbox" id="setting-postpone-tested" class="tactile-switch">
-          <span class="tactile-slider"></span>
-        </label>
+        <div class="custom-select-wrapper setting-compact-wrapper setting-order-wrapper">
+          <select id="setting-word-order-mode">
+            <option value="weak-first">薄弱词优先</option>
+            <option value="new-first">新词优先</option>
+            <option value="original">词库原顺序</option>
+          </select>
+        </div>
       </div>
 
       <div class="setting-item jp-only">
@@ -448,13 +464,76 @@
       </div>
     </div>
 
-    <div class="card-panel">
-      <h3 style="margin-bottom: 20px;"><span class="material-symbols-rounded">library_add</span> 导入与重置</h3>
-      <textarea id="custom-input" placeholder="格式：单词,音标,词性,释义,例句,词根&#10;用逗号或Tab分隔 (后两项可选)" class="settings-textarea"></textarea>
-      <button id="btn-import">确认导入新词</button>
-      <div class="danger-zone">
-        <div class="setting-desc" style="margin-bottom: 12px; color: var(--accent-red);">警告：此操作将清空所有个人进度与导入词汇</div>
-        <button id="btn-reset" class="btn-outline" style="border-color: var(--accent-red); color: var(--accent-red);">恢复内置词汇</button>
+    <div class="card-panel import-card">
+      <h3 style="margin-bottom: 12px;"><span class="material-symbols-rounded">playlist_add</span> 批量导入词汇</h3>
+      <div class="setting-desc import-section-desc">选择语言和目标词库后粘贴内容。点击检查时会先显示可导入词、重复词和错误行，不会立即写入。</div>
+
+      <div class="import-control-grid">
+        <div class="import-control-item">
+          <label for="import-lang-select">词汇语言</label>
+          <div class="custom-select-wrapper">
+            <select id="import-lang-select">
+              <option value="ja">日语</option>
+              <option value="en">英语</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="import-control-item">
+          <label for="import-folder-select">目标词库</label>
+          <div class="custom-select-wrapper">
+            <select id="import-folder-select">
+              <option value="">正在读取词库…</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="import-control-item import-duplicate-control">
+        <label for="import-duplicate-mode">遇到同词库内的重复词</label>
+        <div class="custom-select-wrapper">
+          <select id="import-duplicate-mode">
+            <option value="skip">跳过重复词</option>
+            <option value="overwrite">用新内容覆盖</option>
+            <option value="keep">保留两个词条</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="import-format-box">
+        <div class="import-format-heading"><span class="material-symbols-rounded">description</span> 当前格式</div>
+        <div id="import-format-text" class="import-format-code">单词,假名,词性,释义,例句</div>
+        <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。</div>
+      </div>
+
+      <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
+      <button id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span> 检查并导入</button>
+    </div>
+
+    <div class="card-panel data-clean-card">
+      <h3 style="margin-bottom: 12px;"><span class="material-symbols-rounded">settings_backup_restore</span> 数据清理与恢复</h3>
+      <div class="setting-desc import-section-desc">三种操作彼此独立。执行前都会自动保存恢复点，可在上方撤销。</div>
+
+      <div class="data-action-row">
+        <div class="data-action-copy">
+          <div class="setting-title">重新开始学习</div>
+          <div class="setting-desc">清空掌握度、通关和学习记录，保留词库、收藏、AI 对话和设置。</div>
+        </div>
+        <button id="btn-reset-progress" class="btn-outline data-action-btn">清空进度</button>
+      </div>
+
+      <div class="data-action-row">
+        <div class="data-action-copy">
+          <div class="setting-title">恢复内置词库</div>
+          <div class="setting-desc">移除个人导入词汇和自建词库，重新载入内置词；学习记录会尽量保留。</div>
+        </div>
+        <button id="btn-remove-imported" class="btn-outline data-action-btn">恢复词库</button>
+      </div>
+
+      <div class="danger-zone full-reset-zone">
+        <div class="setting-title" style="color: var(--accent-red);">完全重置应用</div>
+        <div class="setting-desc full-reset-desc">删除词库改动、收藏、学习记录、AI 对话和偏好设置，恢复首次打开状态。DeepSeek API Key 会保留。</div>
+        <button id="btn-reset" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">delete_forever</span> 完全重置</button>
       </div>
     </div>
   </div>
@@ -612,6 +691,120 @@
                 <button class="vs-blur-btn vs-btn" data-val="word" style="flex:1 1 40%;">仅显单词</button>
                 <button class="vs-blur-btn vs-btn jp-only" data-val="kana" style="flex:1 1 40%;">仅显假名</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div id="ai-preset-overlay" class="modal-overlay" style="align-items: flex-end; z-index: 5100;">
+    <div class="bottom-sheet ai-preset-sheet">
+        <div class="bs-handle"></div>
+
+        <div class="ai-preset-header">
+            <div>
+                <div class="ai-preset-title">
+                    这次想怎么学？
+                </div>
+
+                <div id="ai-preset-language-label" class="ai-preset-subtitle">
+                    当前将使用日语导师
+                </div>
+            </div>
+
+            <button
+                id="ai-preset-close"
+                class="glass-icon-btn"
+                title="关闭"
+                aria-label="关闭预设选择"
+            >
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+
+        <div class="ai-preset-grid">
+            <button
+                type="button"
+                class="ai-preset-option"
+                data-preset="free"
+            >
+                <span class="material-symbols-rounded">forum</span>
+
+                <span class="ai-preset-option-copy">
+                    <strong>自由答疑</strong>
+                    <small>随时询问词汇、语法与表达</small>
+                </span>
+
+                <span class="material-symbols-rounded ai-preset-arrow">
+                    chevron_right
+                </span>
+            </button>
+
+            <button
+                type="button"
+                class="ai-preset-option"
+                data-preset="grammar"
+            >
+                <span class="material-symbols-rounded">account_tree</span>
+
+                <span class="ai-preset-option-copy">
+                    <strong>语法拆解</strong>
+                    <small>分析句子结构与重点语法</small>
+                </span>
+
+                <span class="material-symbols-rounded ai-preset-arrow">
+                    chevron_right
+                </span>
+            </button>
+
+            <button
+                type="button"
+                class="ai-preset-option"
+                data-preset="vocabulary"
+            >
+                <span class="material-symbols-rounded">menu_book</span>
+
+                <span class="ai-preset-option-copy">
+                    <strong>单词精讲</strong>
+                    <small>掌握词义、搭配与真实用法</small>
+                </span>
+
+                <span class="material-symbols-rounded ai-preset-arrow">
+                    chevron_right
+                </span>
+            </button>
+
+            <button
+                type="button"
+                class="ai-preset-option"
+                data-preset="polish"
+            >
+                <span class="material-symbols-rounded">translate</span>
+
+                <span class="ai-preset-option-copy">
+                    <strong>翻译润色</strong>
+                    <small>翻译并改成更自然的表达</small>
+                </span>
+
+                <span class="material-symbols-rounded ai-preset-arrow">
+                    chevron_right
+                </span>
+            </button>
+
+            <button
+                type="button"
+                class="ai-preset-option"
+                data-preset="guided"
+            >
+                <span class="material-symbols-rounded">psychology_alt</span>
+
+                <span class="ai-preset-option-copy">
+                    <strong>引导练习</strong>
+                    <small>通过提示自己找到答案</small>
+                </span>
+
+                <span class="material-symbols-rounded ai-preset-arrow">
+                    chevron_right
+                </span>
+            </button>
         </div>
     </div>
 </div>

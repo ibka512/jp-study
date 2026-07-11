@@ -14,8 +14,9 @@ const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'langMode',
     'autoSpeak',
     'showRoots',
-    'darkBtnStyle',
+        'darkBtnStyle',
     'postponeTested',
+    'wordOrderMode',
     'skipMastered',
     'useRubyRender',
     'ttsEngine',
@@ -65,77 +66,165 @@ const withJapaneseRubyInstruction = (prompt = '') => {
 };
 
 const renderAIMessageHTML = (text, targetWord = '') => {
-    let html = escapeHTML(text || '');
-    const safeTargetWord = escapeHTML((targetWord || '').trim());
+    /*
+     * AI 流式输出偶尔会混入零宽字符，
+     * 或使用外观相似的全角括号。
+     * 先统一格式，再开始转义和渲染。
+     */
+    const normalizedText = String(text || '')
+        .normalize('NFC')
+        .replace(
+            /[\u200B-\u200D\u2060\uFEFF]/g,
+            ''
+        )
+        .replace(/[〈＜«]/g, '《')
+        .replace(/[〉＞»]/g, '》')
+        .replace(/《[\s\u00A0]+/g, '《')
+        .replace(/[\s\u00A0]+》/g, '》');
+
+    let html = escapeHTML(normalizedText);
+
+    const safeTargetWord =
+        escapeHTML(
+            String(targetWord || '')
+                .trim()
+                .replace(
+                    /[\u200B-\u200D\u2060\uFEFF]/g,
+                    ''
+                )
+        );
+
     const rubyBlocks = [];
 
     /*
-     * 把 AI 输出的：
-     * 日本語《にほんご》
+     * 将暂存的日语注音结构保存成占位符，
+     * 避免后续标题、加粗和目标词高亮破坏 ruby。
+     */
+    const storeRuby = (
+        match,
+        baseText,
+        readingText
+    ) => {
+        const cleanBase =
+            String(baseText || '')
+                .trim();
+
+        const cleanReading =
+            String(readingText || '')
+                .trim();
+
+        const containsKanji =
+            /[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/
+                .test(cleanBase);
+
+        if (
+            !containsKanji ||
+            !cleanReading
+        ) {
+            return match;
+        }
+
+        const token =
+            `@@JP_RUBY_${rubyBlocks.length}@@`;
+
+        let rubyHTML =
+            '<ruby class="jp-ruby">' +
+                '<rb>' +
+                    cleanBase +
+                '</rb>' +
+                '<rt>' +
+                    cleanReading +
+                '</rt>' +
+            '</ruby>';
+
+        /*
+         * 目标词继续保留原来的胶囊高亮。
+         */
+        if (
+            safeTargetWord &&
+            (
+                safeTargetWord.includes(
+                    cleanBase
+                ) ||
+                cleanBase.includes(
+                    safeTargetWord
+                )
+            )
+        ) {
+            rubyHTML =
+                '<span class="ai-key-chip ai-key-chip-ruby">' +
+                    rubyHTML +
+                '</span>';
+        }
+
+        rubyBlocks.push(rubyHTML);
+
+        return token;
+    };
+
+        /*
+     * 只匹配紧贴注音括号的词。
      *
-     * 转换成浏览器原生的汉字上方注音。
+     * 可以正确处理：
+     * 道《みち》
+     * 道 《みち》
+     * 食べる《たべる》
+     *
+     * 同时避免把“夜の道《みち》”
+     * 整体误认为一个词。
      */
     html = html.replace(
-        /([\u3400-\u4DBF\u4E00-\u9FFF々〆ヶぁ-ゖァ-ヺー0-9０-９]+)《([ぁ-ゖァ-ヺー・\s]+)》/g,
-        (match, baseText, readingText) => {
-            const containsKanji = /[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/.test(baseText);
-
-            if (!containsKanji) {
-                return match;
-            }
-
-            const token = `@@JP_RUBY_${rubyBlocks.length}@@`;
-
-            let rubyHTML =
-                '<ruby class="jp-ruby">' +
-                    '<rb>' + baseText + '</rb>' +
-                    '<rt>' + readingText.trim() + '</rt>' +
-                '</ruby>';
-
-            /*
-             * 目标词本身继续保留之前的小胶囊高亮。
-             */
-            if (
-                safeTargetWord &&
-                (
-                    safeTargetWord.includes(baseText) ||
-                    baseText.includes(safeTargetWord)
-                )
-            ) {
-                rubyHTML =
-                    '<span class="ai-key-chip ai-key-chip-ruby">' +
-                        rubyHTML +
-                    '</span>';
-            }
-
-            rubyBlocks.push(rubyHTML);
-            return token;
-        }
+        /([\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ0-9０-９]+(?:[ぁ-ゖァ-ヺー]{1,6})?)[ \t\u00A0\u3000]*《([ぁ-ゖァ-ヺー・ \t\u00A0\u3000]+?)》/g,
+        storeRuby
     );
 
     html = html
-        .replace(/### (.*?)\n/g, '<h4>$1</h4>\n')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n/g, '<br>');
+        .replace(
+            /### (.*?)\n/g,
+            '<h4>$1</h4>\n'
+        )
+        .replace(
+            /\*\*(.*?)\*\*/g,
+            '<strong>$1</strong>'
+        )
+        .replace(
+            /\n/g,
+            '<br>'
+        );
 
     /*
      * 高亮没有被注音标记包住的目标词。
      */
     if (safeTargetWord) {
-        const wordPattern = new RegExp(escapeRegExp(safeTargetWord), 'g');
+        const wordPattern =
+            new RegExp(
+                escapeRegExp(
+                    safeTargetWord
+                ),
+                'g'
+            );
 
         html = html.replace(
             wordPattern,
-            '<span class="ai-key-chip">' + safeTargetWord + '</span>'
+            '<span class="ai-key-chip">' +
+                safeTargetWord +
+            '</span>'
         );
     }
 
     /*
-     * 恢复之前暂存的 ruby 注音结构。
+     * 恢复暂存的 ruby 注音结构。
      */
     html = html.replace(
         /@@JP_RUBY_(\d+)@@/g,
-        (match, index) => rubyBlocks[Number(index)] || ''
+        (match, index) => {
+            return (
+                rubyBlocks[
+                    Number(index)
+                ] ||
+                ''
+            );
+        }
     );
 
     return html;
@@ -771,7 +860,11 @@ const BottomSheet = {
             'test-display-select': '默认显示模式',
             'next-display-mode': (Model.state.mode === 'rote-learning' && Model.state.currentLangMode === 'en') ? '选择强化模式' : '遮盖模式',
             'wb-folder-filter': '选择词库',
-            'move-dest-select': '移动至目标文件夹'
+            'move-dest-select': '移动至目标文件夹',
+            'import-lang-select': '选择词汇语言',
+            'import-folder-select': '选择目标词库',
+            'import-duplicate-mode': '选择重复词处理方式',
+            'setting-word-order-mode': '选择词汇排列方式'
         };
         document.getElementById('bs-title').innerText = titleMap[selectEl.id] || "请选择";
         
@@ -782,7 +875,7 @@ const BottomSheet = {
             btn.setAttribute('tabindex', '0');
             btn.setAttribute('role', 'button');
             
-            if (selectEl.id === 'test-range-select' || selectEl.id === 'wb-folder-filter') {
+            if (selectEl.id === 'test-range-select' || selectEl.id === 'wb-folder-filter' || selectEl.id === 'import-folder-select') {
                 let iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">folder</span>`;
                 if (opt.value === 'all') iconHTML = `<span class="material-symbols-rounded" style="opacity:0.6;">grid_view</span>`;
                 else if (opt.value === 'virtual_starred') iconHTML = `<span class="material-symbols-rounded" style="color:#fbbc04; font-variation-settings: 'FILL' 1;">star</span>`;
@@ -3683,10 +3776,211 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
   }
 };
 
+const AI_TUTOR_BASE_PROMPT = `你是一名面向中文学习者的语言导师。
+默认使用清晰、自然的中文解释，除非用户要求使用目标语言。
+先直接回答问题，再补充必要说明；简单问题保持简短，复杂问题分层说明。
+发现表达错误时，优先给出“原表达、修改后表达、修改原因”。
+示例必须自然、常用并符合真实语境，区分口语、书面语、正式与非正式表达。
+不要使用空洞的夸奖、客套开场或与问题无关的总结。
+不确定时明确说明，不要编造词义、语法规则或固定搭配。`;
+
+const AI_TUTOR_LANGUAGE_PROMPTS = Object.freeze({
+    ja: `本次主要辅导日语。
+注意区分日常口语、书面语和敬语，并指出中文直译造成的不自然表达。
+解释词语时按需说明读音、词性、常见搭配和使用限制。`,
+
+    en: `本次主要辅导英语。
+解释单词时按需标注国际音标，并优先讲常见搭配和现代自然表达。
+注意区分日常口语、书面语、正式与非正式表达。
+不要添加日语假名注音，也不要堆砌冷僻词。`
+});
+
+const AI_CHAT_PRESETS = Object.freeze({
+    free: {
+        title: '自由答疑',
+        icon: 'forum',
+        description: '随时询问词汇、语法与表达',
+
+        instruction: `根据用户的问题自然回答，不强制套用固定模板。
+先解决用户当前最关心的问题，再按需要补充例子或提醒。`,
+
+        welcome: {
+            ja: '可以询问日语词汇、语法、表达是否自然，或直接粘贴一句话。',
+            en: '可以询问英语词汇、语法、表达是否自然，或直接粘贴一句话。'
+        },
+
+        shortcuts: {
+            ja: [
+                '这个日语表达自然吗？',
+                '比较两个近义词',
+                '解释一个语法点',
+                '帮我检查一句话'
+            ],
+
+            en: [
+                '这个英语表达自然吗？',
+                '比较两个近义词',
+                '解释一个语法点',
+                '帮我检查一句话'
+            ]
+        }
+    },
+
+    grammar: {
+        title: '语法拆解',
+        icon: 'account_tree',
+        description: '分析句子结构与重点语法',
+
+        instruction: `用户提供句子后，按需要从“句子大意、结构拆解、重点语法、自然度、相似例句”几个部分讲解。
+不要为了凑齐栏目重复内容；句子很简单时可以合并说明。`,
+
+        welcome: {
+            ja: '粘贴一段日语，我会帮你拆开句子结构、语法和自然度。',
+            en: '粘贴一段英语，我会帮你拆开句子结构、语法和自然度。'
+        },
+
+        shortcuts: {
+            ja: [
+                '拆解这句日语',
+                '解释句中的语法',
+                '这句话为什么这样说？',
+                '给我相似例句'
+            ],
+
+            en: [
+                '拆解这句英语',
+                '解释句中的语法',
+                '这句话为什么这样说？',
+                '给我相似例句'
+            ]
+        }
+    },
+
+    vocabulary: {
+        title: '单词精讲',
+        icon: 'menu_book',
+        description: '掌握词义、搭配与真实用法',
+
+        instruction: `用户提供单词后，优先说明核心含义、词性或读音、常见搭配、容易混淆的词、真实使用场景和自然例句。
+讲解结束时可给一个简短小测验，但用户只想查词时不要强迫练习。`,
+
+        welcome: {
+            ja: '输入一个日语单词，我会讲清读音、含义、搭配与使用场景。',
+            en: '输入一个英语单词，我会讲清音标、含义、搭配与使用场景。'
+        },
+
+        shortcuts: {
+            ja: [
+                '解释这个单词',
+                '比较两个近义词',
+                '给我常见搭配',
+                '用这个词考考我'
+            ],
+
+            en: [
+                '解释这个单词',
+                '比较两个近义词',
+                '给我常见搭配',
+                '用这个词考考我'
+            ]
+        }
+    },
+
+    polish: {
+        title: '翻译润色',
+        icon: 'translate',
+        description: '翻译并改成更自然的表达',
+
+        instruction: `先判断用户需要翻译、纠错还是润色。
+必要时给出“直接版本、自然版本、其他语气版本、修改原因”。
+保留原意，不擅自增加用户没有表达的信息。`,
+
+        welcome: {
+            ja: '输入中文或日语，我会翻译、纠错，并给出更自然的日语表达。',
+            en: '输入中文或英语，我会翻译、纠错，并给出更自然的英语表达。'
+        },
+
+        shortcuts: {
+            ja: [
+                '翻译成自然日语',
+                '改得更口语',
+                '改得更正式',
+                '检查是否地道'
+            ],
+
+            en: [
+                '翻译成自然英语',
+                '改得更口语',
+                '改得更正式',
+                '检查是否地道'
+            ]
+        }
+    },
+
+    guided: {
+        title: '引导练习',
+        icon: 'psychology_alt',
+        description: '通过提示自己找到答案',
+
+        instruction: `默认不要立刻公布完整答案。
+先指出问题范围，再给一个小提示并等待用户尝试；根据用户的回答逐步增加提示。
+用户明确要求直接看答案，或多次尝试仍不会时，再给出答案并总结原因。`,
+
+        welcome: {
+            ja: '选择一个练习方向，我会先给提示，让你自己找到日语答案。',
+            en: '选择一个练习方向，我会先给提示，让你自己找到英语答案。'
+        },
+
+        shortcuts: {
+            ja: [
+                '给我一道翻译题',
+                '陪我练习造句',
+                '只给我一个提示',
+                '检查我的答案'
+            ],
+
+            en: [
+                '给我一道翻译题',
+                '陪我练习造句',
+                '只给我一个提示',
+                '检查我的答案'
+            ]
+        }
+    }
+});
+
+const buildAIChatSystemPrompt = (presetId, lang) => {
+    const safeLang =
+        lang === 'en'
+            ? 'en'
+            : 'ja';
+
+    const preset =
+        AI_CHAT_PRESETS[presetId] ||
+        AI_CHAT_PRESETS.free;
+
+    return [
+        AI_TUTOR_BASE_PROMPT,
+        AI_TUTOR_LANGUAGE_PROMPTS[safeLang],
+        `【本次教学模式：${preset.title}】`,
+        preset.instruction
+    ].join('\n\n');
+};
+
 const Controller = {
   aiCache: {},
   currentChat: { systemPrompt: '', messages: [], cacheKey: '' },
-  aiTabChat: { activeIdx: -1, messages: [], systemPrompt: '', cacheKey: '' },
+
+  aiTabChat: {
+      activeIdx: -1,
+      messages: [],
+      systemPrompt: '',
+      cacheKey: '',
+      presetId: '',
+      lang: 'ja',
+      word: '',
+      sentence: ''
+  },
   async init() {
     BottomSheet.init(); 
     Nav.init(); 
@@ -3703,6 +3997,7 @@ const Controller = {
     View.renderDashboard(); 
     View.updateWordbankUI(); 
     this.bindEvents();
+    this.initializeImportPanel();
     await this.updateRestorePointUI();
     this.setupVirtualScroll();
     this.setupHeaderScrollShadow();
@@ -3726,9 +4021,32 @@ const Controller = {
         if(darkBtnStyle) document.body.setAttribute('data-dark-btn', 'translucent');
     }
 
-    let postponeTested = localStorage.getItem('postponeTested') === 'true';
-    let postponeCheck = View.getEl('setting-postpone-tested');
-    if(postponeCheck) postponeCheck.checked = postponeTested;
+    let savedWordOrderMode = localStorage.getItem('wordOrderMode');
+
+    if (!['weak-first', 'new-first', 'original'].includes(savedWordOrderMode)) {
+        const legacyPostponeTested =
+            localStorage.getItem('postponeTested') === 'true';
+
+        savedWordOrderMode =
+            legacyPostponeTested
+                ? 'new-first'
+                : 'weak-first';
+
+        localStorage.setItem(
+            'wordOrderMode',
+            savedWordOrderMode
+        );
+    }
+
+    let wordOrderSelect =
+        View.getEl('setting-word-order-mode');
+
+    if (wordOrderSelect) {
+        wordOrderSelect.value = savedWordOrderMode;
+        wordOrderSelect.dispatchEvent(
+            new Event('facade-update')
+        );
+    }
 
     let skipMastered = localStorage.getItem('skipMastered') === 'true';
     let skipCheck = View.getEl('setting-skip-mastered');
@@ -4020,13 +4338,32 @@ setupVirtualScroll() {
         });
     }
 
-    let postponeCheck = View.getEl('setting-postpone-tested');
-    if (postponeCheck) {
-        postponeCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('postponeTested', e.target.checked);
-            showToast(e.target.checked ? "已开启未通关词汇后置" : "已关闭未通关词汇后置");
-        });
+    let wordOrderSelect =
+        View.getEl('setting-word-order-mode');
+
+    if (wordOrderSelect) {
+        wordOrderSelect.addEventListener(
+            'change',
+            (e) => {
+                Hardware.playSound('click');
+                Hardware.vibrate(15);
+
+                localStorage.setItem(
+                    'wordOrderMode',
+                    e.target.value
+                );
+
+                const modeNames = {
+                    'weak-first': '薄弱词优先',
+                    'new-first': '新词优先',
+                    'original': '词库原顺序'
+                };
+
+                showToast(
+                    `词汇排列已切换为${modeNames[e.target.value]}`
+                );
+            }
+        );
     }
 
     let skipCheck = View.getEl('setting-skip-mastered');
@@ -4101,48 +4438,115 @@ if (aiSheetCopy) {
     });
 }
 let btnNewAIChat = View.getEl('btn-new-ai-chat');
+
 if (btnNewAIChat) {
     btnNewAIChat.addEventListener('click', () => {
         Hardware.vibrate(15);
-        Controller.aiTabChat.activeIdx = -1;
-        Controller.aiTabChat.messages = [];
-        Controller.aiTabChat.systemPrompt = '你是精通多语言的私人外教，耐心解答用户的任何语言学习问题。';
-        Controller.aiTabChat.cacheKey = 'free_' + Date.now();
-        Controller.aiTabChat.word = '自由对话';
-        Controller.aiTabChat.lang = Model.state.currentLangMode;
-        Controller.aiTabChat.sentence = '';
-        let listView = View.getEl('ai-list-view');
-        let chatView = View.getEl('ai-chat-view');
-        let messagesEl = View.getEl('ai-tab-chat-messages');
-        let titleEl = View.getEl('ai-chat-view-title');
-        let inputEl = View.getEl('ai-tab-chat-input');
-        if (titleEl) titleEl.innerText = '自由对话';
-        if (messagesEl) messagesEl.innerHTML = '';
-        if (inputEl) inputEl.value = '';
-                if (listView) listView.classList.add('hidden');
-        if (chatView) chatView.classList.remove('hidden');
-
+        Controller.openAIPresetPicker();
     });
 }
 
+let aiPresetClose =
+    View.getEl('ai-preset-close');
+
+if (aiPresetClose) {
+    aiPresetClose.addEventListener(
+        'click',
+        () => {
+            Hardware.vibrate(10);
+
+            window.toggleModal(
+                'ai-preset-overlay',
+                false
+            );
+        }
+    );
+}
+
+document
+    .querySelectorAll('.ai-preset-option')
+    .forEach(option => {
+        option.addEventListener(
+            'click',
+            () => {
+                Hardware.vibrate(18);
+
+                Controller.startAITabPreset(
+                    option.dataset.preset
+                );
+            }
+        );
+    });
+
 let btnAIChatBack = View.getEl('btn-ai-chat-back');
+
 if (btnAIChatBack) {
+    /*
+     * 手指按下时立即触发震动，
+     * 不必等到松手后才产生反馈。
+     */
+    btnAIChatBack.addEventListener(
+        'pointerdown',
+        (event) => {
+            if (
+                event.pointerType === 'mouse' &&
+                event.button !== 0
+            ) {
+                return;
+            }
+
+            Hardware.vibrate(30);
+        }
+    );
+
     btnAIChatBack.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        if (Controller.aiTabChat.messages.length > 0 && Controller.aiTabChat.activeIdx === -1) {
+        if (
+            Controller.aiTabChat.messages.length > 0 &&
+            Controller.aiTabChat.activeIdx === -1
+        ) {
             let conv = {
                 id: Date.now(),
-                date: new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
-                sentence: Controller.aiTabChat.sentence || '',
-                word: Controller.aiTabChat.word || '自由对话',
-                lang: Controller.aiTabChat.lang || Model.state.currentLangMode,
-                cacheKey: Controller.aiTabChat.cacheKey,
-                systemPrompt: Controller.aiTabChat.systemPrompt,
-                messages: [...Controller.aiTabChat.messages]
+
+                date:
+                    new Date().toLocaleDateString('zh-CN') +
+                    ' ' +
+                    new Date().toLocaleTimeString(
+                        'zh-CN',
+                        {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }
+                    ),
+
+                sentence:
+                    Controller.aiTabChat.sentence || '',
+
+                word:
+                    Controller.aiTabChat.word ||
+                    '自由对话',
+
+                lang:
+                    Controller.aiTabChat.lang ||
+                    Model.state.currentLangMode,
+
+                cacheKey:
+                    Controller.aiTabChat.cacheKey,
+
+                                systemPrompt:
+                    Controller.aiTabChat.systemPrompt,
+
+                presetId:
+                    Controller.aiTabChat.presetId || '',
+
+                messages: [
+                    ...Controller.aiTabChat.messages
+                ]
             };
+
             Model.aiConversations.unshift(conv);
             Controller._persistConversations();
         }
+
         Controller.closeAITabChat();
     });
 }
@@ -4155,13 +4559,41 @@ if (aiTabChatSend) {
     });
 }
 let aiTabChatInput = View.getEl('ai-tab-chat-input');
+
 if (aiTabChatInput) {
-    aiTabChatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && document.getElementById('tab-ai-history').classList.contains('active')) {
-            e.preventDefault();
-            Controller.sendAITabMessage();
+    /*
+     * 点击输入框时立即给予轻微震动。
+     * 使用 pointerdown，让反馈在手指按下时发生。
+     */
+    aiTabChatInput.addEventListener(
+        'pointerdown',
+        (event) => {
+            if (
+                event.pointerType === 'mouse' &&
+                event.button !== 0
+            ) {
+                return;
+            }
+
+            Hardware.vibrate(18);
         }
-    });
+    );
+
+    aiTabChatInput.addEventListener(
+        'keydown',
+        (e) => {
+            if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                document
+                    .getElementById('tab-ai-history')
+                    .classList.contains('active')
+            ) {
+                e.preventDefault();
+                Controller.sendAITabMessage();
+            }
+        }
+    );
 }
 let btnClearAI = View.getEl('btn-clear-ai-history');
 if (btnClearAI) {
@@ -4497,8 +4929,35 @@ if (aiCloseBtn) {
     View.getEl('btn-batch-del').addEventListener('click', () => this.batchDelete());
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
+    View.getEl('import-lang-select').addEventListener('change', () => {
+        this.updateImportFormatUI();
+        this.updateImportFolderOptions();
+    });
     View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
-    View.getEl('btn-reset').addEventListener('click', () => { Hardware.vibrate(20); showConfirm('恢复初始', '警告：将清空所有导入数据，恢复初始！', async () => { Model.folders = ["默认词库"]; Model.folderLangs = { "默认词库": "ja" }; Model.db = DefaultWords.map(w => ({...w, folder: "默认词库"})); if (typeof DefaultEnglishWords !== 'undefined') { Model.db = Model.db.concat(DefaultEnglishWords.map(w => ({...w}))); Model.folders.push("四级词汇"); Model.folderLangs["四级词汇"] = "en"; } await Model.saveDB(); await Model.saveFolders(); await Model.saveFolderLangs(); View.updateWordbankUI(); View.resetWordbankRenderer(); Hardware.vibrate(100); }); });
+    View.getEl('btn-reset-progress').addEventListener('click', () => {
+        Hardware.vibrate(20);
+        showConfirm(
+            '清空学习进度？',
+            '词库、收藏、AI 对话和设置都会保留；掌握度、通关与学习记录将归零。',
+            () => this.clearLearningProgress()
+        );
+    });
+    View.getEl('btn-remove-imported').addEventListener('click', () => {
+        Hardware.vibrate(20);
+        showConfirm(
+            '恢复内置词库？',
+            '个人导入词汇和自建词库将被移除，内置日语与英语词库会重新载入。',
+            () => this.restoreBuiltInLibrary()
+        );
+    });
+    View.getEl('btn-reset').addEventListener('click', () => {
+        Hardware.vibrate(30);
+        showConfirm(
+            '完全重置应用？',
+            '<strong style="color: var(--accent-red);">此操作会删除词库改动、收藏、学习记录、AI 对话和偏好设置。</strong><br><br>DeepSeek API Key 会保留，执行前会自动建立恢复点。',
+            () => this.fullResetApp()
+        );
+    });
     View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => { Hardware.vibrate(20); if(Model.editingIdx > -1) { let w = Model.db[Model.editingIdx]; w.word = View.getEl('edit-word').value.trim(); const isEnSave = w.lang === 'en'; if (isEnSave) { w.phonetic = View.getEl('edit-kana').value.trim(); } else { w.kana = View.getEl('edit-kana').value.trim(); } w.type = View.getEl('edit-type').value.trim(); w.meaning = View.getEl('edit-meaning').value.trim(); let rootsInput = View.getEl('edit-roots'); if(rootsInput) w.roots = rootsInput.value.trim(); Model.saveDB(); View.resetWordbankRenderer(); window.toggleModal('edit-overlay', false); showToast("修改已保存"); } });
@@ -5128,11 +5587,9 @@ if (aiCloseBtn) {
       `;
   },
 
-  async storePreImportRestorePoint() {
+  async storePreImportRestorePoint(kind = 'pre-import-restore') {
       const restorePoint =
-          this.buildBackupPayload(
-              'pre-import-restore'
-          );
+          this.buildBackupPayload(kind);
 
       await Model.writeStorageValue(
           PRE_IMPORT_RESTORE_KEY,
@@ -5610,7 +6067,7 @@ if (aiCloseBtn) {
           );
 
       showConfirm(
-          '撤销上次导入？',
+          '撤销上次数据操作？',
           `
               ${summary}
 
@@ -5620,7 +6077,7 @@ if (aiCloseBtn) {
                   font-size: 0.86rem;
                   line-height: 1.65;
               ">
-                  将恢复到上次导入之前的状态。
+                  将恢复到上次导入或重置之前的状态。
               </div>
           `,
           async () => {
@@ -5630,12 +6087,12 @@ if (aiCloseBtn) {
                */
               const currentSafetyCopy =
                   this.buildBackupPayload(
-                      'before-undo-import'
+                      'before-undo-data-operation'
                   );
 
               try {
                   showToast(
-                      '正在恢复导入前的数据…'
+                      '正在恢复数据操作前的状态…'
                   );
 
                   await this.applyBackupPayload(
@@ -5652,7 +6109,7 @@ if (aiCloseBtn) {
                   Hardware.vibrate(100);
 
                   showToast(
-                      '已撤销上次导入'
+                      '已撤销上次数据操作'
                   );
 
                   window.setTimeout(() => {
@@ -5660,7 +6117,7 @@ if (aiCloseBtn) {
                   }, 900);
               } catch (error) {
                   console.error(
-                      '[Backup] 撤销导入失败',
+                      '[Backup] 撤销数据操作失败',
                       error
                   );
 
@@ -5818,6 +6275,82 @@ const startIdx = groupIndex * GROUP_STEP;
     View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
 
+  buildFilterTestQueue(rawQueue) {
+      const savedMode =
+          localStorage.getItem('wordOrderMode');
+
+      const orderMode =
+          ['weak-first', 'new-first', 'original']
+              .includes(savedMode)
+              ? savedMode
+              : 'weak-first';
+
+      const queue = [...rawQueue];
+
+      if (orderMode === 'original') {
+          return queue;
+      }
+
+      const newWords = [];
+      const weakWords = [];
+      const clearedWords = [];
+
+      queue.forEach(idx => {
+          const word = Model.db[idx];
+
+          if (!word) {
+              return;
+          }
+
+          const status =
+              Model.mtWordClears[word.word];
+
+          if (
+              !status ||
+              typeof status !== 'object'
+          ) {
+              newWords.push(idx);
+              return;
+          }
+
+          const masteredCount = [
+              status.kanji,
+              status.kana,
+              status.meaning
+          ].filter(Boolean).length;
+
+          if (status.needsReview === true) {
+              weakWords.push(idx);
+          } else if (masteredCount === 0) {
+              newWords.push(idx);
+          } else if (masteredCount === 3) {
+              clearedWords.push(idx);
+          } else {
+              weakWords.push(idx);
+          }
+      });
+
+      const shuffle = list => {
+          return [...list].sort(
+              () => Math.random() - 0.5
+          );
+      };
+
+      if (orderMode === 'new-first') {
+          return [
+              ...shuffle(newWords),
+              ...shuffle(weakWords),
+              ...shuffle(clearedWords)
+          ];
+      }
+
+      return [
+          ...shuffle(weakWords),
+          ...shuffle(newWords),
+          ...shuffle(clearedWords)
+      ];
+  },
+
   startFilterTest() {
       let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
       let displayMode = View.getEl('test-display-select').value || 'kana';
@@ -5858,19 +6391,11 @@ const startIdx = groupIndex * GROUP_STEP;
       Hardware.playSound('click'); 
       Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0;
       
-      let rawQueue = sourceWords.map(x => x.i);
-      if (localStorage.getItem('postponeTested') === 'true') {
-          let front = []; let back = [];
-          rawQueue.forEach(idx => {
-              let isTested = !!Model.mtWordClears[Model.db[idx].word];
-              if (!isTested) front.push(idx);
-              else back.push(idx);
-          });
-          front.sort(() => Math.random() - 0.5); back.sort(() => Math.random() - 0.5);
-          Model.state.studyQueue = front.concat(back);
-      } else {
-          Model.state.studyQueue = rawQueue.sort(() => Math.random() - 0.5);
-      }
+      const rawQueue =
+          sourceWords.map(x => x.i);
+
+      Model.state.studyQueue =
+          this.buildFilterTestQueue(rawQueue);
       
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -5929,7 +6454,19 @@ const startIdx = groupIndex * GROUP_STEP;
           ) {
               Model.mtWordClears[wordKey].meaning = true;
           }
+
+          if (
+              Model.mtWordClears[wordKey].kanji &&
+              Model.mtWordClears[wordKey].kana &&
+              Model.mtWordClears[wordKey].meaning
+          ) {
+              Model.mtWordClears[wordKey].needsReview =
+                  false;
+          }
       } else {
+          Model.mtWordClears[wordKey].needsReview =
+              true;
+
           if (mode === 'word') {
               Model.mtWordClears[wordKey].kanji = false;
           } else if (mode === 'kana' || mode === 'audio') {
@@ -6470,37 +7007,371 @@ deleteWord(idx) {
         showToast("已删除"); 
     }); 
 },
-  importWords() { 
-      Hardware.playSound('click'); Hardware.vibrate(15);
-      let text = View.getEl('custom-input').value.trim(); 
-      if(!text) return; 
-      let target = View.getEl('wb-folder-filter').value; 
-      if(target === 'all' || target.startsWith('virtual_')) target = "默认词库"; 
-      let added = 0; 
-      text.split('\n').forEach(line => { 
-          let parts = line.includes('\t') ? line.split('\t') : line.split(/[,，]/); 
-          if(parts.length >= 4){ 
-              Model.db.push({ 
-                  word: parts[0].trim(), 
-                  kana: parts[1].trim(), 
-                  type: parts[2].trim(), 
-                  meaning: parts[3].trim(), 
-                  example: parts[4] ? parts[4].trim() : "", 
-                  roots: parts[5] ? parts[5].trim() : "",
-                  folder: target, 
-                  srs: { ease: 2.5, interval: 0, nextReview: Date.now() } 
-              }); 
-              added++; 
-          } 
-      }); 
-      if(added) { 
+    initializeImportPanel() {
+      const langSelect = View.getEl('import-lang-select');
+      if (!langSelect) return;
+
+      langSelect.value = Model.state.currentLangMode === 'en' ? 'en' : 'ja';
+      langSelect.dispatchEvent(new Event('facade-update'));
+      this.updateImportFormatUI();
+      this.updateImportFolderOptions();
+  },
+
+  updateImportFormatUI() {
+      const lang = View.getEl('import-lang-select')?.value || 'ja';
+      const formatText = View.getEl('import-format-text');
+      const formatNote = View.getEl('import-format-note');
+      const textarea = View.getEl('custom-input');
+
+      if (lang === 'en') {
+          if (formatText) formatText.textContent = '单词,音标,词性,释义,例句,词根';
+          if (formatNote) formatNote.textContent = '前四项必填，例句和词根可选；例句含逗号时建议使用 Tab 分隔。';
+          if (textarea) textarea.placeholder = 'abandon,/əˈbændən/,动词,放弃,They abandoned the plan.,a(去)-bandon(控制)';
+      } else {
+          if (formatText) formatText.textContent = '单词,假名,词性,释义,例句';
+          if (formatNote) formatNote.textContent = '前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。';
+          if (textarea) textarea.placeholder = '勉強,べんきょう,名・サ变,学习,毎日日本語を勉強する。';
+      }
+  },
+
+  updateImportFolderOptions() {
+      const lang = View.getEl('import-lang-select')?.value || 'ja';
+      const select = View.getEl('import-folder-select');
+      if (!select) return;
+
+      const oldValue = select.value;
+      const folders = Model.folders.filter(folder => {
+          return (Model.folderLangs[folder] || 'ja') === lang;
+      });
+
+      select.innerHTML = '';
+
+      if (folders.length === 0) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = lang === 'en' ? '暂无英语词库' : '暂无日语词库';
+          select.appendChild(option);
+          select.disabled = true;
+      } else {
+          select.disabled = false;
+          folders.forEach(folder => {
+              const option = document.createElement('option');
+              option.value = folder;
+              option.textContent = folder;
+              select.appendChild(option);
+          });
+          select.value = folders.includes(oldValue) ? oldValue : folders[0];
+      }
+
+      select.dispatchEvent(new Event('facade-update'));
+  },
+
+  getImportIdentity(word) {
+      const lang = word.lang || Model.folderLangs[word.folder] || 'ja';
+      const name = lang === 'en'
+          ? String(word.word || '').trim().toLowerCase()
+          : String(word.word || '').trim();
+      return `${lang}::${word.folder || ''}::${name}`;
+  },
+
+  importWords() {
+      Hardware.playSound('click');
+      Hardware.vibrate(15);
+
+      const text = View.getEl('custom-input')?.value.trim() || '';
+      const lang = View.getEl('import-lang-select')?.value || 'ja';
+      const folder = View.getEl('import-folder-select')?.value || '';
+      const duplicateMode = View.getEl('import-duplicate-mode')?.value || 'skip';
+
+      if (!text) return showToast('请先粘贴词汇');
+      if (!folder) return showToast('当前语言没有可用词库');
+
+      const lines = text.split(/\r?\n/)
+          .map((line, index) => ({ text: line.trim(), number: index + 1 }))
+          .filter(item => item.text);
+
+      const existingSet = new Set(Model.db.map(word => this.getImportIdentity(word)));
+      const inputSet = new Set();
+      const entries = [];
+      const errors = [];
+      let duplicateCount = 0;
+
+      lines.forEach(item => {
+          const parts = (item.text.includes('\t')
+              ? item.text.split('\t')
+              : item.text.split(/[,，]/)
+          ).map(part => part.trim());
+
+          if (parts.length < 4) {
+              errors.push(`第 ${item.number} 行：只识别到 ${parts.length} 项，至少需要 4 项`);
+              return;
+          }
+
+          const [word, reading, type, meaning] = parts;
+          if (!word) return errors.push(`第 ${item.number} 行：缺少单词`);
+          if (!type) return errors.push(`第 ${item.number} 行：缺少词性`);
+          if (!meaning) return errors.push(`第 ${item.number} 行：缺少释义`);
+
+          let example = '';
+          let roots = '';
+
+          if (lang === 'en') {
+              if (parts.length === 5) example = parts[4];
+              if (parts.length >= 6) {
+                  example = parts.slice(4, -1).join(',');
+                  roots = parts[parts.length - 1];
+              }
+          } else if (parts.length >= 5) {
+              example = parts.slice(4).join(',');
+          }
+
+          const wordData = {
+              word,
+              type,
+              meaning,
+              example,
+              folder,
+              lang,
+              isImported: true,
+              importedAt: new Date().toISOString(),
+              srs: { ease: 2.5, interval: 0, nextReview: Date.now() }
+          };
+
+          if (lang === 'en') {
+              wordData.phonetic = reading;
+              wordData.roots = roots;
+          } else {
+              wordData.kana = reading;
+              wordData.roots = '';
+          }
+
+          const identity = this.getImportIdentity(wordData);
+          const isDuplicate = existingSet.has(identity) || inputSet.has(identity);
+          if (isDuplicate) duplicateCount++;
+          inputSet.add(identity);
+          entries.push({ wordData, identity, isDuplicate });
+      });
+
+      const actionableEntries = duplicateMode === 'skip'
+          ? entries.filter(entry => !entry.isDuplicate)
+          : entries;
+
+      const previewRows = entries.slice(0, 5).map(entry => {
+          const word = entry.wordData;
+          const reading = lang === 'en' ? (word.phonetic || '无音标') : (word.kana || '无假名');
+          const tag = entry.isDuplicate ? '<span style="color:#a86f31;">重复</span>' : '<span style="color:var(--tertiary);">可导入</span>';
+          return `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--outline);"><span><strong>${escapeHTML(word.word)}</strong>　${escapeHTML(reading)}</span>${tag}</div>`;
+      }).join('');
+
+      const errorRows = errors.slice(0, 6).map(error => {
+          return `<div style="margin-top:7px;color:var(--accent-red);font-size:.8rem;">${escapeHTML(error)}</div>`;
+      }).join('');
+
+      const modeText = {
+          skip: '重复词会被跳过',
+          overwrite: '重复词会覆盖原内容',
+          keep: '重复词会被保留；同名单词可能共享收藏与掌握进度'
+      }[duplicateMode];
+
+      const summary = `
+          <div style="text-align:left;line-height:1.7;">
+              <div style="padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--outline);">
+                  <strong>共识别 ${lines.length} 行</strong><br>
+                  可处理 ${actionableEntries.length} 词 · 重复 ${duplicateCount} · 错误 ${errors.length}<br>
+                  <span style="font-size:.82rem;opacity:.72;">${modeText}</span>
+              </div>
+              <div style="margin-top:12px;">${previewRows || '<span style="opacity:.65;">没有识别到有效词条</span>'}</div>
+              ${entries.length > 5 ? `<div style="margin-top:8px;font-size:.78rem;opacity:.6;">另有 ${entries.length - 5} 个有效词条未展示</div>` : ''}
+              ${errorRows}
+              ${errors.length > 6 ? `<div style="margin-top:7px;color:var(--accent-red);font-size:.8rem;">另有 ${errors.length - 6} 行错误</div>` : ''}
+          </div>
+      `;
+
+      if (actionableEntries.length === 0) {
+          showConfirm('没有可导入的词汇', summary, () => {});
+          return;
+      }
+
+      showConfirm('确认导入这些词汇？', summary, async () => {
+          let restorePoint = null;
+
+          try {
+              restorePoint = await this.storePreImportRestorePoint('pre-import-restore');
+              const liveMap = new Map();
+              Model.db.forEach((word, index) => liveMap.set(this.getImportIdentity(word), index));
+
+              let added = 0;
+              let updated = 0;
+              let skipped = 0;
+
+              entries.forEach(entry => {
+                  const existingIndex = liveMap.has(entry.identity) ? liveMap.get(entry.identity) : -1;
+
+                  if (existingIndex >= 0 && duplicateMode === 'skip') {
+                      skipped++;
+                      return;
+                  }
+
+                  if (existingIndex >= 0 && duplicateMode === 'overwrite') {
+                      const oldWord = Model.db[existingIndex];
+                      const { isImported, importedAt, ...fields } = entry.wordData;
+                      Object.assign(oldWord, fields);
+                      if (oldWord.isImported === true) oldWord.importedAt = importedAt;
+                      updated++;
+                      return;
+                  }
+
+                  Model.db.push({ ...entry.wordData });
+                  if (duplicateMode !== 'keep') liveMap.set(entry.identity, Model.db.length - 1);
+                  added++;
+              });
+
+              await Model.saveDB();
+              View.getEl('custom-input').value = '';
+              View.updateWordbankUI();
+              View.resetWordbankRenderer();
+              await this.updateRestorePointUI();
+
+              Hardware.playSound('success');
+              Hardware.vibrate(100);
+
+              const result = [];
+              if (added) result.push(`新增 ${added} 词`);
+              if (updated) result.push(`覆盖 ${updated} 词`);
+              if (skipped) result.push(`跳过 ${skipped} 词`);
+              showToast(result.join('，') || '没有需要写入的词汇');
+          } catch (error) {
+              console.error('[Import] 导入失败', error);
+              if (restorePoint) {
+                  try {
+                      await this.applyBackupPayload(restorePoint);
+                      showToast('导入失败，已恢复原数据');
+                  } catch (restoreError) {
+                      console.error('[Import] 自动恢复失败', restoreError);
+                      showToast('导入失败，自动恢复也失败');
+                  }
+              } else {
+                  showToast('导入失败，未修改数据');
+              }
+              Hardware.playSound('error');
+              Hardware.vibrate(50);
+          }
+      });
+  },
+
+  getDefaultLibraryState() {
+      const db = DefaultWords.map(word => ({ ...JSON.parse(JSON.stringify(word)), folder: '默认词库', lang: 'ja' }));
+      const folders = ['默认词库'];
+      const folderLangs = { '默认词库': 'ja' };
+
+      if (typeof DefaultEnglishWords !== 'undefined') {
+          DefaultEnglishWords.forEach(word => {
+              const cloned = { ...JSON.parse(JSON.stringify(word)), lang: 'en' };
+              cloned.folder = cloned.folder || '英语词库';
+              db.push(cloned);
+              if (!folders.includes(cloned.folder)) folders.push(cloned.folder);
+              folderLangs[cloned.folder] = 'en';
+          });
+      }
+
+      return { db, folders, folderLangs };
+  },
+
+  refreshAfterDataOperation() {
+      Model.state.selectedSet.clear();
+      Model.state.batchMode = false;
+      Model.state.manageMode = false;
+      Model.state.renderedStartIndex = -1;
+      const folderFilter = View.getEl('wb-folder-filter');
+      if (folderFilter) folderFilter.value = 'all';
+      View.renderDashboard();
+      View.updateWordbankUI();
+      View.resetWordbankRenderer();
+      this.updateImportFolderOptions();
+  },
+
+  async runSafeDataOperation(kind, action, successMessage, reload = false) {
+      let restorePoint = null;
+
+      try {
+          restorePoint = await this.storePreImportRestorePoint(kind);
+          await action();
+          await this.updateRestorePointUI();
+
           Hardware.playSound('success');
-          this.closeDetailIfOpen();
-          Model.saveDB(); 
-          View.resetWordbankRenderer(); 
-          showToast(`成功导入 ${added} 词`); 
-          View.getEl('custom-input').value=''; 
-      } 
+          Hardware.vibrate(120);
+          showToast(successMessage);
+
+          if (reload) {
+              window.setTimeout(() => location.reload(), 900);
+          } else {
+              this.refreshAfterDataOperation();
+          }
+      } catch (error) {
+          console.error('[Reset] 数据操作失败', error);
+
+          if (restorePoint) {
+              try {
+                  await this.applyBackupPayload(restorePoint);
+                  showToast('操作失败，已恢复原数据');
+              } catch (restoreError) {
+                  console.error('[Reset] 自动恢复失败', restoreError);
+                  showToast('操作失败，自动恢复也失败');
+              }
+          } else {
+              showToast('操作失败，未修改数据');
+          }
+
+          Hardware.playSound('error');
+          Hardware.vibrate(50);
+      }
+  },
+
+  clearLearningProgress() {
+      return this.runSafeDataOperation('pre-reset-progress', async () => {
+          Model.records = [];
+          Model.mtGroupClears = {};
+          Model.mtWordClears = {};
+          await Promise.all([Model.saveRecords(), Model.saveClears()]);
+      }, '学习进度已清空');
+  },
+
+  restoreBuiltInLibrary() {
+      return this.runSafeDataOperation('pre-remove-imported', async () => {
+          const defaults = this.getDefaultLibraryState();
+          const names = new Set(defaults.db.map(word => word.word));
+
+          Model.db = defaults.db;
+          Model.folders = defaults.folders;
+          Model.folderLangs = defaults.folderLangs;
+          Model.stars = Model.stars.filter(name => names.has(name));
+          Model.mtWordClears = Object.fromEntries(
+              Object.entries(Model.mtWordClears).filter(([name]) => names.has(name))
+          );
+
+          await Model.saveAllUserData();
+      }, '已恢复内置词库');
+  },
+
+  fullResetApp() {
+      return this.runSafeDataOperation('pre-full-reset', async () => {
+          const defaults = this.getDefaultLibraryState();
+
+          Model.db = defaults.db;
+          Model.folders = defaults.folders;
+          Model.folderLangs = defaults.folderLangs;
+          Model.stars = [];
+          Model.records = [];
+          Model.mtGroupClears = {};
+          Model.mtWordClears = {};
+          Model.aiConversations = [];
+
+          new Set([...BACKUP_PREFERENCE_KEYS, 'wordOrderMode']).forEach(key => {
+              localStorage.removeItem(key);
+          });
+
+          await Model.saveAllUserData();
+      }, '应用已恢复初始状态', true);
   },
   
   openDetailModal(idx) { 
@@ -6718,7 +7589,14 @@ if (visibilityIcon) {
     }
 
     
-    chatArea.innerHTML = '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:85%;"></div><div class="ai-skel-bar" style="width:60%;"></div><div class="ai-skel-bar" style="width:92%;"></div><div class="ai-skel-bar" style="width:45%;"></div><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:35%;"></div></div></div>';
+    chatArea.innerHTML =
+        '<div class="ai-chat-bubble ai-chat-bubble-ai is-thinking">' +
+            '<div class="ai-chat-bubble-text">' +
+                '<div class="ai-thinking-indicator" role="status" aria-label="AI 正在思考">' +
+                    '<span></span><span></span><span></span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
     this._scrollChatToBottom();
     this._startChatStream(apiKey, chatArea, copyBtn, inputEl);
 },
@@ -6747,10 +7625,274 @@ _saveCurrentChat() {
 
 _persistConversations() {
     if (!Model.idbAvailable) {
-        localStorage.setItem('aiConversations', JSON.stringify(Model.aiConversations));
+        localStorage.setItem(
+            'aiConversations',
+            JSON.stringify(
+                Model.aiConversations
+            )
+        );
+
         return Promise.resolve();
     }
-    return idbKeyval.set('aiConversations', Model.aiConversations);
+
+    return idbKeyval.set(
+        'aiConversations',
+        Model.aiConversations
+    );
+},
+
+openAIPresetPicker() {
+    const lang =
+        Model.state.currentLangMode === 'en'
+            ? 'en'
+            : 'ja';
+
+    const langLabel =
+        View.getEl(
+            'ai-preset-language-label'
+        );
+
+    if (langLabel) {
+        langLabel.textContent =
+            lang === 'en'
+                ? '当前将使用英语导师'
+                : '当前将使用日语导师';
+    }
+
+    window.toggleModal(
+        'ai-preset-overlay',
+        true
+    );
+},
+
+startAITabPreset(presetId) {
+    const preset =
+        AI_CHAT_PRESETS[presetId] ||
+        AI_CHAT_PRESETS.free;
+
+    const lang =
+        Model.state.currentLangMode === 'en'
+            ? 'en'
+            : 'ja';
+
+    this.aiTabChat.activeIdx = -1;
+    this.aiTabChat.messages = [];
+    this.aiTabChat.presetId = presetId;
+    this.aiTabChat.lang = lang;
+
+    this.aiTabChat.systemPrompt =
+        buildAIChatSystemPrompt(
+            presetId,
+            lang
+        );
+
+    this.aiTabChat.cacheKey =
+        `free_${presetId}_${Date.now()}`;
+
+    this.aiTabChat.word =
+        preset.title;
+
+    this.aiTabChat.sentence = '';
+
+    const listView =
+        View.getEl('ai-list-view');
+
+    const chatView =
+        View.getEl('ai-chat-view');
+
+    const messagesEl =
+        View.getEl(
+            'ai-tab-chat-messages'
+        );
+
+    const titleEl =
+        View.getEl(
+            'ai-chat-view-title'
+        );
+
+    const inputEl =
+        View.getEl(
+            'ai-tab-chat-input'
+        );
+
+    if (titleEl) {
+        titleEl.textContent =
+            this.getAITabChatTitle();
+    }
+
+    if (messagesEl) {
+        messagesEl.innerHTML = '';
+    }
+
+    if (inputEl) {
+        inputEl.value = '';
+
+        inputEl.placeholder =
+            lang === 'en'
+                ? '输入英语学习问题…'
+                : '输入日语学习问题…';
+    }
+
+    if (listView) {
+        listView.classList.add(
+            'hidden'
+        );
+    }
+
+    if (chatView) {
+        chatView.classList.remove(
+            'hidden'
+        );
+    }
+
+    this.renderAITabWelcome();
+
+    window.toggleModal(
+        'ai-preset-overlay',
+        false
+    );
+},
+
+getAITabChatTitle() {
+    const preset =
+        AI_CHAT_PRESETS[
+            this.aiTabChat.presetId
+        ];
+
+    if (!preset) {
+        return (
+            this.aiTabChat.word ||
+            '对话'
+        );
+    }
+
+    const langName =
+        this.aiTabChat.lang === 'en'
+            ? '英语'
+            : '日语';
+
+    return (
+        `${preset.title} · ${langName}`
+    );
+},
+
+renderAITabWelcome() {
+    const welcomeEl =
+        View.getEl(
+            'ai-chat-welcome'
+        );
+
+    const modeLabel =
+        View.getEl(
+            'ai-chat-mode-label'
+        );
+
+    const welcomeText =
+        View.getEl(
+            'ai-chat-welcome-text'
+        );
+
+    const quickActions =
+        View.getEl(
+            'ai-chat-quick-actions'
+        );
+
+    const inputEl =
+        View.getEl(
+            'ai-tab-chat-input'
+        );
+
+    if (
+        !welcomeEl ||
+        !quickActions
+    ) {
+        return;
+    }
+
+    const preset =
+        AI_CHAT_PRESETS[
+            this.aiTabChat.presetId
+        ];
+
+    if (
+        !preset ||
+        this.aiTabChat.messages.length > 0
+    ) {
+        welcomeEl.classList.add(
+            'hidden'
+        );
+
+        quickActions.innerHTML = '';
+        return;
+    }
+
+    const lang =
+        this.aiTabChat.lang === 'en'
+            ? 'en'
+            : 'ja';
+
+    const langName =
+        lang === 'en'
+            ? '英语'
+            : '日语';
+
+    if (modeLabel) {
+        modeLabel.textContent =
+            `${preset.title} · ${langName}`;
+    }
+
+    if (welcomeText) {
+        welcomeText.textContent =
+            preset.welcome[lang];
+    }
+
+    quickActions.innerHTML = '';
+
+    preset.shortcuts[lang]
+        .forEach(text => {
+            const button =
+                document.createElement(
+                    'button'
+                );
+
+            button.type = 'button';
+
+            button.className =
+                'ai-chat-quick-chip';
+
+            button.textContent = text;
+
+            button.addEventListener(
+                'click',
+                () => {
+                    Hardware.vibrate(12);
+
+                    if (!inputEl) {
+                        return;
+                    }
+
+                    inputEl.value = text;
+                    inputEl.focus();
+
+                    inputEl.dispatchEvent(
+                        new Event(
+                            'input',
+                            {
+                                bubbles: true
+                            }
+                        )
+                    );
+                }
+            );
+
+            quickActions.appendChild(
+                button
+            );
+        });
+
+    welcomeEl.classList.remove(
+        'hidden'
+    );
 },
 
 renderAIHistory() {
@@ -6830,15 +7972,75 @@ openAIChatFromTab(idx) {
     if (!messagesEl || !chatView || !listView) return;
     
     this.aiTabChat.activeIdx = idx;
-    this.aiTabChat.messages = conv.messages ? [...conv.messages] : [];
-    this.aiTabChat.systemPrompt = conv.systemPrompt || '';
-    this.aiTabChat.cacheKey = conv.cacheKey || '';
-    this.aiTabChat.sentence = conv.sentence || '';
-    this.aiTabChat.word = conv.word || '';
-    this.aiTabChat.lang = conv.lang || 'ja';
-    
-    if (titleEl) titleEl.innerText = conv.word || '自由对话';
-    if (inputEl) inputEl.value = '';
+
+    this.aiTabChat.messages =
+        conv.messages
+            ? [...conv.messages]
+            : [];
+
+    this.aiTabChat.cacheKey =
+        conv.cacheKey || '';
+
+    this.aiTabChat.sentence =
+        conv.sentence || '';
+
+    this.aiTabChat.lang =
+        conv.lang === 'en'
+            ? 'en'
+            : 'ja';
+
+    const hasPreset =
+        !!AI_CHAT_PRESETS[
+            conv.presetId
+        ];
+
+    const isLegacyFreeChat =
+        !conv.presetId &&
+        String(
+            conv.cacheKey || ''
+        ).startsWith('free_');
+
+    this.aiTabChat.presetId =
+        hasPreset
+            ? conv.presetId
+            : (
+                isLegacyFreeChat
+                    ? 'free'
+                    : ''
+            );
+
+    const preset =
+        AI_CHAT_PRESETS[
+            this.aiTabChat.presetId
+        ];
+
+    this.aiTabChat.word =
+        conv.word ||
+        (
+            preset
+                ? preset.title
+                : ''
+        );
+
+    this.aiTabChat.systemPrompt =
+        conv.systemPrompt ||
+        (
+            preset
+                ? buildAIChatSystemPrompt(
+                    this.aiTabChat.presetId,
+                    this.aiTabChat.lang
+                )
+                : ''
+        );
+
+    if (titleEl) {
+        titleEl.textContent =
+            this.getAITabChatTitle();
+    }
+
+    if (inputEl) {
+        inputEl.value = '';
+    }
     
     let html = '';
     let msgs = this.aiTabChat.messages;
@@ -6853,6 +8055,7 @@ if (msgs && msgs.length > 0) {
     });
 }
     messagesEl.innerHTML = html;
+    this.renderAITabWelcome();
     
     listView.classList.add('hidden');
     chatView.classList.remove('hidden');
@@ -6871,6 +8074,13 @@ closeAITabChat() {
     this.aiTabChat.cacheKey = '';
     this.aiTabChat.sentence = '';
     this.aiTabChat.word = '';
+    this.aiTabChat.presetId = '';
+
+    this.aiTabChat.lang =
+        Model.state.currentLangMode === 'en'
+            ? 'en'
+            : 'ja';
+
     this.renderAIHistory();
 },
 
@@ -6879,8 +8089,45 @@ _saveTabChat() {
     let idx = this.aiTabChat.activeIdx;
     if (idx >= Model.aiConversations.length) return;
     let conv = Model.aiConversations[idx];
-    conv.messages = [...this.aiTabChat.messages];
-    conv.date = new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+    conv.messages =
+        [...this.aiTabChat.messages];
+
+    conv.systemPrompt =
+        this.aiTabChat.systemPrompt;
+
+    conv.presetId =
+        this.aiTabChat.presetId || '';
+
+    conv.word =
+        this.aiTabChat.word ||
+        conv.word ||
+        '';
+
+    conv.lang =
+        this.aiTabChat.lang ||
+        conv.lang ||
+        'ja';
+
+    conv.sentence =
+        this.aiTabChat.sentence || '';
+
+    conv.cacheKey =
+        this.aiTabChat.cacheKey ||
+        conv.cacheKey ||
+        '';
+
+    conv.date =
+        new Date()
+            .toLocaleDateString('zh-CN') +
+        ' ' +
+        new Date()
+            .toLocaleTimeString(
+                'zh-CN',
+                {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }
+            );
     Model.aiConversations[idx] = conv;
     this._persistConversations();
 },
@@ -6892,33 +8139,162 @@ sendAITabMessage() {
     if (!inputEl || !messagesEl) return;
     let text = inputEl.value.trim();
     if (!text) return;
-    let apiKey = localStorage.getItem('deepseekApiKey');
+        let apiKey = localStorage.getItem('deepseekApiKey');
+
     if (!apiKey) {
-        showToast('请先配置 DeepSeek API Key');
+        const self = this;
+
+        Hardware.vibrate(20);
+
+        const promptTitle =
+            document.getElementById('prompt-title');
+
+        const promptHelper =
+            document.getElementById('prompt-helper');
+
+        const promptIcon =
+            document.getElementById('prompt-icon');
+
+        const visibilityBtn =
+            document.getElementById('prompt-visibility');
+
+        const promptInput =
+            document.getElementById('prompt-input');
+
+        promptTitle.textContent =
+            '配置 DeepSeek API Key';
+
+        promptHelper.textContent =
+            '密钥会保存在当前设备，并仅用于发送 AI 请求。';
+
+        promptHelper.hidden = false;
+
+        promptIcon.textContent = 'vpn_key';
+
+        promptInput.type = 'password';
+        promptInput.autocomplete = 'new-password';
+        promptInput.placeholder =
+            '粘贴 API Key（sk-…）';
+
+        promptInput.value = '';
+
+        visibilityBtn.hidden = false;
+        visibilityBtn.title = '显示密钥';
+
+        visibilityBtn.setAttribute(
+            'aria-label',
+            '显示密钥'
+        );
+
+        const visibilityIcon =
+            visibilityBtn.querySelector(
+                '.material-symbols-rounded'
+            );
+
+        if (visibilityIcon) {
+            visibilityIcon.textContent = 'visibility';
+        }
+
+        window.toggleModal(
+            'prompt-overlay',
+            true
+        );
+
+        setTimeout(() => {
+            promptInput.focus();
+        }, 100);
+
+        document.getElementById(
+            'prompt-confirm'
+        ).onclick = () => {
+            Hardware.vibrate(15);
+
+            const value =
+                promptInput.value.trim();
+
+            if (!value) {
+                return;
+            }
+
+            localStorage.setItem(
+                'deepseekApiKey',
+                value
+            );
+
+            const settingInput =
+                View.getEl('setting-ai-key');
+
+            if (settingInput) {
+                settingInput.value = value;
+            }
+
+            window.toggleModal(
+                'prompt-overlay',
+                false
+            );
+
+            showToast('API Key 已保存');
+
+            /*
+             * 输入框里的消息仍然保留，
+             * 保存密钥后自动重新执行发送。
+             */
+            self.sendAITabMessage();
+        };
+
+        document.getElementById(
+            'prompt-cancel'
+        ).onclick = () => {
+            Hardware.vibrate(10);
+
+            window.toggleModal(
+                'prompt-overlay',
+                false
+            );
+        };
+
         return;
     }
+
     inputEl.value = '';
     if (sendBtn) sendBtn.disabled = true;
     
-    this.aiTabChat.messages.push({ role: 'user', content: text });
+    this.aiTabChat.messages.push({
+        role: 'user',
+        content: text
+    });
+
+    this.renderAITabWelcome();
     
-    let userBubble = document.createElement('div');
+    let userBubble =
+        document.createElement('div');
     userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
     userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
     messagesEl.appendChild(userBubble);
     
     let aiBubble = document.createElement('div');
-    aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
-    aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:40%;"></div><div class="ai-skel-bar" style="width:55%;"></div></div></div>';
+    aiBubble.className =
+        'ai-chat-bubble ai-chat-bubble-ai is-thinking';
+
+    aiBubble.innerHTML =
+        '<div class="ai-chat-bubble-text">' +
+            '<div class="ai-thinking-indicator" role="status" aria-label="AI 正在思考">' +
+                '<span></span><span></span><span></span>' +
+            '</div>' +
+        '</div>';
     messagesEl.appendChild(aiBubble);
     this._scrollTabChatToBottom();
     
     let messagesToSend = [
     {
         role: 'system',
-        content: withJapaneseRubyInstruction(this.aiTabChat.systemPrompt)
+        content: this.aiTabChat.lang === 'ja'
+    ? withJapaneseRubyInstruction(
+        this.aiTabChat.systemPrompt
+    )
+    : this.aiTabChat.systemPrompt
     },
-    ...this.aiTabChat.messages.slice(0, -1)
+            ...this.aiTabChat.messages
 ];
     this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
 },
@@ -6927,9 +8303,13 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
     let messagesToSend = [
     {
         role: 'system',
-        content: withJapaneseRubyInstruction(this.aiTabChat.systemPrompt)
+        content: this.aiTabChat.lang === 'ja'
+    ? withJapaneseRubyInstruction(
+        this.aiTabChat.systemPrompt
+    )
+    : this.aiTabChat.systemPrompt
     },
-    ...this.aiTabChat.messages.slice(0, -1)
+            ...this.aiTabChat.messages
 ];
     try {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -6947,9 +8327,23 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
             throw new Error('网络请求失败');
         }
         
+        aiBubble.classList.remove(
+            'is-thinking',
+            'is-complete'
+        );
+
+        aiBubble.classList.add(
+            'is-streaming'
+        );
+
         let fullText = '';
-        let textDiv = document.createElement('div');
-        textDiv.className = 'ai-chat-bubble-text ai-response-box';
+
+        let textDiv =
+            document.createElement('div');
+
+        textDiv.className =
+            'ai-chat-bubble-text ai-response-box';
+
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
@@ -6957,32 +8351,97 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
         const decoder = new TextDecoder("utf-8");
         
         while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            let chunkStr = decoder.decode(value, {stream: true});
-            let lines = chunkStr.split('\n');
+            const { done, value } =
+                await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            let chunkStr =
+                decoder.decode(
+                    value,
+                    { stream: true }
+                );
+
+            let lines =
+                chunkStr.split('\n');
+
             for (let line of lines) {
                 line = line.trim();
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+
+                if (
+                    line.startsWith('data: ') &&
+                    line !== 'data: [DONE]'
+                ) {
                     try {
-                        let data = JSON.parse(line.slice(6));
-                        let chunk = data.choices[0].delta.content;
+                        let data =
+                            JSON.parse(
+                                line.slice(6)
+                            );
+
+                        let chunk =
+                            data.choices[0]
+                                .delta.content;
+
                         if (chunk) {
                             fullText += chunk;
-                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.aiTabChat.word || '');
-this._scrollTabChatToBottom();
+
+                            textDiv.innerHTML =
+                                renderAIMessageHTML(
+                                    fullText,
+                                    this.aiTabChat.word || ''
+                                );
+
+                            this._scrollTabChatToBottom();
                         }
                     } catch (e) {}
                 }
             }
         }
+
+        /*
+         * 主 AI 对话结束后，
+         * 使用完整文本再渲染一次。
+         */
+        textDiv.innerHTML =
+            renderAIMessageHTML(
+                fullText,
+                this.aiTabChat.word || ''
+            );
+
+        this._scrollTabChatToBottom();
         
-        this.aiTabChat.messages.push({ role: 'assistant', content: fullText });
+        aiBubble.classList.remove(
+            'is-streaming'
+        );
+
+        aiBubble.classList.add(
+            'is-complete'
+        );
+
+        this.aiTabChat.messages.push({
+            role: 'assistant',
+            content: fullText
+        });
+
         this._saveTabChat();
-        if (sendBtn) sendBtn.disabled = false;
+
+        if (sendBtn) {
+            sendBtn.disabled = false;
+        }
     } catch (err) {
-        aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
-        if (sendBtn) sendBtn.disabled = false;
+        aiBubble.classList.remove(
+            'is-thinking',
+            'is-streaming'
+        );
+
+        aiBubble.innerHTML =
+            '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">连接失败</div>';
+
+        if (sendBtn) {
+            sendBtn.disabled = false;
+        }
     }
 },
 
@@ -7020,8 +8479,15 @@ sendAIMessage() {
     chatArea.appendChild(userBubble);
     
     let aiBubble = document.createElement('div');
-    aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
-    aiBubble.innerHTML = '<div class="ai-chat-bubble-text"><div class="ai-skeleton"><div class="ai-skel-bar" style="width:70%;"></div><div class="ai-skel-bar" style="width:40%;"></div><div class="ai-skel-bar" style="width:55%;"></div></div></div>';
+    aiBubble.className =
+        'ai-chat-bubble ai-chat-bubble-ai is-thinking';
+
+    aiBubble.innerHTML =
+        '<div class="ai-chat-bubble-text">' +
+            '<div class="ai-thinking-indicator" role="status" aria-label="AI 正在思考">' +
+                '<span></span><span></span><span></span>' +
+            '</div>' +
+        '</div>';
     chatArea.appendChild(aiBubble);
     this._scrollChatToBottom();
     
@@ -7039,8 +8505,19 @@ _startChatStream(apiKey, chatArea, copyBtn, inputEl) {
     let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }];
     let aiBubble = chatArea.querySelector('.ai-chat-bubble-ai');
     if (!aiBubble) {
-        aiBubble = document.createElement('div');
-        aiBubble.className = 'ai-chat-bubble ai-chat-bubble-ai';
+        aiBubble =
+            document.createElement('div');
+
+        aiBubble.className =
+            'ai-chat-bubble ai-chat-bubble-ai is-thinking';
+
+        aiBubble.innerHTML =
+            '<div class="ai-chat-bubble-text">' +
+                '<div class="ai-thinking-indicator" role="status" aria-label="AI 正在思考">' +
+                    '<span></span><span></span><span></span>' +
+                '</div>' +
+            '</div>';
+
         chatArea.appendChild(aiBubble);
     }
     this._streamChatResponse(apiKey, aiBubble, null, copyBtn, inputEl);
@@ -7121,9 +8598,23 @@ if (visibilityIcon) {
             throw new Error('网络请求失败: 错误码 ' + response.status);
         }
         
+        aiBubble.classList.remove(
+            'is-thinking',
+            'is-complete'
+        );
+
+        aiBubble.classList.add(
+            'is-streaming'
+        );
+
         let fullText = '';
-        let textDiv = document.createElement('div');
-        textDiv.className = 'ai-chat-bubble-text ai-response-box';
+
+        let textDiv =
+            document.createElement('div');
+
+        textDiv.className =
+            'ai-chat-bubble-text ai-response-box';
+
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
@@ -7150,8 +8641,31 @@ this._scrollChatToBottom();
                 }
             }
         }
+
+        /*
+         * 例句继续追问结束后，
+         * 使用完整文本再渲染一次。
+         */
+        textDiv.innerHTML =
+            renderAIMessageHTML(
+                fullText,
+                this.currentChat.word || ''
+            );
+
+        this._scrollChatToBottom();
         
-        this.currentChat.messages.push({ role: 'assistant', content: fullText });
+        aiBubble.classList.remove(
+            'is-streaming'
+        );
+
+        aiBubble.classList.add(
+            'is-complete'
+        );
+
+        this.currentChat.messages.push({
+            role: 'assistant',
+            content: fullText
+        });
         
                 if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
             let chatArea = View.getEl('ai-chat-messages');
@@ -7163,8 +8677,21 @@ this._scrollChatToBottom();
         if (sendBtn) sendBtn.disabled = false;
 
     } catch (err) {
-        aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">wifi_off</span>连接失败：' + escapeHTML(err.message) + '</div>';
-        if (sendBtn) sendBtn.disabled = false;
+        aiBubble.classList.remove(
+            'is-thinking',
+            'is-streaming'
+        );
+
+        aiBubble.innerHTML =
+            '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">' +
+                '<span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">wifi_off</span>' +
+                '连接失败：' +
+                escapeHTML(err.message) +
+            '</div>';
+
+        if (sendBtn) {
+            sendBtn.disabled = false;
+        }
     }
 },
 
@@ -7230,8 +8757,26 @@ container.scrollTop = container.scrollHeight;
                 }
             }
         }
+
+        /*
+         * 流式输出结束后，
+         * 使用完整文本再渲染一次。
+         *
+         * 防止最后一个注音刚好跨越两个数据片段，
+         * 导致页面停留在半完成状态。
+         */
+        box.innerHTML =
+            renderAIMessageHTML(
+                fullText,
+                word || ''
+            );
+
+        container.scrollTop =
+            container.scrollHeight;
+
         if (cacheKey && fullText) {
-            Controller.aiCache[cacheKey] = container.innerHTML;
+            Controller.aiCache[cacheKey] =
+                container.innerHTML;
         }
         if (copyBtn) {
             copyBtn.style.display = 'flex';

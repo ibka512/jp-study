@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pendulum-v1783792247'; // V10：统一抽屉样式、范围网格与例句操作栏
+const CACHE_NAME = 'pendulum-v1783845505'; // JLPT 测试包导入与一键移除
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './data.js',
   './english-data.js',
   './app.js',
+  './wordbank-builder.html',
   // 核心 CDN 依赖纳入预缓存
   'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js',
   'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',

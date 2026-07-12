@@ -4,6 +4,8 @@
 
 const DefaultWords = [
 {
+  _id: "builtin-ja-core-00001",
+  builtIn: true,
   word: "気",
   kana: "き",
   type: "名词",
@@ -12,6 +14,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00002",
+  builtIn: true,
   word: "季節",
   kana: "きせつ",
   type: "名词",
@@ -20,6 +24,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00003",
+  builtIn: true,
   word: "気持ち",
   kana: "きもち",
   type: "名词",
@@ -28,6 +34,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00004",
+  builtIn: true,
   word: "空気",
   kana: "くうき",
   type: "名词",
@@ -36,6 +44,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00005",
+  builtIn: true,
   word: "元気",
   kana: "げんき",
   type: "名・形动",
@@ -44,6 +54,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00006",
+  builtIn: true,
   word: "仕事",
   kana: "しごと",
   type: "名・サ变动词する自",
@@ -52,6 +64,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00007",
+  builtIn: true,
   word: "正月",
   kana: "しょうがつ",
   type: "名词",
@@ -60,6 +74,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00008",
+  builtIn: true,
   word: "食事",
   kana: "しょくじ",
   type: "名・サ变动词する自",
@@ -68,6 +84,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00009",
+  builtIn: true,
   word: "新聞",
   kana: "しんぶん",
   type: "名词",
@@ -76,6 +94,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00010",
+  builtIn: true,
   word: "洗濯",
   kana: "せんたく",
   type: "名・サ变动词する他",
@@ -84,6 +104,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00011",
+  builtIn: true,
   word: "天気",
   kana: "てんき",
   type: "名词",
@@ -92,6 +114,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00012",
+  builtIn: true,
   word: "時計",
   kana: "とけい",
   type: "名词",
@@ -100,6 +124,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00013",
+  builtIn: true,
   word: "入院",
   kana: "にゅういん",
   type: "名・サ变动词する自",
@@ -108,6 +134,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00014",
+  builtIn: true,
   word: "病気",
   kana: "びょうき",
   type: "名词",
@@ -116,6 +144,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00015",
+  builtIn: true,
   word: "無事",
   kana: "ぶじ",
   type: "名・形动",
@@ -124,6 +154,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00016",
+  builtIn: true,
   word: "変化",
   kana: "へんか",
   type: "名・サ变动词する自他",
@@ -132,6 +164,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00017",
+  builtIn: true,
   word: "返事",
   kana: "へんじ",
   type: "名・サ变动词する自",
@@ -140,6 +174,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00018",
+  builtIn: true,
   word: "勇気",
   kana: "ゆうき",
   type: "名词",
@@ -148,6 +184,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00019",
+  builtIn: true,
   word: "油断",
   kana: "ゆだん",
   type: "名・サ变动词する自",
@@ -156,6 +194,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00020",
+  builtIn: true,
   word: "料理",
   kana: "りょうり",
   type: "名・サ变动词する他",
@@ -164,6 +204,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00021",
+  builtIn: true,
   word: "安全",
   kana: "あんぜん",
   type: "名・形动",
@@ -172,6 +214,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00022",
+  builtIn: true,
   word: "位置",
   kana: "いち",
   type: "名・サ变动词",
@@ -180,6 +224,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00023",
+  builtIn: true,
   word: "家事",
   kana: "かじ",
   type: "名词",
@@ -188,6 +234,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00024",
+  builtIn: true,
   word: "計画",
   kana: "けいかく",
   type: "名・サ变动词する他",
@@ -196,6 +244,8 @@ const DefaultWords = [
   lang: "ja"
 },
 {
+  _id: "builtin-ja-core-00025",
+  builtIn: true,
   word: "警察",
   kana: "けいさつ",
   type: "名词",

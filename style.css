@@ -1028,16 +1028,47 @@ button#btn-test-vibrate:active {
     全景词库网格体系
    ========================================== */
 
-#wb-grid-container { width: 100%; position: relative; }
-#wb-grid { display: grid; gap: 12px; width: 100%; }
-#wb-grid[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-#wb-grid[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-#wb-grid[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#wb-grid-container {
+    width: 100%;
+    position: relative;
+    overflow-anchor: none;
+}
+
+#wb-grid {
+    display: grid;
+    width: 100%;
+    gap: 12px;
+    align-items: stretch;
+    overflow-anchor: none;
+}
+
+#wb-grid[data-cols="2"] {
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 212px;
+}
+
+#wb-grid[data-cols="3"] {
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    grid-auto-rows: 196px;
+}
+
+#wb-grid[data-cols="4"] {
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 172px;
+    gap: 8px;
+}
 
 /* 全景词库卡片：哑光瓷片质感 (Matte Ceramic Tiles) */
-.wb-card { 
-    min-width: 0; border-radius: var(--radius-lg); 
-    padding: 40px 8px 36px; 
+.wb-card {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    border-radius: var(--radius-lg);
+    padding: 40px 8px 36px;
     position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; 
     /* 统一注入全局高密度硅胶物理曲线 */
     transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); 
@@ -1049,9 +1080,10 @@ button#btn-test-vibrate:active {
     mix-blend-mode: normal; 
     
     /* 硬件加速锁死，防止 GPU 渲染抖动 */
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    perspective: 1000px;
+    transform: none;
+    backface-visibility: visible;
+    perspective: none;
+    contain: layout paint;
 }
 
 /* 物理下沉态：极速深陷与光晕消失 */
@@ -1090,6 +1122,24 @@ button#btn-test-vibrate:active {
 
 .wb-c-word { font-family: var(--font-jp-serif); font-size: 1.85rem; font-weight: 900; margin-bottom: 8px; color: rgba(45, 40, 35, 0.95); line-height: 1.2; word-break: break-all; text-align: center; width: 100%;}
 .wb-c-kana { font-family: var(--font-jp-sans); font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; color: rgba(45, 40, 35, 0.9); text-align: center; word-break: break-all; width: 100%; font-weight: 600; line-height: 1.15;}
+
+.wb-c-kana {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.wb-c-pitch {
+    flex: 0 0 auto;
+    color: var(--primary);
+    font-family: var(--font-ui);
+    font-size: 0.72em;
+    font-weight: 850;
+    letter-spacing: 0;
+    opacity: 0.88;
+}
 .wb-c-mean { 
     font-size: 0.85rem; font-weight: 700; width: 100%; text-align: center; 
     color: rgba(45, 40, 35, 0.85); 
@@ -1714,7 +1764,50 @@ button#btn-test-vibrate:active {
 
 .dt-word { font-family: var(--font-jp-serif); font-size: 3.2rem; font-weight: 900; margin-bottom: 12px; color: var(--on-surface);}
 .dt-kana { font-family: var(--font-jp-sans); font-size: 1.25rem; font-weight: 600; opacity: 0.8; color: var(--on-surface); margin: 0;}
-.dt-mean { font-size: 1.5rem; font-weight: 700; color: var(--on-surface); margin: 0;}
+
+.dt-kana {
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.dt-kana-main {
+    min-width: 0;
+}
+
+.dt-pitch {
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--primary);
+    background: transparent;
+    font-family: var(--font-ui);
+    font-size: 1em;
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: 0;
+    opacity: 0.82;
+}
+
+.dt-mean {
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    color: var(--on-surface);
+    font-size: 1.5rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.dt-mean.is-long {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    text-wrap: balance;
+}
 
 .dt-example-box { background: rgba(0, 0, 0, 0.03); padding: 20px; border-radius: var(--radius-sm); text-align: left; transition: filter 0.4s var(--spring), opacity 0.4s ease;}
 [data-theme="dark"] .dt-example-box { background: rgba(255, 255, 255, 0.04); }
@@ -8444,7 +8537,356 @@ button.import-mode-btn.active > .material-symbols-rounded {
 }
 
 .wb-meta-row[hidden] {
+    display: flex !important;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+
+/* ==========================================
+   全景词库：大型词库自适应卡片排版
+   ========================================== */
+
+#wb-grid .wb-card {
+    display: grid !important;
+    align-content: center;
+    justify-items: stretch;
+    overflow: hidden;
+}
+
+#wb-grid[data-cols="2"] .wb-card {
+    grid-template-rows:
+        58px
+        25px
+        22px
+        40px;
+
+    gap: 4px;
+    padding: 26px 10px !important;
+}
+
+#wb-grid[data-cols="3"] .wb-card {
+    grid-template-rows:
+        52px
+        24px
+        20px
+        34px;
+
+    gap: 4px;
+    padding: 28px 7px 26px !important;
+}
+
+#wb-grid[data-cols="4"] .wb-card {
+    grid-template-rows:
+        44px
+        22px
+        18px
+        24px;
+
+    gap: 3px !important;
+    padding: 24px 4px !important;
+}
+
+
+/* 单词、标签、读音、释义各占固定区域 */
+
+#wb-grid .wb-c-word,
+#wb-grid .wb-meta-row,
+#wb-grid .wb-c-kana,
+#wb-grid .wb-c-mean {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    margin: 0 !important;
+}
+
+
+/* 单词区域 */
+
+#wb-grid .wb-c-word {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+
+    text-align: center;
+    white-space: normal;
+
+    word-break: normal !important;
+    overflow-wrap: anywhere;
+
+    line-height: 1.12 !important;
+}
+
+#wb-grid .wb-c-word .wb-blur-trigger {
+    display: -webkit-box;
+    width: 100%;
+    max-width: 100%;
+
+    overflow: hidden;
+
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    text-align: center;
+}
+
+
+/* 两列单词字号 */
+
+#wb-grid[data-cols="2"] .wb-c-word {
+    font-size: 1.62rem !important;
+}
+
+#wb-grid[data-cols="2"]
+.wb-card.is-word-long
+.wb-c-word {
+    font-size: 1.35rem !important;
+}
+
+#wb-grid[data-cols="2"]
+.wb-card.is-word-very-long
+.wb-c-word {
+    font-size: 1.12rem !important;
+}
+
+
+/* 三列单词字号 */
+
+#wb-grid[data-cols="3"] .wb-c-word {
+    font-size: 1.34rem !important;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-word-long
+.wb-c-word {
+    font-size: 1.14rem !important;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-word-very-long
+.wb-c-word {
+    font-size: 0.98rem !important;
+}
+
+
+/* 四列单词字号 */
+
+#wb-grid[data-cols="4"] .wb-c-word {
+    font-size: 1.02rem !important;
+}
+
+#wb-grid[data-cols="4"]
+.wb-card.is-word-long
+.wb-c-word {
+    font-size: 0.9rem !important;
+}
+
+#wb-grid[data-cols="4"]
+.wb-card.is-word-very-long
+.wb-c-word {
+    font-size: 0.78rem !important;
+}
+
+
+/* 标签区域 */
+
+#wb-grid .wb-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+
+    min-height: 0;
+    margin: 0 !important;
+
+    gap: 4px;
+    overflow: hidden;
+}
+
+#wb-grid .wb-meta-row .word-meta-chip {
+    flex: 0 0 auto;
+
+    min-height: 20px;
+    max-width: 100%;
+
+    padding: 2px 6px;
+
+    overflow: hidden;
+
+    font-size: 0.6rem;
+    line-height: 1;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+
+/* 卡片不显示难度，详情卡仍然显示 */
+
+#wb-grid
+.wb-meta-row
+.word-meta-chip.is-difficulty {
     display: none !important;
+}
+
+
+/* 三列隐藏特殊标签 */
+
+#wb-grid[data-cols="3"]
+.wb-meta-row
+.word-meta-chip.is-special {
+    display: none !important;
+}
+
+
+/* 四列只保留级别 */
+
+#wb-grid[data-cols="4"]
+.wb-meta-row
+.word-meta-chip.is-special,
+
+#wb-grid[data-cols="4"]
+.wb-meta-row
+.word-meta-chip.is-frequency,
+
+#wb-grid[data-cols="4"]
+.wb-meta-row
+.word-meta-chip.is-difficulty {
+    display: none !important;
+}
+
+
+/* 读音和声调区域 */
+
+#wb-grid .wb-c-kana {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+
+    gap: 4px;
+
+    overflow: hidden;
+
+    white-space: nowrap;
+    word-break: normal !important;
+
+    line-height: 1 !important;
+}
+
+#wb-grid .wb-c-kana .wb-blur-trigger {
+    min-width: 0;
+    max-width: 100%;
+
+    overflow: hidden;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+#wb-grid .wb-c-pitch {
+    flex: 0 0 auto;
+
+    padding: 0;
+    border: 0;
+    background: transparent;
+
+    font-size: 0.78em;
+    line-height: 1;
+}
+
+#wb-grid[data-cols="2"] .wb-c-kana {
+    font-size: 0.84rem !important;
+}
+
+#wb-grid[data-cols="3"] .wb-c-kana {
+    font-size: 0.76rem !important;
+}
+
+#wb-grid[data-cols="4"] .wb-c-kana {
+    font-size: 0.65rem !important;
+}
+
+#wb-grid[data-cols="2"]
+.wb-card.is-reading-long
+.wb-c-kana {
+    font-size: 0.74rem !important;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-reading-long
+.wb-c-kana {
+    font-size: 0.66rem !important;
+}
+
+#wb-grid[data-cols="4"]
+.wb-card.is-reading-long
+.wb-c-kana {
+    font-size: 0.58rem !important;
+}
+
+#wb-grid[data-cols="4"] .wb-c-pitch {
+    display: none !important;
+}
+
+
+/* 释义区域 */
+
+#wb-grid .wb-c-mean {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+
+    overflow: hidden;
+
+    text-align: center;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+#wb-grid .wb-c-mean .wb-blur-trigger {
+    display: -webkit-box;
+    width: 100%;
+
+    overflow: hidden;
+
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+
+    line-height: 1.35;
+    text-align: center;
+}
+
+#wb-grid[data-cols="2"] .wb-c-mean {
+    font-size: 0.78rem !important;
+}
+
+#wb-grid[data-cols="3"] .wb-c-mean {
+    font-size: 0.72rem !important;
+}
+
+#wb-grid[data-cols="4"] .wb-c-mean {
+    font-size: 0.64rem !important;
+}
+
+#wb-grid[data-cols="4"]
+.wb-c-mean
+.wb-blur-trigger {
+    -webkit-line-clamp: 1;
+}
+
+
+/* 英语卡片使用更适合字母的字体 */
+
+#wb-grid
+.wb-card.is-english-word
+.wb-c-word {
+    font-family:
+        var(--font-ui) !important;
+
+    font-weight: 850;
+    letter-spacing: -0.02em;
 }
 
 .dt-meta-row {
@@ -8480,6 +8922,34 @@ button.import-mode-btn.active > .material-symbols-rounded {
     border-color: color-mix(in srgb, var(--primary) 20%, var(--outline));
 }
 
+.word-meta-chip.is-frequency {
+    font-variant-numeric: tabular-nums;
+}
+
+.word-meta-chip.frequency-high {
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary-container) 88%, var(--surface-container));
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--outline));
+}
+
+.word-meta-chip.frequency-medium {
+    color: var(--tertiary);
+    background: color-mix(in srgb, var(--accent-green-bg) 84%, var(--surface-container));
+    border-color: color-mix(in srgb, var(--tertiary) 24%, var(--outline));
+}
+
+.word-meta-chip.frequency-low {
+    color: color-mix(in srgb, var(--on-surface) 66%, var(--outline));
+    background: color-mix(in srgb, var(--surface-container-high, #f8f3eb) 76%, transparent);
+    border-color: color-mix(in srgb, var(--outline) 72%, transparent);
+}
+
+.word-meta-chip.is-special {
+    color: var(--on-surface);
+    background: color-mix(in srgb, var(--surface-container-high, #f8f3eb) 92%, var(--tertiary-container));
+    border-color: color-mix(in srgb, var(--tertiary) 16%, var(--outline));
+}
+
 .word-meta-chip.is-difficulty {
     color: #8a5f35;
     background: #f1e5d7;
@@ -8506,8 +8976,7 @@ button.import-mode-btn.active > .material-symbols-rounded {
 }
 
 .word-meta-chip.is-built-in {
-    color: var(--tertiary);
-    background: color-mix(in srgb, var(--accent-green-bg) 72%, var(--surface-container));
+    display: none !important;
 }
 
 .word-meta-chip.is-muted {
@@ -8517,6 +8986,17 @@ button.import-mode-btn.active > .material-symbols-rounded {
 [data-theme="dark"] .word-meta-chip.is-difficulty {
     color: #e1c4a3;
     background: #3c3025;
+}
+
+
+[data-theme="dark"] .word-meta-chip.frequency-low,
+[data-theme="dark"] .word-meta-chip.is-special {
+    background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+}
+
+[data-theme="dark"] .dt-pitch {
+    color: var(--primary);
+    background: transparent;
 }
 
 .import-tags-control {
@@ -9232,12 +9712,16 @@ button.import-mode-btn.active > .material-symbols-rounded {
 
 #group-list-container.group-range-sections {
     display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
     gap: 18px;
     max-height: min(70vh, 650px) !important;
     padding: 2px 2px 24px !important;
     overflow-x: hidden;
     overflow-y: auto;
-    scrollbar-gutter: stable;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: auto;
+    -webkit-overflow-scrolling: auto;
 }
 
 #group-list-container.group-range-sections.is-empty {
@@ -9300,7 +9784,7 @@ button.import-mode-btn.active > .material-symbols-rounded {
 
 .group-range-section-grid {
     display: grid;
-    grid-template-rows: repeat(2, minmax(68px, auto));
+    grid-template-rows: repeat(2, 68px);
     grid-auto-flow: column;
     grid-auto-columns: calc((100% - 10px) / 2);
     gap: 10px;
@@ -9310,10 +9794,14 @@ button.import-mode-btn.active > .material-symbols-rounded {
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scroll-padding-inline: 2px;
+    scroll-snap-type: none;
+    scroll-padding-inline: 0;
     scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: auto;
+    touch-action: pan-x;
+    contain: layout paint;
+    isolation: isolate;
+    will-change: scroll-position;
 }
 
 .group-range-section-grid::-webkit-scrollbar {
@@ -9322,7 +9810,9 @@ button.import-mode-btn.active > .material-symbols-rounded {
 
 .group-range-section-grid .group-range-option {
     width: 100%;
-    scroll-snap-align: start;
+    height: 100%;
+    min-height: 0;
+    scroll-snap-align: none;
 }
 
 /* 只有一到两个选项时保持整齐的单列布局，不留下半列空位。 */
@@ -9477,7 +9967,7 @@ button.import-mode-btn.active > .material-symbols-rounded {
 
 @media (max-width: 380px) {
     .group-range-section-grid {
-        grid-template-rows: repeat(2, minmax(62px, auto));
+        grid-template-rows: repeat(2, 62px);
         grid-auto-columns: calc((100% - 8px) / 2);
         gap: 8px;
     }
@@ -9514,5 +10004,267 @@ button.import-mode-btn.active > .material-symbols-rounded {
     #bs-options.is-display-mode-picker .bs-option-label {
         font-size: 0.8rem;
         line-height: 1.38;
+    }
+}
+
+
+/* ==========================================
+   JLPT 200 词测试包导入与移除
+   ========================================== */
+.jlpt-test-package-card {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.jlpt-test-package-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    min-width: 0;
+}
+
+.jlpt-test-package-title {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+}
+
+.jlpt-test-package-title > .material-symbols-rounded {
+    display: inline-flex;
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    background: var(--tertiary-container, rgba(103, 126, 86, 0.14));
+    color: var(--tertiary, #657b54);
+    font-size: 1.3rem;
+}
+
+.jlpt-test-package-title h3 {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
+.jlpt-test-package-title p {
+    margin: 5px 0 0;
+    color: var(--on-surface-variant, var(--on-surface));
+    font-size: 0.76rem;
+    line-height: 1.65;
+    opacity: 0.68;
+}
+
+.jlpt-test-package-status {
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 28px;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 10px;
+    border: 1px solid var(--outline-soft, var(--outline));
+    border-radius: 999px;
+    background: var(--surface-container-high, var(--surface));
+    color: var(--on-surface);
+    font-size: 0.68rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.jlpt-test-package-status.is-ready {
+    border-color: color-mix(in srgb, var(--tertiary, #657b54) 46%, transparent);
+    background: var(--tertiary-container, rgba(103, 126, 86, 0.14));
+    color: var(--tertiary, #657b54);
+}
+
+.jlpt-test-package-status.is-empty {
+    opacity: 0.58;
+}
+
+.jlpt-test-package-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.jlpt-test-package-summary > div {
+    display: flex;
+    min-width: 0;
+    min-height: 62px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 11px 13px;
+    border: 1px solid var(--outline-soft, var(--outline));
+    border-radius: 15px;
+    background: var(--surface-container-high, var(--surface));
+}
+
+.jlpt-test-package-summary span {
+    font-size: 0.66rem;
+    opacity: 0.5;
+}
+
+.jlpt-test-package-summary strong {
+    overflow-wrap: anywhere;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.jlpt-test-package-progress {
+    display: grid;
+    gap: 8px;
+    padding: 12px 13px;
+    border: 1px solid var(--outline-soft, var(--outline));
+    border-radius: 15px;
+    background: var(--surface-container-high, var(--surface));
+}
+
+.jlpt-test-package-progress[hidden] {
+    display: none !important;
+}
+
+.jlpt-test-package-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    color: var(--on-surface);
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+.jlpt-test-package-progress-head span {
+    min-width: 0;
+    overflow: hidden;
+    opacity: 0.72;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.jlpt-test-package-progress-head strong {
+    flex: 0 0 auto;
+    color: var(--tertiary);
+    font-size: 0.75rem;
+}
+
+.jlpt-test-package-progress-track {
+    width: 100%;
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(
+        in srgb,
+        var(--outline) 45%,
+        transparent
+    );
+}
+
+.jlpt-test-package-progress-bar {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--tertiary);
+    transition: width 0.2s ease;
+}
+
+.jlpt-test-package-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.jlpt-test-package-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    margin: 0;
+}
+
+.jlpt-test-remove-btn:not(:disabled) {
+    color: var(--accent-red, #a04d42);
+}
+
+.jlpt-test-package-actions button:disabled {
+    cursor: default;
+    opacity: 0.38;
+}
+
+.jlpt-test-package-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--tertiary-container, #e5ebdf) 58%, transparent);
+    color: var(--on-surface-variant, var(--on-surface));
+    font-size: 0.7rem;
+    line-height: 1.65;
+}
+
+.jlpt-test-package-note .material-symbols-rounded {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--tertiary, #657b54);
+    font-size: 1rem;
+}
+
+@media (max-width: 430px) {
+    .jlpt-test-package-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .jlpt-test-package-status {
+        align-self: flex-start;
+    }
+
+    .jlpt-test-package-summary,
+    .jlpt-test-package-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+.jlpt-test-confirm-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    text-align: left;
+}
+
+.jlpt-test-confirm-summary > div {
+    display: flex;
+    min-width: 0;
+    min-height: 58px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--outline-soft, var(--outline));
+    border-radius: 14px;
+    background: var(--surface-container-high, var(--surface));
+}
+
+.jlpt-test-confirm-summary span {
+    font-size: 0.66rem;
+    opacity: 0.5;
+}
+
+.jlpt-test-confirm-summary strong {
+    overflow-wrap: anywhere;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 380px) {
+    .jlpt-test-confirm-summary {
+        grid-template-columns: 1fr;
     }
 }

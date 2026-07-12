@@ -620,6 +620,51 @@
           <button id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span><span id="btn-import-label">检查并导入</span></button>
         </div>
 
+                <div class="card-panel jlpt-test-package-card" id="jlpt-test-package-card">
+          <div class="jlpt-test-package-header">
+            <div class="jlpt-test-package-title">
+              <span class="material-symbols-rounded">speed</span>
+              <div>
+                <h3>词库压力测试</h3>
+                <p>支持构建器生成的 200 词测试包，以及包含 N5～N1 全部词汇的完整 JSON 包。</p>
+              </div>
+            </div>
+            <span id="jlpt-test-package-status" class="jlpt-test-package-status is-empty">未导入</span>
+          </div>
+
+          <div id="jlpt-test-package-summary" class="jlpt-test-package-summary">
+            <div><span>当前状态</span><strong>尚未导入测试词库</strong></div>
+            <div><span>支持文件</span><strong>200 词包 · 完整 JSON 包</strong></div>
+          </div>
+
+          <div id="jlpt-test-package-progress" class="jlpt-test-package-progress" hidden aria-live="polite">
+            <div class="jlpt-test-package-progress-head">
+              <span id="jlpt-test-package-progress-text">准备中…</span>
+              <strong id="jlpt-test-package-progress-value">0%</strong>
+            </div>
+            <div class="jlpt-test-package-progress-track">
+              <div id="jlpt-test-package-progress-bar" class="jlpt-test-package-progress-bar"></div>
+            </div>
+          </div>
+
+          <div class="jlpt-test-package-actions">
+            <button id="btn-import-jlpt-test-package" type="button" class="btn-outline icon-text-gap">
+              <span class="material-symbols-rounded">upload_file</span>
+              导入 JSON 词库包
+            </button>
+            <button id="btn-remove-jlpt-test-package" type="button" class="btn-outline icon-text-gap jlpt-test-remove-btn" disabled>
+              <span class="material-symbols-rounded">delete_sweep</span>
+              移除压力测试词库
+            </button>
+            <input id="file-import-jlpt-test-package" type="file" accept=".json,application/json" hidden>
+          </div>
+
+          <div class="jlpt-test-package-note">
+            <span class="material-symbols-rounded">info</span>
+            <span>导入前会自动建立恢复点。完整词库会分批处理，并放入独立的压力测试词库；不会覆盖现有内置词或个人词汇。</span>
+          </div>
+        </div>
+
         <div class="card-panel library-audit-card">
           <div class="library-audit-header">
             <div>
@@ -870,14 +915,7 @@
                 </div>
             </div>
 
-            <button
-                id="ai-preset-close"
-                class="glass-icon-btn"
-                title="关闭"
-                aria-label="关闭预设选择"
-            >
-                <span class="material-symbols-rounded">close</span>
-            </button>
+            
         </div>
 
         <div class="ai-preset-grid">
@@ -998,12 +1036,9 @@
                 <span class="material-symbols-rounded">auto_awesome</span>
                 <span>AI 例句导师</span>
             </div>
-            <div class="ai-sheet-actions">
+                        <div class="ai-sheet-actions">
                 <button id="ai-sheet-copy" class="glass-icon-btn" title="复制对话全文" style="display:none;">
                     <span class="material-symbols-rounded">content_copy</span>
-                </button>
-                <button id="ai-sheet-close" class="glass-icon-btn" title="关闭">
-                    <span class="material-symbols-rounded">close</span>
                 </button>
             </div>
         </div>

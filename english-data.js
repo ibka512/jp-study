@@ -5,6 +5,8 @@
 
 const DefaultEnglishWords = [
 {
+  _id: "builtin-en-cet4-00001",
+  builtIn: true,
   word: "abandon",
   type: "动词",
   phonetic: "/əˈbændən/",
@@ -12,9 +14,12 @@ const DefaultEnglishWords = [
   example: "They had to abandon the plan due to bad weather. || 由于天气恶劣，他们不得不放弃计划。",
   roots: "a(去)-ban(禁止)-don(给予)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00002",
+  builtIn: true,
   word: "ability",
   type: "名词",
   phonetic: "/əˈbɪləti/",
@@ -22,9 +27,12 @@ const DefaultEnglishWords = [
   example: "She has the ability to learn languages quickly. || 她有能力快速学习语言。",
   roots: "abil(能力)-ity(名词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00003",
+  builtIn: true,
   word: "abroad",
   type: "副词",
   phonetic: "/əˈbrɔːd/",
@@ -32,9 +40,12 @@ const DefaultEnglishWords = [
   example: "He dreams of studying abroad next year. || 他梦想着明年出国留学。",
   roots: "a(在...)-broad(宽阔)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00004",
+  builtIn: true,
   word: "absence",
   type: "名词",
   phonetic: "/ˈæbsəns/",
@@ -42,9 +53,12 @@ const DefaultEnglishWords = [
   example: "In the absence of evidence, the case was dismissed. || 由于缺乏证据，案件被驳回了。",
   roots: "ab(离去)-sence(存在)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00005",
+  builtIn: true,
   word: "absolute",
   type: "形容词",
   phonetic: "/ˈæbsəluːt/",
@@ -52,9 +66,12 @@ const DefaultEnglishWords = [
   example: "The experiment requires absolute precision. || 这个实验需要绝对的精确度。",
   roots: "ab(离去)-solute(松开)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00006",
+  builtIn: true,
   word: "absorb",
   type: "动词",
   phonetic: "/əbˈzɔːb/",
@@ -62,9 +79,12 @@ const DefaultEnglishWords = [
   example: "Plants absorb carbon dioxide and release oxygen. || 植物吸收二氧化碳并释放氧气。",
   roots: "ab(离去)-sorb(吸收)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00007",
+  builtIn: true,
   word: "abstract",
   type: "形容词・名词",
   phonetic: "/ˈæbstrækt/",
@@ -72,9 +92,12 @@ const DefaultEnglishWords = [
   example: "The concept is too abstract for most people to understand. || 这个概念对大多数人来说太抽象了，难以理解。",
   roots: "abs(离去)-tract(拉扯)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00008",
+  builtIn: true,
   word: "abundant",
   type: "形容词",
   phonetic: "/əˈbʌndənt/",
@@ -82,9 +105,12 @@ const DefaultEnglishWords = [
   example: "The region has abundant natural resources. || 该地区拥有丰富的自然资源。",
   roots: "ab(加强)-und(波浪)-ant(形容词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00009",
+  builtIn: true,
   word: "academic",
   type: "形容词・名词",
   phonetic: "/ˌækəˈdemɪk/",
@@ -92,9 +118,12 @@ const DefaultEnglishWords = [
   example: "She published several papers in academic journals. || 她在学术期刊上发表了多篇论文。",
   roots: "academy(学院)-ic(形容词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00010",
+  builtIn: true,
   word: "accelerate",
   type: "动词",
   phonetic: "/əkˈseləreɪt/",
@@ -102,9 +131,12 @@ const DefaultEnglishWords = [
   example: "The driver accelerated to overtake the truck. || 司机加速超车，超过了那辆卡车。",
   roots: "ac(加强)-celer(速度)-ate(动词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00011",
+  builtIn: true,
   word: "access",
   type: "名词・动词",
   phonetic: "/ˈækses/",
@@ -112,9 +144,12 @@ const DefaultEnglishWords = [
   example: "Students have free access to the library database. || 学生可以免费使用图书馆的数据库。",
   roots: "ac(加强)-cess(走)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00012",
+  builtIn: true,
   word: "accommodate",
   type: "动词",
   phonetic: "/əˈkɒmədeɪt/",
@@ -122,9 +157,12 @@ const DefaultEnglishWords = [
   example: "The hotel can accommodate up to 500 guests. || 这家酒店最多可容纳500位客人。",
   roots: "ac(加强)-com(共同)-mod(模式)-ate(动词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00013",
+  builtIn: true,
   word: "accompany",
   type: "动词",
   phonetic: "/əˈkʌmpəni/",
@@ -132,9 +170,12 @@ const DefaultEnglishWords = [
   example: "She asked me to accompany her to the party. || 她请我陪她去参加派对。",
   roots: "ac(加强)-company(同伴)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00014",
+  builtIn: true,
   word: "accomplish",
   type: "动词",
   phonetic: "/əˈkʌmplɪʃ/",
@@ -142,9 +183,12 @@ const DefaultEnglishWords = [
   example: "He accomplished his goal of running a marathon. || 他实现了跑马拉松的目标。",
   roots: "ac(加强)-com(共同)-pli(填满)-sh(动词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00015",
+  builtIn: true,
   word: "accurate",
   type: "形容词",
   phonetic: "/ˈækjərət/",
@@ -152,9 +196,12 @@ const DefaultEnglishWords = [
   example: "The weather forecast turned out to be accurate. || 天气预报结果证明是准确的。",
   roots: "ac(加强)-cur(关心)-ate(形容词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00016",
+  builtIn: true,
   word: "achieve",
   type: "动词",
   phonetic: "/əˈtʃiːv/",
@@ -162,9 +209,12 @@ const DefaultEnglishWords = [
   example: "She worked hard to achieve her dreams. || 她努力工作以实现自己的梦想。",
   roots: "a(去)-chieve(头)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00017",
+  builtIn: true,
   word: "acknowledge",
   type: "动词",
   phonetic: "/əkˈnɒlɪdʒ/",
@@ -172,9 +222,12 @@ const DefaultEnglishWords = [
   example: "He refused to acknowledge his mistake. || 他拒绝承认自己的错误。",
   roots: "ac(加强)-knowledge(知识)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00018",
+  builtIn: true,
   word: "acquire",
   type: "动词",
   phonetic: "/əˈkwaɪər/",
@@ -182,9 +235,12 @@ const DefaultEnglishWords = [
   example: "It takes years to acquire a new language fluently. || 流利掌握一门新语言需要多年时间。",
   roots: "ac(加强)-quire(寻求)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00019",
+  builtIn: true,
   word: "adapt",
   type: "动词",
   phonetic: "/əˈdæpt/",
@@ -192,9 +248,12 @@ const DefaultEnglishWords = [
   example: "Animals must adapt to changing environments. || 动物必须适应不断变化的环境。",
   roots: "ad(加强)-apt(适合)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00020",
+  builtIn: true,
   word: "adequate",
   type: "形容词",
   phonetic: "/ˈædɪkwət/",
@@ -202,9 +261,12 @@ const DefaultEnglishWords = [
   example: "The room is adequate for our needs. || 这个房间足以满足我们的需求。",
   roots: "ad(加强)-equ(平等)-ate(形容词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00021",
+  builtIn: true,
   word: "adjust",
   type: "动词",
   phonetic: "/əˈdʒʌst/",
@@ -212,9 +274,12 @@ const DefaultEnglishWords = [
   example: "You can adjust the volume with this button. || 你可以用这个按钮调节音量。",
   roots: "ad(加强)-just(正确)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00022",
+  builtIn: true,
   word: "administration",
   type: "名词",
   phonetic: "/ədˌmɪnɪˈstreɪʃn/",
@@ -222,9 +287,12 @@ const DefaultEnglishWords = [
   example: "The new administration introduced several reforms. || 新一届政府推行了多项改革。",
   roots: "ad(加强)-minister(服务)-ation(名词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00023",
+  builtIn: true,
   word: "admire",
   type: "动词",
   phonetic: "/ədˈmaɪər/",
@@ -232,9 +300,12 @@ const DefaultEnglishWords = [
   example: "I really admire her dedication to work. || 我真的很钦佩她对工作的奉献精神。",
   roots: "ad(加强)-mire(惊奇)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00024",
+  builtIn: true,
   word: "adopt",
   type: "动词",
   phonetic: "/əˈdɒpt/",
@@ -242,9 +313,12 @@ const DefaultEnglishWords = [
   example: "The company decided to adopt a new strategy. || 公司决定采用一项新策略。",
   roots: "ad(加强)-opt(选择)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 },
 {
+  _id: "builtin-en-cet4-00025",
+  builtIn: true,
   word: "advance",
   type: "动词・名词",
   phonetic: "/ədˈvɑːns/",
@@ -252,6 +326,7 @@ const DefaultEnglishWords = [
   example: "Technology continues to advance at a rapid pace. || 科技继续以惊人的速度发展。",
   roots: "ad(加强)-van(前方)-ce(名词/动词后缀)",
   folder: "四级词汇",
+  level: "CET-4",
   lang: "en"
 }
 ];

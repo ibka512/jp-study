@@ -2,11 +2,17 @@
   * 钟日 - 核心控制逻辑
  */
 
-const DATA_SCHEMA_VERSION = 6;
+const DATA_SCHEMA_VERSION = 8;
 const MIGRATION_SNAPSHOT_KEY = 'migrationSafetySnapshot_v1';
 
 const BACKUP_FORMAT_ID = 'zhongri-backup';
-const BACKUP_FORMAT_VERSION = 8;
+const BACKUP_FORMAT_VERSION = 10;
+
+const USER_WORDS_STORAGE_KEY = 'userWords_v1';
+const WORD_OVERRIDES_STORAGE_KEY = 'wordOverrides_v1';
+const LEGACY_WORD_DB_STORAGE_KEY = 'myWordDB_v3';
+const WORD_STORAGE_VERSION_KEY = 'wordStorageVersion';
+const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const BACKUP_PREFERENCE_KEYS = Object.freeze([
@@ -38,6 +44,135 @@ const escapeRegExp = (str) => {
     return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
+
+const cloneDataValue = value => {
+    if (typeof structuredClone === 'function') {
+        try {
+            return structuredClone(value);
+        } catch (error) {}
+    }
+
+    return JSON.parse(JSON.stringify(value));
+};
+
+const hashStableText = value => {
+    let hash = 2166136261;
+    const text = String(value ?? '');
+
+    for (let index = 0; index < text.length; index++) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(36);
+};
+
+const createRandomWordId = () => {
+    if (
+        typeof crypto !== 'undefined' &&
+        typeof crypto.randomUUID === 'function'
+    ) {
+        return `user-${crypto.randomUUID()}`;
+    }
+
+    return (
+        `user-${Date.now().toString(36)}-` +
+        Math.random().toString(36).slice(2, 10)
+    );
+};
+
+const createFallbackBuiltInWordId = entry => {
+    const lang = entry?.lang === 'en' ? 'en' : 'ja';
+    const word = String(entry?.word || '').normalize('NFKC').trim();
+    const reading = lang === 'en'
+        ? String(entry?.phonetic || '').normalize('NFKC').trim()
+        : String(entry?.kana || '').normalize('NFKC').trim();
+
+    return `builtin-${lang}-${hashStableText(`${lang}|${word}|${reading}`)}`;
+};
+
+const ensureStableWordId = (
+    entry,
+    { builtInHint = false } = {}
+) => {
+    if (!entry || typeof entry !== 'object') {
+        return '';
+    }
+
+    const existingId = String(entry._id || '').trim();
+
+    if (existingId) {
+        entry._id = existingId;
+        return existingId;
+    }
+
+    const isBuiltIn =
+        builtInHint ||
+        entry.builtIn === true;
+
+    entry._id = isBuiltIn
+        ? createFallbackBuiltInWordId(entry)
+        : createRandomWordId();
+
+    return entry._id;
+};
+
+const getStableWordId = entry => {
+    return ensureStableWordId(entry, {
+        builtInHint: entry?.builtIn === true
+    });
+};
+
+const normalizeWordAliases = value => {
+    const source = Array.isArray(value)
+        ? value
+        : String(value ?? '').split(/[、,，;；|｜/]+/);
+
+    return [
+        ...new Set(
+            source
+                .map(item => String(item ?? '').normalize('NFKC').trim())
+                .filter(Boolean)
+        )
+    ].slice(0, 24);
+};
+
+const normalizeReviewStatus = value => {
+    const normalized = String(value || '').trim().toLowerCase();
+
+    return ['draft', 'reviewed', 'verified'].includes(normalized)
+        ? normalized
+        : 'draft';
+};
+
+const normalizeWordSources = value => {
+    const source = Array.isArray(value)
+        ? value
+        : String(value ?? '').split(/[\n;；|｜]+/);
+
+    return [
+        ...new Set(
+            source
+                .map(item => {
+                    if (typeof item === 'string') {
+                        return item.trim();
+                    }
+
+                    if (item && typeof item === 'object') {
+                        return String(
+                            item.name ||
+                            item.source ||
+                            item.title ||
+                            ''
+                        ).trim();
+                    }
+
+                    return '';
+                })
+                .filter(Boolean)
+        )
+    ].slice(0, 20);
+};
 
 const normalizeEntryText = (value, useCompatibility = true) => {
     const source = String(value ?? '');
@@ -295,6 +430,35 @@ const normalizeWordLevel = (value, lang = 'ja') => {
     return '';
 };
 
+const normalizeSourceLevels = (value, lang = 'ja') => {
+    const source = Array.isArray(value) ? value : [];
+
+    return source
+        .map(item => {
+            if (typeof item === 'string') {
+                const level = normalizeWordLevel(item, lang);
+                return level ? { source: '', level } : null;
+            }
+
+            if (!item || typeof item !== 'object') {
+                return null;
+            }
+
+            const level = normalizeWordLevel(item.level, lang);
+
+            if (!level) {
+                return null;
+            }
+
+            return {
+                source: String(item.source || '').trim(),
+                level
+            };
+        })
+        .filter(Boolean)
+        .slice(0, 20);
+};
+
 const normalizeWordDifficulty = value => {
     const parsed = Number.parseInt(value, 10);
 
@@ -320,6 +484,190 @@ const normalizeWordTags = value => {
     ].slice(0, 12);
 };
 
+const WORD_FREQUENCY_VALUES = Object.freeze([
+    '高频',
+    '中频',
+    '低频'
+]);
+
+const WORD_SPECIAL_TAG_PRIORITY = Object.freeze([
+    '片假名词',
+    '拟声拟态',
+    '缩略语',
+    '口语',
+    '尊敬语',
+    '谦让语',
+    '礼貌语',
+    '惯用表达',
+    '接头词',
+    '接尾词',
+    '构词成分',
+    '异体写法'
+]);
+
+const normalizeWordFrequency = value => {
+    const normalized = String(value ?? '')
+        .normalize('NFKC')
+        .trim()
+        .toLowerCase();
+
+    if (!normalized) {
+        return '';
+    }
+
+    if (
+        normalized.includes('高频') ||
+        normalized === 'high' ||
+        normalized.includes('high-frequency') ||
+        normalized.includes('high frequency')
+    ) {
+        return '高频';
+    }
+
+    if (
+        normalized.includes('中频') ||
+        normalized === 'medium' ||
+        normalized === 'mid' ||
+        normalized.includes('medium-frequency') ||
+        normalized.includes('medium frequency')
+    ) {
+        return '中频';
+    }
+
+    if (
+        normalized.includes('低频') ||
+        normalized === 'low' ||
+        normalized.includes('low-frequency') ||
+        normalized.includes('low frequency')
+    ) {
+        return '低频';
+    }
+
+    return '';
+};
+
+const normalizeWordPitch = value => {
+    return normalizeEntryText(value || '', false)
+        .replace(/\s+/g, '')
+        .slice(0, 24);
+};
+
+const CIRCLED_PITCH_NUMBERS = Object.freeze([
+    '⓪', '①', '②', '③', '④', '⑤', '⑥',
+    '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬',
+    '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳'
+]);
+
+const formatWordPitchDisplay = value => {
+    const normalized = normalizeWordPitch(value);
+
+    if (!normalized) {
+        return '';
+    }
+
+    const numberMatches = normalized.match(/\d{1,2}/g);
+
+    if (numberMatches?.length) {
+        return numberMatches
+            .map(token => {
+                const number = Number.parseInt(token, 10);
+
+                return CIRCLED_PITCH_NUMBERS[number] || token;
+            })
+            .join(' ');
+    }
+
+    const circledMatches = normalized.match(
+        /[⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/g
+    );
+
+    if (circledMatches?.length) {
+        return circledMatches.join(' ');
+    }
+
+    return normalized;
+};
+
+const normalizeWordSpecialTags = value => {
+    const normalized = normalizeWordTags(value).map(tag => {
+        if (/カタカナ|片假名/.test(tag)) {
+            return '片假名词';
+        }
+
+        if (/オノマトペ|拟声|擬声|拟态|擬態/.test(tag)) {
+            return '拟声拟态';
+        }
+
+        if (/略語|缩略|縮略/.test(tag)) {
+            return '缩略语';
+        }
+
+        if (/口語|口语|口頭語|口头语/.test(tag)) {
+            return '口语';
+        }
+
+        if (/尊敬語|尊敬语/.test(tag)) {
+            return '尊敬语';
+        }
+
+        if (/謙譲語|谦让语|謙讓語/.test(tag)) {
+            return '谦让语';
+        }
+
+        if (/丁寧語|礼貌语|禮貌語/.test(tag)) {
+            return '礼貌语';
+        }
+
+        if (/慣用|惯用|成句/.test(tag)) {
+            return '惯用表达';
+        }
+
+        if (/接頭|接头/.test(tag)) {
+            return '接头词';
+        }
+
+        if (/接尾/.test(tag)) {
+            return '接尾词';
+        }
+
+        if (/造語|构词|構詞|造词|造詞/.test(tag)) {
+            return '构词成分';
+        }
+
+        if (/異体|异体|異表記|异写|異寫/.test(tag)) {
+            return '异体写法';
+        }
+
+        return tag;
+    });
+
+    const unique = [...new Set(normalized.filter(Boolean))];
+    const priority = new Map(
+        WORD_SPECIAL_TAG_PRIORITY.map((tag, index) => [tag, index])
+    );
+
+    return unique
+        .sort((left, right) => {
+            const leftIndex = priority.has(left)
+                ? priority.get(left)
+                : Number.MAX_SAFE_INTEGER;
+            const rightIndex = priority.has(right)
+                ? priority.get(right)
+                : Number.MAX_SAFE_INTEGER;
+
+            if (leftIndex !== rightIndex) {
+                return leftIndex - rightIndex;
+            }
+
+            return left.localeCompare(right, 'zh-CN');
+        })
+        .slice(0, 12);
+};
+
+const normalizeWordSourceText = (value, maxLength = 160) => {
+    return normalizeEntryText(value || '').slice(0, maxLength);
+};
+
 const getDifficultyLabel = value => {
     return DIFFICULTY_LABELS[
         normalizeWordDifficulty(value)
@@ -332,15 +680,22 @@ const getWordMetadataHTML = (
         compact = false,
         showUnassigned = false,
         includeTags = false,
-        includeBuiltIn = false
+        specialTagLimit = null
     } = {}
 ) => {
     const lang = entry.lang === 'en' ? 'en' : 'ja';
     const level = normalizeWordLevel(entry.level, lang);
+    const frequency = normalizeWordFrequency(entry.frequency);
     const difficulty = normalizeWordDifficulty(
         entry.difficulty
     );
     const tags = normalizeWordTags(entry.tags);
+    const specialTags = normalizeWordSpecialTags(
+        entry.specialTags
+    );
+    const maxSpecialTags = Number.isInteger(specialTagLimit)
+        ? Math.max(0, specialTagLimit)
+        : (compact ? 1 : 2);
     const chips = [];
 
     if (level) {
@@ -350,6 +705,20 @@ const getWordMetadataHTML = (
     } else if (showUnassigned) {
         chips.push(
             '<span class="word-meta-chip is-muted">未分级</span>'
+        );
+    }
+
+    if (frequency) {
+        const frequencyClass = {
+            '高频': 'frequency-high',
+            '中频': 'frequency-medium',
+            '低频': 'frequency-low'
+        }[frequency] || '';
+
+        chips.push(
+            `<span class="word-meta-chip is-frequency ${frequencyClass}">` +
+                `${escapeHTML(frequency)}` +
+            '</span>'
         );
     }
 
@@ -365,18 +734,34 @@ const getWordMetadataHTML = (
         );
     }
 
-    if (includeBuiltIn && entry.builtIn === true) {
-        chips.push(
-            '<span class="word-meta-chip is-built-in">内置</span>'
-        );
-    }
-
-    if (includeTags) {
-        tags.forEach(tag => {
+    specialTags
+        .slice(0, maxSpecialTags)
+        .forEach(tag => {
             chips.push(
-                `<span class="word-meta-chip is-tag">${escapeHTML(tag)}</span>`
+                `<span class="word-meta-chip is-special">${escapeHTML(tag)}</span>`
             );
         });
+
+    if (includeTags) {
+        const specialTagSet = new Set(specialTags);
+
+        tags
+            .filter(tag => {
+                if (normalizeWordFrequency(tag)) {
+                    return false;
+                }
+
+                const normalizedSpecial =
+                    normalizeWordSpecialTags([tag])[0] || '';
+
+                return !specialTagSet.has(normalizedSpecial);
+            })
+            .slice(0, 4)
+            .forEach(tag => {
+                chips.push(
+                    `<span class="word-meta-chip is-tag">${escapeHTML(tag)}</span>`
+                );
+            });
     }
 
     return chips.join('');
@@ -733,6 +1118,21 @@ const normalizeWordEntry = (
     { preserveWord = false } = {}
 ) => {
     const lang = entry.lang === 'en' ? 'en' : 'ja';
+    const normalizedTags = normalizeWordTags(entry.tags);
+    const explicitSpecialTags = Array.isArray(entry.specialTags)
+        ? entry.specialTags.length > 0
+        : Boolean(String(entry.specialTags || '').trim());
+    const specialTagSource = explicitSpecialTags
+        ? entry.specialTags
+        : normalizedTags;
+    const normalizedSpecialTags = normalizeWordSpecialTags(
+        specialTagSource
+    );
+    const frequency =
+        normalizeWordFrequency(entry.frequency) ||
+        normalizeWordFrequency(
+            normalizedTags.join(' ')
+        );
 
     const normalized = {
         ...entry,
@@ -746,7 +1146,38 @@ const normalizeWordEntry = (
         folder: normalizeEntryText(entry.folder || ''),
         level: normalizeWordLevel(entry.level, lang),
         difficulty: normalizeWordDifficulty(entry.difficulty),
-        tags: normalizeWordTags(entry.tags),
+        tags: normalizedTags,
+        frequency,
+        pitch: lang === 'ja'
+            ? normalizeWordPitch(
+                entry.pitch || entry.vocabPitch
+            )
+            : '',
+        specialTags: explicitSpecialTags
+            ? normalizedSpecialTags
+            : normalizedSpecialTags.filter(tag => {
+                return WORD_SPECIAL_TAG_PRIORITY.includes(tag);
+            }),
+        sourceId: normalizeWordSourceText(
+            entry.sourceId || entry.sourceID,
+            128
+        ),
+        sourceName: normalizeWordSourceText(
+            entry.sourceName,
+            120
+        ),
+        sourceVersion: normalizeWordSourceText(
+            entry.sourceVersion,
+            80
+        ),
+        aliases: normalizeWordAliases(entry.aliases),
+        sourceLevels: normalizeSourceLevels(entry.sourceLevels, lang),
+        reviewStatus: normalizeReviewStatus(entry.reviewStatus),
+        source: normalizeWordSources(entry.source),
+        dataVersion: Math.max(
+            1,
+            Number.parseInt(entry.dataVersion, 10) || 1
+        ),
         builtIn: entry.builtIn === true
     };
 
@@ -1122,6 +1553,21 @@ let previousFocusElement = null;
 window.toggleModal = (id, show) => {
     let el = document.getElementById(id);
     if (!el) return;
+
+    if (!show && id === 'ai-sheet-overlay') {
+        if (
+            typeof Controller !== 'undefined' &&
+            typeof Controller._saveCurrentChat === 'function'
+        ) {
+            Controller._saveCurrentChat();
+        }
+
+        const inputEl = document.getElementById('ai-chat-input');
+
+        if (inputEl) {
+            inputEl.value = '';
+        }
+    }
     
     if (show) {
         // 1. 焦点借出：仅在当前没有任何弹窗开启时记录焦点
@@ -2376,8 +2822,19 @@ const EnglishInput = {
 };
 
 const Model = {
-db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars: [], records: [], aiConversations: [], editingIdx: -1,
-  mtGroupClears: {}, mtWordClears: {},
+  db: [],
+  builtInWords: [],
+  userWords: [],
+  wordOverrides: {},
+  builtInIdSet: new Set(),
+  folders: ["默认词库"],
+  folderLangs: { "默认词库": "ja" },
+  stars: [],
+  records: [],
+  aiConversations: [],
+  editingIdx: -1,
+  mtGroupClears: {},
+  mtWordClears: {},
   getFolderLang(folderName) {
     return this.folderLangs[folderName] || "ja";
   },
@@ -2397,6 +2854,422 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
   },
 
 
+  getWordId(word) {
+      return getStableWordId(word);
+  },
+
+  getWordById(wordId) {
+      const target = String(wordId || '').trim();
+
+      if (!target) {
+          return null;
+      }
+
+      return this.db.find(word => {
+          return this.getWordId(word) === target;
+      }) || null;
+  },
+
+  isStarred(word) {
+      const wordId = this.getWordId(word);
+      return Boolean(wordId && this.stars.includes(wordId));
+  },
+
+  getClearState(word) {
+      const wordId = this.getWordId(word);
+      const stored = wordId
+          ? this.mtWordClears[wordId]
+          : null;
+
+      if (!stored || typeof stored !== 'object') {
+          return {
+              kanji: false,
+              kana: false,
+              meaning: false
+          };
+      }
+
+      if (
+          word?.lang === 'en' &&
+          stored.word !== undefined
+      ) {
+          return {
+              ...stored,
+              kanji: Boolean(stored.word),
+              kana: Boolean(stored.kana),
+              meaning: Boolean(stored.meaning)
+          };
+      }
+
+      return stored;
+  },
+
+  ensureClearState(word) {
+      const wordId = this.getWordId(word);
+
+      if (!wordId) {
+          return null;
+      }
+
+      if (
+          !this.mtWordClears[wordId] ||
+          typeof this.mtWordClears[wordId] !== 'object'
+      ) {
+          this.mtWordClears[wordId] = {
+              kanji: false,
+              kana: false,
+              meaning: false
+          };
+      }
+
+      return this.mtWordClears[wordId];
+  },
+
+  getDefaultBuiltInWords() {
+      const words = [];
+
+      if (typeof DefaultWords !== 'undefined') {
+          DefaultWords.forEach(word => {
+              const entry = normalizeWordEntry({
+                  ...cloneDataValue(word),
+                  lang: 'ja',
+                  folder: word.folder || '默认词库',
+                  builtIn: true
+              });
+
+              ensureStableWordId(entry, {
+                  builtInHint: true
+              });
+
+              words.push(entry);
+          });
+      }
+
+      if (typeof DefaultEnglishWords !== 'undefined') {
+          DefaultEnglishWords.forEach(word => {
+              const entry = normalizeWordEntry({
+                  ...cloneDataValue(word),
+                  lang: 'en',
+                  folder: word.folder || '四级词汇',
+                  builtIn: true
+              });
+
+              ensureStableWordId(entry, {
+                  builtInHint: true
+              });
+
+              words.push(entry);
+          });
+      }
+
+      return words;
+  },
+
+  getWordIdentity(word, includeFolder = true) {
+      const lang = word?.lang === 'en' ? 'en' : 'ja';
+      const headword = normalizeHeadword(
+          word?.word || '',
+          lang
+      ).toLowerCase();
+      const folder = includeFolder
+          ? normalizeEntryText(word?.folder || '')
+          : '';
+
+      return includeFolder
+          ? `${lang}::${folder}::${headword}`
+          : `${lang}::${headword}`;
+  },
+
+  buildWordOverride(canonical, current) {
+      const editableFields = [
+          'word',
+          'kana',
+          'phonetic',
+          'type',
+          'meaning',
+          'example',
+          'roots',
+          'folder',
+          'level',
+          'difficulty',
+          'tags',
+          'frequency',
+          'pitch',
+          'specialTags',
+          'sourceId',
+          'sourceName',
+          'sourceVersion',
+          'aliases',
+          'sourceLevels',
+          'reviewStatus',
+          'source',
+          'dataVersion'
+      ];
+      const override = {};
+
+      editableFields.forEach(field => {
+          const baseValue = canonical[field];
+          const currentValue = current[field];
+
+          if (
+              JSON.stringify(baseValue ?? null) !==
+              JSON.stringify(currentValue ?? null)
+          ) {
+              override[field] = cloneDataValue(currentValue);
+          }
+      });
+
+      if (Object.keys(override).length > 0) {
+          override.updatedAt = new Date().toISOString();
+      }
+
+      return override;
+  },
+
+  rebuildCombinedDB() {
+      const merged = [];
+      const seenIds = new Set();
+      const overrides =
+          this.wordOverrides &&
+          typeof this.wordOverrides === 'object' &&
+          !Array.isArray(this.wordOverrides)
+              ? this.wordOverrides
+              : {};
+
+      this.builtInWords.forEach(canonical => {
+          const wordId = this.getWordId(canonical);
+          const override = overrides[wordId];
+
+          if (override?._deleted === true) {
+              return;
+          }
+
+          const combined = normalizeWordEntry({
+              ...cloneDataValue(canonical),
+              ...(override || {}),
+              _id: wordId,
+              lang: canonical.lang,
+              builtIn: true
+          });
+
+          ensureStableWordId(combined, {
+              builtInHint: true
+          });
+
+          merged.push(combined);
+          seenIds.add(wordId);
+      });
+
+      const normalizedUsers = [];
+
+      (Array.isArray(this.userWords)
+          ? this.userWords
+          : []
+      ).forEach(rawWord => {
+          const word = normalizeWordEntry({
+              ...cloneDataValue(rawWord),
+              builtIn: false
+          });
+
+          ensureStableWordId(word, {
+              builtInHint: false
+          });
+
+          if (seenIds.has(word._id)) {
+              word._id = createRandomWordId();
+          }
+
+          seenIds.add(word._id);
+          normalizedUsers.push(word);
+          merged.push(word);
+      });
+
+      this.userWords = normalizedUsers;
+      this.db = merged;
+      this.builtInIdSet = new Set(
+          this.builtInWords.map(word => this.getWordId(word))
+      );
+  },
+
+  migrateLegacyWordStorage(
+      legacyWords,
+      { markMissingBuiltInsAsDeleted = true } = {}
+  ) {
+      const canonicalById = new Map();
+      const canonicalByIdentity = new Map();
+      const canonicalByLooseIdentity = new Map();
+
+      this.builtInWords.forEach(word => {
+          const wordId = this.getWordId(word);
+          canonicalById.set(wordId, word);
+          canonicalByIdentity.set(
+              this.getWordIdentity(word, true),
+              word
+          );
+
+          const looseIdentity = this.getWordIdentity(
+              word,
+              false
+          );
+
+          if (!canonicalByLooseIdentity.has(looseIdentity)) {
+              canonicalByLooseIdentity.set(
+                  looseIdentity,
+                  []
+              );
+          }
+
+          canonicalByLooseIdentity.get(looseIdentity).push(word);
+      });
+
+      const userWords = [];
+      const overrides = {};
+      const foundBuiltInIds = new Set();
+
+      (Array.isArray(legacyWords)
+          ? legacyWords
+          : []
+      ).forEach(rawWord => {
+          if (!rawWord || typeof rawWord !== 'object') {
+              return;
+          }
+
+          const normalized = normalizeWordEntry({
+              ...cloneDataValue(rawWord),
+              lang: rawWord.lang === 'en' ? 'en' : 'ja'
+          });
+          const rawId = String(rawWord._id || '').trim();
+          let canonical = rawId
+              ? canonicalById.get(rawId)
+              : null;
+
+          if (!canonical) {
+              canonical = canonicalByIdentity.get(
+                  this.getWordIdentity(normalized, true)
+              ) || null;
+          }
+
+          if (!canonical) {
+              const candidates = canonicalByLooseIdentity.get(
+                  this.getWordIdentity(normalized, false)
+              ) || [];
+
+              if (candidates.length === 1) {
+                  const candidate = candidates[0];
+                  const rawFolder = normalizeEntryText(
+                      normalized.folder || ''
+                  );
+                  const canonicalFolder = normalizeEntryText(
+                      candidate.folder || ''
+                  );
+                  const comparableFields = normalized.lang === 'en'
+                      ? [
+                          'phonetic',
+                          'type',
+                          'meaning',
+                          'example',
+                          'roots'
+                      ]
+                      : [
+                          'kana',
+                          'type',
+                          'meaning',
+                          'example'
+                      ];
+                  const comparableValues = comparableFields.filter(field => {
+                      return Boolean(
+                          normalizeEntryText(candidate[field] || '')
+                      );
+                  });
+                  const matchingValues = comparableValues.filter(field => {
+                      return (
+                          normalizeEntryText(normalized[field] || '') ===
+                          normalizeEntryText(candidate[field] || '')
+                      );
+                  });
+                  const contentLooksBuiltIn =
+                      comparableValues.length > 0 &&
+                      matchingValues.length >= Math.min(
+                          3,
+                          comparableValues.length
+                      );
+                  const likelyLegacyBuiltIn =
+                      rawWord.builtIn === true ||
+                      !rawFolder ||
+                      rawFolder === canonicalFolder ||
+                      contentLooksBuiltIn;
+
+                  if (likelyLegacyBuiltIn) {
+                      canonical = candidate;
+                  }
+              }
+          }
+
+          if (canonical) {
+              const wordId = this.getWordId(canonical);
+              const current = normalizeWordEntry({
+                  ...normalized,
+                  _id: wordId,
+                  builtIn: true,
+                  lang: canonical.lang
+              });
+              const override = this.buildWordOverride(
+                  canonical,
+                  current
+              );
+
+              foundBuiltInIds.add(wordId);
+
+              if (Object.keys(override).length > 0) {
+                  overrides[wordId] = override;
+              }
+
+              return;
+          }
+
+          normalized.builtIn = false;
+          ensureStableWordId(normalized, {
+              builtInHint: false
+          });
+          userWords.push(normalized);
+      });
+
+      if (markMissingBuiltInsAsDeleted) {
+          this.builtInWords.forEach(word => {
+              const wordId = this.getWordId(word);
+
+              if (!foundBuiltInIds.has(wordId)) {
+                  overrides[wordId] = {
+                      _deleted: true,
+                      updatedAt: new Date().toISOString()
+                  };
+              }
+          });
+      }
+
+      this.userWords = userWords;
+      this.wordOverrides = overrides;
+      this.rebuildCombinedDB();
+  },
+
+  async persistSeparatedWordData() {
+      await Promise.all([
+          this.writeStorageValue(
+              USER_WORDS_STORAGE_KEY,
+              this.userWords
+          ),
+          this.writeStorageValue(
+              WORD_OVERRIDES_STORAGE_KEY,
+              this.wordOverrides
+          )
+      ]);
+
+      localStorage.setItem(
+          WORD_STORAGE_VERSION_KEY,
+          String(WORD_STORAGE_VERSION)
+      );
+  },
+
   async init() {
       await this.loadData();
   },
@@ -2409,7 +3282,11 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
           typeof idbKeyval !== 'undefined'
       ) {
           try {
-              return await idbKeyval.get(key);
+              const storedValue = await idbKeyval.get(key);
+
+              if (storedValue !== undefined) {
+                  return storedValue;
+              }
           } catch (error) {
               console.warn(
                   `[Storage] 读取 ${key} 失败，尝试本地备用存储`,
@@ -2575,24 +3452,8 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
   async runDataMigrations() {
       let dbChanged = false;
       let foldersChanged = false;
+      let starsChanged = false;
       let clearsChanged = false;
-
-      /*
-       * 旧日语词没有语言字段时自动补成日语，
-       * 同时补齐级别、难度、标签和内置标记。
-       */
-      const defaultIdentities = new Set([
-          ...(typeof DefaultWords !== 'undefined'
-              ? DefaultWords.map(word => {
-                    return `ja::${word.folder || '默认词库'}::${word.word}`;
-                })
-              : []),
-          ...(typeof DefaultEnglishWords !== 'undefined'
-              ? DefaultEnglishWords.map(word => {
-                    return `en::${word.folder || '英语词库'}::${word.word}`;
-                })
-              : [])
-      ]);
 
       for (const word of this.db) {
           if (!word.lang) {
@@ -2600,57 +3461,41 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
               dbChanged = true;
           }
 
-          const identity =
-              `${word.lang === 'en' ? 'en' : 'ja'}::` +
-              `${word.folder || (word.lang === 'en' ? '英语词库' : '默认词库')}::` +
-              `${word.word || ''}`;
+          const shouldBeBuiltIn =
+              this.builtInIdSet.has(String(word._id || '')) ||
+              word.builtIn === true;
 
-          if (typeof word.builtIn !== 'boolean') {
-              word.builtIn = defaultIdentities.has(identity);
+          if (word.builtIn !== shouldBeBuiltIn) {
+              word.builtIn = shouldBeBuiltIn;
               dbChanged = true;
           }
 
-          if (!Array.isArray(word.tags)) {
-              word.tags = normalizeWordTags(word.tags);
+          const previousId = String(word._id || '');
+          ensureStableWordId(word, {
+              builtInHint: shouldBeBuiltIn
+          });
+
+          if (previousId !== word._id) {
               dbChanged = true;
           }
 
-          const normalizedDifficulty =
-              normalizeWordDifficulty(word.difficulty);
-
-          if (word.difficulty !== normalizedDifficulty) {
-              word.difficulty = normalizedDifficulty;
-              dbChanged = true;
-          }
-
-          const normalizedLevel =
-              normalizeWordLevel(word.level, word.lang);
-
-          if (
-              !normalizedLevel &&
-              word.builtIn === true &&
-              word.lang === 'en' &&
-              word.folder === '四级词汇'
-          ) {
-              word.level = 'CET-4';
-              dbChanged = true;
-          } else if (String(word.level || '') !== normalizedLevel) {
-              word.level = normalizedLevel;
-              dbChanged = true;
-          }
-      }
-
-      /*
-       * 统一旧词条的词性、读音、释义与例句格式。
-       * 迁移时保留原单词文字，避免影响现有收藏与学习记录。
-       */
-      for (const word of this.db) {
           const normalized = normalizeWordEntry(
               word,
               { preserveWord: true }
           );
 
+          if (
+              normalized.builtIn === true &&
+              normalized.lang === 'en' &&
+              normalized.folder === '四级词汇' &&
+              !normalized.level
+          ) {
+              normalized.level = 'CET-4';
+          }
+
           const trackedFields = [
+              '_id',
+              'lang',
               'type',
               'meaning',
               'example',
@@ -2661,13 +3506,24 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
               'level',
               'difficulty',
               'tags',
+              'frequency',
+              'pitch',
+              'specialTags',
+              'sourceId',
+              'sourceName',
+              'sourceVersion',
+              'aliases',
+              'sourceLevels',
+              'reviewStatus',
+              'source',
+              'dataVersion',
               'builtIn'
           ];
 
           const hasChange = trackedFields.some(field => {
               return (
-                  String(word[field] ?? '') !==
-                  String(normalized[field] ?? '')
+                  JSON.stringify(word[field] ?? null) !==
+                  JSON.stringify(normalized[field] ?? null)
               );
           });
 
@@ -2675,146 +3531,180 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
               Object.assign(word, normalized);
               dbChanged = true;
           }
-      }
 
-      /*
-       * 补齐每个词库的语言信息。
-       */
-      for (const folder of this.folders) {
-          if (!this.folderLangs[folder]) {
-              const containsEnglishWord =
-                  this.db.some(word => {
-                      return (
-                          word.folder === folder &&
-                          word.lang === 'en'
-                      );
-                  });
-
-              this.folderLangs[folder] =
-                  containsEnglishWord ? 'en' : 'ja';
-
-              foldersChanged = true;
-          }
-      }
-
-      /*
-       * 修复旧版本中被误放进日语默认词库的英语词汇。
-       * 先把它们送回内置英语词库，再检查缺失的内置词，
-       * 可以避免更新后出现重复词汇。
-       */
-      if (
-          typeof DefaultEnglishWords !== 'undefined'
-      ) {
-          const defaultEnglishFolder =
-              DefaultEnglishWords.find(word => {
-                  return Boolean(word.folder);
-              })?.folder || '英语词库';
-
-          const misplacedEnglishWords =
-              this.db.filter(word => {
-                  return (
-                      word.lang === 'en' &&
-                      word.folder === '默认词库'
-                  );
-              });
-
-          if (misplacedEnglishWords.length > 0) {
-              if (
-                  !this.folders.includes(
-                      defaultEnglishFolder
-                  )
-              ) {
-                  this.folders.push(
-                      defaultEnglishFolder
-                  );
-              }
-
-              this.folderLangs[
-                  defaultEnglishFolder
-              ] = 'en';
-
-              for (
-                  const word of misplacedEnglishWords
-              ) {
-                  word.folder =
-                      defaultEnglishFolder;
-              }
-
-              dbChanged = true;
-              foldersChanged = true;
-          }
-      }
-
-      /*
-       * 补齐默认英语词库。
-       * 只添加缺失内容，不覆盖用户修改。
-       */
-      if (
-          typeof DefaultEnglishWords !== 'undefined'
-      ) {
-          const englishFolders = [
-              ...new Set(
-                  DefaultEnglishWords.map(word => {
-                      return word.folder;
-                  })
-              )
-          ];
-
-          for (const folder of englishFolders) {
-              if (!this.folders.includes(folder)) {
-                  this.folders.push(folder);
-                  this.folderLangs[folder] = 'en';
-                  foldersChanged = true;
-              }
-          }
-
-          const existingEnglishWords = new Set(
-              this.db
-                  .filter(word => {
-                      return word.lang === 'en';
-                  })
-                  .map(word => {
-                      return `${word.folder || ''}::${word.word}`;
-                  })
+          const folder = word.folder || (
+              word.lang === 'en'
+                  ? '四级词汇'
+                  : '默认词库'
           );
 
-          for (const defaultWord of DefaultEnglishWords) {
-              const identity =
-                  `${defaultWord.folder || ''}::${defaultWord.word}`;
+          if (!word.folder) {
+              word.folder = folder;
+              dbChanged = true;
+          }
 
-              if (!existingEnglishWords.has(identity)) {
-                  this.db.push({
-                      ...defaultWord,
-                      builtIn: true
-                  });
+          if (!this.folders.includes(folder)) {
+              this.folders.push(folder);
+              foldersChanged = true;
+          }
 
-                  existingEnglishWords.add(identity);
-                  dbChanged = true;
-              }
+          const folderLang = word.lang === 'en' ? 'en' : 'ja';
+
+          if (this.folderLangs[folder] !== folderLang) {
+              this.folderLangs[folder] = folderLang;
+              foldersChanged = true;
           }
       }
 
-      /*
-       * 把早期数字形式的掌握状态，
-       * 转换成现在的三项掌握结构。
-       */
-      for (
-          const wordKey of Object.keys(
-              this.mtWordClears
-          )
+      const validIds = new Set(
+          this.db.map(word => this.getWordId(word))
+      );
+      const wordsByLegacyKey = new Map();
+
+      const addLegacyKey = (key, wordId) => {
+          const normalizedKey = String(key || '').trim();
+
+          if (!normalizedKey) {
+              return;
+          }
+
+          if (!wordsByLegacyKey.has(normalizedKey)) {
+              wordsByLegacyKey.set(normalizedKey, new Set());
+          }
+
+          wordsByLegacyKey.get(normalizedKey).add(wordId);
+      };
+
+      this.db.forEach(word => {
+          const wordId = this.getWordId(word);
+          const lang = word.lang === 'en' ? 'en' : 'ja';
+          const headword = String(word.word || '').trim();
+
+          addLegacyKey(headword, wordId);
+          addLegacyKey(
+              normalizeHeadword(headword, lang).toLowerCase(),
+              wordId
+          );
+      });
+
+      const migratedStars = [];
+      const migratedStarSet = new Set();
+
+      (Array.isArray(this.stars) ? this.stars : []).forEach(storedKey => {
+          const key = String(storedKey || '').trim();
+          let targetIds = [];
+
+          if (validIds.has(key)) {
+              targetIds = [key];
+          } else {
+              const direct = wordsByLegacyKey.get(key);
+              const normalized = wordsByLegacyKey.get(
+                  key.toLowerCase()
+              );
+
+              targetIds = [
+                  ...(direct || []),
+                  ...(normalized || [])
+              ];
+          }
+
+          targetIds.forEach(wordId => {
+              if (!migratedStarSet.has(wordId)) {
+                  migratedStarSet.add(wordId);
+                  migratedStars.push(wordId);
+              }
+          });
+      });
+
+      if (
+          JSON.stringify(migratedStars) !==
+          JSON.stringify(this.stars)
       ) {
-          if (
-              typeof this.mtWordClears[wordKey] ===
-              'number'
-          ) {
-              this.mtWordClears[wordKey] = {
+          this.stars = migratedStars;
+          starsChanged = true;
+      }
+
+      const normalizeClearState = value => {
+          if (!value || typeof value !== 'object') {
+              return {
                   kanji: false,
                   kana: false,
                   meaning: false
               };
-
-              clearsChanged = true;
           }
+
+          return {
+              ...cloneDataValue(value),
+              kanji: Boolean(
+                  value.kanji ?? value.word ?? false
+              ),
+              kana: Boolean(value.kana ?? false),
+              meaning: Boolean(value.meaning ?? false),
+              needsReview: Boolean(value.needsReview)
+          };
+      };
+
+      const mergeClearState = (base, incoming) => {
+          if (!base) {
+              return normalizeClearState(incoming);
+          }
+
+          const next = normalizeClearState(base);
+          const addition = normalizeClearState(incoming);
+
+          next.kanji = next.kanji || addition.kanji;
+          next.kana = next.kana || addition.kana;
+          next.meaning = next.meaning || addition.meaning;
+          next.needsReview =
+              next.needsReview || addition.needsReview;
+
+          return next;
+      };
+
+      const migratedClears = {};
+
+      Object.entries(
+          this.mtWordClears &&
+          typeof this.mtWordClears === 'object'
+              ? this.mtWordClears
+              : {}
+      ).forEach(([storedKey, storedState]) => {
+          const key = String(storedKey || '').trim();
+          let targetIds = [];
+
+          if (validIds.has(key)) {
+              targetIds = [key];
+          } else {
+              const direct = wordsByLegacyKey.get(key);
+              const normalized = wordsByLegacyKey.get(
+                  key.toLowerCase()
+              );
+
+              targetIds = [
+                  ...(direct || []),
+                  ...(normalized || [])
+              ];
+          }
+
+          if (targetIds.length === 0) {
+              migratedClears[key] = normalizeClearState(storedState);
+              return;
+          }
+
+          [...new Set(targetIds)].forEach(wordId => {
+              migratedClears[wordId] = mergeClearState(
+                  migratedClears[wordId],
+                  storedState
+              );
+          });
+      });
+
+      if (
+          JSON.stringify(migratedClears) !==
+          JSON.stringify(this.mtWordClears)
+      ) {
+          this.mtWordClears = migratedClears;
+          clearsChanged = true;
       }
 
       if (dbChanged) {
@@ -2828,171 +3718,263 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
           ]);
       }
 
+      if (starsChanged) {
+          await this.saveStars();
+      }
+
       if (clearsChanged) {
           await this.saveClears();
       }
   },
 
   async loadData() {
-    /*
-     * 这里只读取数据格式版本。
-     * 无论版本是否变化，都绝不删除用户数据。
-     */
-    const storedSchemaVersion = Number.parseInt(
-        localStorage.getItem(
-            'dataSchemaVersion'
-        ) || '0',
-        10
-    );
+      const storedSchemaVersion = Number.parseInt(
+          localStorage.getItem('dataSchemaVersion') || '0',
+          10
+      );
+      const needsMigration =
+          storedSchemaVersion < DATA_SCHEMA_VERSION;
 
-    const needsMigration =
-        storedSchemaVersion < DATA_SCHEMA_VERSION;
+      try {
+          if (typeof idbKeyval === 'undefined') {
+              this.idbAvailable = false;
+          } else {
+              await idbKeyval.get('__zhongri_storage_probe__');
+          }
+      } catch (error) {
+          console.warn(
+              '[DB] idb-keyval 不可用，降级至 localStorage',
+              error
+          );
+          this.idbAvailable = false;
+      }
 
-    let storedDB = null;
-    try {
-        if (typeof idbKeyval !== 'undefined') {
-            storedDB = await idbKeyval.get('myWordDB_v3');
-        } else {
-            this.idbAvailable = false;
-        }
-    } catch(e) {
-        console.warn('[DB] idb-keyval 不可用，降级至 localStorage', e);
-        this.idbAvailable = false;
-    }
-    
-    if (storedDB) {
-        this.db = storedDB;
-        this.folders = await idbKeyval.get('myFolders_v3') || ["默认词库"];
-        this.folderLangs = await idbKeyval.get('myFolderLangs') || { "默认词库": "ja" };
-        this.stars = await idbKeyval.get('starredWords') || [];
-        this.records = await idbKeyval.get('studyRecords') || [];
-        this.mtGroupClears = await idbKeyval.get('mtGroupClears_v3') || {};
-        this.mtWordClears = await idbKeyval.get('mtWordClears_v3') || {};
-        this.aiConversations = await idbKeyval.get('aiConversations') || [];
-    } else {
-        let lsDB = localStorage.getItem('myWordDB_v3');
-        if (lsDB) {
-            this.db = JSON.parse(lsDB);
-            this.folders = JSON.parse(localStorage.getItem('myFolders_v3')) || ["默认词库"];
-            this.folderLangs = JSON.parse(localStorage.getItem('myFolderLangs')) || { "默认词库": "ja" };
-            this.stars = JSON.parse(localStorage.getItem('starredWords')) || [];
-            this.records = JSON.parse(localStorage.getItem('studyRecords')) || [];
-            this.mtGroupClears = JSON.parse(localStorage.getItem('mtGroupClears_v3')) || {};
-            this.mtWordClears = JSON.parse(localStorage.getItem('mtWordClears_v3')) || {};
-            this.aiConversations = JSON.parse(localStorage.getItem('aiConversations')) || [];
-            await Promise.all([
-                this.saveDB(), this.saveFolders(), this.saveStars(), 
-                this.saveRecords(), this.saveClears()
-            ]);
-            ['myWordDB_v3', 'myFolders_v3', 'myFolderLangs', 'starredWords', 'studyRecords', 'mtGroupClears_v3', 'mtWordClears_v3'].forEach(k => localStorage.removeItem(k));
-        } else {
-            this.db = DefaultWords.map(w => ({
-                ...w,
-                folder: "默认词库",
-                builtIn: true
-            })); 
-            // Also include English default words
-            if (typeof DefaultEnglishWords !== 'undefined') {
-                this.db = this.db.concat(
-                    DefaultEnglishWords.map(w => ({
-                        ...w,
-                        builtIn: true
-                    }))
-                );
-                this.folders.push("四级词汇");
-                this.folderLangs["四级词汇"] = "en";
-            }
-            await this.saveDB(); 
-            await this.saveFolders();
-        }
-    }
-  
-    /*
-     * 只有数据格式真正升级时，
-     * 才创建更新前安全快照。
-     */
-    let migrationSnapshot = null;
+      this.builtInWords = this.getDefaultBuiltInWords();
+      this.builtInIdSet = new Set(
+          this.builtInWords.map(word => this.getWordId(word))
+      );
 
-    if (needsMigration) {
-        migrationSnapshot =
-            await this.createMigrationSnapshot(
-                storedSchemaVersion
-            );
-    }
+      const [
+          storedUserWords,
+          storedOverrides,
+          legacyDB,
+          storedFolders,
+          storedFolderLangs,
+          storedStars,
+          storedRecords,
+          storedGroupClears,
+          storedWordClears,
+          storedConversations
+      ] = await Promise.all([
+          this.readStorageValue(USER_WORDS_STORAGE_KEY),
+          this.readStorageValue(WORD_OVERRIDES_STORAGE_KEY),
+          this.readStorageValue(LEGACY_WORD_DB_STORAGE_KEY),
+          this.readStorageValue('myFolders_v3'),
+          this.readStorageValue('myFolderLangs'),
+          this.readStorageValue('starredWords'),
+          this.readStorageValue('studyRecords'),
+          this.readStorageValue('mtGroupClears_v3'),
+          this.readStorageValue('mtWordClears_v3'),
+          this.readStorageValue('aiConversations')
+      ]);
 
-    try {
-        /*
-         * 迁移函数是可重复运行的：
-         * 它只补缺失数据，不删除或覆盖用户内容。
-         */
-        await this.runDataMigrations();
+      const hasSeparatedStorage =
+          Array.isArray(storedUserWords) ||
+          (
+              storedOverrides &&
+              typeof storedOverrides === 'object' &&
+              !Array.isArray(storedOverrides)
+          ) ||
+          Number.parseInt(
+              localStorage.getItem(WORD_STORAGE_VERSION_KEY) || '0',
+              10
+          ) >= WORD_STORAGE_VERSION;
 
-        if (needsMigration) {
-            localStorage.setItem(
-                'dataSchemaVersion',
-                String(DATA_SCHEMA_VERSION)
-            );
+      if (hasSeparatedStorage) {
+          this.userWords = Array.isArray(storedUserWords)
+              ? cloneDataValue(storedUserWords)
+              : [];
+          this.wordOverrides =
+              storedOverrides &&
+              typeof storedOverrides === 'object' &&
+              !Array.isArray(storedOverrides)
+                  ? cloneDataValue(storedOverrides)
+                  : {};
+          this.rebuildCombinedDB();
+      } else if (Array.isArray(legacyDB)) {
+          this.migrateLegacyWordStorage(legacyDB, {
+              markMissingBuiltInsAsDeleted: true
+          });
+      } else {
+          this.userWords = [];
+          this.wordOverrides = {};
+          this.rebuildCombinedDB();
+      }
 
-            console.log(
-                `[Migration] 数据格式已从 ${storedSchemaVersion} 升级到 ${DATA_SCHEMA_VERSION}`
-            );
-        }
-    } catch (error) {
-        console.error(
-            '[Migration] 数据迁移失败',
-            error
-        );
+      this.folders = Array.isArray(storedFolders)
+          ? cloneDataValue(storedFolders)
+          : ['默认词库'];
+      this.folderLangs =
+          storedFolderLangs &&
+          typeof storedFolderLangs === 'object' &&
+          !Array.isArray(storedFolderLangs)
+              ? cloneDataValue(storedFolderLangs)
+              : { '默认词库': 'ja' };
+      this.stars = Array.isArray(storedStars)
+          ? cloneDataValue(storedStars)
+          : [];
+      this.records = Array.isArray(storedRecords)
+          ? cloneDataValue(storedRecords)
+          : [];
+      this.mtGroupClears =
+          storedGroupClears &&
+          typeof storedGroupClears === 'object' &&
+          !Array.isArray(storedGroupClears)
+              ? cloneDataValue(storedGroupClears)
+              : {};
+      this.mtWordClears =
+          storedWordClears &&
+          typeof storedWordClears === 'object' &&
+          !Array.isArray(storedWordClears)
+              ? cloneDataValue(storedWordClears)
+              : {};
+      this.aiConversations = Array.isArray(storedConversations)
+          ? cloneDataValue(storedConversations)
+          : [];
 
-        if (migrationSnapshot) {
-            try {
-                await this.restoreMigrationSnapshot(
-                    migrationSnapshot
-                );
+      this.builtInWords.forEach(word => {
+          const folder = word.folder || (
+              word.lang === 'en'
+                  ? '四级词汇'
+                  : '默认词库'
+          );
 
-                localStorage.setItem(
-                    'dataSchemaVersion',
-                    String(storedSchemaVersion)
-                );
-            } catch (restoreError) {
-                console.error(
-                    '[Migration] 自动恢复也失败',
-                    restoreError
-                );
-            }
-        }
+          if (!this.folders.includes(folder)) {
+              this.folders.push(folder);
+          }
 
-        throw error;
-    }
-},
+          this.folderLangs[folder] =
+              word.lang === 'en' ? 'en' : 'ja';
+      });
+
+      let migrationSnapshot = null;
+
+      if (needsMigration) {
+          migrationSnapshot =
+              await this.createMigrationSnapshot(
+                  storedSchemaVersion
+              );
+      }
+
+      try {
+          await this.runDataMigrations();
+          await this.persistSeparatedWordData();
+
+          if (needsMigration) {
+              localStorage.setItem(
+                  'dataSchemaVersion',
+                  String(DATA_SCHEMA_VERSION)
+              );
+
+              console.log(
+                  `[Migration] 数据格式已从 ${storedSchemaVersion} 升级到 ${DATA_SCHEMA_VERSION}`
+              );
+          }
+      } catch (error) {
+          console.error('[Migration] 数据迁移失败', error);
+
+          if (migrationSnapshot) {
+              try {
+                  await this.restoreMigrationSnapshot(
+                      migrationSnapshot
+                  );
+
+                  localStorage.setItem(
+                      'dataSchemaVersion',
+                      String(storedSchemaVersion)
+                  );
+              } catch (restoreError) {
+                  console.error(
+                      '[Migration] 自动恢复也失败',
+                      restoreError
+                  );
+              }
+          }
+
+          throw error;
+      }
+  },
 
   saveDB() {
-      /*
-       * 所有保存入口共用同一套格式整理规则。
-       * preserveWord 保留词汇身份，避免收藏与掌握记录突然失联。
-       */
-      this.db.forEach(word => {
+      const canonicalMap = new Map(
+          this.builtInWords.map(word => [
+              this.getWordId(word),
+              word
+          ])
+      );
+      const currentById = new Map();
+      const userWords = [];
+      const overrides = {};
+
+      this.db.forEach(rawWord => {
           Object.assign(
-              word,
+              rawWord,
               normalizeWordEntry(
-                  word,
+                  rawWord,
                   { preserveWord: true }
               )
           );
+
+          ensureStableWordId(rawWord, {
+              builtInHint: rawWord.builtIn === true
+          });
+
+          if (currentById.has(rawWord._id)) {
+              rawWord._id = createRandomWordId();
+              rawWord.builtIn = false;
+          }
+
+          currentById.set(rawWord._id, rawWord);
       });
 
-      if (!this.idbAvailable) {
-          localStorage.setItem(
-              'myWordDB_v3',
-              JSON.stringify(this.db)
-          );
+      this.db.forEach(word => {
+          const canonical = canonicalMap.get(word._id);
 
-          return Promise.resolve();
-      }
+          if (canonical) {
+              word.builtIn = true;
+              word.lang = canonical.lang;
 
-      return idbKeyval.set(
-          'myWordDB_v3',
-          this.db
-      );
+              const override = this.buildWordOverride(
+                  canonical,
+                  word
+              );
+
+              if (Object.keys(override).length > 0) {
+                  overrides[word._id] = override;
+              }
+
+              return;
+          }
+
+          word.builtIn = false;
+          userWords.push(cloneDataValue(word));
+      });
+
+      this.builtInWords.forEach(canonical => {
+          const wordId = this.getWordId(canonical);
+
+          if (!currentById.has(wordId)) {
+              overrides[wordId] = {
+                  _deleted: true,
+                  updatedAt: new Date().toISOString()
+              };
+          }
+      });
+
+      this.userWords = userWords;
+      this.wordOverrides = overrides;
+
+      return this.persistSeparatedWordData();
   },
   saveFolders() {
       if (!this.idbAvailable) { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); return Promise.resolve(); }
@@ -3012,10 +3994,9 @@ db: [], folders: ["默认词库"], folderLangs: { "默认词库": "ja" }, stars:
   },
   
   checkFilter(w, filterName) {
-      let st = this.mtWordClears[w.word] || { kanji:false, kana:false, meaning:false };
-      if (typeof st === 'number') st = { kanji:false, kana:false, meaning:false }; 
+      const st = this.getClearState(w);
 
-      if (filterName === 'virtual_starred') return this.stars.includes(w.word);
+      if (filterName === 'virtual_starred') return this.isStarred(w);
       // 统一三杠判断：日语和英语均用 kanji + kana + meaning
       if (filterName === 'virtual_cleared') {
           return st.kanji && st.kana && st.meaning; 
@@ -4330,7 +5311,7 @@ let dbTotalEl = this.getEl('db-total-count');
     
     // Build word → lang lookup for accurate counting
     const wordLangMap = {};
-    Model.db.forEach(w => { wordLangMap[w.word] = w.lang || 'ja'; });
+    Model.db.forEach(w => { wordLangMap[Model.getWordId(w)] = w.lang || 'ja'; });
     
 Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
         if (typeof st === 'object') {
@@ -4693,7 +5674,7 @@ void card.offsetWidth;
         this.getEl('memory-test-ui').classList.add('hidden');
         this.getEl('btn-display-mode-trigger').style.display = 'none';
         this.getEl('star-btn').style.display = st === 'C' ? 'block' : 'none'; 
-        this.getEl('star-icon').style.fontVariationSettings = Model.stars.includes(w.word) ? "'FILL' 1" : "'FILL' 0";
+        this.getEl('star-icon').style.fontVariationSettings = Model.isStarred(w) ? "'FILL' 1" : "'FILL' 0";
 
         if (st === 'C') {
             this.getEl('capsule-filter-test').classList.add('hidden');
@@ -4838,7 +5819,7 @@ void card.offsetWidth;
         }
     }
 
-    let isStarred = typeof w.word === 'string' && Model.stars.includes(w.word);
+    let isStarred = Model.isStarred(w);
     let starBtn = this.getEl('star-btn');
     let starIcon = this.getEl('star-icon');
     if (starBtn && starIcon) {
@@ -5594,10 +6575,15 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let currentFilter = this.getEl('wb-folder-filter').value;
       
       Model.updateFilteredDb(searchQuery, currentFilter);
-      window.scrollTo({ top: 0, behavior: 'instant' }); 
-      Model.state.renderedStartIndex = -1; 
-      
-      this.renderVirtualGrid(); 
+      window.scrollTo({
+          top: 0,
+          behavior: 'auto'
+      });
+
+      Model.state.renderedStartIndex = -1;
+      Model.state.renderedEndIndex = -1;
+
+      this.renderVirtualGrid();
   },
 
   renderVirtualGrid() {
@@ -5605,9 +6591,33 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     const container = this.getEl('wb-grid-container');
     if(!grid || !container) return;
 
-    const colsStr = this.getEl('wb-col-select').value;
-    const cols = parseInt(colsStr) || 3; 
-    const blurMode = this.getEl('wb-blur-select').value; 
+        const colsStr = this.getEl('wb-col-select').value;
+    const requestedCols =
+        Number.parseInt(colsStr, 10) || 3;
+
+    grid.setAttribute(
+        'data-cols',
+        String(requestedCols)
+    );
+
+    const computedColumns =
+        window.getComputedStyle(grid)
+            .gridTemplateColumns;
+
+    const actualCols =
+        computedColumns &&
+        computedColumns !== 'none'
+            ? computedColumns
+                .split(/\s+/)
+                .filter(Boolean)
+                .length
+            : 0;
+
+    const cols =
+        actualCols || requestedCols;
+
+    const blurMode =
+        this.getEl('wb-blur-select').value; 
     
     const filteredData = Model.state.filteredDb;
 
@@ -5621,18 +6631,14 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
         return;
     }
 
-    let baseRowHeights = { 2: 160, 3: 130, 4: 110 }; 
-    let rowHeight = baseRowHeights[cols];
-    
-    if (grid.children.length > 0) {
-    let gap = cols === 4 ? 8 : 12;
-    let actualHeight = grid.children[0].offsetHeight + gap;
-    if (actualHeight > 50) { 
-        rowHeight = actualHeight;
-    } else {
-        rowHeight = baseRowHeights[cols]; 
-    }
-}
+    const stableRowHeights = {
+        2: 224,
+        3: 208,
+        4: 180
+    };
+
+    const rowHeight =
+        stableRowHeights[requestedCols] || 208;
 
     const totalRows = Math.ceil(filteredData.length / cols);
     const rect = container.getBoundingClientRect();
@@ -5640,7 +6646,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     let relativeScrollY = Math.max(0, window.scrollY - gridTop + 20);
 
     const viewportHeight = window.innerHeight;
-    const bufferRows = 6;  
+    const bufferRows = 10;
     
     let startRow = Math.floor(relativeScrollY / rowHeight) - bufferRows;
     startRow = Math.max(0, startRow);
@@ -5660,7 +6666,10 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
     grid.style.paddingTop = `${paddingTop}px`;
     grid.style.paddingBottom = `${paddingBottom}px`;
-    grid.setAttribute('data-cols', cols);
+    grid.setAttribute(
+        'data-cols',
+        String(requestedCols)
+    );
 
             let slice = filteredData.slice(startIndex, endIndex);
     
@@ -5701,7 +6710,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           isChecked = Model.state.selectedSet.has(idx);
 
           // 统一三杠体系：兼容旧英语 {word, meaning} 格式
-          let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
+          let st = Model.getClearState(w);
           if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
           if (isEnglishWord && st.word !== undefined) {
             st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
@@ -5714,7 +6723,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
               <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
             </div>`;
 
-          let starFilled = Model.stars.includes(w.word) ? 1 : 0;
+          let starFilled = Model.isStarred(w) ? 1 : 0;
           let starClass = starFilled ? 'active' : '';
 
           let topRightHTML = '';
@@ -5727,16 +6736,35 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           let safeWord = escapeHTML(w.word); 
           let safeKana = isEnglishWord ? (w.phonetic || '') : escapeHTML(w.kana || ''); 
           let safeMean = escapeHTML(w.meaning);
+          const safePitch = !isEnglishWord
+              ? escapeHTML(formatWordPitchDisplay(w.pitch))
+              : '';
+          const pitchHTML = safePitch
+              ? `<span class="wb-c-pitch">${safePitch}</span>`
+              : '';
           contentHTML = `
             ${hankoHTML}
             <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
             ${topRightHTML}
             ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
             <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-            ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span></div>`}
+            ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
             <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
 
-          renderFingerprint = String(idx) + blurMode + Model.state.batchMode + isChecked + starFilled + st.kanji + st.kana + st.meaning;
+          renderFingerprint =
+              String(idx) +
+              blurMode +
+              Model.state.batchMode +
+              isChecked +
+              starFilled +
+              st.kanji +
+              st.kana +
+              st.meaning +
+              String(w.pitch || '') +
+              String(w.level || '') +
+              String(w.frequency || '') +
+              String(w.difficulty || '') +
+              JSON.stringify(w.specialTags || []);
       }
 
       if (index < existingCards.length) {
@@ -6141,26 +7169,109 @@ let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-d
 },
 
 setupVirtualScroll() {
-  const container = View.getEl('wb-grid-container');
-  if (!container) return;
-  
-  let ticking = false;
-  window.addEventListener('scroll', () => { 
-      if (!document.getElementById('tab-wordbank').classList.contains('active')) return;
-      if (!ticking) {
-          window.requestAnimationFrame(() => {
-              View.renderVirtualGrid();
-              ticking = false;
-          });
-          ticking = true;
-      }
-  }, { passive: true });
-  
-  window.addEventListener('resize', () => { 
-      if (document.getElementById('tab-wordbank').classList.contains('active')) { 
-          View.resetWordbankRenderer(); 
-      } 
-  });
+    const container =
+        View.getEl('wb-grid-container');
+
+    const wordbankTab =
+        document.getElementById('tab-wordbank');
+
+    if (!container || !wordbankTab) {
+        return;
+    }
+
+    let ticking = false;
+    let resizeTimer = null;
+
+    let lastLayoutWidth = Math.round(
+        window.visualViewport?.width ||
+        window.innerWidth
+    );
+
+    window.addEventListener(
+        'scroll',
+        () => {
+            if (
+                !wordbankTab.classList.contains(
+                    'active'
+                )
+            ) {
+                return;
+            }
+
+            if (ticking) {
+                return;
+            }
+
+            ticking = true;
+
+            window.requestAnimationFrame(() => {
+                View.renderVirtualGrid();
+                ticking = false;
+            });
+        },
+        { passive: true }
+    );
+
+    window.addEventListener(
+        'resize',
+        () => {
+            clearTimeout(resizeTimer);
+
+            resizeTimer = setTimeout(() => {
+                if (
+                    !wordbankTab.classList.contains(
+                        'active'
+                    )
+                ) {
+                    return;
+                }
+
+                const nextLayoutWidth = Math.round(
+                    window.visualViewport?.width ||
+                    window.innerWidth
+                );
+
+                const widthChanged =
+                    Math.abs(
+                        nextLayoutWidth -
+                        lastLayoutWidth
+                    ) >= 8;
+
+                /*
+                 * 手机浏览器收起或展开地址栏时，
+                 * 通常只会改变可视高度。
+                 * 这种变化不应重置词库。
+                 */
+                if (!widthChanged) {
+                    return;
+                }
+
+                lastLayoutWidth =
+                    nextLayoutWidth;
+
+                const savedScrollY =
+                    window.scrollY;
+
+                Model.state.renderedStartIndex =
+                    -1;
+
+                Model.state.renderedEndIndex =
+                    -1;
+
+                View.renderVirtualGrid();
+
+                window.requestAnimationFrame(() => {
+                    window.scrollTo({
+                        top: savedScrollY,
+                        behavior: 'auto'
+                    });
+
+                    View.renderVirtualGrid();
+                });
+            }, 140);
+        },
+        { passive: true }
+    );
 },
 
   setupHeaderScrollShadow() {
@@ -6425,16 +7536,7 @@ if (ttsSelectTrigger) {
     });
 }
 
-let aiSheetClose = View.getEl('ai-sheet-close');
-if (aiSheetClose) {
-    aiSheetClose.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        window.toggleModal('ai-sheet-overlay', false);
-        Controller._saveCurrentChat();
-        let inputEl = View.getEl('ai-chat-input');
-        if (inputEl) inputEl.value = '';
-    });
-}
+
 let aiSheetCopy = View.getEl('ai-sheet-copy');
 if (aiSheetCopy) {
     aiSheetCopy.addEventListener('click', () => {
@@ -6592,22 +7694,7 @@ if (btnNewAIChat) {
     });
 }
 
-let aiPresetClose =
-    View.getEl('ai-preset-close');
 
-if (aiPresetClose) {
-    aiPresetClose.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(10);
-
-            window.toggleModal(
-                'ai-preset-overlay',
-                false
-            );
-        }
-    );
-}
 
 document
     .querySelectorAll('.ai-preset-option')
@@ -6914,34 +8001,58 @@ if (testVibrateBtn) {
     
 
     View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakWord(w, e.currentTarget); });
-    View.getEl('star-btn').addEventListener('click', (e) => { 
-        Hardware.playSound('click'); 
-        let wordObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; 
-        let idx = Model.stars.indexOf(wordObj.word); 
-        let btn = e.currentTarget;
-        let icon = View.getEl('star-icon'); 
-        
-        if (idx > -1) { 
-            Model.stars.splice(idx, 1); 
-            btn.classList.remove('active');
-            icon.style.fontVariationSettings = "'FILL' 0"; 
-        } else { 
-            Model.stars.push(wordObj.word); 
-            btn.classList.add('active');
-            icon.style.fontVariationSettings = "'FILL' 1"; 
-            window.createStarParticles(btn); 
-            Hardware.vibrate(20); 
-        } 
-        Model.saveStars(); 
+    View.getEl('star-btn').addEventListener('click', (e) => {
+        Hardware.playSound('click');
+
+        const wordObj =
+            Model.db[Model.state.studyQueue[Model.state.currentIndex]];
+        const wordId = Model.getWordId(wordObj);
+        const index = Model.stars.indexOf(wordId);
+        const button = e.currentTarget;
+        const icon = View.getEl('star-icon');
+
+        if (index > -1) {
+            Model.stars.splice(index, 1);
+            button.classList.remove('active');
+            icon.style.fontVariationSettings = "'FILL' 0";
+        } else {
+            Model.stars.push(wordId);
+            button.classList.add('active');
+            icon.style.fontVariationSettings = "'FILL' 1";
+            window.createStarParticles(button);
+            Hardware.vibrate(20);
+        }
+
+        Model.saveStars();
     });
 
     let dtStarBtn = View.getEl('dt-star-btn');
     if (dtStarBtn) {
         dtStarBtn.addEventListener('click', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(10); let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; let wWord = Model.db[realIdx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.currentTarget; let icon = View.getEl('dt-star-icon');
-            if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } 
-            else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); }
-            Model.saveStars(); Model.state.renderedStartIndex = -1;
+            Hardware.playSound('click');
+            Hardware.vibrate(10);
+
+            const realIdx =
+                Model.state.detailArray[Model.state.activeDetailIdx];
+            const word = Model.db[realIdx];
+            const wordId = Model.getWordId(word);
+            const starIndex = Model.stars.indexOf(wordId);
+            const starButton = e.currentTarget;
+            const icon = View.getEl('dt-star-icon');
+
+            if (starIndex > -1) {
+                Model.stars.splice(starIndex, 1);
+                starButton.classList.remove('active');
+                icon.style.fontVariationSettings = "'FILL' 0";
+            } else {
+                Model.stars.push(wordId);
+                starButton.classList.add('active');
+                icon.style.fontVariationSettings = "'FILL' 1";
+                window.createStarParticles(starButton);
+            }
+
+            Model.saveStars();
+            Model.state.renderedStartIndex = -1;
         });
     }
 
@@ -7073,7 +8184,30 @@ if (aiCloseBtn) {
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
-      if (e.target.closest('.btn-wb-star')) { Hardware.playSound('click'); Hardware.vibrate(10); let wWord = Model.db[idx].word; let sIdx = Model.stars.indexOf(wWord); let starBtn = e.target.closest('.btn-wb-star'); let icon = starBtn.querySelector('.material-symbols-rounded'); if (sIdx > -1) { Model.stars.splice(sIdx, 1); starBtn.classList.remove('active'); icon.style.fontVariationSettings = "'FILL' 0"; } else { Model.stars.push(wWord); starBtn.classList.add('active'); icon.style.fontVariationSettings = "'FILL' 1"; window.createStarParticles(starBtn); } Model.saveStars(); return; }
+      if (e.target.closest('.btn-wb-star')) {
+          Hardware.playSound('click');
+          Hardware.vibrate(10);
+
+          const word = Model.db[idx];
+          const wordId = Model.getWordId(word);
+          const starIndex = Model.stars.indexOf(wordId);
+          const starButton = e.target.closest('.btn-wb-star');
+          const icon = starButton.querySelector('.material-symbols-rounded');
+
+          if (starIndex > -1) {
+              Model.stars.splice(starIndex, 1);
+              starButton.classList.remove('active');
+              icon.style.fontVariationSettings = "'FILL' 0";
+          } else {
+              Model.stars.push(wordId);
+              starButton.classList.add('active');
+              icon.style.fontVariationSettings = "'FILL' 1";
+              window.createStarParticles(starButton);
+          }
+
+          Model.saveStars();
+          return;
+      }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
       if (Model.state.batchMode) {
           e.stopPropagation();
@@ -7712,6 +8846,9 @@ if (aiCloseBtn) {
 
           data: {
               db: cloneValue(Model.db),
+              userWords: cloneValue(Model.userWords),
+              wordOverrides: cloneValue(Model.wordOverrides),
+              wordStorageVersion: WORD_STORAGE_VERSION,
               folders: cloneValue(Model.folders),
               folderLangs: cloneValue(
                   Model.folderLangs
@@ -7753,6 +8890,17 @@ if (aiCloseBtn) {
 
               data: {
                   db: rawData.data.db,
+                  userWords: Array.isArray(rawData.data.userWords)
+                      ? rawData.data.userWords
+                      : null,
+                  wordOverrides:
+                      rawData.data.wordOverrides &&
+                      typeof rawData.data.wordOverrides === 'object' &&
+                      !Array.isArray(rawData.data.wordOverrides)
+                          ? rawData.data.wordOverrides
+                          : null,
+                  wordStorageVersion:
+                      Number(rawData.data.wordStorageVersion) || 0,
                   folders: rawData.data.folders,
                   folderLangs:
                       rawData.data.folderLangs,
@@ -7799,6 +8947,9 @@ if (aiCloseBtn) {
 
               data: {
                   db: rawData.db,
+                  userWords: null,
+                  wordOverrides: null,
+                  wordStorageVersion: 0,
                   folders: rawData.folders,
                   folderLangs:
                       rawData.folderLangs || {},
@@ -8105,10 +9256,28 @@ if (aiCloseBtn) {
           }
       }
 
-      Model.db = restoredDB;
+      Model.builtInWords = Model.getDefaultBuiltInWords();
+      Model.builtInIdSet = new Set(
+          Model.builtInWords.map(word => Model.getWordId(word))
+      );
+
+      if (
+          Array.isArray(data.userWords) &&
+          data.wordOverrides &&
+          typeof data.wordOverrides === 'object' &&
+          !Array.isArray(data.wordOverrides)
+      ) {
+          Model.userWords = cloneDataValue(data.userWords);
+          Model.wordOverrides = cloneDataValue(data.wordOverrides);
+          Model.rebuildCombinedDB();
+      } else {
+          Model.migrateLegacyWordStorage(restoredDB, {
+              markMissingBuiltInsAsDeleted: false
+          });
+      }
+
       Model.folders = restoredFolders;
-      Model.folderLangs =
-          restoredFolderLangs;
+      Model.folderLangs = restoredFolderLangs;
 
       Model.stars =
           Array.isArray(data.stars)
@@ -8170,6 +9339,7 @@ if (aiCloseBtn) {
           payload.preferences
       );
 
+      await Model.runDataMigrations();
       await Model.saveAllUserData();
   },
 
@@ -8674,7 +9844,7 @@ const startIdx = groupIndex * GROUP_STEP;
           }
 
           const status =
-              Model.mtWordClears[word.word];
+              Model.getClearState(word);
 
           if (
               !status ||
@@ -8744,7 +9914,7 @@ const startIdx = groupIndex * GROUP_STEP;
           if (!inRange) return false;
 
           if (isSkipEnabled) {
-              let st = Model.mtWordClears[item.w.word] || { kanji: false, kana: false, meaning: false };
+              let st = Model.getClearState(item.w);
               if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
 
               if (displayMode === 'word' && st.kanji) return false;
@@ -8776,19 +9946,9 @@ const startIdx = groupIndex * GROUP_STEP;
       Model.state.isAnimating = true;
 
       let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-      let wordKey = w.word;
+      const wordKey = Model.getWordId(w);
+      const clearState = Model.ensureClearState(w);
       const isEnglish = w.lang === 'en';
-
-      if (
-          !Model.mtWordClears[wordKey] ||
-          typeof Model.mtWordClears[wordKey] !== 'object'
-      ) {
-          Model.mtWordClears[wordKey] = {
-              kanji: false,
-              kana: false,
-              meaning: false
-          };
-      }
 
       let mode = View.getEl('test-display-select').value || 'kana';
 
@@ -8798,52 +9958,52 @@ const startIdx = groupIndex * GROUP_STEP;
 
       if (isCorrect) {
           if (mode === 'word') {
-              Model.mtWordClears[wordKey].kanji = true;
+              clearState.kanji = true;
           } else if (mode === 'kana' || mode === 'audio') {
-              Model.mtWordClears[wordKey].kana = true;
+              clearState.kana = true;
           } else if (mode === 'meaning') {
-              Model.mtWordClears[wordKey].meaning = true;
+              clearState.meaning = true;
           }
 
           if (
-              Model.mtWordClears[wordKey].kana &&
-              Model.mtWordClears[wordKey].meaning
+              clearState.kana &&
+              clearState.meaning
           ) {
-              Model.mtWordClears[wordKey].kanji = true;
+              clearState.kanji = true;
           }
 
           if (
-              Model.mtWordClears[wordKey].kanji &&
-              Model.mtWordClears[wordKey].meaning
+              clearState.kanji &&
+              clearState.meaning
           ) {
-              Model.mtWordClears[wordKey].kana = true;
+              clearState.kana = true;
           }
 
           if (
-              Model.mtWordClears[wordKey].kanji &&
-              Model.mtWordClears[wordKey].kana
+              clearState.kanji &&
+              clearState.kana
           ) {
-              Model.mtWordClears[wordKey].meaning = true;
+              clearState.meaning = true;
           }
 
           if (
-              Model.mtWordClears[wordKey].kanji &&
-              Model.mtWordClears[wordKey].kana &&
-              Model.mtWordClears[wordKey].meaning
+              clearState.kanji &&
+              clearState.kana &&
+              clearState.meaning
           ) {
-              Model.mtWordClears[wordKey].needsReview =
+              clearState.needsReview =
                   false;
           }
       } else {
-          Model.mtWordClears[wordKey].needsReview =
+          clearState.needsReview =
               true;
 
           if (mode === 'word') {
-              Model.mtWordClears[wordKey].kanji = false;
+              clearState.kanji = false;
           } else if (mode === 'kana' || mode === 'audio') {
-              Model.mtWordClears[wordKey].kana = false;
+              clearState.kana = false;
           } else if (mode === 'meaning') {
-              Model.mtWordClears[wordKey].meaning = false;
+              clearState.meaning = false;
           }
       }
 
@@ -9201,16 +10361,18 @@ const startIdx = groupIndex * GROUP_STEP;
                   setTimeout(() => View.renderStudyCard('next'), 500); 
               } 
               else { 
-    Model.state.mtBaseQueue.forEach(idx => { 
-        let w = Model.db[idx];
-        let wWord = w.word; 
-        if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
-            Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
+    Model.state.mtBaseQueue.forEach(idx => {
+        const word = Model.db[idx];
+        const clearState = Model.ensureClearState(word);
+
+        if (!clearState) {
+            return;
         }
-        Model.mtWordClears[wWord].kanji = true;
-        Model.mtWordClears[wWord].kana = true;
-        Model.mtWordClears[wWord].meaning = true;
-    }); 
+
+        clearState.kanji = true;
+        clearState.kana = true;
+        clearState.meaning = true;
+    });
     Model.saveClears(); 
     this.finishPendulum(); 
 }
@@ -9227,15 +10389,16 @@ const startIdx = groupIndex * GROUP_STEP;
     
     let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
     uniqueIndices.forEach(idx => {
-        let w = Model.db[idx];
-        let wWord = w.word;
-        if (!Model.mtWordClears[wWord] || typeof Model.mtWordClears[wWord] !== 'object') {
-            Model.mtWordClears[wWord] = { kanji: false, kana: false, meaning: false };
+        const word = Model.db[idx];
+        const clearState = Model.ensureClearState(word);
+
+        if (!clearState) {
+            return;
         }
-        // 统一三杠全亮
-        Model.mtWordClears[wWord].kanji = true;
-        Model.mtWordClears[wWord].kana = true;
-        Model.mtWordClears[wWord].meaning = true;
+
+        clearState.kanji = true;
+        clearState.kana = true;
+        clearState.meaning = true;
     });
     Model.saveClears();
 
@@ -9472,9 +10635,11 @@ showConfirm('批量删除', '确定要删除选中的所有单词吗？', () => 
     this.closeDetailIfOpen();
         
         Model.state.selectedSet.forEach(idx => {
-            let wordKey = Model.db[idx].word;
-            Model.stars = Model.stars.filter(w => w !== wordKey);
-            delete Model.mtWordClears[wordKey];
+            const word = Model.db[idx];
+            const wordId = Model.getWordId(word);
+
+            Model.stars = Model.stars.filter(id => id !== wordId);
+            delete Model.mtWordClears[wordId];
         });
         Model.saveStars();
         Model.saveClears();
@@ -9588,11 +10753,13 @@ showConfirm('批量删除', '确定要删除选中的所有单词吗？', () => 
 deleteWord(idx) { 
     showConfirm('删除单词', '彻底删除该词？', () => { 
         this.closeDetailIfOpen();
-        const word = Model.db[idx].word;
-        Model.db.splice(idx,1); 
+        const word = Model.db[idx];
+        const wordId = Model.getWordId(word);
+
+        Model.db.splice(idx, 1);
         Model.saveDB();
-        Model.stars = Model.stars.filter(w => w !== word);
-        delete Model.mtWordClears[word];
+        Model.stars = Model.stars.filter(id => id !== wordId);
+        delete Model.mtWordClears[wordId];
         Model.saveStars();
         Model.saveClears();
         if (document.getElementById('tab-wordbank').classList.contains('active')) {
@@ -9822,7 +10989,7 @@ deleteWord(idx) {
       const modeText = {
           skip: '重复词会被跳过',
           overwrite: '重复词会覆盖原内容',
-          keep: '重复词会被保留；同名单词可能共享收藏与掌握进度'
+          keep: '重复词会被保留；每个词条拥有独立收藏与掌握进度'
       }[duplicateMode];
 
       const summary = `
@@ -9866,8 +11033,15 @@ deleteWord(idx) {
 
                   if (existingIndex >= 0 && duplicateMode === 'overwrite') {
                       const oldWord = Model.db[existingIndex];
+                      const originalId = Model.getWordId(oldWord);
+                      const originalBuiltIn = oldWord.builtIn === true;
                       const { isImported, importedAt, ...fields } = entry.wordData;
-                      Object.assign(oldWord, fields);
+
+                      Object.assign(oldWord, fields, {
+                          _id: originalId,
+                          builtIn: originalBuiltIn
+                      });
+
                       if (oldWord.isImported === true) oldWord.importedAt = importedAt;
                       updated++;
                       return;
@@ -9912,27 +11086,32 @@ deleteWord(idx) {
   },
 
   getDefaultLibraryState() {
-      const db = DefaultWords.map(word => ({
-          ...JSON.parse(JSON.stringify(word)),
-          folder: '默认词库',
-          lang: 'ja',
-          builtIn: true
-      }));
-      const folders = ['默认词库'];
-      const folderLangs = { '默认词库': 'ja' };
+      const db = Model.getDefaultBuiltInWords().map(word => {
+          return cloneDataValue(word);
+      });
+      const folders = [];
+      const folderLangs = {};
 
-      if (typeof DefaultEnglishWords !== 'undefined') {
-          DefaultEnglishWords.forEach(word => {
-              const cloned = {
-                  ...JSON.parse(JSON.stringify(word)),
-                  lang: 'en',
-                  builtIn: true
-              };
-              cloned.folder = cloned.folder || '英语词库';
-              db.push(cloned);
-              if (!folders.includes(cloned.folder)) folders.push(cloned.folder);
-              folderLangs[cloned.folder] = 'en';
-          });
+      db.forEach(word => {
+          const folder = word.folder || (
+              word.lang === 'en'
+                  ? '四级词汇'
+                  : '默认词库'
+          );
+
+          word.folder = folder;
+
+          if (!folders.includes(folder)) {
+              folders.push(folder);
+          }
+
+          folderLangs[folder] =
+              word.lang === 'en' ? 'en' : 'ja';
+      });
+
+      if (!folders.includes('默认词库')) {
+          folders.unshift('默认词库');
+          folderLangs['默认词库'] = 'ja';
       }
 
       return { db, folders, folderLangs };
@@ -10000,14 +11179,20 @@ deleteWord(idx) {
   restoreBuiltInLibrary() {
       return this.runSafeDataOperation('pre-remove-imported', async () => {
           const defaults = this.getDefaultLibraryState();
-          const names = new Set(defaults.db.map(word => word.word));
+          const wordIds = new Set(
+              defaults.db.map(word => Model.getWordId(word))
+          );
 
           Model.db = defaults.db;
           Model.folders = defaults.folders;
           Model.folderLangs = defaults.folderLangs;
-          Model.stars = Model.stars.filter(name => names.has(name));
+          Model.stars = Model.stars.filter(wordId => {
+              return wordIds.has(wordId);
+          });
           Model.mtWordClears = Object.fromEntries(
-              Object.entries(Model.mtWordClears).filter(([name]) => names.has(name))
+              Object.entries(Model.mtWordClears).filter(([wordId]) => {
+                  return wordIds.has(wordId);
+              })
           );
 
           await Model.saveAllUserData();
@@ -10103,8 +11288,8 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
           this.updateDetailContent(w, triggerTTS); 
       } 
   },
-  
-    updateDetailContent(w, triggerTTS = false) { 
+
+      updateDetailContent(w, triggerTTS = false) {  
       let visuals = View.getCardVisuals(w.type, w.lang); 
       document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
  
@@ -10132,8 +11317,19 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
           View.getEl('dt-kana').innerHTML = ph ? `<span class="material-symbols-rounded phonetic-speaker" style="font-size: 1.15rem; cursor: pointer;">volume_up</span><span style="display:inline-block; transform:translateY(1px);">${escapeHTML(ph)}</span>` : '';
           View.getEl('dt-kana').style.display = ph ? 'flex' : 'none';
       } else {
-          View.getEl('dt-kana').innerText = w.kana || ''; 
-          View.getEl('dt-kana').style.display = 'block';
+          const kana = escapeHTML(w.kana || '');
+          const pitch = escapeHTML(
+              formatWordPitchDisplay(w.pitch)
+          );
+          const kanaEl = View.getEl('dt-kana');
+
+          kanaEl.innerHTML = `
+              <span class="dt-kana-main">${kana}</span>
+              ${pitch ? `<span class="dt-pitch">${pitch}</span>` : ''}
+          `;
+          kanaEl.style.display = (kana || pitch)
+              ? 'flex'
+              : 'none';
       }
       View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
       let rootsEl = View.getEl('dt-roots');
@@ -10142,9 +11338,93 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
           rootsEl.innerHTML = (w.lang === 'en' && w.roots && showRootsPref) ? View.renderRoots(w.roots) : '';
           rootsEl.style.display = (w.lang === 'en' && w.roots && showRootsPref) ? 'flex' : 'none';
       }
-      View.getEl('dt-mean').innerText = w.meaning; 
-      View.renderExampleBox(w.example, 'dt-example-box'); 
-      let st = Model.mtWordClears[w.word] || { kanji: false, kana: false, meaning: false };
+            const detailMeaning = String(
+          w.meaning || ''
+      ).trim();
+
+      const detailMeaningEl =
+          View.getEl('dt-mean');
+
+      if (detailMeaningEl) {
+          detailMeaningEl.textContent =
+              detailMeaning;
+
+          detailMeaningEl.classList.remove(
+              'is-long'
+          );
+
+          detailMeaningEl.style.removeProperty(
+              'font-size'
+          );
+
+          detailMeaningEl.style.removeProperty(
+              'line-height'
+          );
+
+          detailMeaningEl.style.removeProperty(
+              'letter-spacing'
+          );
+
+          const detailMeaningLength =
+              Array.from(detailMeaning)
+                  .reduce((total, character) => {
+                      const weight =
+                          /[\x00-\x7F]/.test(character)
+                              ? 0.55
+                              : 1;
+
+                      return total + weight;
+                  }, 0);
+
+          let detailMeaningSize = 1.5;
+
+          if (detailMeaningLength > 46) {
+              detailMeaningSize = 0.84;
+          } else if (detailMeaningLength > 32) {
+              detailMeaningSize = 0.92;
+          } else if (detailMeaningLength > 22) {
+              detailMeaningSize = 1.02;
+          } else if (detailMeaningLength > 14) {
+              detailMeaningSize = 1.16;
+          } else if (detailMeaningLength > 8) {
+              detailMeaningSize = 1.3;
+          }
+
+          detailMeaningEl.classList.toggle(
+              'is-long',
+              detailMeaningLength > 14
+          );
+
+          detailMeaningEl.style.setProperty(
+              'font-size',
+              `${detailMeaningSize}rem`,
+              'important'
+          );
+
+          detailMeaningEl.style.setProperty(
+              'line-height',
+              detailMeaningLength > 22
+                  ? '1.28'
+                  : '1.34',
+              'important'
+          );
+
+          detailMeaningEl.style.setProperty(
+              'letter-spacing',
+              detailMeaningLength > 32
+                  ? '-0.02em'
+                  : '0',
+              'important'
+          );
+      }
+
+      View.renderExampleBox(
+          w.example,
+          'dt-example-box',
+          'normal',
+          w
+      ); 
+      let st = Model.getClearState(w);
       if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
       let badge = View.getEl('dt-hanko-badge'); 
       if (badge) { 
@@ -10158,7 +11438,7 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
             <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
           `;
       } 
-      let isStarred = Model.stars.includes(w.word); 
+      let isStarred = Model.isStarred(w); 
       let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); 
       if (starBtn && starIcon) { 
           if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } 
@@ -11717,29 +12997,40 @@ async _saveAIWordDrafts() {
             }
         });
 
+        let savedWord = normalizedWord;
+
         if (duplicate && duplicateMode === 'overwrite') {
-            const originalFolder =
-                duplicate.folder;
+            const originalFolder = duplicate.folder;
+            const originalId = Model.getWordId(duplicate);
+            const originalBuiltIn = duplicate.builtIn === true;
 
             Object.assign(
                 duplicate,
                 normalizedWord,
                 {
+                    _id: originalId,
+                    builtIn: originalBuiltIn,
                     folder: originalFolder || folder
                 }
             );
 
+            savedWord = duplicate;
             updated++;
         } else {
+            ensureStableWordId(normalizedWord, {
+                builtInHint: normalizedWord.builtIn === true
+            });
             Model.db.push(normalizedWord);
             added++;
         }
 
+        const savedWordId = Model.getWordId(savedWord);
+
         if (
             addToStars &&
-            !Model.stars.includes(normalizedWord.word)
+            !Model.stars.includes(savedWordId)
         ) {
-            Model.stars.push(normalizedWord.word);
+            Model.stars.push(savedWordId);
         }
     }
 
@@ -13090,15 +14381,9 @@ container.scrollTop = container.scrollHeight;
     };
 
     const ensureWordId = word => {
-        if (!word || typeof word !== 'object') {
-            return '';
-        }
-
-        if (!word._id) {
-            word._id = makeId('word');
-        }
-
-        return word._id;
+        return ensureStableWordId(word, {
+            builtInHint: word?.builtIn === true
+        });
     };
 
     const normalizeAnswer = value => {
@@ -13420,10 +14705,38 @@ container.scrollTop = container.scrollHeight;
             this.db.map(word => ensureWordId(word))
         );
 
-        Object.keys(this.wrongBook).forEach(wordId => {
-            if (!validWordIds.has(wordId)) {
-                delete this.wrongBook[wordId];
+        Object.entries(this.wrongBook).forEach(([wordId, record]) => {
+            if (validWordIds.has(wordId)) {
+                return;
             }
+
+            const matchedWord = this.db.find(word => {
+                if (!record || typeof record !== 'object') {
+                    return false;
+                }
+
+                return (
+                    String(word.word || '') === String(record.word || '') &&
+                    (word.lang || 'ja') === (record.lang || 'ja') &&
+                    (
+                        !record.folder ||
+                        word.folder === record.folder
+                    )
+                );
+            });
+
+            if (matchedWord) {
+                const nextId = this.getWordId(matchedWord);
+
+                if (!this.wrongBook[nextId]) {
+                    this.wrongBook[nextId] = {
+                        ...record,
+                        wordId: nextId
+                    };
+                }
+            }
+
+            delete this.wrongBook[wordId];
         });
 
         this.cleanupRecycleBin();
@@ -14520,14 +15833,14 @@ ${sourceText.slice(0, 9000)}
         const snapshot = {
             word: deepClone(word),
             originalIndex: index,
-            starred: Model.stars.includes(word.word),
-            clearState: deepClone(Model.mtWordClears[word.word] || null),
+            starred: Model.stars.includes(wordId),
+            clearState: deepClone(Model.mtWordClears[wordId] || null),
             wrongRecord: deepClone(Model.wrongBook[wordId] || null)
         };
 
         Model.db.splice(index, 1);
-        Model.stars = Model.stars.filter(item => item !== word.word);
-        delete Model.mtWordClears[word.word];
+        Model.stars = Model.stars.filter(item => item !== wordId);
+        delete Model.mtWordClears[wordId];
         delete Model.wrongBook[wordId];
         return snapshot;
     };
@@ -14561,6 +15874,21 @@ ${sourceText.slice(0, 9000)}
         if (item.kind === 'word') {
             const snapshot = item.payload;
             const word = deepClone(snapshot.word);
+
+            if (word.builtIn === true) {
+                const canonical = Model.builtInWords.find(entry => {
+                    return (
+                        Model.getWordIdentity(entry, true) ===
+                        Model.getWordIdentity(word, true)
+                    );
+                });
+
+                if (canonical) {
+                    word._id = Model.getWordId(canonical);
+                    word.builtIn = true;
+                }
+            }
+
             ensureWordId(word);
 
             if (Model.db.some(existing => existing._id === word._id)) {
@@ -14575,12 +15903,14 @@ ${sourceText.slice(0, 9000)}
             );
             Model.db.splice(targetIndex, 0, word);
 
-            if (snapshot.starred && !Model.stars.includes(word.word)) {
-                Model.stars.push(word.word);
+            const wordId = Model.getWordId(word);
+
+            if (snapshot.starred && !Model.stars.includes(wordId)) {
+                Model.stars.push(wordId);
             }
 
             if (snapshot.clearState) {
-                Model.mtWordClears[word.word] = deepClone(snapshot.clearState);
+                Model.mtWordClears[wordId] = deepClone(snapshot.clearState);
             }
 
             if (snapshot.wrongRecord) {
@@ -16603,37 +17933,132 @@ ${JSON.stringify(candidates.map(item => ({
     };
 
     const decorateWordbankCards = () => {
+        const grid = View.getEl('wb-grid');
+
+        const columns =
+            Number.parseInt(
+                grid?.dataset.cols || '3',
+                10
+            ) || 3;
+
         document
             .querySelectorAll('.wb-card[data-idx]')
             .forEach(card => {
-                const index = Number(card.dataset.idx);
+                const index =
+                    Number(card.dataset.idx);
 
-                if (!Number.isInteger(index) || index < 0) {
+                if (
+                    !Number.isInteger(index) ||
+                    index < 0
+                ) {
                     return;
                 }
 
                 const word = Model.db[index];
-                const wordNode = card.querySelector('.wb-c-word');
+
+                const wordNode =
+                    card.querySelector(
+                        '.wb-c-word'
+                    );
 
                 if (!word || !wordNode) {
                     return;
                 }
 
-                let meta = card.querySelector('.wb-meta-row');
+                const isEnglish =
+                    word.lang === 'en';
+
+                const wordLength =
+                    Array.from(
+                        String(word.word || '')
+                    ).length;
+
+                const readingText =
+                    isEnglish
+                        ? word.phonetic
+                        : word.kana;
+
+                const readingLength =
+                    Array.from(
+                        String(
+                            readingText || ''
+                        )
+                    ).length;
+
+                card.classList.toggle(
+                    'is-english-word',
+                    isEnglish
+                );
+
+                card.classList.toggle(
+                    'is-word-long',
+                    wordLength >
+                        (isEnglish ? 10 : 4)
+                );
+
+                card.classList.toggle(
+                    'is-word-very-long',
+                    wordLength >
+                        (isEnglish ? 15 : 6)
+                );
+
+                card.classList.toggle(
+                    'is-reading-long',
+                    readingLength >
+                        (isEnglish ? 14 : 8)
+                );
+
+                let meta =
+                    card.querySelector(
+                        '.wb-meta-row'
+                    );
 
                 if (!meta) {
-                    meta = document.createElement('div');
-                    meta.className = 'wb-meta-row';
-                    wordNode.insertAdjacentElement('afterend', meta);
+                    meta =
+                        document.createElement(
+                            'div'
+                        );
+
+                    meta.className =
+                        'wb-meta-row';
+
+                    wordNode
+                        .insertAdjacentElement(
+                            'afterend',
+                            meta
+                        );
                 }
 
-                const html = getWordMetadataHTML(word, {
-                    compact: true,
-                    showUnassigned: false
-                });
+                const html =
+                    getWordMetadataHTML(
+                        word,
+                        {
+                            compact: true,
+                            showUnassigned: false,
+                            specialTagLimit:
+                                columns === 2
+                                    ? 1
+                                    : 0
+                        }
+                    );
 
                 meta.innerHTML = html;
                 meta.hidden = !html;
+
+                const pitchNode =
+                    card.querySelector(
+                        '.wb-c-pitch'
+                    );
+
+                if (
+                    pitchNode &&
+                    !isEnglish
+                ) {
+                    pitchNode.textContent =
+                        formatWordPitchDisplay(
+                            word.pitch
+                        );
+                }
             });
     };
 
@@ -16664,7 +18089,7 @@ ${JSON.stringify(candidates.map(item => ({
             meta.innerHTML = getWordMetadataHTML(word, {
                 showUnassigned: true,
                 includeTags: true,
-                includeBuiltIn: true
+                specialTagLimit: 2
             });
         }
 
@@ -16800,6 +18225,2128 @@ ${JSON.stringify(candidates.map(item => ({
         });
 
         decorateWordbankCards();
+    };
+})();
+
+
+
+/* ==========================================
+   JLPT 200 词测试包：导入、状态与一键移除
+   ========================================== */
+(() => {
+    const JLPT_TEST_FORMAT = 'zhongri-jlpt-test-bundle';
+    const JLPT_TEST_LEVELS = Object.freeze(['N5', 'N3', 'N1']);
+    const JLPT_TEST_FOLDER_SUFFIX = ' 测试词库';
+    const JLPT_TEST_MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+    const cloneTestValue = value => {
+        return cloneDataValue(value);
+    };
+
+    const isJLPTTestWord = word => {
+        return Boolean(
+            word &&
+            (
+                word.isTestWord === true ||
+                word.testBundleId === JLPT_TEST_FORMAT
+            )
+        );
+    };
+
+    const getJLPTTestIdentity = word => {
+        const lang = word?.lang === 'en' ? 'en' : 'ja';
+        const headword = normalizeHeadword(
+            word?.word || '',
+            lang
+        ).toLowerCase();
+        const reading = lang === 'ja'
+            ? normalizeKanaText(word?.kana || '')
+            : normalizePhoneticText(word?.phonetic || '');
+
+        return `${lang}::${headword}::${reading}`;
+    };
+
+    const countJLPTTestLevels = words => {
+        const counts = {
+            N5: 0,
+            N3: 0,
+            N1: 0
+        };
+
+        words.forEach(word => {
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    counts,
+                    word.level
+                )
+            ) {
+                counts[word.level]++;
+            }
+        });
+
+        return counts;
+    };
+
+    const formatJLPTTestDate = value => {
+        if (!value) {
+            return '未知时间';
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return '未知时间';
+        }
+
+        return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const removeJLPTTestProgress = async wordIds => {
+        const idSet = wordIds instanceof Set
+            ? wordIds
+            : new Set(wordIds || []);
+
+        if (idSet.size === 0) {
+            return;
+        }
+
+        Model.stars = Model.stars.filter(wordId => {
+            return !idSet.has(String(wordId || ''));
+        });
+
+        idSet.forEach(wordId => {
+            delete Model.mtWordClears[wordId];
+
+            if (
+                Model.wrongBook &&
+                typeof Model.wrongBook === 'object'
+            ) {
+                delete Model.wrongBook[wordId];
+            }
+        });
+
+        const saves = [
+            Model.saveStars(),
+            Model.saveClears()
+        ];
+
+        if (typeof Model.saveWrongBook === 'function') {
+            saves.push(Model.saveWrongBook());
+        }
+
+        await Promise.all(saves);
+    };
+
+    Controller.getJLPTTestWords = function() {
+        return Model.db.filter(isJLPTTestWord);
+    };
+
+    Controller.updateJLPTTestPackageUI = function() {
+        const status = View.getEl('jlpt-test-package-status');
+        const summary = View.getEl('jlpt-test-package-summary');
+        const removeButton = View.getEl(
+            'btn-remove-jlpt-test-package'
+        );
+        const testWords = this.getJLPTTestWords();
+        const counts = countJLPTTestLevels(testWords);
+        const importedAt = testWords
+            .map(word => word.testImportedAt || word.importedAt || '')
+            .filter(Boolean)
+            .sort()
+            .at(-1) || '';
+
+        if (status) {
+            status.textContent = testWords.length
+                ? `已导入 ${testWords.length} 词`
+                : '未导入';
+            status.classList.toggle(
+                'is-ready',
+                testWords.length > 0
+            );
+            status.classList.toggle(
+                'is-empty',
+                testWords.length === 0
+            );
+        }
+
+        if (removeButton) {
+            removeButton.disabled = testWords.length === 0;
+        }
+
+        if (!summary) {
+            return;
+        }
+
+        if (testWords.length === 0) {
+            summary.innerHTML = `
+                <div>
+                    <span>当前状态</span>
+                    <strong>尚未导入测试词库</strong>
+                </div>
+                <div>
+                    <span>测试范围</span>
+                    <strong>N5 · N3 · N1</strong>
+                </div>
+            `;
+            return;
+        }
+
+        summary.innerHTML = `
+            <div>
+                <span>级别分布</span>
+                <strong>
+                    N5 ${counts.N5} ·
+                    N3 ${counts.N3} ·
+                    N1 ${counts.N1}
+                </strong>
+            </div>
+            <div>
+                <span>最近导入</span>
+                <strong>${escapeHTML(formatJLPTTestDate(importedAt))}</strong>
+            </div>
+        `;
+    };
+
+    Controller.normalizeJLPTTestPackage = function(rawData) {
+        if (
+            !rawData ||
+            rawData.format !== JLPT_TEST_FORMAT ||
+            !Array.isArray(rawData.packs)
+        ) {
+            throw new Error(
+                '这不是钟日词库构建器生成的 JLPT 测试包'
+            );
+        }
+
+        const rawWords = rawData.packs.flatMap(pack => {
+            return Array.isArray(pack?.words)
+                ? pack.words
+                : [];
+        });
+
+        if (rawWords.length === 0) {
+            throw new Error('测试包中没有词条');
+        }
+
+        const importedAt = new Date().toISOString();
+        const seenIds = new Set();
+        const words = [];
+        let rejectedCount = 0;
+        let duplicateCount = 0;
+
+        rawWords.forEach(rawWord => {
+            if (!rawWord || typeof rawWord !== 'object') {
+                rejectedCount++;
+                return;
+            }
+
+            const rawId = String(rawWord._id || '').trim();
+            const level = normalizeWordLevel(
+                rawWord.level,
+                'ja'
+            );
+
+            if (
+                !rawId ||
+                !JLPT_TEST_LEVELS.includes(level)
+            ) {
+                rejectedCount++;
+                return;
+            }
+
+            if (seenIds.has(rawId)) {
+                duplicateCount++;
+                return;
+            }
+
+            const normalized = normalizeWordEntry({
+                ...cloneTestValue(rawWord),
+                _id: rawId,
+                lang: 'ja',
+                level,
+                folder: `${level}${JLPT_TEST_FOLDER_SUFFIX}`,
+                builtIn: false,
+                isImported: true,
+                importedAt,
+                isTestWord: true,
+                testBundleId: JLPT_TEST_FORMAT,
+                testBundleVersion:
+                    Number(rawData.version) || 1,
+                testGeneratedAt:
+                    rawData.generatedAt || '',
+                testImportedAt: importedAt,
+                sourceLicense:
+                    rawData.license?.name || '',
+                sourceAuthor:
+                    rawData.license?.author || '',
+                sourceUrl:
+                    rawData.license?.source || ''
+            });
+
+            normalized._id = rawId;
+            normalized.builtIn = false;
+            normalized.isTestWord = true;
+            normalized.testBundleId = JLPT_TEST_FORMAT;
+            normalized.testBundleVersion =
+                Number(rawData.version) || 1;
+            normalized.testGeneratedAt =
+                rawData.generatedAt || '';
+            normalized.testImportedAt = importedAt;
+            normalized.sourceLicense =
+                rawData.license?.name || '';
+            normalized.sourceAuthor =
+                rawData.license?.author || '';
+            normalized.sourceUrl =
+                rawData.license?.source || '';
+
+            delete normalized._origin;
+
+            if (
+                !normalized.word ||
+                !normalized.meaning
+            ) {
+                rejectedCount++;
+                return;
+            }
+
+            seenIds.add(rawId);
+            words.push(normalized);
+        });
+
+        if (words.length === 0) {
+            throw new Error(
+                '测试包中没有可导入的有效词条'
+            );
+        }
+
+        return {
+            format: JLPT_TEST_FORMAT,
+            version: Number(rawData.version) || 1,
+            generatedAt: rawData.generatedAt || '',
+            declaredWordCount:
+                Number(rawData.wordCount) || rawWords.length,
+            license:
+                rawData.license &&
+                typeof rawData.license === 'object'
+                    ? cloneTestValue(rawData.license)
+                    : null,
+            testPlan:
+                rawData.testPlan &&
+                typeof rawData.testPlan === 'object'
+                    ? cloneTestValue(rawData.testPlan)
+                    : null,
+            words,
+            rejectedCount,
+            duplicateCount
+        };
+    };
+
+    Controller.getJLPTTestImportPreview = function(bundle) {
+        const nonTestWords = Model.db.filter(word => {
+            return !isJLPTTestWord(word);
+        });
+        const nonTestIds = new Set(
+            nonTestWords.map(word => Model.getWordId(word))
+        );
+        const nonTestIdentities = new Set(
+            nonTestWords.map(getJLPTTestIdentity)
+        );
+        let idCollisions = 0;
+        let wordCollisions = 0;
+
+        bundle.words.forEach(word => {
+            if (nonTestIds.has(word._id)) {
+                idCollisions++;
+                return;
+            }
+
+            if (
+                nonTestIdentities.has(
+                    getJLPTTestIdentity(word)
+                )
+            ) {
+                wordCollisions++;
+            }
+        });
+
+        return {
+            idCollisions,
+            wordCollisions,
+            importableCount: Math.max(
+                0,
+                bundle.words.length -
+                    idCollisions -
+                    wordCollisions
+            )
+        };
+    };
+
+    Controller.renderJLPTTestPackageSummary = function(
+        bundle,
+        preview
+    ) {
+        const counts = countJLPTTestLevels(bundle.words);
+        const frequencyCounts = {
+            高频: 0,
+            中频: 0,
+            低频: 0,
+            未设置: 0
+        };
+
+        bundle.words.forEach(word => {
+            const key = ['高频', '中频', '低频'].includes(
+                word.frequency
+            )
+                ? word.frequency
+                : '未设置';
+            frequencyCounts[key]++;
+        });
+
+        const licenseName =
+            bundle.license?.name || '未注明';
+        const author =
+            bundle.license?.author || '未注明';
+
+        return `
+            <div class="jlpt-test-confirm-summary">
+                <div>
+                    <span>有效词条</span>
+                    <strong>${bundle.words.length}</strong>
+                </div>
+                <div>
+                    <span>预计导入</span>
+                    <strong>${preview.importableCount}</strong>
+                </div>
+                <div>
+                    <span>级别</span>
+                    <strong>
+                        N5 ${counts.N5} ·
+                        N3 ${counts.N3} ·
+                        N1 ${counts.N1}
+                    </strong>
+                </div>
+                <div>
+                    <span>频率</span>
+                    <strong>
+                        高 ${frequencyCounts.高频} ·
+                        中 ${frequencyCounts.中频} ·
+                        低 ${frequencyCounts.低频}
+                    </strong>
+                </div>
+            </div>
+            <div style="
+                margin-top: 12px;
+                font-size: .78rem;
+                line-height: 1.7;
+                opacity: .72;
+            ">
+                格式：${escapeHTML(bundle.format)} v${bundle.version}<br>
+                许可：${escapeHTML(licenseName)} · 作者 ${escapeHTML(author)}
+            </div>
+            ${
+                preview.idCollisions ||
+                preview.wordCollisions ||
+                bundle.rejectedCount ||
+                bundle.duplicateCount
+                    ? `
+                        <div style="
+                            margin-top: 12px;
+                            color: var(--accent-red);
+                            font-size: .78rem;
+                            line-height: 1.7;
+                        ">
+                            将跳过：ID 冲突 ${preview.idCollisions}、
+                            现有同词 ${preview.wordCollisions}、
+                            无效 ${bundle.rejectedCount}、
+                            包内重复 ${bundle.duplicateCount}。
+                        </div>
+                    `
+                    : ''
+            }
+        `;
+    };
+
+    Controller.applyJLPTTestPackage = async function(bundle) {
+        const oldTestWords = this.getJLPTTestWords();
+        const oldTestIds = new Set(
+            oldTestWords.map(word => Model.getWordId(word))
+        );
+        const remainingWords = Model.db.filter(word => {
+            return !isJLPTTestWord(word);
+        });
+        const occupiedIds = new Set(
+            remainingWords.map(word => Model.getWordId(word))
+        );
+        const occupiedIdentities = new Set(
+            remainingWords.map(getJLPTTestIdentity)
+        );
+        const importedIds = new Set();
+        let skippedId = 0;
+        let skippedWord = 0;
+
+        bundle.words.forEach(word => {
+            if (occupiedIds.has(word._id)) {
+                skippedId++;
+                return;
+            }
+
+            const identity = getJLPTTestIdentity(word);
+
+            if (occupiedIdentities.has(identity)) {
+                skippedWord++;
+                return;
+            }
+
+            const copy = cloneTestValue(word);
+            remainingWords.push(copy);
+            occupiedIds.add(copy._id);
+            occupiedIdentities.add(identity);
+            importedIds.add(copy._id);
+        });
+
+        Model.db = remainingWords;
+
+        const staleIds = new Set(
+            [...oldTestIds].filter(wordId => {
+                return !importedIds.has(wordId);
+            })
+        );
+
+        await removeJLPTTestProgress(staleIds);
+
+        const usedFolders = new Set(
+            Model.db.map(word => word.folder).filter(Boolean)
+        );
+
+        JLPT_TEST_LEVELS.forEach(level => {
+            const folder = `${level}${JLPT_TEST_FOLDER_SUFFIX}`;
+
+            if (usedFolders.has(folder)) {
+                if (!Model.folders.includes(folder)) {
+                    Model.folders.push(folder);
+                }
+
+                Model.folderLangs[folder] = 'ja';
+                return;
+            }
+
+            Model.folders = Model.folders.filter(item => {
+                return item !== folder;
+            });
+            delete Model.folderLangs[folder];
+        });
+
+        await Promise.all([
+            Model.saveDB(),
+            Model.saveFolders(),
+            Model.saveFolderLangs()
+        ]);
+
+        return {
+            imported: importedIds.size,
+            skippedId,
+            skippedWord,
+            replaced: oldTestWords.length
+        };
+    };
+
+    Controller.importJLPTTestPackage = async function(file) {
+        if (!file) {
+            return;
+        }
+
+        if (file.size > JLPT_TEST_MAX_FILE_SIZE) {
+            Hardware.playSound('error');
+            Hardware.vibrate(50);
+            showToast('测试包文件过大');
+            return;
+        }
+
+        try {
+            const rawData = JSON.parse(await file.text());
+            const bundle = this.normalizeJLPTTestPackage(rawData);
+            const preview = this.getJLPTTestImportPreview(bundle);
+
+            if (preview.importableCount === 0) {
+                Hardware.playSound('error');
+                Hardware.vibrate(50);
+                showToast('测试包中的词条均与现有词库冲突');
+                return;
+            }
+
+            const summary = this.renderJLPTTestPackageSummary(
+                bundle,
+                preview
+            );
+
+            showConfirm(
+                '导入 JLPT 测试词库？',
+                `
+                    ${summary}
+                    <div style="
+                        margin-top: 14px;
+                        color: var(--accent-red);
+                        font-size: .8rem;
+                        line-height: 1.7;
+                    ">
+                        已存在的测试词库会被本次测试包替换。
+                        现有内置词与个人词汇不会被覆盖，
+                        操作前会自动保存恢复点。
+                    </div>
+                `,
+                async () => {
+                    let restorePoint = null;
+
+                    try {
+                        showToast('正在导入测试词库…');
+                        restorePoint = await this.storePreImportRestorePoint(
+                            'pre-jlpt-test-import'
+                        );
+                        const result = await this.applyJLPTTestPackage(
+                            bundle
+                        );
+
+                        await this.updateRestorePointUI();
+                        this.refreshAfterDataOperation();
+                        this.updateJLPTTestPackageUI();
+
+                        Hardware.playSound('success');
+                        Hardware.vibrate(100);
+
+                        const details = [];
+                        details.push(`导入 ${result.imported} 词`);
+
+                        if (result.skippedId) {
+                            details.push(`跳过 ID 冲突 ${result.skippedId}`);
+                        }
+
+                        if (result.skippedWord) {
+                            details.push(`跳过现有同词 ${result.skippedWord}`);
+                        }
+
+                        showToast(details.join('，'));
+                    } catch (error) {
+                        console.error(
+                            '[JLPT Test] 测试包导入失败',
+                            error
+                        );
+
+                        if (restorePoint) {
+                            try {
+                                await this.applyBackupPayload(
+                                    restorePoint
+                                );
+                                showToast('导入失败，已恢复原数据');
+                            } catch (restoreError) {
+                                console.error(
+                                    '[JLPT Test] 自动恢复失败',
+                                    restoreError
+                                );
+                                showToast('导入失败，自动恢复也失败');
+                            }
+                        } else {
+                            showToast('导入失败，未修改数据');
+                        }
+
+                        Hardware.playSound('error');
+                        Hardware.vibrate(50);
+                    }
+                }
+            );
+        } catch (error) {
+            console.error(
+                '[JLPT Test] 无法读取测试包',
+                error
+            );
+            Hardware.playSound('error');
+            Hardware.vibrate(50);
+            showToast(
+                error?.message || '无法读取测试包'
+            );
+        }
+    };
+
+    Controller.removeJLPTTestPackage = async function() {
+        const testWords = this.getJLPTTestWords();
+
+        if (testWords.length === 0) {
+            showToast('当前没有测试词库');
+            this.updateJLPTTestPackageUI();
+            return;
+        }
+
+        const counts = countJLPTTestLevels(testWords);
+
+        showConfirm(
+            '移除 JLPT 测试词库？',
+            `
+                <div style="text-align:left;line-height:1.75;">
+                    将移除 ${testWords.length} 个测试词：<br>
+                    N5 ${counts.N5} · N3 ${counts.N3} · N1 ${counts.N1}
+                </div>
+                <div style="
+                    margin-top: 14px;
+                    color: var(--accent-red);
+                    font-size: .82rem;
+                    line-height: 1.7;
+                ">
+                    同时清理这些测试词的收藏、掌握状态和错题记录。
+                    现有内置词、个人词汇及其他学习记录不会受影响。
+                    操作前会自动保存恢复点。
+                </div>
+            `,
+            async () => {
+                const testIds = new Set(
+                    testWords.map(word => Model.getWordId(word))
+                );
+
+                await this.runSafeDataOperation(
+                    'pre-remove-jlpt-test',
+                    async () => {
+                        Model.db = Model.db.filter(word => {
+                            return !isJLPTTestWord(word);
+                        });
+
+                        await removeJLPTTestProgress(testIds);
+
+                        const usedFolders = new Set(
+                            Model.db
+                                .map(word => word.folder)
+                                .filter(Boolean)
+                        );
+
+                        JLPT_TEST_LEVELS.forEach(level => {
+                            const folder =
+                                `${level}${JLPT_TEST_FOLDER_SUFFIX}`;
+
+                            if (!usedFolders.has(folder)) {
+                                Model.folders = Model.folders.filter(
+                                    item => item !== folder
+                                );
+                                delete Model.folderLangs[folder];
+                            }
+                        });
+
+                        await Promise.all([
+                            Model.saveDB(),
+                            Model.saveFolders(),
+                            Model.saveFolderLangs()
+                        ]);
+                    },
+                    `已移除 ${testWords.length} 个测试词`
+                );
+
+                this.updateJLPTTestPackageUI();
+            }
+        );
+    };
+
+    const originalControllerInitForJLPTTest =
+        Controller.init.bind(Controller);
+
+    Controller.init = async function() {
+        await originalControllerInitForJLPTTest();
+
+        const importButton = View.getEl(
+            'btn-import-jlpt-test-package'
+        );
+        const removeButton = View.getEl(
+            'btn-remove-jlpt-test-package'
+        );
+        const fileInput = View.getEl(
+            'file-import-jlpt-test-package'
+        );
+
+        if (
+            importButton &&
+            fileInput &&
+            importButton.dataset.jlptTestReady !== 'true'
+        ) {
+            importButton.dataset.jlptTestReady = 'true';
+            importButton.addEventListener('click', () => {
+                Hardware.playSound('click');
+                Hardware.vibrate(15);
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', event => {
+                const file = event.target.files?.[0];
+
+                if (file) {
+                    this.importJLPTTestPackage(file);
+                }
+
+                event.target.value = '';
+            });
+        }
+
+        if (
+            removeButton &&
+            removeButton.dataset.jlptTestReady !== 'true'
+        ) {
+            removeButton.dataset.jlptTestReady = 'true';
+            removeButton.addEventListener('click', () => {
+                Hardware.playSound('click');
+                Hardware.vibrate(15);
+                this.removeJLPTTestPackage();
+            });
+        }
+
+                this.updateJLPTTestPackageUI();
+    };
+})();
+
+
+/* ==========================================
+   完整词库压力测试：兼容 200 词包与完整 JSON 包
+   ========================================== */
+(() => {
+    const SAMPLE_PACKAGE_FORMAT =
+        'zhongri-jlpt-test-bundle';
+
+    const FULL_PACKAGE_FORMAT =
+        'zhongri-wordbank-bundle';
+
+    const ACCEPTED_PACKAGE_FORMATS = new Set([
+        SAMPLE_PACKAGE_FORMAT,
+        FULL_PACKAGE_FORMAT
+    ]);
+
+    const PACKAGE_LEVELS = Object.freeze([
+        'N5',
+        'N4',
+        'N3',
+        'N2',
+        'N1',
+        'CET-4',
+        'CET-6'
+    ]);
+
+    const ACTIVE_FOLDER_SUFFIX =
+        ' 压力测试词库';
+
+    const MANAGED_FOLDER_SUFFIXES = Object.freeze([
+        ' 测试词库',
+        ACTIVE_FOLDER_SUFFIX
+    ]);
+
+    const MAX_PACKAGE_FILE_SIZE =
+        80 * 1024 * 1024;
+
+    const IMPORT_CHUNK_SIZE = 250;
+
+    const clonePackageValue = value => {
+        return cloneDataValue(value);
+    };
+
+    const yieldToBrowser = () => {
+        return new Promise(resolve => {
+            setTimeout(resolve, 0);
+        });
+    };
+
+    const isManagedPackageWord = word => {
+        return Boolean(
+            word &&
+            (
+                word.isTestWord === true ||
+                ACCEPTED_PACKAGE_FORMATS.has(
+                    String(word.testBundleId || '')
+                )
+            )
+        );
+    };
+
+    const getPackageIdentity = word => {
+        const lang =
+            word?.lang === 'en' ? 'en' : 'ja';
+
+        const headword = normalizeHeadword(
+            word?.word || '',
+            lang
+        ).toLowerCase();
+
+        const reading = lang === 'ja'
+            ? normalizeKanaText(word?.kana || '')
+            : normalizePhoneticText(
+                word?.phonetic || ''
+            );
+
+        return `${lang}::${headword}::${reading}`;
+    };
+
+    const countPackageLevels = words => {
+        const counts = Object.fromEntries(
+            PACKAGE_LEVELS.map(level => [
+                level,
+                0
+            ])
+        );
+
+        words.forEach(word => {
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    counts,
+                    word.level
+                )
+            ) {
+                counts[word.level]++;
+            }
+        });
+
+        return counts;
+    };
+
+    const formatPackageDate = value => {
+        if (!value) {
+            return '未知时间';
+        }
+
+        const date = new Date(value);
+
+        if (Number.isNaN(date.getTime())) {
+            return '未知时间';
+        }
+
+        return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const removePackageProgress =
+        async wordIds => {
+            const idSet =
+                wordIds instanceof Set
+                    ? wordIds
+                    : new Set(wordIds || []);
+
+            if (idSet.size === 0) {
+                return;
+            }
+
+            Model.stars =
+                Model.stars.filter(wordId => {
+                    return !idSet.has(
+                        String(wordId || '')
+                    );
+                });
+
+            idSet.forEach(wordId => {
+                delete Model.mtWordClears[wordId];
+
+                if (
+                    Model.wrongBook &&
+                    typeof Model.wrongBook ===
+                        'object'
+                ) {
+                    delete Model.wrongBook[wordId];
+                }
+            });
+
+            const saves = [
+                Model.saveStars(),
+                Model.saveClears()
+            ];
+
+            if (
+                typeof Model.saveWrongBook ===
+                'function'
+            ) {
+                saves.push(
+                    Model.saveWrongBook()
+                );
+            }
+
+            await Promise.all(saves);
+        };
+
+    Controller.setJLPTTestPackageProgress =
+        function(
+            percent,
+            text,
+            visible = true
+        ) {
+            const box = View.getEl(
+                'jlpt-test-package-progress'
+            );
+
+            const bar = View.getEl(
+                'jlpt-test-package-progress-bar'
+            );
+
+            const label = View.getEl(
+                'jlpt-test-package-progress-text'
+            );
+
+            const value = View.getEl(
+                'jlpt-test-package-progress-value'
+            );
+
+            const safePercent = Math.max(
+                0,
+                Math.min(
+                    100,
+                    Math.round(
+                        Number(percent) || 0
+                    )
+                )
+            );
+
+            if (box) {
+                box.hidden = !visible;
+            }
+
+            if (bar) {
+                bar.style.width =
+                    `${safePercent}%`;
+            }
+
+            if (label) {
+                label.textContent =
+                    text || '准备中…';
+            }
+
+            if (value) {
+                value.textContent =
+                    `${safePercent}%`;
+            }
+        };
+
+    Controller.updateJLPTTestPackageUI =
+        function() {
+            const status = View.getEl(
+                'jlpt-test-package-status'
+            );
+
+            const summary = View.getEl(
+                'jlpt-test-package-summary'
+            );
+
+            const removeButton = View.getEl(
+                'btn-remove-jlpt-test-package'
+            );
+
+            const packageWords =
+                Model.db.filter(
+                    isManagedPackageWord
+                );
+
+            const counts =
+                countPackageLevels(
+                    packageWords
+                );
+
+            const japaneseCount =
+                packageWords.filter(word => {
+                    return (
+                        word.lang || 'ja'
+                    ) === 'ja';
+                }).length;
+
+            const englishCount =
+                packageWords.length -
+                japaneseCount;
+
+            const latestWord = [
+                ...packageWords
+            ].sort((left, right) => {
+                return String(
+                    right.testImportedAt ||
+                    right.importedAt ||
+                    ''
+                ).localeCompare(
+                    String(
+                        left.testImportedAt ||
+                        left.importedAt ||
+                        ''
+                    )
+                );
+            })[0];
+
+            const importedAt = latestWord
+                ? (
+                    latestWord.testImportedAt ||
+                    latestWord.importedAt ||
+                    ''
+                )
+                : '';
+
+            const packageName =
+                latestWord?.testBundleId ===
+                FULL_PACKAGE_FORMAT
+                    ? '完整压力测试包'
+                    : '200 词测试包';
+
+            if (status) {
+                status.textContent =
+                    packageWords.length
+                        ? `已导入 ${packageWords.length.toLocaleString()} 词`
+                        : '未导入';
+
+                status.classList.toggle(
+                    'is-ready',
+                    packageWords.length > 0
+                );
+
+                status.classList.toggle(
+                    'is-empty',
+                    packageWords.length === 0
+                );
+            }
+
+            if (removeButton) {
+                removeButton.disabled =
+                    packageWords.length === 0;
+            }
+
+            if (!summary) {
+                return;
+            }
+
+            if (packageWords.length === 0) {
+                summary.innerHTML = `
+                    <div>
+                        <span>当前状态</span>
+                        <strong>尚未导入测试词库</strong>
+                    </div>
+                    <div>
+                        <span>支持文件</span>
+                        <strong>200 词包 · 完整 JSON 包</strong>
+                    </div>
+                `;
+
+                return;
+            }
+
+            const englishSummary =
+                englishCount
+                    ? (
+                        ` · 四级 ${counts['CET-4']}` +
+                        ` · 六级 ${counts['CET-6']}`
+                    )
+                    : '';
+
+            summary.innerHTML = `
+                <div>
+                    <span>${escapeHTML(packageName)}</span>
+                    <strong>
+                        日语 ${japaneseCount.toLocaleString()}
+                        ${
+                            englishCount
+                                ? ` · 英语 ${englishCount.toLocaleString()}`
+                                : ''
+                        }
+                    </strong>
+                </div>
+
+                <div>
+                    <span>级别分布</span>
+                    <strong>
+                        N5 ${counts.N5} ·
+                        N4 ${counts.N4} ·
+                        N3 ${counts.N3} ·
+                        N2 ${counts.N2} ·
+                        N1 ${counts.N1}
+                        ${englishSummary}
+                    </strong>
+                </div>
+
+                <div>
+                    <span>最近导入</span>
+                    <strong>
+                        ${escapeHTML(
+                            formatPackageDate(
+                                importedAt
+                            )
+                        )}
+                    </strong>
+                </div>
+
+                <div>
+                    <span>保存方式</span>
+                    <strong>独立压力测试词库</strong>
+                </div>
+            `;
+        };
+
+    Controller.normalizeJLPTTestPackage =
+        async function(
+            rawData,
+            onProgress = () => {}
+        ) {
+            if (
+                !rawData ||
+                !ACCEPTED_PACKAGE_FORMATS.has(
+                    rawData.format
+                ) ||
+                !Array.isArray(rawData.packs)
+            ) {
+                throw new Error(
+                    '请选择构建器导出的 200 词包或完整 JSON 词库包'
+                );
+            }
+
+            const rawWords = [];
+
+            rawData.packs.forEach(pack => {
+                if (
+                    Array.isArray(pack?.words)
+                ) {
+                    rawWords.push(
+                        ...pack.words
+                    );
+                }
+            });
+
+            if (rawWords.length === 0) {
+                throw new Error(
+                    '词库包中没有词条'
+                );
+            }
+
+            const importedAt =
+                new Date().toISOString();
+
+            const seenIds = new Set();
+            const words = [];
+
+            let rejectedCount = 0;
+            let duplicateCount = 0;
+
+            for (
+                let start = 0;
+                start < rawWords.length;
+                start += IMPORT_CHUNK_SIZE
+            ) {
+                const end = Math.min(
+                    rawWords.length,
+                    start + IMPORT_CHUNK_SIZE
+                );
+
+                for (
+                    let index = start;
+                    index < end;
+                    index++
+                ) {
+                    const rawWord =
+                        rawWords[index];
+
+                    if (
+                        !rawWord ||
+                        typeof rawWord !==
+                            'object'
+                    ) {
+                        rejectedCount++;
+                        continue;
+                    }
+
+                    const rawId = String(
+                        rawWord._id || ''
+                    ).trim();
+
+                    const lang =
+                        rawWord.lang === 'en'
+                            ? 'en'
+                            : 'ja';
+
+                    const level =
+                        normalizeWordLevel(
+                            rawWord.level,
+                            lang
+                        );
+
+                    if (
+                        !rawId ||
+                        !PACKAGE_LEVELS.includes(
+                            level
+                        )
+                    ) {
+                        rejectedCount++;
+                        continue;
+                    }
+
+                    if (seenIds.has(rawId)) {
+                        duplicateCount++;
+                        continue;
+                    }
+
+                    const normalized =
+                        normalizeWordEntry({
+                            ...clonePackageValue(
+                                rawWord
+                            ),
+                            _id: rawId,
+                            lang,
+                            level,
+                            folder:
+                                `${level}${ACTIVE_FOLDER_SUFFIX}`,
+                            builtIn: false,
+                            isImported: true,
+                            importedAt,
+                            isTestWord: true,
+                            testBundleId:
+                                rawData.format,
+                            testBundleVersion:
+                                Number(
+                                    rawData.version
+                                ) || 1,
+                            testGeneratedAt:
+                                rawData.generatedAt ||
+                                '',
+                            testImportedAt:
+                                importedAt,
+                            sourceLicense:
+                                rawData.license
+                                    ?.name || '',
+                            sourceAuthor:
+                                rawData.license
+                                    ?.author || '',
+                            sourceUrl:
+                                rawData.license
+                                    ?.source || ''
+                        });
+
+                    normalized._id = rawId;
+                    normalized.builtIn = false;
+                    normalized.isImported = true;
+                    normalized.isTestWord = true;
+                    normalized.testBundleId =
+                        rawData.format;
+
+                    normalized.testBundleVersion =
+                        Number(
+                            rawData.version
+                        ) || 1;
+
+                    normalized.testGeneratedAt =
+                        rawData.generatedAt || '';
+
+                    normalized.testImportedAt =
+                        importedAt;
+
+                    normalized.sourceLicense =
+                        rawData.license?.name || '';
+
+                    normalized.sourceAuthor =
+                        rawData.license?.author || '';
+
+                    normalized.sourceUrl =
+                        rawData.license?.source || '';
+
+                    delete normalized._origin;
+
+                    if (
+                        !normalized.word ||
+                        !normalized.meaning
+                    ) {
+                        rejectedCount++;
+                        continue;
+                    }
+
+                    seenIds.add(rawId);
+                    words.push(normalized);
+                }
+
+                onProgress(
+                    12 +
+                        (
+                            end /
+                            rawWords.length
+                        ) * 48,
+                    `正在整理词条 ${end.toLocaleString()} / ${rawWords.length.toLocaleString()}`
+                );
+
+                await yieldToBrowser();
+            }
+
+            if (words.length === 0) {
+                throw new Error(
+                    '词库包中没有可导入的有效词条'
+                );
+            }
+
+            return {
+                format: rawData.format,
+                version:
+                    Number(
+                        rawData.version
+                    ) || 1,
+                generatedAt:
+                    rawData.generatedAt || '',
+                declaredWordCount:
+                    Number(
+                        rawData.wordCount
+                    ) || rawWords.length,
+                license:
+                    rawData.license &&
+                    typeof rawData.license ===
+                        'object'
+                        ? clonePackageValue(
+                            rawData.license
+                        )
+                        : null,
+                testPlan:
+                    rawData.testPlan &&
+                    typeof rawData.testPlan ===
+                        'object'
+                        ? clonePackageValue(
+                            rawData.testPlan
+                        )
+                        : null,
+                words,
+                rejectedCount,
+                duplicateCount
+            };
+        };
+
+    Controller.renderJLPTTestPackageSummary =
+        function(bundle, preview) {
+            const counts =
+                countPackageLevels(
+                    bundle.words
+                );
+
+            const frequencyCounts = {
+                高频: 0,
+                中频: 0,
+                低频: 0,
+                未设置: 0
+            };
+
+            const japaneseCount =
+                bundle.words.filter(word => {
+                    return (
+                        word.lang || 'ja'
+                    ) === 'ja';
+                }).length;
+
+            const englishCount =
+                bundle.words.length -
+                japaneseCount;
+
+            bundle.words.forEach(word => {
+                const key = [
+                    '高频',
+                    '中频',
+                    '低频'
+                ].includes(word.frequency)
+                    ? word.frequency
+                    : '未设置';
+
+                frequencyCounts[key]++;
+            });
+
+            const licenseName =
+                bundle.license?.name ||
+                '未注明';
+
+            const author =
+                bundle.license?.author ||
+                '未注明';
+
+            const packageName =
+                bundle.format ===
+                FULL_PACKAGE_FORMAT
+                    ? '完整压力测试包'
+                    : '200 词测试包';
+
+            return `
+                <div class="jlpt-test-confirm-summary">
+                    <div>
+                        <span>文件类型</span>
+                        <strong>${escapeHTML(packageName)}</strong>
+                    </div>
+
+                    <div>
+                        <span>有效词条</span>
+                        <strong>${bundle.words.length.toLocaleString()}</strong>
+                    </div>
+
+                    <div>
+                        <span>预计导入</span>
+                        <strong>${preview.importableCount.toLocaleString()}</strong>
+                    </div>
+
+                    <div>
+                        <span>语言</span>
+                        <strong>
+                            日语 ${japaneseCount.toLocaleString()}
+                            ${
+                                englishCount
+                                    ? ` · 英语 ${englishCount.toLocaleString()}`
+                                    : ''
+                            }
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>JLPT 级别</span>
+                        <strong>
+                            N5 ${counts.N5} ·
+                            N4 ${counts.N4} ·
+                            N3 ${counts.N3} ·
+                            N2 ${counts.N2} ·
+                            N1 ${counts.N1}
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>频率</span>
+                        <strong>
+                            高 ${frequencyCounts.高频} ·
+                            中 ${frequencyCounts.中频} ·
+                            低 ${frequencyCounts.低频}
+                        </strong>
+                    </div>
+                </div>
+
+                <div style="
+                    margin-top: 12px;
+                    font-size: .78rem;
+                    line-height: 1.7;
+                    opacity: .72;
+                ">
+                    格式：${escapeHTML(bundle.format)} v${bundle.version}<br>
+                    许可：${escapeHTML(licenseName)} · 作者 ${escapeHTML(author)}
+                </div>
+
+                ${
+                    preview.idCollisions ||
+                    preview.wordCollisions ||
+                    bundle.rejectedCount ||
+                    bundle.duplicateCount
+                        ? `
+                            <div style="
+                                margin-top: 12px;
+                                color: var(--accent-red);
+                                font-size: .78rem;
+                                line-height: 1.7;
+                            ">
+                                将跳过：
+                                ID 冲突 ${preview.idCollisions}、
+                                现有同词 ${preview.wordCollisions}、
+                                无效 ${bundle.rejectedCount}、
+                                包内重复 ID ${bundle.duplicateCount}。
+                            </div>
+                        `
+                        : ''
+                }
+            `;
+        };
+
+    Controller.applyJLPTTestPackage =
+        async function(
+            bundle,
+            onProgress = () => {}
+        ) {
+            const oldPackageWords =
+                Model.db.filter(
+                    isManagedPackageWord
+                );
+
+            const oldPackageIds = new Set(
+                oldPackageWords.map(word => {
+                    return Model.getWordId(word);
+                })
+            );
+
+            const remainingWords =
+                Model.db.filter(word => {
+                    return !isManagedPackageWord(
+                        word
+                    );
+                });
+
+            const occupiedIds = new Set(
+                remainingWords.map(word => {
+                    return Model.getWordId(word);
+                })
+            );
+
+            const existingIdentities =
+                new Set(
+                    remainingWords.map(
+                        getPackageIdentity
+                    )
+                );
+
+            const importedIds = new Set();
+
+            let skippedId = 0;
+            let skippedWord = 0;
+
+            for (
+                let start = 0;
+                start < bundle.words.length;
+                start += IMPORT_CHUNK_SIZE
+            ) {
+                const end = Math.min(
+                    bundle.words.length,
+                    start + IMPORT_CHUNK_SIZE
+                );
+
+                for (
+                    let index = start;
+                    index < end;
+                    index++
+                ) {
+                    const word =
+                        bundle.words[index];
+
+                    if (
+                        occupiedIds.has(
+                            word._id
+                        )
+                    ) {
+                        skippedId++;
+                        continue;
+                    }
+
+                    const identity =
+                        getPackageIdentity(word);
+
+                    if (
+                        existingIdentities.has(
+                            identity
+                        )
+                    ) {
+                        skippedWord++;
+                        continue;
+                    }
+
+                    const copy =
+                        clonePackageValue(word);
+
+                    remainingWords.push(copy);
+                    occupiedIds.add(copy._id);
+                    importedIds.add(copy._id);
+                }
+
+                onProgress(
+                    62 +
+                        (
+                            end /
+                            bundle.words.length
+                        ) * 25,
+                    `正在加入词库 ${end.toLocaleString()} / ${bundle.words.length.toLocaleString()}`
+                );
+
+                await yieldToBrowser();
+            }
+
+            Model.db = remainingWords;
+
+            const staleIds = new Set(
+                [...oldPackageIds].filter(
+                    wordId => {
+                        return !importedIds.has(
+                            wordId
+                        );
+                    }
+                )
+            );
+
+            await removePackageProgress(
+                staleIds
+            );
+
+            const usedFolders = new Map();
+
+            Model.db.forEach(word => {
+                if (word.folder) {
+                    usedFolders.set(
+                        word.folder,
+                        word.lang === 'en'
+                            ? 'en'
+                            : 'ja'
+                    );
+                }
+            });
+
+            PACKAGE_LEVELS.forEach(level => {
+                MANAGED_FOLDER_SUFFIXES.forEach(
+                    suffix => {
+                        const folder =
+                            `${level}${suffix}`;
+
+                        if (
+                            usedFolders.has(
+                                folder
+                            )
+                        ) {
+                            if (
+                                !Model.folders.includes(
+                                    folder
+                                )
+                            ) {
+                                Model.folders.push(
+                                    folder
+                                );
+                            }
+
+                            Model.folderLangs[folder] =
+                                usedFolders.get(
+                                    folder
+                                );
+
+                            return;
+                        }
+
+                        Model.folders =
+                            Model.folders.filter(
+                                item => {
+                                    return (
+                                        item !== folder
+                                    );
+                                }
+                            );
+
+                        delete Model.folderLangs[
+                            folder
+                        ];
+                    }
+                );
+            });
+
+            onProgress(
+                92,
+                '正在保存到设备…'
+            );
+
+            await yieldToBrowser();
+
+            await Promise.all([
+                Model.saveDB(),
+                Model.saveFolders(),
+                Model.saveFolderLangs()
+            ]);
+
+            onProgress(
+                100,
+                '导入完成'
+            );
+
+            return {
+                imported: importedIds.size,
+                skippedId,
+                skippedWord,
+                replaced:
+                    oldPackageWords.length
+            };
+        };
+
+    Controller.importJLPTTestPackage =
+        async function(file) {
+            if (!file) {
+                return;
+            }
+
+            if (
+                file.size >
+                MAX_PACKAGE_FILE_SIZE
+            ) {
+                Hardware.playSound('error');
+                Hardware.vibrate(50);
+
+                showToast(
+                    '词库包超过 80MB，暂不支持导入'
+                );
+
+                return;
+            }
+
+            try {
+                this.setJLPTTestPackageProgress(
+                    3,
+                    '正在读取 JSON 文件…'
+                );
+
+                const rawText =
+                    await file.text();
+
+                this.setJLPTTestPackageProgress(
+                    8,
+                    '正在解析词库结构…'
+                );
+
+                await yieldToBrowser();
+
+                const rawData =
+                    JSON.parse(rawText);
+
+                const bundle =
+                    await this
+                        .normalizeJLPTTestPackage(
+                            rawData,
+                            (
+                                percent,
+                                text
+                            ) => {
+                                this.setJLPTTestPackageProgress(
+                                    percent,
+                                    text
+                                );
+                            }
+                        );
+
+                const preview =
+                    this.getJLPTTestImportPreview(
+                        bundle
+                    );
+
+                if (
+                    preview.importableCount === 0
+                ) {
+                    this.setJLPTTestPackageProgress(
+                        0,
+                        '',
+                        false
+                    );
+
+                    Hardware.playSound('error');
+                    Hardware.vibrate(50);
+
+                    showToast(
+                        '词库包中的词条均与现有词库冲突'
+                    );
+
+                    return;
+                }
+
+                const summary =
+                    this.renderJLPTTestPackageSummary(
+                        bundle,
+                        preview
+                    );
+
+                this.setJLPTTestPackageProgress(
+                    0,
+                    '',
+                    false
+                );
+
+                showConfirm(
+                    bundle.format ===
+                        FULL_PACKAGE_FORMAT
+                        ? '导入完整压力测试词库？'
+                        : '导入 200 词测试包？',
+                    `
+                        ${summary}
+
+                        <div style="
+                            margin-top: 14px;
+                            color: var(--accent-red);
+                            font-size: .8rem;
+                            line-height: 1.7;
+                        ">
+                            已存在的测试词库会被本次文件替换。
+                            现有内置词与个人词汇不会被覆盖，
+                            操作前会自动保存恢复点。
+                        </div>
+                    `,
+                    async () => {
+                        let restorePoint = null;
+
+                        try {
+                            this.setJLPTTestPackageProgress(
+                                61,
+                                '正在准备写入词库…'
+                            );
+
+                            restorePoint =
+                                await this
+                                    .storePreImportRestorePoint(
+                                        'pre-wordbank-stress-import'
+                                    );
+
+                            const result =
+                                await this
+                                    .applyJLPTTestPackage(
+                                        bundle,
+                                        (
+                                            percent,
+                                            text
+                                        ) => {
+                                            this.setJLPTTestPackageProgress(
+                                                percent,
+                                                text
+                                            );
+                                        }
+                                    );
+
+                            await this
+                                .updateRestorePointUI();
+
+                            this.refreshAfterDataOperation();
+                            this.updateJLPTTestPackageUI();
+
+                            Hardware.playSound(
+                                'success'
+                            );
+
+                            Hardware.vibrate(100);
+
+                            const details = [];
+
+                            details.push(
+                                `导入 ${result.imported.toLocaleString()} 词`
+                            );
+
+                            if (result.skippedId) {
+                                details.push(
+                                    `跳过 ID 冲突 ${result.skippedId}`
+                                );
+                            }
+
+                            if (
+                                result.skippedWord
+                            ) {
+                                details.push(
+                                    `跳过现有同词 ${result.skippedWord}`
+                                );
+                            }
+
+                            showToast(
+                                details.join('，')
+                            );
+
+                            setTimeout(() => {
+                                this.setJLPTTestPackageProgress(
+                                    0,
+                                    '',
+                                    false
+                                );
+                            }, 1600);
+                        } catch (error) {
+                            console.error(
+                                '[Wordbank Stress Test] 词库包导入失败',
+                                error
+                            );
+
+                            if (restorePoint) {
+                                try {
+                                    await this
+                                        .applyBackupPayload(
+                                            restorePoint
+                                        );
+
+                                    this.refreshAfterDataOperation();
+                                    this.updateJLPTTestPackageUI();
+
+                                    showToast(
+                                        '导入失败，已恢复原数据'
+                                    );
+                                } catch (
+                                    restoreError
+                                ) {
+                                    console.error(
+                                        '[Wordbank Stress Test] 自动恢复失败',
+                                        restoreError
+                                    );
+
+                                    showToast(
+                                        '导入失败，自动恢复也失败'
+                                    );
+                                }
+                            } else {
+                                showToast(
+                                    '导入失败，未修改数据'
+                                );
+                            }
+
+                            this.setJLPTTestPackageProgress(
+                                0,
+                                '',
+                                false
+                            );
+
+                            Hardware.playSound(
+                                'error'
+                            );
+
+                            Hardware.vibrate(50);
+                        }
+                    }
+                );
+            } catch (error) {
+                console.error(
+                    '[Wordbank Stress Test] 无法读取词库包',
+                    error
+                );
+
+                this.setJLPTTestPackageProgress(
+                    0,
+                    '',
+                    false
+                );
+
+                Hardware.playSound('error');
+                Hardware.vibrate(50);
+
+                showToast(
+                    error?.message ||
+                    '无法读取词库包'
+                );
+            }
+        };
+
+    Controller.removeJLPTTestPackage =
+        async function() {
+            const packageWords =
+                Model.db.filter(
+                    isManagedPackageWord
+                );
+
+            if (
+                packageWords.length === 0
+            ) {
+                showToast(
+                    '当前没有压力测试词库'
+                );
+
+                this.updateJLPTTestPackageUI();
+                return;
+            }
+
+            const counts =
+                countPackageLevels(
+                    packageWords
+                );
+
+            showConfirm(
+                '移除压力测试词库？',
+                `
+                    <div style="
+                        text-align: left;
+                        line-height: 1.75;
+                    ">
+                        将移除
+                        ${packageWords.length.toLocaleString()}
+                        个测试词：<br>
+
+                        N5 ${counts.N5} ·
+                        N4 ${counts.N4} ·
+                        N3 ${counts.N3} ·
+                        N2 ${counts.N2} ·
+                        N1 ${counts.N1}
+                    </div>
+
+                    <div style="
+                        margin-top: 14px;
+                        color: var(--accent-red);
+                        font-size: .82rem;
+                        line-height: 1.7;
+                    ">
+                        同时清理这些测试词的收藏、
+                        掌握状态和错题记录。
+                        现有内置词、个人词汇及其他学习记录不会受影响。
+                        操作前会自动保存恢复点。
+                    </div>
+                `,
+                async () => {
+                    const packageIds =
+                        new Set(
+                            packageWords.map(
+                                word => {
+                                    return Model
+                                        .getWordId(
+                                            word
+                                        );
+                                }
+                            )
+                        );
+
+                    await this.runSafeDataOperation(
+                        'pre-remove-wordbank-stress-test',
+                        async () => {
+                            Model.db =
+                                Model.db.filter(
+                                    word => {
+                                        return !isManagedPackageWord(
+                                            word
+                                        );
+                                    }
+                                );
+
+                            await removePackageProgress(
+                                packageIds
+                            );
+
+                            const usedFolders =
+                                new Set(
+                                    Model.db
+                                        .map(word => {
+                                            return word.folder;
+                                        })
+                                        .filter(Boolean)
+                                );
+
+                            PACKAGE_LEVELS.forEach(
+                                level => {
+                                    MANAGED_FOLDER_SUFFIXES.forEach(
+                                        suffix => {
+                                            const folder =
+                                                `${level}${suffix}`;
+
+                                            if (
+                                                !usedFolders.has(
+                                                    folder
+                                                )
+                                            ) {
+                                                Model.folders =
+                                                    Model.folders.filter(
+                                                        item => {
+                                                            return (
+                                                                item !==
+                                                                folder
+                                                            );
+                                                        }
+                                                    );
+
+                                                delete Model.folderLangs[
+                                                    folder
+                                                ];
+                                            }
+                                        }
+                                    );
+                                }
+                            );
+
+                            await Promise.all([
+                                Model.saveDB(),
+                                Model.saveFolders(),
+                                Model.saveFolderLangs()
+                            ]);
+                        },
+                        `已移除 ${packageWords.length.toLocaleString()} 个测试词`
+                    );
+
+                    this.updateJLPTTestPackageUI();
+                }
+            );
+        };
+
+    const originalControllerInitForStressTest =
+        Controller.init.bind(Controller);
+
+    Controller.init = async function() {
+        await originalControllerInitForStressTest();
+
+        this.updateJLPTTestPackageUI();
+
+        this.setJLPTTestPackageProgress(
+            0,
+            '',
+            false
+        );
     };
 })();
 

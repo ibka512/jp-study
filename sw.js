@@ -1,6 +1,6 @@
 importScripts('./wordbanks/assets.js');
 
-const CACHE_NAME = 'zhongri-wordbank-3839c8d2e1a9';
+const CACHE_NAME = 'zhongri-wordbank-66bdb34cac16';
 const LOCAL_ASSETS = [
   './',
   './index.html',

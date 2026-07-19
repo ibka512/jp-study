@@ -1,0 +1,296 @@
+{
+  "generated_at": "2026-07-19T13:36:30.149351+00:00",
+  "model": "deepseek-v4-flash",
+  "language": "all",
+  "level": "",
+  "max_words": 100,
+  "batch_size": 20,
+  "missing_before": {
+    "ja": 5881,
+    "en": 3897
+  },
+  "selected": 100,
+  "generated": 46,
+  "missing_after": {
+    "ja": 5881,
+    "en": 3851
+  },
+  "failures": [
+    {
+      "id": "builtin-ja-import-0b58a2ef742702",
+      "word": "あさって",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-7784849a533833",
+      "word": "あまり",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-6efb6040d8e32e",
+      "word": "ある",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-2f408e95e9c307",
+      "word": "いかが",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-1f90abf644753f",
+      "word": "おいしい",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-8a84460c2a872d",
+      "word": "お手洗い",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-749af11afdc9c9",
+      "word": "かばん",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-c0129359d3087c",
+      "word": "きれい",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-c00a58d8468ac1",
+      "word": "しかし",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-1a687c7f963ceb",
+      "word": "それから",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-c934ba24a83d6a",
+      "word": "それでは",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-4b1ae7c13235f2",
+      "word": "たくさん",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-fee76afefc38f9",
+      "word": "だんだん",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-0e30f2b0b72f7b",
+      "word": "ちょうど",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-142e075fcff9d5",
+      "word": "ちょっと",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-a8c677f3c9139f",
+      "word": "つまらない",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-20a4b1dc7013a7",
+      "word": "でも",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-b79701a5614704",
+      "word": "とても",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-a8b138502b5bfa",
+      "word": "どうして",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-ad81d9797cd793",
+      "word": "どこ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-dc82fd7db07f84",
+      "word": "まずい",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-d0bae65a128254",
+      "word": "また",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-0709441f9ef7b9",
+      "word": "まだ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-b6c360900a1f01",
+      "word": "まっすぐ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-072630efa85662",
+      "word": "アパート",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-82fff4628b757b",
+      "word": "エレベーター",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-34ac0f9af5c5c8",
+      "word": "カップ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-17ddb1121aaab7",
+      "word": "カメラ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-e29b1d6baf09ee",
+      "word": "カレー",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-95e83165c10bb8",
+      "word": "ギター",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-52cdad1bf870d5",
+      "word": "クラス",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-55a21e647ec04c",
+      "word": "グラム",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-59da6145d52afd",
+      "word": "コップ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-6705918ed6cf79",
+      "word": "コート",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-e5c36d66891688",
+      "word": "コーヒー",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-c847d24efc64e9",
+      "word": "シャワー",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-d2aedadd52c958",
+      "word": "スカート",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-065919316322cc",
+      "word": "スプーン",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-398c7a76571109",
+      "word": "スポーツ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-016ec74a5011bc",
+      "word": "タクシー",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 23 (char 91)"
+    },
+    {
+      "id": "builtin-ja-import-b87fcd2b9c0222",
+      "word": "テスト",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-27f15c264c3c81",
+      "word": "テレビ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-ea2c1b62e3a26d",
+      "word": "テーブル",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-58f0e415af9abc",
+      "word": "テープ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-f5522ccbdfe561",
+      "word": "デパート",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-5c2df4709697db",
+      "word": "トイレ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-6725294b7b9310",
+      "word": "ナイフ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-65b9af4ecb4a03",
+      "word": "ネクタイ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-c59963fc93feee",
+      "word": "ハンカチ",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-ja-import-71c352195cb08c",
+      "word": "バター",
+      "reason": "DeepSeek 请求连续失败：Invalid \\escape: line 5 column 21 (char 89)"
+    },
+    {
+      "id": "builtin-en-import-aa77e60d4104e4",
+      "word": "resemble",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-en-import-4a451c12916d9b",
+      "word": "possess",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-en-import-85a1f187aa6451",
+      "word": "require",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-en-import-7dd4b0cf861127",
+      "word": "devise",
+      "reason": "例句没有包含目标词原样文字"
+    }
+  ],
+  "usage": {
+    "requests": 5,
+    "input_tokens": 4366,
+    "output_tokens": 3014
+  },
+  "failed": 54
+}

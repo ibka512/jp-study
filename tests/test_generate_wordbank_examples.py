@@ -58,6 +58,22 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         self.assertFalse(formatted)
         self.assertIn("未标注", reason)
 
+    def test_converts_safe_ai_furigana_markup(self):
+        candidate = self.candidate("ja", "学校", kana="がっこう")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "[[私|わたし]]は[[学校|がっこう]]へ[[行|い]]く。",
+            "translation": "我去学校。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertIn(r"$\overset{がっこう}{学校}$", formatted)
+        self.assertNotIn("[[", formatted)
+
+    def test_repairs_unescaped_legacy_latex_json(self):
+        payload = generator.load_ai_json(
+            r'{"items":[{"sentence":"$\overset{わたし}{私}$です。"}]}'
+        )
+        self.assertEqual(payload["items"][0]["sentence"], r"$\overset{わたし}{私}$です。")
+
     def test_all_language_selection_is_interleaved_and_resumable(self):
         ja = [
             {"_id": "ja-1", "word": "一", "example": ""},

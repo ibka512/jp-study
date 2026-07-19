@@ -23,6 +23,7 @@ KANJI_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff々〆ヶ]")
 KANA_RE = re.compile(r"[\u3040-\u30ffー]")
 ZH_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 FURIGANA_RE = re.compile(r"\$\\overset\{([^{}$]+)\}\{([^{}$]+)\}\$")
+AI_FURIGANA_RE = re.compile(r"\[\[([^\[\]|]+)\|([^\[\]|]+)\]\]")
 
 
 @dataclass
@@ -70,6 +71,23 @@ def clean_text(value: Any) -> str:
 
 def strip_furigana(value: str) -> str:
     return FURIGANA_RE.sub(lambda match: match.group(2), value)
+
+
+def convert_ai_furigana(value: str) -> str:
+    """把 AI 易于输出的无反斜杠标记转换成 PWA 使用的 overset。"""
+    return AI_FURIGANA_RE.sub(
+        lambda match: rf"$\overset{{{match.group(2)}}}{{{match.group(1)}}}$",
+        value,
+    )
+
+
+def load_ai_json(content: str) -> dict[str, Any]:
+    """解析 JSON；兼容模型偶尔未转义 LaTeX 反斜杠的旧式响应。"""
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        repaired = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', content)
+        return json.loads(repaired)
 
 
 def sentence_key(value: str) -> str:
@@ -126,10 +144,10 @@ sentence 必须包含输入 word 的原样文字，translation 必须是准确�
     if language == "en":
         return common + """
 英语规则：sentence 写完整英语句子，建议 6～18 个英文单词。必须使用输入 word 的原形拼写；可以用不定式等自然结构，不得用其他屈折形式代替。"""
-    return common + r"""
+    return common + """
 日语规则：sentence 写完整自然日语句子，建议 8～35 个日文字符，并包含输入 word 的原样表记。
-sentence 中每一处汉字都必须写成 $\overset{假名}{汉字}$；纯假名和标点保持原样。
-例如：$\overset{わたし}{私}$は$\overset{まいにち}{毎日}$$\overset{にほんご}{日本語}$を$\overset{べんきょう}{勉強}$する。"""
+为避免 JSON 转义问题，sentence 中每一处汉字都必须写成 [[汉字|假名]]；纯假名和标点保持原样。
+例如：[[私|わたし]]は[[毎日|まいにち]][[日本語|にほんご]]を[[勉強|べんきょう]]する。"""
 
 
 class DeepSeekClient:
@@ -171,7 +189,7 @@ class DeepSeekClient:
                 with urllib.request.urlopen(request, timeout=120) as response:
                     result = json.loads(response.read().decode("utf-8"))
                 content = result["choices"][0]["message"]["content"]
-                payload = json.loads(content)
+                payload = load_ai_json(content)
                 self.usage.requests += 1
                 usage = result.get("usage", {})
                 self.usage.input_tokens += int(usage.get("prompt_tokens", 0) or 0)
@@ -201,6 +219,10 @@ def validate_result(candidate: Candidate, item: dict[str, Any], used: set[str]) 
     sentence = clean_text(item.get("sentence"))
     translation = clean_text(item.get("translation"))
     word = clean_text(candidate.word.get("word"))
+    if candidate.language == "ja":
+        sentence = convert_ai_furigana(sentence)
+        if "[[" in sentence or "]]" in sentence:
+            return "", "日语注音中间标记不完整"
     if not sentence or not translation:
         return "", "缺少例句或中文翻译"
     if any(marker in sentence + translation for marker in ("```", "||", "\n", "\r")):

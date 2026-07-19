@@ -17,7 +17,7 @@ on:
         required: false
         type: string
       max_words:
-        description: "本次最多补全多少词；建议先用 100 测试，再用 500"
+        description: "本次最多补全多少词；建议先用 100 测试，全量可用 10000"
         required: true
         default: "100"
         type: string
@@ -81,8 +81,8 @@ jobs:
               raise SystemExit('language 必须是 all、ja 或 en')
           if level and not re.fullmatch(r'[A-Za-z0-9-]{1,20}', level):
               raise SystemExit('level 格式无效')
-          if not 1 <= max_words <= 1000:
-              raise SystemExit('max_words 必须是 1～1000')
+          if not 1 <= max_words <= 10000:
+              raise SystemExit('max_words 必须是 1～10000')
           if not 1 <= batch_size <= 40:
               raise SystemExit('batch_size 必须是 1～40')
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:

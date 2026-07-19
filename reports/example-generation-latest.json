@@ -1,27 +1,38 @@
 {
-  "generated_at": "2026-07-19T13:51:56.044152+00:00",
+  "generated_at": "2026-07-19T13:55:05.890196+00:00",
   "model": "deepseek-v4-flash",
   "language": "all",
   "level": "",
-  "max_words": 100,
+  "max_words": 500,
   "batch_size": 20,
   "missing_before": {
-    "ja": 5806,
-    "en": 3761
-  },
-  "selected": 100,
-  "generated": 100,
-  "normalized_existing": 0,
-  "cleared_invalid_existing": 0,
-  "missing_after": {
     "ja": 5756,
     "en": 3711
   },
-  "failures": [],
-  "usage": {
-    "requests": 7,
-    "input_tokens": 7708,
-    "output_tokens": 5702
+  "selected": 500,
+  "generated": 498,
+  "normalized_existing": 0,
+  "cleared_invalid_existing": 0,
+  "missing_after": {
+    "ja": 5508,
+    "en": 3461
   },
-  "failed": 0
+  "failures": [
+    {
+      "id": "builtin-ja-import-5553fe7b485f6b",
+      "word": "弾く",
+      "reason": "日语注音中间标记不完整"
+    },
+    {
+      "id": "builtin-ja-import-4e8e46c2a336ae",
+      "word": "締める",
+      "reason": "日语注音中间标记不完整"
+    }
+  ],
+  "usage": {
+    "requests": 32,
+    "input_tokens": 38140,
+    "output_tokens": 29792
+  },
+  "failed": 2
 }

@@ -1,0 +1,119 @@
+import sys
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import generate_wordbank_examples as generator  # noqa: E402
+
+
+class GenerateWordbankExamplesTests(unittest.TestCase):
+    def candidate(self, language, word, item_id="test-1", **extra):
+        payload = {
+            "_id": item_id,
+            "word": word,
+            "meaning": "测试释义",
+            "level": "N5" if language == "ja" else "CET-4",
+            "example": "",
+        }
+        payload.update(extra)
+        return generator.Candidate(language, 0, payload)
+
+    def test_validates_english_example(self):
+        candidate = self.candidate("en", "achieve")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "She hopes to achieve her goal this year.",
+            "translation": "她希望今年实现自己的目标。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertEqual(
+            formatted,
+            "She hopes to achieve her goal this year. / 她希望今年实现自己的目标。",
+        )
+
+    def test_rejects_inflected_english_instead_of_exact_word(self):
+        candidate = self.candidate("en", "achieve")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "She achieved her goal.",
+            "translation": "她实现了目标。",
+        }, set())
+        self.assertFalse(formatted)
+        self.assertIn("目标词", reason)
+
+    def test_validates_japanese_furigana_and_rejects_unannotated_kanji(self):
+        candidate = self.candidate("ja", "学校", kana="がっこう")
+        valid = {
+            "sentence": r"$\overset{わたし}{私}$は$\overset{まいにち}{毎日}$$\overset{がっこう}{学校}$へ行く。".replace("行", r"$\overset{い}{行}$"),
+            "translation": "我每天去学校。",
+        }
+        formatted, reason = generator.validate_result(candidate, valid, set())
+        self.assertTrue(formatted)
+        self.assertFalse(reason)
+
+        invalid = dict(valid)
+        invalid["sentence"] = r"$\overset{わたし}{私}$は学校へ行く。"
+        formatted, reason = generator.validate_result(candidate, invalid, set())
+        self.assertFalse(formatted)
+        self.assertIn("未标注", reason)
+
+    def test_all_language_selection_is_interleaved_and_resumable(self):
+        ja = [
+            {"_id": "ja-1", "word": "一", "example": ""},
+            {"_id": "ja-2", "word": "二", "example": ""},
+        ]
+        en = [
+            {"_id": "en-1", "word": "one", "example": ""},
+            {"_id": "en-2", "word": "two", "example": "已有例句 / 已有翻译"},
+        ]
+        selected = generator.select_candidates(ja, en, "all", "", 3)
+        self.assertEqual([item.word["_id"] for item in selected], ["ja-1", "en-1", "ja-2"])
+
+    def test_generation_retries_invalid_result_and_updates_only_example(self):
+        word = {
+            "_id": "en-1",
+            "word": "learn",
+            "meaning": "学习",
+            "level": "CET-4",
+            "example": "",
+            "type": "动词",
+        }
+        candidates = [generator.Candidate("en", 0, word)]
+        ja_words = []
+        en_words = [dict(word)]
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            def request(self, language, pending):
+                self.calls += 1
+                if self.calls == 1:
+                    return {"en-1": {"sentence": "This is wrong.", "translation": "这是错的。"}}
+                return {"en-1": {
+                    "sentence": "Children learn new words at school.",
+                    "translation": "孩子们在学校学习新单词。",
+                }}
+
+        report = generator.GenerationReport(
+            generated_at="test",
+            model="test-model",
+            language="en",
+            level="",
+            max_words=1,
+            batch_size=1,
+            missing_before={"ja": 0, "en": 1},
+            selected=1,
+        )
+        client = FakeClient()
+        generator.run_generation(client, candidates, 1, ja_words, en_words, report)
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(report.generated, 1)
+        self.assertEqual(report.failures, [])
+        self.assertEqual(en_words[0]["type"], "动词")
+        self.assertIn("Children learn", en_words[0]["example"])
+
+
+if __name__ == "__main__":
+    unittest.main()

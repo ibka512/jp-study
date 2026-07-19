@@ -179,6 +179,7 @@ class AIClient:
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
             "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
             "temperature": 0.1,
             "max_tokens": 6000,
         }, ensure_ascii=False).encode("utf-8")

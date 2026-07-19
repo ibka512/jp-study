@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""用 DeepSeek 为钟日内置词库分批补全双语例句。"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from wordbank_compiler import CompilerError, load_js_words, write_wordbank_assets
+
+
+KANJI_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff々〆ヶ]")
+KANA_RE = re.compile(r"[\u3040-\u30ffー]")
+ZH_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
+FURIGANA_RE = re.compile(r"\$\\overset\{([^{}$]+)\}\{([^{}$]+)\}\$")
+
+
+@dataclass
+class Candidate:
+    language: str
+    index: int
+    word: dict[str, Any]
+
+
+@dataclass
+class Usage:
+    requests: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
+@dataclass
+class GenerationReport:
+    generated_at: str
+    model: str
+    language: str
+    level: str
+    max_words: int
+    batch_size: int
+    missing_before: dict[str, int]
+    selected: int = 0
+    generated: int = 0
+    missing_after: dict[str, int] = field(default_factory=dict)
+    failures: list[dict[str, str]] = field(default_factory=list)
+    usage: Usage = field(default_factory=Usage)
+
+    def payload(self) -> dict[str, Any]:
+        result = asdict(self)
+        result["failed"] = len(self.failures)
+        return result
+
+
+class FatalAPIError(CompilerError):
+    """密钥、余额或请求配置错误；继续重试不会成功。"""
+
+
+def clean_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def strip_furigana(value: str) -> str:
+    return FURIGANA_RE.sub(lambda match: match.group(2), value)
+
+
+def sentence_key(value: str) -> str:
+    plain = strip_furigana(value)
+    return re.sub(r"[\s。．.!！?？'\"“”‘’、,，;；:：]", "", plain).casefold()
+
+
+def split_existing_example(value: Any) -> str:
+    block = clean_text(value).split("||", 1)[0].strip()
+    if " / " in block:
+        return block.split(" / ", 1)[0].strip()
+    return block
+
+
+def missing_counts(ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "ja": sum(not clean_text(word.get("example")) for word in ja_words),
+        "en": sum(not clean_text(word.get("example")) for word in en_words),
+    }
+
+
+def _eligible(words: list[dict[str, Any]], language: str, level: str) -> list[Candidate]:
+    normalized_level = level.casefold()
+    return [
+        Candidate(language, index, word)
+        for index, word in enumerate(words)
+        if not clean_text(word.get("example"))
+        and (not normalized_level or clean_text(word.get("level")).casefold() == normalized_level)
+    ]
+
+
+def select_candidates(ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]],
+                      language: str, level: str, max_words: int) -> list[Candidate]:
+    ja = _eligible(ja_words, "ja", level) if language in {"all", "ja"} else []
+    en = _eligible(en_words, "en", level) if language in {"all", "en"} else []
+    if language != "all":
+        selected = ja + en
+    else:
+        selected = []
+        for index in range(max(len(ja), len(en))):
+            if index < len(ja):
+                selected.append(ja[index])
+            if index < len(en):
+                selected.append(en[index])
+    return selected if max_words <= 0 else selected[:max_words]
+
+
+def prompt_for(language: str) -> str:
+    schema = '{"items":[{"id":"词条ID","sentence":"例句","translation":"中文翻译"}]}'
+    common = f"""你是面向中文学习者的词典例句编辑。请为输入词条各写一条例句，并只输出 JSON 对象。
+严格按输入 id 原样返回，每个 id 恰好一次，格式为：{schema}
+例句必须自然、常用、简洁，符合词条的 level 和 meaning，不涉及成人、暴力、歧视或危险内容。
+sentence 必须包含输入 word 的原样文字，translation 必须是准确简体中文。不要输出 Markdown、解释或额外字段。"""
+    if language == "en":
+        return common + """
+英语规则：sentence 写完整英语句子，建议 6～18 个英文单词。必须使用输入 word 的原形拼写；可以用不定式等自然结构，不得用其他屈折形式代替。"""
+    return common + r"""
+日语规则：sentence 写完整自然日语句子，建议 8～35 个日文字符，并包含输入 word 的原样表记。
+sentence 中每一处汉字都必须写成 $\overset{假名}{汉字}$；纯假名和标点保持原样。
+例如：$\overset{わたし}{私}$は$\overset{まいにち}{毎日}$$\overset{にほんご}{日本語}$を$\overset{べんきょう}{勉強}$する。"""
+
+
+class DeepSeekClient:
+    def __init__(self, api_key: str, model: str, base_url: str, usage: Usage):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.usage = usage
+
+    def request(self, language: str, candidates: list[Candidate]) -> dict[str, dict[str, Any]]:
+        entries = [{
+            "id": clean_text(candidate.word.get("_id")),
+            "word": clean_text(candidate.word.get("word")),
+            "reading": clean_text(candidate.word.get("kana")) if language == "ja" else "",
+            "type": clean_text(candidate.word.get("type")),
+            "meaning": clean_text(candidate.word.get("meaning")),
+            "level": clean_text(candidate.word.get("level")),
+        } for candidate in candidates]
+        body = json.dumps({
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": prompt_for(language)},
+                {"role": "user", "content": json.dumps({"entries": entries}, ensure_ascii=False)},
+            ],
+            "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
+            "temperature": 0.2,
+            "max_tokens": max(2000, len(candidates) * 220),
+        }, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            self.base_url + "/chat/completions",
+            data=body,
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            method="POST",
+        )
+        last_error: Exception | None = None
+        for attempt in range(4):
+            try:
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                content = result["choices"][0]["message"]["content"]
+                payload = json.loads(content)
+                self.usage.requests += 1
+                usage = result.get("usage", {})
+                self.usage.input_tokens += int(usage.get("prompt_tokens", 0) or 0)
+                self.usage.output_tokens += int(usage.get("completion_tokens", 0) or 0)
+                items = payload.get("items", [])
+                if not isinstance(items, list):
+                    raise ValueError("返回 JSON 缺少 items 数组")
+                output: dict[str, dict[str, Any]] = {}
+                for item in items:
+                    item_id = clean_text(item.get("id")) if isinstance(item, dict) else ""
+                    if item_id and item_id not in output:
+                        output[item_id] = item
+                return output
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+                if exc.code in {400, 401, 402, 403, 404}:
+                    raise FatalAPIError(f"DeepSeek API 无法使用（HTTP {exc.code}）：{detail}") from exc
+                last_error = exc
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                last_error = exc
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+        raise CompilerError(f"DeepSeek 请求连续失败：{last_error}")
+
+
+def validate_result(candidate: Candidate, item: dict[str, Any], used: set[str]) -> tuple[str, str]:
+    sentence = clean_text(item.get("sentence"))
+    translation = clean_text(item.get("translation"))
+    word = clean_text(candidate.word.get("word"))
+    if not sentence or not translation:
+        return "", "缺少例句或中文翻译"
+    if any(marker in sentence + translation for marker in ("```", "||", "\n", "\r")):
+        return "", "包含禁止的格式标记"
+    if len(sentence) > 260 or len(translation) > 180:
+        return "", "例句或翻译过长"
+    plain = strip_furigana(sentence)
+    contains_word = word in plain
+    if candidate.language == "en":
+        contains_word = bool(re.search(
+            rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])",
+            plain,
+            flags=re.IGNORECASE,
+        ))
+    if not contains_word:
+        return "", "例句没有包含目标词原样文字"
+    if not ZH_RE.search(translation):
+        return "", "翻译不是中文"
+    if candidate.language == "en":
+        if not re.search(r"[A-Za-z]", sentence):
+            return "", "英语例句缺少英文"
+        if FURIGANA_RE.search(sentence):
+            return "", "英语例句意外包含日语注音"
+    else:
+        if not KANA_RE.search(plain):
+            return "", "日语例句缺少假名"
+        without_annotated = FURIGANA_RE.sub("", sentence)
+        if KANJI_RE.search(without_annotated):
+            return "", "日语例句存在未标注假名的汉字"
+        if KANJI_RE.search(plain) and not FURIGANA_RE.search(sentence):
+            return "", "日语汉字没有假名标注"
+    key = sentence_key(sentence)
+    if not key or key in used:
+        return "", "例句与词库中其他例句重复"
+    return f"{sentence} / {translation}", ""
+
+
+def existing_sentence_keys(ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]]) -> set[str]:
+    return {
+        sentence_key(split_existing_example(word.get("example")))
+        for word in ja_words + en_words
+        if clean_text(word.get("example"))
+    }
+
+
+def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_size: int,
+                   ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]],
+                   report: GenerationReport) -> None:
+    used = existing_sentence_keys(ja_words, en_words)
+    pools = {
+        "ja": [candidate for candidate in candidates if candidate.language == "ja"],
+        "en": [candidate for candidate in candidates if candidate.language == "en"],
+    }
+    for language in ("ja", "en"):
+        pool = pools[language]
+        for offset in range(0, len(pool), batch_size):
+            pending = pool[offset:offset + batch_size]
+            last_reasons: dict[str, str] = {}
+            for validation_attempt in range(2):
+                if not pending:
+                    break
+                try:
+                    results = client.request(language, pending)
+                except FatalAPIError:
+                    raise
+                except CompilerError as exc:
+                    for candidate in pending:
+                        last_reasons[clean_text(candidate.word.get("_id"))] = str(exc)
+                    break
+                retry: list[Candidate] = []
+                for candidate in pending:
+                    item_id = clean_text(candidate.word.get("_id"))
+                    item = results.get(item_id, {})
+                    formatted, reason = validate_result(candidate, item, used)
+                    if formatted:
+                        target = ja_words if language == "ja" else en_words
+                        target[candidate.index]["example"] = formatted
+                        used.add(sentence_key(formatted.split(" / ", 1)[0]))
+                        report.generated += 1
+                        last_reasons.pop(item_id, None)
+                    else:
+                        last_reasons[item_id] = reason or "API 未返回对应词条"
+                        retry.append(candidate)
+                pending = retry if validation_attempt == 0 else []
+            for candidate in pending:
+                item_id = clean_text(candidate.word.get("_id"))
+                last_reasons.setdefault(item_id, "两次生成均未通过校验")
+            for item_id, reason in last_reasons.items():
+                candidate = next((item for item in pool if clean_text(item.word.get("_id")) == item_id), None)
+                report.failures.append({
+                    "id": item_id,
+                    "word": clean_text(candidate.word.get("word")) if candidate else "",
+                    "reason": reason,
+                })
+            completed = min(offset + batch_size, len(pool))
+            print(f"::notice::{language} 已处理 {completed}/{len(pool)}，本次成功 {report.generated}")
+
+
+def write_report(repo: Path, report: GenerationReport) -> None:
+    reports = repo / "reports"
+    reports.mkdir(exist_ok=True)
+    payload = report.payload()
+    (reports / "example-generation-latest.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    failure_lines = "\n".join(
+        f"- `{item['id']}` {item['word']}：{item['reason']}" for item in report.failures[:100]
+    ) or "- 无"
+    markdown = f"""# 钟日例句生成报告
+
+- 生成时间：{report.generated_at}
+- 模型：`{report.model}`
+- 选择范围：{report.language} / {report.level or '全部等级'}
+- 本次选择：{report.selected}
+- 成功写入：{report.generated}
+- 未通过校验：{len(report.failures)}
+- 剩余空例句：日语 {report.missing_after.get('ja', 0)}，英语 {report.missing_after.get('en', 0)}
+- API 请求：{report.usage.requests}
+- 输入 Token：{report.usage.input_tokens}
+- 输出 Token：{report.usage.output_tokens}
+
+## 未通过项目（最多显示 100 条）
+
+{failure_lines}
+"""
+    (reports / "example-generation-latest.md").write_text(markdown, encoding="utf-8")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="为钟日词库中缺少例句的词条分批生成双语例句")
+    parser.add_argument("--repo", default=str(Path(__file__).resolve().parents[1]))
+    parser.add_argument("--language", choices=["all", "ja", "en"], default="all")
+    parser.add_argument("--level", default="", help="只处理指定等级，如 N5、CET-4；留空表示全部")
+    parser.add_argument("--max-words", type=int, default=500, help="本次最多处理多少词，0 表示全部")
+    parser.add_argument("--batch-size", type=int, default=20, help="每次 API 请求包含的词数（1～40）")
+    parser.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
+    parser.add_argument("--api-base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"))
+    parser.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"))
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    if args.max_words < 0 or not 1 <= args.batch_size <= 40:
+        print("::error::max-words 不能为负数，batch-size 必须为 1～40", file=sys.stderr)
+        return 2
+    repo = Path(args.repo).resolve()
+    try:
+        ja_words = load_js_words(repo / "data.js", "DefaultWords")
+        en_words = load_js_words(repo / "english-data.js", "DefaultEnglishWords")
+        before = missing_counts(ja_words, en_words)
+        candidates = select_candidates(ja_words, en_words, args.language, args.level, args.max_words)
+        report = GenerationReport(
+            generated_at=datetime.now(timezone.utc).isoformat(),
+            model=args.model,
+            language=args.language,
+            level=args.level,
+            max_words=args.max_words,
+            batch_size=args.batch_size,
+            missing_before=before,
+            selected=len(candidates),
+        )
+        if candidates:
+            api_key = os.environ.get(args.api_key_env, "").strip()
+            if not api_key:
+                raise FatalAPIError(
+                    f"缺少 GitHub Secret：{args.api_key_env}。请在仓库 Settings → "
+                    "Secrets and variables → Actions 中添加，绝对不要把密钥写入代码或聊天。"
+                )
+            client = DeepSeekClient(api_key, args.model, args.api_base_url, report.usage)
+            run_generation(client, candidates, args.batch_size, ja_words, en_words, report)
+            report.missing_after = missing_counts(ja_words, en_words)
+            write_wordbank_assets(repo, ja_words, en_words)
+        else:
+            report.missing_after = before
+        write_report(repo, report)
+        print(json.dumps(report.payload(), ensure_ascii=False, indent=2))
+        return 0 if not candidates or report.generated > 0 else 3
+    except CompilerError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

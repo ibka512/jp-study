@@ -1,0 +1,114 @@
+name: 补全钟日词库例句
+
+on:
+  workflow_dispatch:
+    inputs:
+      language:
+        description: "处理哪种语言（all 会平均处理日语和英语）"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ja
+          - en
+      level:
+        description: "只处理某个等级（可留空，例如 N5、CET-4）"
+        required: false
+        type: string
+      max_words:
+        description: "本次最多补全多少词；建议先用 100 测试，再用 500"
+        required: true
+        default: "100"
+        type: string
+      batch_size:
+        description: "每次 API 请求的词数"
+        required: true
+        default: "20"
+        type: choice
+        options:
+          - "10"
+          - "20"
+          - "30"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zhongri-wordbank-update
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      LANGUAGE: ${{ inputs.language }}
+      LEVEL: ${{ inputs.level }}
+      MAX_WORDS: ${{ inputs.max_words }}
+      BATCH_SIZE: ${{ inputs.batch_size }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+    steps:
+      - name: 取出最新版项目
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 检查 API 密钥
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "::error::还没有设置 DEEPSEEK_API_KEY，请到仓库 Settings → Secrets and variables → Actions 添加。"
+            exit 1
+          fi
+
+      - name: 分批生成并校验例句
+        run: |
+          python tools/generate_wordbank_examples.py \
+            --language "$LANGUAGE" \
+            --level "$LEVEL" \
+            --max-words "$MAX_WORDS" \
+            --batch-size "$BATCH_SIZE"
+
+      - name: 验证词库和学习流程
+        run: |
+          python -m unittest -v \
+            tests.test_wordbank_compiler \
+            tests.test_seed_exam_wordbanks \
+            tests.test_generate_wordbank_examples
+          node --check data.js
+          node --check english-data.js
+          for file in wordbanks/*.js; do node --check "$file"; done
+          node --check app.js
+          node tests/rote-learning-core.test.js
+          node tests/rote-learning-integration.test.js
+          node tests/wordbank-data.test.js
+          git diff --check
+
+      - name: 保存例句生成报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-generation-report-${{ github.run_number }}
+          path: reports/example-generation-latest.*
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: 直接更新 main 并触发部署
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "没有需要补全的例句。"
+            exit 0
+          fi
+          git config user.name "钟日例句机器人"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.js english-data.js index.html sw.js wordbanks \
+            reports/example-generation-latest.json \
+            reports/example-generation-latest.md
+          git commit -m "批量补全词库例句：${LANGUAGE} ${LEVEL:-全部等级}"
+          git push origin HEAD:main

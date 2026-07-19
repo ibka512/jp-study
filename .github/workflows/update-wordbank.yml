@@ -104,6 +104,7 @@ jobs:
       - name: 验证词库与学习流程
         run: |
           python -m unittest -v tests.test_wordbank_compiler
+          python -m unittest -v tests.test_generate_wordbank_examples
           node --check data.js
           node --check english-data.js
           node --check app.js
@@ -127,6 +128,6 @@ jobs:
           fi
           git config user.name "钟日词库机器人"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data.js english-data.js sw.js wordbank-sources.json reports/wordbank-latest.json reports/wordbank-latest.md
+          git add data.js english-data.js index.html sw.js wordbanks wordbank-sources.json reports/wordbank-latest.json reports/wordbank-latest.md
           git commit -m "更新词库：$SOURCE_NAME"
           git push origin HEAD:main

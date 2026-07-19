@@ -129,6 +129,20 @@ def system_prompt() -> str:
 9. 若输入含 retry_feedback，必须修正对应问题。"""
 
 
+def review_prompt() -> str:
+    return """你是第二位独立的英语构词法审校员。输入包含单词、中文词义和另一模型提出的拆分。只输出 JSON。
+
+输出格式：
+{"items":[{"id":"原ID","approved":false,"reason":"简短原因"}]}
+
+审核标准：
+1. 只有拆分各部分能自然帮助中文学习者理解这个单词的现代常用词义时才批准。
+2. 否决仅仅在历史词源上成立、现代词义已经不透明的拆分，例如 remote→re+mote、resemble→re+semble、result→re+sult、pretend→pre+tend。
+3. 否决把普通字母片段包装成词根、循环解释整词、词素释义错误或含义牵强的拆分。
+4. 派生词和复合词可批准，例如 rebuild→re+build、fashionable→fashion+able、headline→head+line。
+5. 宁可否决也不要放过会误导学习者的结果。每个 id 必须原样返回一次。"""
+
+
 class DeepSeekClient:
     def __init__(self, api_key: str, model: str, base_url: str, usage: Usage):
         self.api_key = api_key
@@ -204,6 +218,72 @@ class DeepSeekClient:
                 time.sleep(2 ** attempt)
         raise CompilerError(f"DeepSeek 请求连续失败：{last_error}")
 
+    def review(self, candidates: list[Candidate], proposals: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        entries = []
+        for candidate in candidates:
+            item_id = clean_text(candidate.word.get("_id"))
+            proposal = proposals.get(item_id, {})
+            if proposal.get("splittable") is not True:
+                continue
+            entries.append({
+                "id": item_id,
+                "word": clean_text(candidate.word.get("word")),
+                "meaning": clean_text(candidate.word.get("meaning")),
+                "proposal": proposal.get("parts", []),
+            })
+        if not entries:
+            return {}
+        body = json.dumps({
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": review_prompt()},
+                {"role": "user", "content": json.dumps({"entries": entries}, ensure_ascii=False)},
+            ],
+            "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
+            "temperature": 0,
+            "max_tokens": max(1200, len(entries) * 90),
+        }, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            self.base_url + "/chat/completions",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        last_error: Exception | None = None
+        for attempt in range(4):
+            try:
+                with urllib.request.urlopen(request, timeout=120) as response:
+                    result = json.loads(response.read().decode("utf-8"))
+                payload = json.loads(result["choices"][0]["message"]["content"])
+                usage = result.get("usage", {})
+                self.usage.requests += 1
+                self.usage.input_tokens += int(usage.get("prompt_tokens", 0) or 0)
+                self.usage.output_tokens += int(usage.get("completion_tokens", 0) or 0)
+                items = payload if isinstance(payload, list) else payload.get("items", [])
+                if not isinstance(items, list):
+                    raise ValueError("复核 JSON 缺少 items 数组")
+                return {
+                    clean_text(item.get("id")): item
+                    for item in items
+                    if isinstance(item, dict) and clean_text(item.get("id"))
+                }
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")[:500]
+                if exc.code in {400, 401, 402, 403, 404}:
+                    raise FatalAPIError(
+                        f"DeepSeek API 无法使用（HTTP {exc.code}）：{detail}"
+                    ) from exc
+                last_error = exc
+            except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                last_error = exc
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+        raise CompilerError(f"DeepSeek 复核连续失败：{last_error}")
+
 
 def validate_result(candidate: Candidate, item: dict[str, Any]) -> tuple[str, str, str]:
     if item.get("splittable") is False:
@@ -251,10 +331,16 @@ def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_si
             if not pending:
                 break
             results = client.request(pending)
+            reviews = client.review(pending, results)
             retry: list[Candidate] = []
             for candidate in pending:
                 item_id = clean_text(candidate.word.get("_id"))
-                roots, status, reason = validate_result(candidate, results.get(item_id, {}))
+                proposal = results.get(item_id, {})
+                if proposal.get("splittable") is True:
+                    review = reviews.get(item_id, {})
+                    if review.get("approved") is not True:
+                        proposal = {"splittable": False, "parts": []}
+                roots, status, reason = validate_result(candidate, proposal)
                 if status:
                     target = words[candidate.index]
                     target["roots"] = roots

@@ -1,0 +1,42 @@
+{
+  "batch": "CET-4-001",
+  "reviewed": 65,
+  "accepted": [
+    "explosive", "numerous", "discourage", "pollution", "persistent",
+    "meanwhile", "investment", "optional", "analysis", "fashionable",
+    "journalist", "exposure", "protective", "multicultural", "sideways",
+    "independent", "carriage", "infinite", "weekly", "selfish", "sexism",
+    "headline", "editorial", "rebuild", "namely", "artistic", "consultant",
+    "sunset", "illustration", "liberal", "violent", "dominate", "faithful",
+    "reproduce", "institution", "scholarship", "preposition", "enlarge",
+    "export"
+  ],
+  "rejected": {
+    "analyse": "历史词源拆分，不能直接帮助理解现代词义",
+    "resemble": "re 不是现代词义中的“再次”",
+    "remote": "mote 不是该词中可独立解释的现代词素",
+    "pretend": "历史词源与现代词义联系不透明",
+    "calculate": "calcul 的说明只是循环解释，没有提供可靠词根信息",
+    "conceal": "ceal 不是适合学习者使用的现代词素",
+    "audience": "ience 被错误解释为人或物",
+    "competent": "compet 的释义与 competent 的构词关系不准确",
+    "apparent": "appar 不是适合直接展示的现代词素",
+    "concede": "共同加走不能可靠解释让步",
+    "result": "回加跳是历史词源，不能解释现代词义",
+    "commission": "共同加送不能可靠解释现代词义",
+    "connect": "nect 的释义与整词循环，学习价值不足",
+    "rational": "ration 与 rational 在现代英语中的词义关系会误导",
+    "resume": "再次加拿取不能解释现代词义",
+    "union": "on 不是这里可靠的构词后缀",
+    "component": "共同加放置不能解释现代词义",
+    "obvious": "vi 被错误解释为看",
+    "disguise": "dis 不是现代词义中的否定前缀",
+    "resolve": "re 不是现代词义中的再次",
+    "confront": "con 的释义不能准确解释该词",
+    "imitate": "imit 只是循环解释词义，学习价值不足",
+    "provocation": "历史词源拆分不能直接解释现代词义",
+    "ambition": "历史词源拆分不能直接解释现代词义",
+    "exceed": "向外加走不能可靠解释超过",
+    "implement": "im、ple、ment 的拆分会误导现代词义"
+  }
+}

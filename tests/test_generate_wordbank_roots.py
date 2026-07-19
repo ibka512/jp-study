@@ -93,6 +93,12 @@ class GenerateWordbankRootsTests(unittest.TestCase):
         self.assertIn("en-1", result)
         self.assertFalse(result["en-1"]["splittable"])
 
+    def test_review_prompt_names_known_misleading_splits(self):
+        prompt = generator.review_prompt()
+        self.assertIn("remote", prompt)
+        self.assertIn("result", prompt)
+        self.assertIn("headline", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

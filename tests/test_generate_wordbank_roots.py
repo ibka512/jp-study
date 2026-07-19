@@ -1,5 +1,6 @@
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -62,6 +63,35 @@ class GenerateWordbankRootsTests(unittest.TestCase):
         ]
         selected = generator.select_candidates(words, "CET-4", 100)
         self.assertEqual([item.word["word"] for item in selected], ["three"])
+
+    def test_deepseek_client_accepts_top_level_array(self):
+        response = {
+            "choices": [{
+                "message": {
+                    "content": '[{"id":"en-1","splittable":false,"parts":[]}]',
+                },
+            }],
+            "usage": {},
+        }
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return generator.json.dumps(response).encode("utf-8")
+
+        client = generator.DeepSeekClient(
+            "test-key", "deepseek-chat", "https://example.invalid", generator.Usage()
+        )
+        with patch.object(generator.urllib.request, "urlopen", return_value=FakeResponse()):
+            result = client.request([self.candidate()])
+
+        self.assertIn("en-1", result)
+        self.assertFalse(result["en-1"]["splittable"])
 
 
 if __name__ == "__main__":

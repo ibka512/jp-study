@@ -178,7 +178,11 @@ class DeepSeekClient:
                 self.usage.requests += 1
                 self.usage.input_tokens += int(usage.get("prompt_tokens", 0) or 0)
                 self.usage.output_tokens += int(usage.get("completion_tokens", 0) or 0)
-                items = payload.get("items", [])
+                # DeepSeek's JSON mode may return either the requested
+                # {"items": [...]} envelope or the array itself.  Both carry
+                # the same data, so accept both instead of failing a whole
+                # generation run on the harmless outer-shape difference.
+                items = payload if isinstance(payload, list) else payload.get("items", [])
                 if not isinstance(items, list):
                     raise ValueError("返回 JSON 缺少 items 数组")
                 output: dict[str, dict[str, Any]] = {}

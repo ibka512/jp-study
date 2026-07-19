@@ -68,6 +68,34 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         self.assertIn(r"$\overset{がっこう}{学校}$", formatted)
         self.assertNotIn("[[", formatted)
 
+    def test_removes_furigana_from_kana_and_rejects_mixed_okurigana(self):
+        candidate = self.candidate("ja", "テレビ", kana="テレビ")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "[[テレビ|テレビ]]を[[見|み]]ます。",
+            "translation": "看电视。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertIn("テレビを", formatted)
+        self.assertNotIn(r"\overset{テレビ}{テレビ}", formatted)
+
+        candidate = self.candidate("ja", "新しい", kana="あたらしい")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "[[新しい|あたらしい]][[本|ほん]]です。",
+            "translation": "是新书。",
+        }, set())
+        self.assertFalse(formatted)
+        self.assertIn("送假名", reason)
+
+    def test_cleans_existing_japanese_examples_before_resuming(self):
+        words = [
+            {"example": r"$\overset{テレビ}{テレビ}$を$\overset{み}{見}$る。 / 看电视。"},
+            {"example": r"$\overset{あたらしい}{新しい}$$\overset{ほん}{本}$。 / 新书。"},
+        ]
+        normalized, cleared = generator.cleanup_existing_japanese_examples(words)
+        self.assertEqual((normalized, cleared), (1, 1))
+        self.assertIn("テレビを", words[0]["example"])
+        self.assertEqual(words[1]["example"], "")
+
     def test_repairs_unescaped_legacy_latex_json(self):
         payload = generator.load_ai_json(
             r'{"items":[{"sentence":"$\overset{わたし}{私}$です。"}]}'

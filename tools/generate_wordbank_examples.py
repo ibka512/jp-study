@@ -51,6 +51,8 @@ class GenerationReport:
     missing_before: dict[str, int]
     selected: int = 0
     generated: int = 0
+    normalized_existing: int = 0
+    cleared_invalid_existing: int = 0
     missing_after: dict[str, int] = field(default_factory=dict)
     failures: list[dict[str, str]] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)
@@ -79,6 +81,39 @@ def convert_ai_furigana(value: str) -> str:
         lambda match: rf"$\overset{{{match.group(2)}}}{{{match.group(1)}}}$",
         value,
     )
+
+
+def normalize_furigana_markup(value: str) -> tuple[str, bool]:
+    """去掉纯假名伪注音，并识别无法安全拆分的汉字送假名混标。"""
+    invalid_mixed = False
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal invalid_mixed
+        reading, surface = match.group(1), match.group(2)
+        if not KANJI_RE.search(surface):
+            return surface
+        if KANA_RE.search(surface):
+            invalid_mixed = True
+        return rf"$\overset{{{reading}}}{{{surface}}}$"
+
+    return FURIGANA_RE.sub(replace, value), invalid_mixed
+
+
+def cleanup_existing_japanese_examples(words: list[dict[str, Any]]) -> tuple[int, int]:
+    normalized = 0
+    cleared = 0
+    for word in words:
+        example = clean_text(word.get("example"))
+        if not example:
+            continue
+        cleaned, invalid = normalize_furigana_markup(example)
+        if invalid:
+            word["example"] = ""
+            cleared += 1
+        elif cleaned != example:
+            word["example"] = cleaned
+            normalized += 1
+    return normalized, cleared
 
 
 def load_ai_json(content: str) -> dict[str, Any]:
@@ -147,6 +182,8 @@ sentence 必须包含输入 word 的原样文字，translation 必须是准确�
     return common + """
 日语规则：sentence 写完整自然日语句子，建议 8～35 个日文字符，并包含输入 word 的原样表记。
 为避免 JSON 转义问题，sentence 中每一处汉字都必须写成 [[汉字|假名]]；纯假名和标点保持原样。
+标记左侧必须只含汉字（数字可以和汉字一起出现），不得把平假名、片假名或送假名包进标记。
+假名词和片假名词不要标注；例如「あさって」「テレビ」必须直接写原文。
 例如：[[私|わたし]]は[[毎日|まいにち]][[日本語|にほんご]]を[[勉強|べんきょう]]する。"""
 
 
@@ -223,6 +260,9 @@ def validate_result(candidate: Candidate, item: dict[str, Any], used: set[str]) 
         sentence = convert_ai_furigana(sentence)
         if "[[" in sentence or "]]" in sentence:
             return "", "日语注音中间标记不完整"
+        sentence, invalid_mixed = normalize_furigana_markup(sentence)
+        if invalid_mixed:
+            return "", "日语注音把汉字和送假名混在同一标记中"
     if not sentence or not translation:
         return "", "缺少例句或中文翻译"
     if any(marker in sentence + translation for marker in ("```", "||", "\n", "\r")):
@@ -338,6 +378,8 @@ def write_report(repo: Path, report: GenerationReport) -> None:
 - 选择范围：{report.language} / {report.level or '全部等级'}
 - 本次选择：{report.selected}
 - 成功写入：{report.generated}
+- 清理已有多余注音：{report.normalized_existing}
+- 退回已有错误注音：{report.cleared_invalid_existing}
 - 未通过校验：{len(report.failures)}
 - 剩余空例句：日语 {report.missing_after.get('ja', 0)}，英语 {report.missing_after.get('en', 0)}
 - API 请求：{report.usage.requests}
@@ -373,6 +415,7 @@ def main() -> int:
     try:
         ja_words = load_js_words(repo / "data.js", "DefaultWords")
         en_words = load_js_words(repo / "english-data.js", "DefaultEnglishWords")
+        normalized, cleared = cleanup_existing_japanese_examples(ja_words)
         before = missing_counts(ja_words, en_words)
         candidates = select_candidates(ja_words, en_words, args.language, args.level, args.max_words)
         report = GenerationReport(
@@ -384,6 +427,8 @@ def main() -> int:
             batch_size=args.batch_size,
             missing_before=before,
             selected=len(candidates),
+            normalized_existing=normalized,
+            cleared_invalid_existing=cleared,
         )
         if candidates:
             api_key = os.environ.get(args.api_key_env, "").strip()
@@ -398,6 +443,8 @@ def main() -> int:
             write_wordbank_assets(repo, ja_words, en_words)
         else:
             report.missing_after = before
+            if normalized or cleared:
+                write_wordbank_assets(repo, ja_words, en_words)
         write_report(repo, report)
         print(json.dumps(report.payload(), ensure_ascii=False, indent=2))
         return 0 if not candidates or report.generated > 0 else 3

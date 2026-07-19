@@ -1,0 +1,51 @@
+name: 发布人工审核后的英语词根
+
+on:
+  push:
+    paths:
+      - ".github/root-review-request.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zhongri-wordbank-update
+  cancel-in-progress: false
+
+jobs:
+  apply-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 取出最新版项目
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 应用人工审核清单
+        run: |
+          REVIEW=$(python -c "import json; print(json.load(open('.github/root-review-request.json'))['review'])")
+          python tools/apply_root_review.py --review "$REVIEW"
+
+      - name: 验证词库和学习流程
+        run: |
+          python -m unittest -v tests.test_wordbank_compiler tests.test_generate_wordbank_roots
+          node --check data.js
+          node --check english-data.js
+          for file in wordbanks/*.js; do node --check "$file"; done
+          node --check app.js
+          node tests/wordbank-data.test.js
+          git diff --check
+
+      - name: 更新主分支
+        run: |
+          git config user.name "钟日词库审核机器人"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.js english-data.js index.html sw.js wordbanks reports/root-review-application-latest.json
+          git commit -m "应用 CET-4 首批词根人工审核"
+          git push origin HEAD:main

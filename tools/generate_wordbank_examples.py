@@ -21,9 +21,22 @@ from wordbank_compiler import CompilerError, load_js_words, write_wordbank_asset
 
 KANJI_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff々〆ヶ]")
 KANA_RE = re.compile(r"[\u3040-\u30ffー]")
+KANA_ONLY_RE = re.compile(r"[\u3040-\u30ffー]+")
 ZH_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 FURIGANA_RE = re.compile(r"\$\\overset\{([^{}$]+)\}\{([^{}$]+)\}\$")
 AI_FURIGANA_RE = re.compile(r"\[\[([^\[\]|]+)\|([^\[\]|]+)\]\]")
+AI_FURIGANA_MISSING_CLOSE_RE = re.compile(
+    r"\[\[([^\[\]|]+)\|([\u3040-\u30ffー]+)\](?!\])"
+)
+AI_FURIGANA_MISSING_OPEN_RE = re.compile(
+    r"(?<!\[)\[([^\[\]|]+)\|([\u3040-\u30ffー]+)\]\]"
+)
+FURIGANA_SURFACE_TOKEN_RE = re.compile(
+    r"[\u3400-\u4dbf\u4e00-\u9fff々〆ヶ0-9０-９]+|[\u3040-\u30ffー]+"
+)
+EN_IRREGULAR_FORMS = {
+    "swear": {"swore", "sworn"},
+}
 
 
 @dataclass
@@ -31,6 +44,8 @@ class Candidate:
     language: str
     index: int
     word: dict[str, Any]
+    retry_feedback: str = ""
+    rejected_sentence: str = ""
 
 
 @dataclass
@@ -76,15 +91,67 @@ def strip_furigana(value: str) -> str:
 
 
 def convert_ai_furigana(value: str) -> str:
-    """把 AI 易于输出的无反斜杠标记转换成 PWA 使用的 overset。"""
-    return AI_FURIGANA_RE.sub(
+    """把 AI 标记转换成 PWA 的 overset，并修复常见的单侧缺括号。"""
+    value = AI_FURIGANA_RE.sub(
+        lambda match: rf"$\overset{{{match.group(2)}}}{{{match.group(1)}}}$",
+        value,
+    )
+    value = AI_FURIGANA_MISSING_CLOSE_RE.sub(
+        lambda match: rf"$\overset{{{match.group(2)}}}{{{match.group(1)}}}$",
+        value,
+    )
+    return AI_FURIGANA_MISSING_OPEN_RE.sub(
         lambda match: rf"$\overset{{{match.group(2)}}}{{{match.group(1)}}}$",
         value,
     )
 
 
+def kana_key(value: str) -> str:
+    """统一片假名和平假名，供送假名对齐使用。"""
+    return "".join(
+        chr(ord(char) - 0x60) if "ァ" <= char <= "ヶ" else char
+        for char in value
+    )
+
+
+def split_mixed_furigana(reading: str, surface: str) -> str | None:
+    """按送假名锚点，把 [[食べ物|たべもの]] 安全拆成两个汉字注音。"""
+    tokens = FURIGANA_SURFACE_TOKEN_RE.findall(surface)
+    if not tokens or "".join(tokens) != surface:
+        return None
+    reading_match = kana_key(reading)
+    cursor = 0
+    result: list[str] = []
+    for index, token in enumerate(tokens):
+        if KANA_ONLY_RE.fullmatch(token):
+            token_match = kana_key(token)
+            if not reading_match.startswith(token_match, cursor):
+                return None
+            result.append(token)
+            cursor += len(token)
+            continue
+
+        next_kana = (
+            tokens[index + 1]
+            if index + 1 < len(tokens) and KANA_ONLY_RE.fullmatch(tokens[index + 1])
+            else ""
+        )
+        if next_kana:
+            end = reading_match.find(kana_key(next_kana), cursor)
+            if end <= cursor:
+                return None
+        else:
+            end = len(reading)
+        token_reading = reading[cursor:end]
+        if not token_reading or not KANA_ONLY_RE.fullmatch(token_reading):
+            return None
+        result.append(rf"$\overset{{{token_reading}}}{{{token}}}$")
+        cursor = end
+    return "".join(result) if cursor == len(reading) else None
+
+
 def normalize_furigana_markup(value: str) -> tuple[str, bool]:
-    """去掉纯假名伪注音，并识别无法安全拆分的汉字送假名混标。"""
+    """去掉纯假名伪注音，并安全拆分汉字与送假名混标。"""
     invalid_mixed = False
 
     def replace(match: re.Match[str]) -> str:
@@ -93,33 +160,9 @@ def normalize_furigana_markup(value: str) -> tuple[str, bool]:
         if not KANJI_RE.search(surface):
             return surface
         if KANA_RE.search(surface):
-            prefix = 0
-            limit = min(len(surface), len(reading))
-            while prefix < limit and surface[prefix] == reading[prefix] and KANA_RE.fullmatch(surface[prefix]):
-                prefix += 1
-            suffix = 0
-            while (
-                suffix < len(surface) - prefix
-                and suffix < len(reading) - prefix
-                and surface[-(suffix + 1)] == reading[-(suffix + 1)]
-                and KANA_RE.fullmatch(surface[-(suffix + 1)])
-            ):
-                suffix += 1
-            surface_end = len(surface) - suffix if suffix else len(surface)
-            reading_end = len(reading) - suffix if suffix else len(reading)
-            middle_surface = surface[prefix:surface_end]
-            middle_reading = reading[prefix:reading_end]
-            if (
-                middle_surface
-                and middle_reading
-                and KANJI_RE.search(middle_surface)
-                and not KANA_RE.search(middle_surface)
-            ):
-                return (
-                    surface[:prefix]
-                    + rf"$\overset{{{middle_reading}}}{{{middle_surface}}}$"
-                    + (surface[surface_end:] if suffix else "")
-                )
+            split = split_mixed_furigana(reading, surface)
+            if split:
+                return split
             invalid_mixed = True
         return rf"$\overset{{{reading}}}{{{surface}}}$"
 
@@ -202,7 +245,8 @@ def prompt_for(language: str) -> str:
     common = f"""你是面向中文学习者的词典例句编辑。请为输入词条各写一条例句，并只输出 JSON 对象。
 严格按输入 id 原样返回，每个 id 恰好一次，格式为：{schema}
 例句必须自然、常用、简洁，符合词条的 level 和 meaning，不涉及成人、暴力、歧视或危险内容。
-sentence 必须包含输入 word 的原样文字，translation 必须是准确简体中文。不要输出 Markdown、解释或额外字段。"""
+sentence 必须包含输入 word 的原样文字，translation 必须是准确简体中文。不要输出 Markdown、解释或额外字段。
+如果输入带 retry_feedback 和 rejected_sentence，必须重新写不同的句子，并逐项修正反馈指出的问题。"""
     if language == "en":
         return common + """
 英语规则：sentence 写完整英语句子，建议 6～18 个英文单词。必须使用输入 word 的原形拼写；可以用不定式等自然结构，不得用其他屈折形式代替。"""
@@ -211,7 +255,8 @@ sentence 必须包含输入 word 的原样文字，translation 必须是准确�
 为避免 JSON 转义问题，sentence 中每一处汉字都必须写成 [[汉字|假名]]；纯假名和标点保持原样。
 标记左侧必须只含汉字（数字可以和汉字一起出现），不得把平假名、片假名或送假名包进标记。
 假名词和片假名词不要标注；例如「あさって」「テレビ」必须直接写原文。
-例如：[[私|わたし]]は[[毎日|まいにち]][[日本語|にほんご]]を[[勉強|べんきょう]]する。"""
+例如「食べ物」必须写成 [[食|た]]べ[[物|もの]]，不能写成 [[食べ物|たべもの]]。
+每个标记必须完整保留两对方括号。例如：[[私|わたし]]は[[毎日|まいにち]][[日本語|にほんご]]を[[勉強|べんきょう]]する。"""
 
 
 class DeepSeekClient:
@@ -229,6 +274,8 @@ class DeepSeekClient:
             "type": clean_text(candidate.word.get("type")),
             "meaning": clean_text(candidate.word.get("meaning")),
             "level": clean_text(candidate.word.get("level")),
+            "retry_feedback": candidate.retry_feedback,
+            "rejected_sentence": candidate.rejected_sentence,
         } for candidate in candidates]
         body = json.dumps({
             "model": self.model,
@@ -306,6 +353,14 @@ def validate_result(candidate: Candidate, item: dict[str, Any], used: set[str]) 
                 forms.update({word + "d", word[:-1] + "ing"})
             if len(word) > 1 and word.endswith("y") and word[-2].lower() not in "aeiou":
                 forms.update({word[:-1] + "ies", word[:-1] + "ied"})
+            if (
+                len(word) >= 3
+                and word[-1].lower() not in "aeiouwxy"
+                and word[-2].lower() in "aeiou"
+                and word[-3].lower() not in "aeiou"
+            ):
+                forms.update({word + word[-1] + "ed", word + word[-1] + "ing"})
+            forms.update(EN_IRREGULAR_FORMS.get(word.casefold(), set()))
         contains_word = any(bool(re.search(
             rf"(?<![A-Za-z]){re.escape(form)}(?![A-Za-z])",
             plain,
@@ -359,7 +414,7 @@ def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_si
         for offset in range(0, len(pool), batch_size):
             pending = pool[offset:offset + batch_size]
             last_reasons: dict[str, str] = {}
-            for validation_attempt in range(2):
+            for validation_attempt in range(3):
                 if not pending:
                     break
                 try:
@@ -383,11 +438,13 @@ def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_si
                         last_reasons.pop(item_id, None)
                     else:
                         last_reasons[item_id] = reason or "API 未返回对应词条"
+                        candidate.retry_feedback = last_reasons[item_id]
+                        candidate.rejected_sentence = clean_text(item.get("sentence"))
                         retry.append(candidate)
-                pending = retry if validation_attempt == 0 else []
+                pending = retry if validation_attempt < 2 else []
             for candidate in pending:
                 item_id = clean_text(candidate.word.get("_id"))
-                last_reasons.setdefault(item_id, "两次生成均未通过校验")
+                last_reasons.setdefault(item_id, "三次生成均未通过校验")
             for item_id, reason in last_reasons.items():
                 candidate = next((item for item in pool if clean_text(item.word.get("_id")) == item_id), None)
                 report.failures.append({

@@ -50,6 +50,21 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         self.assertFalse(formatted)
         self.assertIn("目标词", reason)
 
+    def test_accepts_doubled_consonant_and_irregular_english_forms(self):
+        cases = [
+            ("occur", "The problem occurred again."),
+            ("snap", "The branch snapped in the wind."),
+            ("swear", "He had sworn to tell the truth."),
+        ]
+        for word, sentence in cases:
+            with self.subTest(word=word):
+                formatted, reason = generator.validate_result(self.candidate("en", word), {
+                    "sentence": sentence,
+                    "translation": "这是一个测试句子。",
+                }, set())
+                self.assertTrue(formatted)
+                self.assertFalse(reason)
+
     def test_validates_japanese_furigana_and_rejects_unannotated_kanji(self):
         candidate = self.candidate("ja", "学校", kana="がっこう")
         valid = {
@@ -94,6 +109,31 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         self.assertTrue(formatted)
         self.assertFalse(reason)
         self.assertIn(r"$\overset{あたら}{新}$しい", formatted)
+
+        candidate = self.candidate("ja", "食べ物", kana="たべもの")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "[[食べ物|たべもの]]を[[買|か]]う。",
+            "translation": "买食物。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertIn(r"$\overset{た}{食}$べ$\overset{もの}{物}$", formatted)
+
+        candidate = self.candidate("ja", "乗り換える", kana="のりかえる")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "ここで[[乗り換|のりか]]える。",
+            "translation": "在这里换乘。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertIn(r"$\overset{の}{乗}$り$\overset{か}{換}$える", formatted)
+
+    def test_repairs_single_missing_furigana_bracket(self):
+        candidate = self.candidate("ja", "学校", kana="がっこう")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "[[学校|がっこう]へ[[行|い]]く。",
+            "translation": "去学校。",
+        }, set())
+        self.assertFalse(reason)
+        self.assertIn(r"$\overset{がっこう}{学校}$", formatted)
 
     def test_cleans_existing_japanese_examples_before_resuming(self):
         words = [
@@ -144,6 +184,8 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
                 self.calls += 1
                 if self.calls == 1:
                     return {"en-1": {"sentence": "This is wrong.", "translation": "这是错的。"}}
+                self.retry_feedback = pending[0].retry_feedback
+                self.rejected_sentence = pending[0].rejected_sentence
                 return {"en-1": {
                     "sentence": "Children learn new words at school.",
                     "translation": "孩子们在学校学习新单词。",
@@ -162,6 +204,8 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         client = FakeClient()
         generator.run_generation(client, candidates, 1, ja_words, en_words, report)
         self.assertEqual(client.calls, 2)
+        self.assertIn("目标词", client.retry_feedback)
+        self.assertEqual(client.rejected_sentence, "This is wrong.")
         self.assertEqual(report.generated, 1)
         self.assertEqual(report.failures, [])
         self.assertEqual(en_words[0]["type"], "动词")

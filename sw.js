@@ -1,6 +1,6 @@
 importScripts('./wordbanks/assets.js');
 
-const CACHE_NAME = 'zhongri-remove-pressure-test-v1';
+const CACHE_NAME = 'zhongri-wordbank-2c9f4dbc9410';
 const LOCAL_ASSETS = [
   './',
   './index.html',

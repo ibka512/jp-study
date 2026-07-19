@@ -1,0 +1,193 @@
+{
+  "generated_at": "2026-07-19T19:26:49.748106+00:00",
+  "model": "deepseek-v4-flash",
+  "level": "CET-4",
+  "max_words": 100,
+  "batch_size": 20,
+  "selected": 100,
+  "generated": 46,
+  "not_applicable": 54,
+  "failures": [],
+  "samples": [
+    {
+      "word": "explosive",
+      "roots": "explos(爆炸)-ive(有...性质的)"
+    },
+    {
+      "word": "numerous",
+      "roots": "numer(数字)-ous(充满...的)"
+    },
+    {
+      "word": "discourage",
+      "roots": "dis(否定)-courage(勇气)"
+    },
+    {
+      "word": "pollution",
+      "roots": "pollut(污染)-ion(行为/状态)"
+    },
+    {
+      "word": "calculate",
+      "roots": "calcul(计算)-ate(使成为)"
+    },
+    {
+      "word": "persistent",
+      "roots": "per(贯穿)-sist(站立)-ent(具有...性质的)"
+    },
+    {
+      "word": "audience",
+      "roots": "aud(听)-ience(人/物)"
+    },
+    {
+      "word": "meanwhile",
+      "roots": "mean(中间)-while(时间)"
+    },
+    {
+      "word": "investment",
+      "roots": "invest(投资)-ment(名词后缀)"
+    },
+    {
+      "word": "optional",
+      "roots": "option(选择)-al(形容词后缀)"
+    },
+    {
+      "word": "fashionable",
+      "roots": "fashion(时尚)-able(可...的)"
+    },
+    {
+      "word": "journalist",
+      "roots": "journal(日报)-ist(人)"
+    },
+    {
+      "word": "protective",
+      "roots": "protect(保护)-ive(形容词后缀)"
+    },
+    {
+      "word": "multicultural",
+      "roots": "multi(多)-cultural(文化的)"
+    },
+    {
+      "word": "independent",
+      "roots": "in(不)-depend(依赖)-ent(形容词后缀)"
+    },
+    {
+      "word": "carriage",
+      "roots": "carri(运送)-age(名词后缀)"
+    },
+    {
+      "word": "infinite",
+      "roots": "in(不)-finite(有限的)"
+    },
+    {
+      "word": "concede",
+      "roots": "con(共同)-cede(走，让步)"
+    },
+    {
+      "word": "weekly",
+      "roots": "week(周)-ly(每…的)"
+    },
+    {
+      "word": "selfish",
+      "roots": "self(自己)-ish(形容词后缀)"
+    },
+    {
+      "word": "sexism",
+      "roots": "sex(性别)-ism(主义，偏见)"
+    },
+    {
+      "word": "commission",
+      "roots": "com(共同)-miss(送)-ion(名词后缀)"
+    },
+    {
+      "word": "headline",
+      "roots": "head(头)-line(行)"
+    },
+    {
+      "word": "connect",
+      "roots": "con(共同)-nect(连接)"
+    },
+    {
+      "word": "rational",
+      "roots": "ration(理性)-al(形容词后缀)"
+    },
+    {
+      "word": "editorial",
+      "roots": "editor(编辑)-ial(形容词后缀)"
+    },
+    {
+      "word": "rebuild",
+      "roots": "re(再次)-build(建造)"
+    },
+    {
+      "word": "artistic",
+      "roots": "art(艺术)-istic(具有...性质的)"
+    },
+    {
+      "word": "consultant",
+      "roots": "consult(咨询)-ant(人)"
+    },
+    {
+      "word": "sunset",
+      "roots": "sun(太阳)-set(落下)"
+    },
+    {
+      "word": "disguise",
+      "roots": "dis(否定)-guise(外表)"
+    },
+    {
+      "word": "liberal",
+      "roots": "liber(自由)-al(具有...性质的)"
+    },
+    {
+      "word": "violent",
+      "roots": "viol(暴力)-ent(具有...性质的)"
+    },
+    {
+      "word": "resolve",
+      "roots": "re(再次)-solve(解决)"
+    },
+    {
+      "word": "confront",
+      "roots": "con(共同，一起)-front(前面，正面)"
+    },
+    {
+      "word": "dominate",
+      "roots": "domin(统治)-ate(使成为)"
+    },
+    {
+      "word": "imitate",
+      "roots": "imit(模仿)-ate(使成为)"
+    },
+    {
+      "word": "faithful",
+      "roots": "faith(信任，信念)-ful(充满…的)"
+    },
+    {
+      "word": "reproduce",
+      "roots": "re(再次)-produce(生产)"
+    },
+    {
+      "word": "institution",
+      "roots": "in(进入)-stitut(建立)-ion(行为、状态)"
+    }
+  ],
+  "coverage_before": {
+    "total": 3922,
+    "with_roots": 25,
+    "not_applicable": 0,
+    "reviewed": 25,
+    "pending": 3897
+  },
+  "coverage_after": {
+    "total": 3922,
+    "with_roots": 71,
+    "not_applicable": 54,
+    "reviewed": 125,
+    "pending": 3797
+  },
+  "usage": {
+    "requests": 14,
+    "input_tokens": 16940,
+    "output_tokens": 11649
+  },
+  "failed": 0
+}

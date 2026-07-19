@@ -1,117 +1,36 @@
 # 钟日例句生成报告
 
-- 生成时间：2026-07-19T14:03:29.047734+00:00
+- 生成时间：2026-07-19T15:28:06.247075+00:00
 - 模型：`deepseek-v4-flash`
 - 选择范围：all / 全部等级
-- 本次选择：8969
-- 成功写入：8770
+- 本次选择：199
+- 成功写入：180
 - 清理已有多余注音：0
 - 退回已有错误注音：0
-- 未通过校验：199
-- 剩余空例句：日语 191，英语 8
-- API 请求：613
-- 输入 Token：731315
-- 输出 Token：599624
+- 未通过校验：19
+- 剩余空例句：日语 19，英语 0
+- API 请求：30
+- 输入 Token：32470
+- 输出 Token：18551
 
 ## 未通过项目（最多显示 100 条）
 
 - `builtin-ja-import-5553fe7b485f6b` 弾く：日语注音中间标记不完整
 - `builtin-ja-import-d057cc931c343b` 貼る：日语注音中间标记不完整
-- `builtin-ja-import-d87d80a42607fa` 青い：例句与词库中其他例句重复
 - `builtin-ja-import-752c91ea134864` 食べる：日语注音中间标记不完整
-- `builtin-ja-import-4d955e4497e8ba` 食べ物：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-3b39d62d1867b5` 飲み物：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-682fc45518381f` おかげ：日语注音中间标记不完整
-- `builtin-ja-import-3fa24ec9403c73` すり：日语注音中间标记不完整
-- `builtin-ja-import-dcf62413462293` 乗り換える：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-0a796629373b55` 乗り物：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-6ba44723a3adc5` 引き出し：日语注音把汉字和送假名混在同一标记中
 - `builtin-ja-import-c5868c382f0568` 引き出す：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-ad2388bcdc8972` 忘れ物：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-77cccc5186db0d` 細かい：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-392ffdefea295a` 赤ん坊：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-8b8b7acff651a9` 間に合う：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-9aced0a076ec68` バッグ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-57c77b62cfdfed` パイプ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-7d1c8b332acfe3` パイロット：日语例句存在未标注假名的汉字
-- `builtin-ja-import-8c564cc70f3926` パス：日语例句存在未标注假名的汉字
-- `builtin-ja-import-b892f0ea102ed4` パスポート：日语例句存在未标注假名的汉字
-- `builtin-ja-import-7e85d1c9476752` パーセント：日语例句存在未标注假名的汉字
-- `builtin-ja-import-b9b2bb955429dc` ビール：日语例句存在未标注假名的汉字
-- `builtin-ja-import-5e4078eaeda7ce` ピクニック：日语例句存在未标注假名的汉字
-- `builtin-ja-import-32e0cbf5aa3b6f` ピン：日语例句存在未标注假名的汉字
-- `builtin-ja-import-3cbba869e8a471` ブレーキ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-33c874a3208607` プラン：日语例句存在未标注假名的汉字
-- `builtin-ja-import-ff1a6b1d7df28f` プロ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-d87a26d272594a` ベルト：日语例句存在未标注假名的汉字
-- `builtin-ja-import-ea154842e8b322` ホーム：日语例句存在未标注假名的汉字
-- `builtin-ja-import-d95dd5d94ee0ce` ボーイ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-f57882331a2bcb` ボート：日语例句存在未标注假名的汉字
-- `builtin-ja-import-85ef1f15682c7d` ボール：日语例句存在未标注假名的汉字
-- `builtin-ja-import-13a5752928eb82` マイク：日语例句存在未标注假名的汉字
-- `builtin-ja-import-82d73df16a4ec5` マスター：日语例句存在未标注假名的汉字
-- `builtin-ja-import-4a9f9720fb6c16` 世の中：日语注音把汉字和送假名混在同一标记中
 - `builtin-ja-import-3b703dea84e644` 具体：日语例句存在未标注假名的汉字
 - `builtin-ja-import-39410211862a45` 典型：日语例句存在未标注假名的汉字
-- `builtin-ja-import-b6ba5dd9973f7a` 取り上げる：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-8cf17b105e5e2b` 取れる：日语注音中间标记不完整
-- `builtin-ja-import-8422ee1c5578fb` 受け取る：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-8c877dff666f8e` 叩く：日语注音中间标记不完整
-- `builtin-ja-import-59face9789344d` 対する：例句没有包含目标词原样文字
-- `builtin-ja-import-3fef4b5a59f7ba` 居間：日语注音中间标记不完整
-- `builtin-ja-import-6c9dc9091fb592` 思い出：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-6f9b3909411aaf` 昇る：例句与词库中其他例句重复
-- `builtin-ja-import-f72f016badbc00` 毒：日语注音中间标记不完整
-- `builtin-ja-import-bd4981becda123` 気の毒：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-66f2b0e7449d41` 申し訳：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-cb04d6a50da0de` 申し込む：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-fccec00d72b2c7` 真っ赤：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-0f13f4e7270293` 繰り返す：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-5567a4ee366711` 腐る：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-a60b55b7879d4a` 髪の毛：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-826000d773f408` ブローチ：日语例句存在未标注假名的汉字
-- `builtin-ja-import-0683e6a6275284` ベテラン：日语例句存在未标注假名的汉字
-- `builtin-ja-import-1be9ef87de9c7e` 入れ物：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-bc5f6090a5051a` 危うい：例句没有包含目标词原样文字
-- `builtin-ja-import-b91f90af68b149` 取り入れる：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-063473b453c8be` 取り出す：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-66cb5eb5220ff2` 取り消す：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-5c5a27f76031cc` 受け持つ：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-95e45a30c7fc12` 四つ角：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-d4c482b3beec84` 回り道：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-d5eaa54e1fd655` 売り切れ：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-f956a0f5a335fb` 売り切れる：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-028d1b9a6a5af3` 好き好き：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-24925207e58305` 好き嫌い：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-76ee86897fd548` 差し引き：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-f4f76f7f1010ff` 床の間：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-4841d3375716ce` 引き止める：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-3bdac1d9826583` 引っ掛かる：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-239afa7627fd4b` 引っ繰り返る：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-42c05daf6d1ac8` 引っ込む：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-66665f94d0d2d0` 張り切る：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-687ab4b2ce5c5a` 思い込む：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-1ad8ab79e697d8` 払い戻す：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-128b46040d34bc` 払い込む：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-cd5d0dff3d2b3a` 挟まる：日语注音中间标记不完整
-- `builtin-ja-import-ff9ae2756f463d` 掛け算：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-0230039541f165` 日の出：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-9443c67ff897f6` 明け方：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-bc572a0a89b387` 末っ子：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-62027b91770aa4` 熱する：日语例句存在未标注假名的汉字
-- `builtin-ja-import-c66511d3b464e1` 独り言：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-da4d760b9d7743` 生き生き：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-200818342e09bf` 生け花：日语注音把汉字和送假名混在同一标记中
+- `builtin-ja-import-826000d773f408` ブローチ：日语注音中间标记不完整
+- `builtin-ja-import-0683e6a6275284` ベテラン：日语注音中间标记不完整
+- `builtin-ja-import-cd5d0dff3d2b3a` 挟まる：例句没有包含目标词原样文字
+- `builtin-ja-import-62027b91770aa4` 熱する：日语注音把汉字和送假名混在同一标记中
 - `builtin-ja-import-5d27cb6172fda4` 申し訳ない：日语注音把汉字和送假名混在同一标记中
 - `builtin-ja-import-455b7b8cc65ce3` 発射：日语注音中间标记不完整
 - `builtin-ja-import-293bc5b5673cfb` 盛る：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-d76b7bf6f691dc` 真っ先：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-6a0561185ee4ed` 真っ暗：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-88bc4135e71b41` 真っ白：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-755ffc1557893c` 真っ青：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-4d9c44e6f03671` 真っ黒：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-247e771aaa25eb` 真似る：例句与词库中其他例句重复
 - `builtin-ja-import-1b59f241641c42` 等分：日语注音中间标记不完整
-- `builtin-ja-import-58e5e1ed093f1b` 組み立てる：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-cbd9d59dd4cdb9` 絵の具：日语注音把汉字和送假名混在同一标记中
-- `builtin-ja-import-e09b0e773cc1f4` 締め切る：日语注音把汉字和送假名混在同一标记中
+- `builtin-ja-import-d6986a3f36a426` 並びに：日语例句存在未标注假名的汉字
+- `builtin-ja-import-726d4f0d609a56` 乃至：日语例句存在未标注假名的汉字
+- `builtin-ja-import-8518e16c9be379` 取り締まる：例句没有包含目标词原样文字
+- `builtin-ja-import-831382fc963a87` 普遍：日语例句存在未标注假名的汉字
+- `builtin-ja-import-6e5c6546d0a46a` 面する：例句没有包含目标词原样文字

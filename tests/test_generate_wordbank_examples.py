@@ -33,11 +33,19 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
             "She hopes to achieve her goal this year. / 她希望今年实现自己的目标。",
         )
 
-    def test_rejects_inflected_english_instead_of_exact_word(self):
+    def test_accepts_common_english_inflection_but_not_unrelated_substring(self):
         candidate = self.candidate("en", "achieve")
         formatted, reason = generator.validate_result(candidate, {
             "sentence": "She achieved her goal.",
             "translation": "她实现了目标。",
+        }, set())
+        self.assertTrue(formatted)
+        self.assertFalse(reason)
+
+        candidate = self.candidate("en", "he")
+        formatted, reason = generator.validate_result(candidate, {
+            "sentence": "The book is here.",
+            "translation": "书在这里。",
         }, set())
         self.assertFalse(formatted)
         self.assertIn("目标词", reason)
@@ -68,7 +76,7 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
         self.assertIn(r"$\overset{がっこう}{学校}$", formatted)
         self.assertNotIn("[[", formatted)
 
-    def test_removes_furigana_from_kana_and_rejects_mixed_okurigana(self):
+    def test_removes_kana_furigana_and_repairs_mixed_okurigana(self):
         candidate = self.candidate("ja", "テレビ", kana="テレビ")
         formatted, reason = generator.validate_result(candidate, {
             "sentence": "[[テレビ|テレビ]]を[[見|み]]ます。",
@@ -83,8 +91,9 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
             "sentence": "[[新しい|あたらしい]][[本|ほん]]です。",
             "translation": "是新书。",
         }, set())
-        self.assertFalse(formatted)
-        self.assertIn("送假名", reason)
+        self.assertTrue(formatted)
+        self.assertFalse(reason)
+        self.assertIn(r"$\overset{あたら}{新}$しい", formatted)
 
     def test_cleans_existing_japanese_examples_before_resuming(self):
         words = [
@@ -92,9 +101,9 @@ class GenerateWordbankExamplesTests(unittest.TestCase):
             {"example": r"$\overset{あたらしい}{新しい}$$\overset{ほん}{本}$。 / 新书。"},
         ]
         normalized, cleared = generator.cleanup_existing_japanese_examples(words)
-        self.assertEqual((normalized, cleared), (1, 1))
+        self.assertEqual((normalized, cleared), (2, 0))
         self.assertIn("テレビを", words[0]["example"])
-        self.assertEqual(words[1]["example"], "")
+        self.assertIn(r"$\overset{あたら}{新}$しい", words[1]["example"])
 
     def test_repairs_unescaped_legacy_latex_json(self):
         payload = generator.load_ai_json(

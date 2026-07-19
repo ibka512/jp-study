@@ -93,6 +93,33 @@ def normalize_furigana_markup(value: str) -> tuple[str, bool]:
         if not KANJI_RE.search(surface):
             return surface
         if KANA_RE.search(surface):
+            prefix = 0
+            limit = min(len(surface), len(reading))
+            while prefix < limit and surface[prefix] == reading[prefix] and KANA_RE.fullmatch(surface[prefix]):
+                prefix += 1
+            suffix = 0
+            while (
+                suffix < len(surface) - prefix
+                and suffix < len(reading) - prefix
+                and surface[-(suffix + 1)] == reading[-(suffix + 1)]
+                and KANA_RE.fullmatch(surface[-(suffix + 1)])
+            ):
+                suffix += 1
+            surface_end = len(surface) - suffix if suffix else len(surface)
+            reading_end = len(reading) - suffix if suffix else len(reading)
+            middle_surface = surface[prefix:surface_end]
+            middle_reading = reading[prefix:reading_end]
+            if (
+                middle_surface
+                and middle_reading
+                and KANJI_RE.search(middle_surface)
+                and not KANA_RE.search(middle_surface)
+            ):
+                return (
+                    surface[:prefix]
+                    + rf"$\overset{{{middle_reading}}}{{{middle_surface}}}$"
+                    + (surface[surface_end:] if suffix else "")
+                )
             invalid_mixed = True
         return rf"$\overset{{{reading}}}{{{surface}}}$"
 
@@ -272,11 +299,22 @@ def validate_result(candidate: Candidate, item: dict[str, Any], used: set[str]) 
     plain = strip_furigana(sentence)
     contains_word = word in plain
     if candidate.language == "en":
-        contains_word = bool(re.search(
-            rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])",
+        forms = {word}
+        if re.fullmatch(r"[A-Za-z]+", word):
+            forms.update({word + "s", word + "es", word + "ed", word + "ing"})
+            if word.endswith("e"):
+                forms.update({word + "d", word[:-1] + "ing"})
+            if len(word) > 1 and word.endswith("y") and word[-2].lower() not in "aeiou":
+                forms.update({word[:-1] + "ies", word[:-1] + "ied"})
+        contains_word = any(bool(re.search(
+            rf"(?<![A-Za-z]){re.escape(form)}(?![A-Za-z])",
             plain,
             flags=re.IGNORECASE,
-        ))
+        )) for form in forms)
+    elif not contains_word and len(word) >= 2 and word[-1] in "るうくぐすつぬぶむい":
+        stem = word[:-1]
+        contains_word = len(stem) >= 2 or bool(KANJI_RE.search(stem))
+        contains_word = contains_word and stem in plain
     if not contains_word:
         return "", "例句没有包含目标词原样文字"
     if not ZH_RE.search(translation):

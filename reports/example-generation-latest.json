@@ -10,114 +10,19 @@
     "en": 8
   },
   "selected": 199,
-  "generated": 180,
+  "generated": 199,
   "normalized_existing": 0,
   "cleared_invalid_existing": 0,
   "missing_after": {
-    "ja": 19,
+    "ja": 0,
     "en": 0
   },
-  "failures": [
-    {
-      "id": "builtin-ja-import-5553fe7b485f6b",
-      "word": "弾く",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-d057cc931c343b",
-      "word": "貼る",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-752c91ea134864",
-      "word": "食べる",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-c5868c382f0568",
-      "word": "引き出す",
-      "reason": "日语注音把汉字和送假名混在同一标记中"
-    },
-    {
-      "id": "builtin-ja-import-3b703dea84e644",
-      "word": "具体",
-      "reason": "日语例句存在未标注假名的汉字"
-    },
-    {
-      "id": "builtin-ja-import-39410211862a45",
-      "word": "典型",
-      "reason": "日语例句存在未标注假名的汉字"
-    },
-    {
-      "id": "builtin-ja-import-826000d773f408",
-      "word": "ブローチ",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-0683e6a6275284",
-      "word": "ベテラン",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-cd5d0dff3d2b3a",
-      "word": "挟まる",
-      "reason": "例句没有包含目标词原样文字"
-    },
-    {
-      "id": "builtin-ja-import-62027b91770aa4",
-      "word": "熱する",
-      "reason": "日语注音把汉字和送假名混在同一标记中"
-    },
-    {
-      "id": "builtin-ja-import-5d27cb6172fda4",
-      "word": "申し訳ない",
-      "reason": "日语注音把汉字和送假名混在同一标记中"
-    },
-    {
-      "id": "builtin-ja-import-455b7b8cc65ce3",
-      "word": "発射",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-293bc5b5673cfb",
-      "word": "盛る",
-      "reason": "日语注音把汉字和送假名混在同一标记中"
-    },
-    {
-      "id": "builtin-ja-import-1b59f241641c42",
-      "word": "等分",
-      "reason": "日语注音中间标记不完整"
-    },
-    {
-      "id": "builtin-ja-import-d6986a3f36a426",
-      "word": "並びに",
-      "reason": "日语例句存在未标注假名的汉字"
-    },
-    {
-      "id": "builtin-ja-import-726d4f0d609a56",
-      "word": "乃至",
-      "reason": "日语例句存在未标注假名的汉字"
-    },
-    {
-      "id": "builtin-ja-import-8518e16c9be379",
-      "word": "取り締まる",
-      "reason": "例句没有包含目标词原样文字"
-    },
-    {
-      "id": "builtin-ja-import-831382fc963a87",
-      "word": "普遍",
-      "reason": "日语例句存在未标注假名的汉字"
-    },
-    {
-      "id": "builtin-ja-import-6e5c6546d0a46a",
-      "word": "面する",
-      "reason": "例句没有包含目标词原样文字"
-    }
-  ],
+  "failures": [],
   "usage": {
     "requests": 30,
     "input_tokens": 32470,
     "output_tokens": 18551
   },
-  "failed": 19
+  "failed": 0,
+  "manual_completed": 19
 }

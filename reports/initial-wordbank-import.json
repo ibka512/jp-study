@@ -1,0 +1,28 @@
+{
+  "japanese": {
+    "N5": 440,
+    "N4": 474,
+    "N3": 1457,
+    "N2": 1286,
+    "N1": 2246
+  },
+  "english": {
+    "CET-4": 2607,
+    "CET-6": 1313
+  },
+  "incoming": {
+    "ja": 5903,
+    "en": 3920
+  },
+  "final": {
+    "ja": 5906,
+    "en": 3922
+  },
+  "merge": {
+    "added": 9778,
+    "enrichedExisting": 0,
+    "duplicates": 45,
+    "conflicts": 45,
+    "rejected": 0
+  }
+}

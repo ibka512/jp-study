@@ -1,4 +1,37 @@
 {
   "version": 1,
-  "imports": []
+  "imports": [
+    {
+      "fingerprint": "qwerty-e0dc7a09",
+      "source": "https://github.com/Realkai42/qwerty-learner-vscode",
+      "name": "JLPT 中文释义与 CET-4/CET-6 词表",
+      "license": "MIT",
+      "author": "Kaiyi ZHANG",
+      "commit": "e0dc7a09a5e0946d77b2c279f72a89daf3659b97",
+      "language": "ja+en",
+      "importedAt": "2026-07-19T13:14:31.484716+00:00",
+      "accepted": 9823
+    },
+    {
+      "fingerprint": "openjlpt-450fd50f",
+      "source": "https://github.com/evanclan/OpenJLPT",
+      "name": "JLPT N5–N1 分级校验",
+      "license": "CC-BY-SA-4.0",
+      "commit": "450fd50f58f52e26502e9032632bc3f44fdb0725",
+      "language": "ja",
+      "importedAt": "2026-07-19T13:14:31.484716+00:00",
+      "accepted": 5903
+    },
+    {
+      "fingerprint": "ecdict-bc015ed2",
+      "source": "https://github.com/skywind3000/ECDICT",
+      "name": "CET 词性与音标补全",
+      "license": "MIT",
+      "author": "Linwei",
+      "commit": "bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b",
+      "language": "en",
+      "importedAt": "2026-07-19T13:14:31.484716+00:00",
+      "accepted": 3920
+    }
+  ]
 }

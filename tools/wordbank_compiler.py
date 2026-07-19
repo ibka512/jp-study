@@ -62,6 +62,7 @@ OUTPUT_FIELDS = {
     "ja": ["word", "kana", "type", "meaning", "example", "level", "tags"],
     "en": ["word", "type", "phonetic", "meaning", "example", "roots", "folder", "level", "tags"],
 }
+WORD_BANK_CHUNK_BYTES = 500 * 1024
 
 
 class CompilerError(RuntimeError):
@@ -574,6 +575,14 @@ def map_batch(batch: SourceBatch, language: str, manual: dict[str, str], ai: AIC
 
 def load_js_words(path: Path, variable: str) -> list[dict[str, Any]]:
     source = path.read_text(encoding="utf-8")
+    language = "ja" if variable == "DefaultWords" else "en"
+    chunk_dir = path.parent / "wordbanks"
+    if chunk_dir.exists():
+        for chunk in sorted(chunk_dir.glob(f"{language}-*.js")):
+            source += "\n" + chunk.read_text(encoding="utf-8")
+        finalize = chunk_dir / "finalize.js"
+        if finalize.exists():
+            source += "\n" + finalize.read_text(encoding="utf-8")
     script = source + f"\nprocess.stdout.write(JSON.stringify({variable}));\n"
     result = subprocess.run(["node"], input=script, text=True, capture_output=True, timeout=30)
     if result.returncode != 0:
@@ -692,6 +701,102 @@ DefaultEnglishWords.forEach((word, index) => {
 });
 """
     return f"/**\n * 钟日 - {title}词库（由 tools/wordbank_compiler.py 生成，请勿手工改 ID）\n */\n\nconst {variable} = {payload};\n{suffix}"
+
+
+def split_word_chunks(words: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    chunks: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_bytes = 2
+    for word in words:
+        size = len(json.dumps(word, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) + 2
+        if current and current_bytes + size > WORD_BANK_CHUNK_BYTES:
+            chunks.append(current)
+            current = []
+            current_bytes = 2
+        current.append(word)
+        current_bytes += size
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def render_wordbank_base(language: str) -> str:
+    if language == "ja":
+        return """/** 钟日 - 日语词库入口；正式数据位于 wordbanks/ja-*.js。 */
+const DefaultWords = [];
+const Gojuon = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ".split('');
+"""
+    return """/** 钟日 - 英语词库入口；正式数据位于 wordbanks/en-*.js。 */
+const DefaultEnglishWords = [];
+"""
+
+
+def render_finalize() -> str:
+    return """/** 钟日词库统一收尾。 */
+if (typeof DefaultWords !== 'undefined') {
+  DefaultWords.forEach((word, index) => {
+    word._id = word._id || `ja-built-in-${String(index + 1).padStart(6, '0')}`;
+    word.level = word.level || '';
+    word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
+    word.tags = Array.isArray(word.tags) ? word.tags : [];
+    word.builtIn = true;
+  });
+}
+
+if (typeof DefaultEnglishWords !== 'undefined') {
+  DefaultEnglishWords.forEach((word, index) => {
+    word._id = word._id || `en-built-in-${String(index + 1).padStart(6, '0')}`;
+    word.level = word.level || '';
+    word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
+    word.tags = Array.isArray(word.tags) ? word.tags : [];
+    word.builtIn = true;
+  });
+}
+"""
+
+
+def sync_index_wordbank_scripts(path: Path, assets: list[str]) -> None:
+    source = path.read_text(encoding="utf-8")
+    block = "<!-- WORDBANK_CHUNKS_START -->\n" + "\n".join(
+        f'<script src="{asset}"></script>' for asset in assets if asset != "wordbanks/assets.js"
+    ) + "\n<!-- WORDBANK_CHUNKS_END -->"
+    pattern = re.compile(r"<!-- WORDBANK_CHUNKS_START -->.*?<!-- WORDBANK_CHUNKS_END -->", re.S)
+    if pattern.search(source):
+        source = pattern.sub(block, source)
+    else:
+        marker = '<script src="rote-learning-core.js"></script>'
+        if marker not in source:
+            raise CompilerError("index.html 中找不到循环强记脚本标记")
+        source = source.replace(marker, block + "\n" + marker, 1)
+    path.write_text(source, encoding="utf-8")
+
+
+def write_wordbank_assets(repo: Path, ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]]) -> None:
+    directory = repo / "wordbanks"
+    directory.mkdir(exist_ok=True)
+    for stale in list(directory.glob("ja-*.js")) + list(directory.glob("en-*.js")):
+        stale.unlink()
+
+    assets: list[str] = ["wordbanks/assets.js"]
+    for language, variable, words in (
+        ("ja", "DefaultWords", ja_words),
+        ("en", "DefaultEnglishWords", en_words),
+    ):
+        for index, chunk in enumerate(split_word_chunks(words), 1):
+            name = f"{language}-{index:03d}.js"
+            payload = json.dumps(chunk, ensure_ascii=False, separators=(",", ":"))
+            (directory / name).write_text(f"{variable}.push(...{payload});\n", encoding="utf-8")
+            assets.append(f"wordbanks/{name}")
+    (directory / "finalize.js").write_text(render_finalize(), encoding="utf-8")
+    assets.append("wordbanks/finalize.js")
+    manifest = "const WORD_BANK_ASSETS = " + json.dumps([f"./{asset}" for asset in assets], ensure_ascii=False, indent=2) + ";\n"
+    (directory / "assets.js").write_text(manifest, encoding="utf-8")
+    (repo / "data.js").write_text(render_wordbank_base("ja"), encoding="utf-8")
+    (repo / "english-data.js").write_text(render_wordbank_base("en"), encoding="utf-8")
+    sync_index_wordbank_scripts(repo / "index.html", assets)
+    digest_source = json.dumps(ja_words, ensure_ascii=False, separators=(",", ":"))
+    digest_source += json.dumps(en_words, ensure_ascii=False, separators=(",", ":"))
+    update_cache_version(repo / "sw.js", digest_source, "")
 
 
 def update_cache_version(path: Path, ja_content: str, en_content: str) -> None:
@@ -821,9 +926,7 @@ def run(args: argparse.Namespace) -> Report:
     en_content = render_js(en_words, "en")
     report.output_counts = {"ja": len(ja_words), "en": len(en_words)}
     if not args.dry_run:
-        (repo / "data.js").write_text(ja_content, encoding="utf-8")
-        (repo / "english-data.js").write_text(en_content, encoding="utf-8")
-        update_cache_version(repo / "sw.js", ja_content, en_content)
+        write_wordbank_assets(repo, ja_words, en_words)
         update_ledger(repo, args, report)
         write_reports(repo, report)
     return report

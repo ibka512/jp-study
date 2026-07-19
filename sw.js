@@ -1,4 +1,6 @@
-const CACHE_NAME = 'zhongri-v20260719-rote-stable-1';
+importScripts('./wordbanks/assets.js');
+
+const CACHE_NAME = 'zhongri-wordbank-3839c8d2e1a9';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -7,6 +9,7 @@ const LOCAL_ASSETS = [
   './style.css',
   './data.js',
   './english-data.js',
+  ...WORD_BANK_ASSETS,
   './rote-learning-core.js',
   './app.js'
 ];

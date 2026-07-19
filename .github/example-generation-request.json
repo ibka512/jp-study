@@ -1,0 +1,7 @@
+{
+  "request": 1,
+  "language": "all",
+  "level": "",
+  "max_words": 100,
+  "batch_size": 20
+}

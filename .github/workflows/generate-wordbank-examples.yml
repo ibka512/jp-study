@@ -30,6 +30,9 @@ on:
           - "10"
           - "20"
           - "30"
+  push:
+    paths:
+      - ".github/example-generation-request.json"
 
 permissions:
   contents: write
@@ -43,10 +46,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      LANGUAGE: ${{ inputs.language }}
-      LEVEL: ${{ inputs.level }}
-      MAX_WORDS: ${{ inputs.max_words }}
-      BATCH_SIZE: ${{ inputs.batch_size }}
+      LANGUAGE: ${{ inputs.language || 'all' }}
+      LEVEL: ${{ inputs.level || '' }}
+      MAX_WORDS: ${{ inputs.max_words || '100' }}
+      BATCH_SIZE: ${{ inputs.batch_size || '20' }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
     steps:
@@ -59,6 +62,35 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: 读取自动运行请求
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+
+          with open('.github/example-generation-request.json', encoding='utf-8') as handle:
+              request = json.load(handle)
+          language = str(request.get('language', 'all'))
+          level = str(request.get('level', ''))
+          max_words = int(request.get('max_words', 100))
+          batch_size = int(request.get('batch_size', 20))
+          if language not in {'all', 'ja', 'en'}:
+              raise SystemExit('language 必须是 all、ja 或 en')
+          if level and not re.fullmatch(r'[A-Za-z0-9-]{1,20}', level):
+              raise SystemExit('level 格式无效')
+          if not 1 <= max_words <= 1000:
+              raise SystemExit('max_words 必须是 1～1000')
+          if not 1 <= batch_size <= 40:
+              raise SystemExit('batch_size 必须是 1～40')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as output:
+              output.write(f'LANGUAGE={language}\n')
+              output.write(f'LEVEL={level}\n')
+              output.write(f'MAX_WORDS={max_words}\n')
+              output.write(f'BATCH_SIZE={batch_size}\n')
+          PY
 
       - name: 检查 API 密钥
         run: |

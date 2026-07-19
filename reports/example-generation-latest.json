@@ -1,24 +1,111 @@
 {
-  "generated_at": "2026-07-19T13:42:09.421828+00:00",
+  "generated_at": "2026-07-19T13:46:31.063544+00:00",
   "model": "deepseek-v4-flash",
   "language": "all",
   "level": "",
   "max_words": 100,
   "batch_size": 20,
   "missing_before": {
-    "ja": 5881,
-    "en": 3851
+    "ja": 5838,
+    "en": 3805
   },
   "selected": 100,
-  "generated": 95,
+  "generated": 76,
+  "normalized_existing": 16,
+  "cleared_invalid_existing": 6,
   "missing_after": {
-    "ja": 5832,
-    "en": 3805
+    "ja": 5806,
+    "en": 3761
   },
   "failures": [
     {
-      "id": "builtin-ja-import-dc82fd7db07f84",
-      "word": "まずい",
+      "id": "builtin-ja-import-8a84460c2a872d",
+      "word": "お手洗い",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-8a2cf1a2e14a81",
+      "word": "レストラン",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-2869023d3ea62d",
+      "word": "ワイシャツ",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-5a4151a71d91bd",
+      "word": "一",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-06e2b3150e40a5",
+      "word": "一つ",
+      "reason": "日语注音中间标记不完整"
+    },
+    {
+      "id": "builtin-ja-import-641ae9a79a3847",
+      "word": "一人",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-ff3b9e7b11ae5e",
+      "word": "一緒",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-3daaf785ddb0e8",
+      "word": "七つ",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-c318118dd2f1f5",
+      "word": "丈夫",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-13ef5634cafe2d",
+      "word": "三",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-e8bc8e45974214",
+      "word": "三つ",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-527004ef9e2095",
+      "word": "上げる",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-ja-import-4d0271b20aa9e8",
+      "word": "上着",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-300e86c20d18f9",
+      "word": "並ぶ",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-ja-import-496b4eaa9b13bc",
+      "word": "乗る",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-81fb107dfb4c50",
+      "word": "九つ",
+      "reason": "日语例句存在未标注假名的汉字"
+    },
+    {
+      "id": "builtin-ja-import-7eaabb57ad7460",
+      "word": "二つ",
+      "reason": "日语注音把汉字和送假名混在同一标记中"
+    },
+    {
+      "id": "builtin-ja-import-2dc034b036753f",
+      "word": "五つ",
       "reason": "日语注音中间标记不完整"
     },
     {
@@ -40,12 +127,22 @@
       "id": "builtin-en-import-7dd4b0cf861127",
       "word": "devise",
       "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-en-import-5935db32149be7",
+      "word": "paw",
+      "reason": "例句没有包含目标词原样文字"
+    },
+    {
+      "id": "builtin-en-import-02568ac8587c02",
+      "word": "frustrate",
+      "reason": "例句没有包含目标词原样文字"
     }
   ],
   "usage": {
     "requests": 11,
-    "input_tokens": 10054,
-    "output_tokens": 7610
+    "input_tokens": 10258,
+    "output_tokens": 7845
   },
-  "failed": 5
+  "failed": 24
 }

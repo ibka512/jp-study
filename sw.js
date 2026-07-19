@@ -1,6 +1,6 @@
 importScripts('./wordbanks/assets.js');
 
-const CACHE_NAME = 'zhongri-wordbank-b93670ae850c';
+const CACHE_NAME = 'zhongri-daily-learning-v1';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -11,7 +11,9 @@ const LOCAL_ASSETS = [
   './english-data.js',
   ...WORD_BANK_ASSETS,
   './rote-learning-core.js',
-  './app.js'
+  './daily-learning-core.js',
+  './app.js',
+  './daily-learning.js'
 ];
 
 const OPTIONAL_EXTERNAL_ASSETS = [

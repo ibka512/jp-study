@@ -695,10 +695,28 @@ const getWordMetadataHTML = (
     const difficulty = normalizeWordDifficulty(
         entry.difficulty
     );
-    const tags = normalizeWordTags(entry.tags);
+    const isRedundantMetadataTag = tag => {
+        const normalized = normalizeEntryText(tag)
+            .normalize('NFKC')
+            .trim();
+        const compactTag = normalized
+            .toUpperCase()
+            .replace(/[\s_-]+/g, '');
+
+        return Boolean(
+            normalizeWordLevel(normalized, lang) ||
+            normalizeWordFrequency(normalized) ||
+            /^JLPT(?:词汇)?$/i.test(normalized) ||
+            /^(?:大学英语|大学英语词汇|四六级|CET)$/i.test(normalized) ||
+            compactTag === '难度未定' ||
+            Object.values(DIFFICULTY_LABELS).includes(normalized)
+        );
+    };
+    const tags = normalizeWordTags(entry.tags)
+        .filter(tag => !isRedundantMetadataTag(tag));
     const specialTags = normalizeWordSpecialTags(
         entry.specialTags
-    );
+    ).filter(tag => !isRedundantMetadataTag(tag));
     const maxSpecialTags = Number.isInteger(specialTagLimit)
         ? Math.max(0, specialTagLimit)
         : (compact ? 1 : 2);
@@ -4052,7 +4070,9 @@ const Model = {
   },
   
   calculateStats() {
-      let dailyRecords = this.records.filter(r => r.type === 'daily_punch').map(r => r.date);
+      let dailyRecords = this.records
+          .filter(r => ['daily_punch', 'daily_session'].includes(r.type))
+          .map(r => r.date);
       let uniqueDates = [...new Set(dailyRecords)].sort((a, b) => new Date(b) - new Date(a));
       let totalDays = uniqueDates.length; let streak = 0;
       let today = new Date(); today.setHours(0,0,0,0);

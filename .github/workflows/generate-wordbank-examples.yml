@@ -117,7 +117,10 @@ jobs:
           node --check english-data.js
           for file in wordbanks/*.js; do node --check "$file"; done
           node --check app.js
+          node --check daily-learning-core.js
+          node --check daily-learning.js
           node tests/rote-learning-core.test.js
+          node tests/daily-learning-core.test.js
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js
           git diff --check

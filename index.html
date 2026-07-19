@@ -48,6 +48,72 @@
 <div class="app-container" id="main-container">
   
   <div id="tab-home" class="tab-content active">
+    <section class="today-dashboard" aria-labelledby="daily-greeting">
+      <div class="daily-welcome-row">
+        <div>
+          <span class="daily-eyebrow"><span class="material-symbols-rounded">wb_sunny</span> 今日路线</span>
+          <h1 id="daily-greeting">今天好，轻松学一小轮</h1>
+          <p id="daily-summary">完成 10 个词，大约只需要 5 分钟。</p>
+        </div>
+        <div class="daily-streak-pill" aria-label="连续学习天数">
+          <span class="material-symbols-rounded">local_fire_department</span>
+          <strong id="daily-streak-count">0</strong>
+          <small>天连续</small>
+        </div>
+      </div>
+
+      <div class="daily-hero-card">
+        <div class="daily-hero-copy">
+          <div class="daily-book-pill"><span class="material-symbols-rounded">menu_book</span><span id="daily-language-label">日语词书</span></div>
+          <h2>今天先走一小步</h2>
+          <p>系统已经替你选好新词和需要复习的词，不用再做选择。</p>
+          <div class="daily-plan-pills">
+            <span><b id="daily-due-count">0</b> 个待复习</span>
+            <span><b id="daily-new-count">0</b> 个可学新词</span>
+          </div>
+          <button id="btn-start-today" class="daily-primary-button" type="button">
+            <span class="material-symbols-rounded">play_arrow</span>
+            <span id="daily-start-label">开始今天的学习</span>
+          </button>
+        </div>
+        <div id="daily-progress-ring" class="daily-progress-ring" role="img" aria-label="今日完成 0/10">
+          <div><strong id="daily-completed-count">0</strong><span>/ <b id="daily-goal-count">10</b></span><small>今日词数</small></div>
+        </div>
+      </div>
+
+      <div class="daily-path" aria-label="每日学习步骤">
+        <div class="daily-path-item is-active"><span>1</span><div><strong>轻松认识</strong><small>先看词、读音和核心释义</small></div></div>
+        <div class="daily-path-line"></div>
+        <div class="daily-path-item"><span>2</span><div><strong>及时回想</strong><small>标记忘记、模糊或记住</small></div></div>
+        <div class="daily-path-line"></div>
+        <div class="daily-path-item"><span>3</span><div><strong>按时再见</strong><small>自动安排下一次复习</small></div></div>
+      </div>
+
+      <div class="daily-quick-grid">
+        <button id="btn-start-review" class="daily-quick-card tone-review" type="button">
+          <span class="daily-quick-icon material-symbols-rounded">history</span>
+          <span><strong>今日复习</strong><small><b id="daily-review-button-count">0</b> 个词已经排好</small></span>
+          <span class="material-symbols-rounded">chevron_right</span>
+        </button>
+        <button id="btn-home-toolbox" class="daily-quick-card tone-toolbox" type="button">
+          <span class="daily-quick-icon material-symbols-rounded">construction</span>
+          <span><strong>词库工具箱</strong><small id="daily-ai-status">AI 可选，不影响学习</small></span>
+          <span class="material-symbols-rounded">chevron_right</span>
+        </button>
+      </div>
+
+      <div class="daily-consistency-card">
+        <div><strong>这一周</strong><small>有学习就算完成，不追求一次学很多。</small></div>
+        <div id="daily-week-strip" class="daily-week-strip" aria-label="近七天学习记录"></div>
+      </div>
+
+      <button id="btn-open-learning-options" class="daily-more-button" type="button" aria-expanded="false" aria-controls="legacy-learning-options">
+        <span class="material-symbols-rounded">tune</span>
+        更多学习方式与进度详情
+      </button>
+    </section>
+
+    <div id="legacy-learning-options" class="legacy-learning-options" hidden>
     <div class="home-layout-container">
       <div class="home-left-col">
         <div class="card-panel" id="stats-panel">
@@ -164,6 +230,7 @@
           </button>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -411,6 +478,18 @@
         <div class="card-panel settings-detail-card">
           <div class="setting-item setting-choice-item">
             <div class="setting-info">
+              <div class="setting-title">每日轻量目标</div>
+              <div class="setting-desc">控制首页短回合的词数，随时可以调整</div>
+            </div>
+            <div id="daily-goal-setting" class="daily-goal-setting" role="group" aria-label="每日学习词数">
+              <button type="button" data-daily-goal="5">5</button>
+              <button type="button" data-daily-goal="10">10</button>
+              <button type="button" data-daily-goal="15">15</button>
+            </div>
+          </div>
+
+          <div class="setting-item setting-choice-item">
+            <div class="setting-info">
               <div class="setting-title">词汇排列方式</div>
               <div class="setting-desc">决定筛选检验时，新词、薄弱词与已掌握词的先后顺序</div>
             </div>
@@ -544,6 +623,19 @@
         <div class="settings-section-header">
           <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
           <div><span>词库与导入</span><small>批量加入词汇，并管理最近删除</small></div>
+        </div>
+
+        <div class="card-panel learning-toolbox-card">
+          <div class="learning-toolbox-heading">
+            <span class="material-symbols-rounded">construction</span>
+            <div><h3>词库工具箱</h3><p>按你的熟悉程度选择入口；普通导入完全不需要 AI。</p></div>
+          </div>
+          <div class="learning-toolbox-grid">
+            <button id="btn-toolbox-manual" type="button"><span class="material-symbols-rounded">description</span><strong>普通导入</strong><small>已有完整词表时使用</small></button>
+            <button id="btn-toolbox-ai" type="button"><span class="material-symbols-rounded">auto_fix_high</span><strong>AI 补全</strong><small>只有单词时使用向导</small></button>
+            <button id="btn-toolbox-audit" type="button"><span class="material-symbols-rounded">fact_check</span><strong>质量检查</strong><small>检查重复与缺失字段</small></button>
+          </div>
+          <div class="learning-toolbox-note"><span class="material-symbols-rounded">privacy_tip</span><span>API 密钥只保存在当前设备；不配置也能正常学习、复习和普通导入。</span></div>
         </div>
 
         <div class="card-panel import-card">
@@ -788,6 +880,7 @@
             <div class="roots-row blur-target" id="w-roots" style="display:none;"></div>
             <div class="meaning-row blur-target" id="w-meaning">释义</div>
         </div>
+        <button id="daily-detail-toggle" class="daily-detail-toggle" type="button" hidden><span class="material-symbols-rounded">menu_book</span>查看例句</button>
         <div class="dt-example-box blur-target" id="w-example-box" style="cursor: pointer;"></div>
         <div class="ai-inline-panel hidden" id="ai-inline-panel">
           <div class="ai-inline-header">
@@ -803,6 +896,14 @@
     </div>
     
     <div class="study-right-col">
+      <div id="daily-session-controls" class="daily-session-controls" hidden>
+        <div class="daily-session-heading"><span id="daily-session-prompt">今天的小目标</span><small>凭第一感觉选择，不需要想太久</small></div>
+        <div class="daily-rating-grid">
+          <button type="button" data-daily-rating="again" class="is-again"><span class="material-symbols-rounded">refresh</span><strong>忘记了</strong><small>稍后再来</small></button>
+          <button type="button" data-daily-rating="hard" class="is-hard"><span class="material-symbols-rounded">psychology_alt</span><strong>有点模糊</strong><small>明天再见</small></button>
+          <button type="button" data-daily-rating="good" class="is-good"><span class="material-symbols-rounded">sentiment_satisfied</span><strong>记住了</strong><small>按计划复习</small></button>
+        </div>
+      </div>
       <div id="dual-track-ui" class="hidden">
         <div id="dt-spell-area" class="hidden"><div id="dt-spell-input" class="dt-spell-input-box"></div><div id="dt-spell-keyboard" class="dt-spell-keyboard"></div></div>
         <div id="dt-choice-area" class="hidden"><div id="dt-choice-buttons"></div></div>
@@ -1568,6 +1669,48 @@
   </div>
 </div>
 
+<div id="daily-complete-overlay" class="modal-overlay daily-complete-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="daily-complete-title">
+  <div class="daily-complete-card">
+    <div class="daily-celebration-mark"><span class="material-symbols-rounded">celebration</span></div>
+    <span class="daily-eyebrow">小目标完成</span>
+    <h2 id="daily-complete-title">今天已经向前走了一步</h2>
+    <p>不需要一次记牢，按计划再次见面就好。</p>
+    <div class="daily-complete-stats">
+      <div><strong id="daily-complete-total">0</strong><small>完成词数</small></div>
+      <div><strong id="daily-complete-good">0</strong><small>已经记住</small></div>
+      <div><strong id="daily-complete-review">0</strong><small>安排复习</small></div>
+    </div>
+    <button id="daily-complete-close" type="button">回到首页</button>
+    <button id="daily-complete-again" class="btn-outline" type="button">状态不错，再来一轮</button>
+  </div>
+</div>
+
+<div id="onboarding-overlay" class="modal-overlay onboarding-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="onboarding-title">
+  <div class="onboarding-card">
+    <div class="onboarding-mark"><span class="material-symbols-rounded">waving_hand</span></div>
+    <span class="daily-eyebrow">欢迎来到钟日</span>
+    <h2 id="onboarding-title">先把每天的学习变简单</h2>
+    <p>只选词书和每日词数，其他事情都可以稍后再设置。</p>
+    <div class="onboarding-section">
+      <strong><span>1</span>先学哪本词书？</strong>
+      <div class="onboarding-choice-grid two">
+        <button type="button" data-onboarding-lang="ja"><b>日</b><span>日语词书</span></button>
+        <button type="button" data-onboarding-lang="en"><b>EN</b><span>英语词书</span></button>
+      </div>
+    </div>
+    <div class="onboarding-section">
+      <strong><span>2</span>每天学几个词？</strong>
+      <div class="onboarding-choice-grid three">
+        <button type="button" data-onboarding-goal="5"><b>5</b><span>轻松</span></button>
+        <button type="button" data-onboarding-goal="10" class="active"><b>10</b><span>推荐</span></button>
+        <button type="button" data-onboarding-goal="15"><b>15</b><span>充实</span></button>
+      </div>
+    </div>
+    <div class="onboarding-safe-note"><span class="material-symbols-rounded">offline_bolt</span><div><strong>学习和复习可离线使用</strong><small>AI 是可选工具，需要时再按向导连接，不影响现在开始。</small></div></div>
+    <button id="onboarding-finish" class="daily-primary-button" type="button"><span class="material-symbols-rounded">arrow_forward</span>开始使用钟日</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 <script src="data.js"></script> 
 <script src="english-data.js"></script>
@@ -1587,6 +1730,8 @@
 <script src="wordbanks/finalize.js"></script>
 <!-- WORDBANK_CHUNKS_END -->
 <script src="rote-learning-core.js"></script>
+<script src="daily-learning-core.js"></script>
 <script src="app.js"></script>
+<script src="daily-learning.js"></script>
 </body>
 </html>

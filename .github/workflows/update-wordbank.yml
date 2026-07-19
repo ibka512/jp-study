@@ -1,0 +1,131 @@
+name: 更新钟日词库
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: "GitHub 仓库/文件链接，或 .apkg/.zip/.csv/.tsv/.json 下载链接"
+        required: true
+        type: string
+      language:
+        description: "词库语言"
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - ja
+          - en
+      license:
+        description: "来源标注的许可证（例如 MIT、CC0-1.0、CC-BY-4.0、public-domain）"
+        required: true
+        type: string
+      source_name:
+        description: "这批词库的名称"
+        required: true
+        default: 外部词库
+        type: string
+      ai_mode:
+        description: "AI 补全范围（missing 最省 Token）"
+        required: true
+        default: missing
+        type: choice
+        options:
+          - missing
+          - all
+          - off
+      level:
+        description: "统一等级（可留空，如 N5、CET-4）"
+        required: false
+        type: string
+      folder:
+        description: "英语词库分组"
+        required: false
+        default: 导入词库
+        type: string
+      field_map_json:
+        description: '可选字段映射 JSON，例如 {"word":"Front","meaning":"Back"}'
+        required: false
+        type: string
+      max_words:
+        description: "每种语言最多导入多少词，0 表示不限"
+        required: true
+        default: "0"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zhongri-wordbank-update
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SOURCE_URL: ${{ inputs.source_url }}
+      LANGUAGE: ${{ inputs.language }}
+      SOURCE_LICENSE: ${{ inputs.license }}
+      SOURCE_NAME: ${{ inputs.source_name }}
+      AI_MODE: ${{ inputs.ai_mode }}
+      DEFAULT_LEVEL: ${{ inputs.level }}
+      DEFAULT_FOLDER: ${{ inputs.folder }}
+      FIELD_MAP_JSON: ${{ inputs.field_map_json }}
+      MAX_WORDS: ${{ inputs.max_words }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: 取出最新版项目
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 编译并合并词库
+        run: |
+          python tools/wordbank_compiler.py \
+            --source "$SOURCE_URL" \
+            --language "$LANGUAGE" \
+            --license "$SOURCE_LICENSE" \
+            --source-name "$SOURCE_NAME" \
+            --ai-mode "$AI_MODE" \
+            --level "$DEFAULT_LEVEL" \
+            --folder "$DEFAULT_FOLDER" \
+            --field-map "$FIELD_MAP_JSON" \
+            --max-words "$MAX_WORDS"
+
+      - name: 验证词库与学习流程
+        run: |
+          python -m unittest -v tests.test_wordbank_compiler
+          node --check data.js
+          node --check english-data.js
+          node --check app.js
+          node tests/rote-learning-core.test.js
+          node tests/rote-learning-integration.test.js
+          git diff --check
+
+      - name: 保存更新报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordbank-report-${{ github.run_number }}
+          path: reports/wordbank-latest.*
+          retention-days: 30
+
+      - name: 直接更新 main
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "词库没有变化，无需提交。"
+            exit 0
+          fi
+          git config user.name "钟日词库机器人"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data.js english-data.js sw.js wordbank-sources.json reports/wordbank-latest.json reports/wordbank-latest.md
+          git commit -m "更新词库：$SOURCE_NAME"
+          git push origin HEAD:main

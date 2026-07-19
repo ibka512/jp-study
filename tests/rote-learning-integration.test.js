@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
@@ -32,6 +33,44 @@ assert.match(app, /ROTE_CORE\.buildInterleavedQueue/);
 assert.match(app, /ROTE_CORE\.isFirstAppearance/);
 assert.match(app, /const isEnglishSpelling = wObj\?\.lang === 'en'/);
 assert.match(app, /\/\[a-zA-Z-\]\//);
+
+const metadataTagHelper = app.match(
+    /const isRedundantWordMetadataTag = \([\s\S]*?\n};/
+);
+assert.ok(metadataTagHelper, '缺少卡片元数据标签去重逻辑');
+
+const metadataTagContext = {
+    normalizeEntryText: value => String(value || '').trim(),
+    normalizeWordLevel: (value, lang) => {
+        const normalized = String(value || '').toUpperCase();
+        return lang === 'en'
+            ? (/^CET-?[46]$/.test(normalized) ? normalized.replace(/^CET([46])$/, 'CET-$1') : '')
+            : (/^(?:JLPT[-_]?)?N[1-5]$/.test(normalized) ? normalized.replace(/^JLPT[-_]?/, '') : '');
+    },
+    normalizeWordFrequency: value => /^(?:高频|中频|低频)$/.test(value) ? value : '',
+    DIFFICULTY_LABELS: {
+        0: '难度未定', 1: '入门', 2: '较易', 3: '中等', 4: '较难', 5: '困难'
+    }
+};
+vm.createContext(metadataTagContext);
+vm.runInContext(
+    `${metadataTagHelper[0]}; globalThis.isRedundant = isRedundantWordMetadataTag;`,
+    metadataTagContext
+);
+
+for (const [tag, lang] of [
+    ['N4', 'ja'], ['JLPT', 'ja'], ['CET-4', 'en'],
+    ['大学英语', 'en'], ['高频', 'ja'], ['难度未定', 'ja']
+]) {
+    assert.equal(metadataTagContext.isRedundant(tag, lang), true, `未过滤重复标签：${tag}`);
+}
+assert.equal(metadataTagContext.isRedundant('片假名词', 'ja'), false);
+assert.equal(metadataTagContext.isRedundant('口语', 'ja'), false);
+assert.equal(
+    (app.match(/filter\(tag => !isRedundantWordMetadataTag\(tag, lang\)\)/g) || []).length,
+    2,
+    '普通标签和特殊标签都应经过元数据去重'
+);
 
 for (const asset of [
     'index.html',

@@ -15,6 +15,12 @@ const WORD_STORAGE_VERSION_KEY = 'wordStorageVersion';
 const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
+const ROTE_CORE = globalThis.RoteLearningCore;
+
+if (!ROTE_CORE) {
+    throw new Error('循环强记核心模块加载失败');
+}
+
 const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'theme',
     'langMode',
@@ -2813,7 +2819,7 @@ const EnglishInput = {
             this.buffer = this.buffer.slice(0, -1);
             return;
         }
-        if (char.length === 1 && /[a-zA-Z]/.test(char)) {
+        if (char.length === 1 && /[a-zA-Z-]/.test(char)) {
             this.buffer += char.toLowerCase();
         }
     },
@@ -4821,8 +4827,8 @@ const View = {
               ) ||
               '';
 
-          const GROUP_SIZE = 10;
-          const GROUP_STEP = 7;
+          const GROUP_SIZE = ROTE_CORE.GROUP_SIZE;
+          const GROUP_STEP = ROTE_CORE.GROUP_STEP;
           const fragment =
               document.createDocumentFragment();
 
@@ -4902,14 +4908,12 @@ const View = {
                   groupIndex * GROUP_STEP <
                   words.length
               ) {
-                  const startIndex =
-                      groupIndex * GROUP_STEP;
-
-                  const endIndex =
-                      Math.min(
-                          startIndex + GROUP_SIZE,
-                          words.length
-                      );
+                  const range = ROTE_CORE.getGroupRange(
+                      groupIndex,
+                      words.length
+                  );
+                  const startIndex = range.start;
+                  const endIndex = range.end;
 
                   const groupValue =
                       `group|${entry.cat}|${groupIndex}`;
@@ -5426,6 +5430,14 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
     renderStudyCard(anim = 'none') {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
     let w = Model.db[idx];
+
+    if (!Number.isInteger(idx) || !w) {
+        Model.state.isAnimating = false;
+        showToast('当前学习词条无法读取，请重新选择词组');
+        this.getEl('btn-exit-study')?.click();
+        return;
+    }
+
     let mode = this.getEl('next-display-mode').value;
     
     let isMemTest = (Model.state.mode === 'memory-test');
@@ -5436,7 +5448,10 @@ let aiPanel = View.getEl('ai-inline-panel');
 if (aiPanel) aiPanel.classList.add('hidden');
     let forceRoteFull = false;
     if (isRote) {
-    let isFirstAppearance = Model.state.studyQueue.indexOf(idx) === Model.state.currentIndex;
+    let isFirstAppearance = ROTE_CORE.isFirstAppearance(
+        Model.state.studyQueue,
+        Model.state.currentIndex
+    );
     if (isFirstAppearance) { 
         forceRoteFull = true; 
         mode = 'all'; 
@@ -5926,7 +5941,11 @@ void card.offsetWidth;
       this.renderDualTrackUI(w);
     } else if (isMemTest || (isRote && !forceRoteFull)) {
       this.getEl('memory-test-ui').classList.remove('hidden');
-      this.renderMemoryTestUI(w, mode);
+      if (isRote) {
+          this.renderRoteLearningUI(w, mode);
+      } else {
+          this.renderMemoryTestUI(w, mode);
+      }
     }
     
     if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
@@ -6102,6 +6121,212 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       this.revealStudyAnswer();
   },
 
+  showJapaneseRoteFullCard(wObj) {
+      const wordEl = this.getEl('w-word');
+      const kanaEl = this.getEl('w-kana');
+      const meaningEl = this.getEl('w-meaning');
+      const typeEl = this.getEl('w-type');
+      const rootsEl = this.getEl('w-roots');
+      const exampleEl = this.getEl('w-example-box');
+      const blindAudioUi = this.getEl('mt-blind-audio-ui');
+
+      if (blindAudioUi) blindAudioUi.classList.add('hidden');
+
+      if (wordEl) {
+          wordEl.innerText = wObj.word || '';
+          wordEl.style.display = 'block';
+      }
+
+      if (kanaEl) {
+          kanaEl.innerText = (wObj.kana || '').replace(/[【】\[\]()]/g, '');
+          kanaEl.style.display = 'block';
+      }
+
+      if (meaningEl) {
+          meaningEl.innerText = wObj.meaning || '';
+          meaningEl.style.display = 'block';
+      }
+
+      if (typeEl) typeEl.style.display = 'flex';
+      if (rootsEl) rootsEl.style.display = 'none';
+
+      this.renderExampleBox(wObj.example, 'w-example-box', 'normal', wObj);
+      if (exampleEl) {
+          exampleEl.style.display = wObj.example ? 'block' : 'none';
+      }
+
+      this.revealStudyAnswer();
+  },
+
+  showRoteFullCard(wObj) {
+      if (wObj.lang === 'en') {
+          this.showEnglishRoteFullCard(wObj);
+      } else {
+          this.showJapaneseRoteFullCard(wObj);
+      }
+  },
+
+  renderRoteChoiceButtons(wObj, displayMode, answerField) {
+      const choiceArea = this.getEl('mt-choice-area');
+      const choiceButtons = this.getEl('mt-choice-buttons');
+
+      if (!choiceArea || !choiceButtons) return;
+
+      const targetText = String(wObj[answerField] || '').trim();
+
+      if (!targetText) {
+          choiceArea.classList.add('hidden');
+          showToast('当前词条缺少训练所需字段，已跳过');
+          window.setTimeout(() => Controller.mtAdvanceNext(), 300);
+          return;
+      }
+
+      choiceArea.classList.remove('hidden');
+
+      const language = wObj.lang === 'en' ? 'en' : 'ja';
+      const candidates = Model.db
+          .filter(candidate => {
+              const candidateLanguage = candidate.lang === 'en' ? 'en' : 'ja';
+              const candidateText = String(candidate[answerField] || '').trim();
+
+              return (
+                  candidateLanguage === language &&
+                  candidate !== wObj &&
+                  candidateText &&
+                  candidateText !== targetText
+              );
+          })
+          .sort(() => Math.random() - 0.5);
+
+      const seen = new Set([targetText]);
+      const choices = [{ text: targetText, correct: true }];
+
+      for (const candidate of candidates) {
+          const text = String(candidate[answerField] || '').trim();
+          if (seen.has(text)) continue;
+
+          seen.add(text);
+          choices.push({ text, correct: false });
+
+          if (choices.length === 4) break;
+      }
+
+      choices.sort(() => Math.random() - 0.5);
+      choiceButtons.innerHTML = '';
+
+      choices.forEach((choice, index) => {
+          const button = document.createElement('div');
+          button.className = 'dt-choice-btn choice-flip-anim';
+          button.setAttribute('tabindex', '0');
+          button.setAttribute('role', 'button');
+
+          const label = document.createElement('span');
+          label.className = 'choice-label';
+          label.innerText = String.fromCharCode(65 + index) + '.';
+
+          const text = document.createElement('span');
+          text.innerText = choice.text;
+
+          button.appendChild(label);
+          button.appendChild(text);
+          button.onpointerdown = event => {
+              event.preventDefault();
+              Controller.handleMtChoiceClick(
+                  button,
+                  choice.correct,
+                  wObj,
+                  displayMode
+              );
+          };
+          choiceButtons.appendChild(button);
+      });
+  },
+
+  renderJapaneseRoteUI(wObj, displayMode) {
+      const mode = ROTE_CORE.normalizeMode('ja', displayMode);
+      const step = ROTE_CORE.normalizeStep(Model.state.mtStep);
+      const stepConfig = ROTE_CORE.getStep('ja', mode, step);
+      const wordEl = this.getEl('w-word');
+      const kanaEl = this.getEl('w-kana');
+      const meaningEl = this.getEl('w-meaning');
+      const typeEl = this.getEl('w-type');
+      const rootsEl = this.getEl('w-roots');
+      const exampleEl = this.getEl('w-example-box');
+      const speakerEl = this.getEl('btn-speaker');
+      const spellArea = this.getEl('mt-spell-area');
+      const choiceArea = this.getEl('mt-choice-area');
+      const blindAudioUi = this.getEl('mt-blind-audio-ui');
+      const mtWarning = this.getEl('mt-warning');
+
+      if (mtWarning) mtWarning.classList.add('hidden');
+      if (spellArea) spellArea.classList.add('hidden');
+      if (choiceArea) choiceArea.classList.add('hidden');
+      if (blindAudioUi) blindAudioUi.classList.add('hidden');
+      if (rootsEl) rootsEl.style.display = 'none';
+      if (exampleEl) exampleEl.style.display = 'none';
+      if (speakerEl) speakerEl.style.display = 'none';
+
+      [wordEl, kanaEl, meaningEl, typeEl].forEach(element => {
+          if (!element) return;
+          element.style.display = 'none';
+          element.classList.remove('blur-text');
+          element.removeAttribute('aria-hidden');
+      });
+
+      if (stepConfig.prompt.includes('word') && wordEl) {
+          wordEl.innerText = wObj.word || '';
+          wordEl.style.display = 'block';
+      }
+
+      if (stepConfig.prompt.includes('kana') && kanaEl) {
+          kanaEl.innerText = (wObj.kana || '').replace(/[【】\[\]()]/g, '');
+          kanaEl.style.display = 'block';
+      }
+
+      if (stepConfig.prompt.includes('meaning') && meaningEl) {
+          meaningEl.innerText = wObj.meaning || '';
+          meaningEl.style.display = 'block';
+      }
+
+      if (stepConfig.test === 'spell') {
+          spellArea.classList.remove('hidden');
+          RomajiEngine.reset();
+          EnglishInput.reset();
+
+          const inputEl = this.getEl('mt-spell-input');
+          inputEl.innerHTML = '';
+          inputEl.classList.remove('error-state', 'shake-anim');
+          this.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, mode);
+          return;
+      }
+
+      this.renderRoteChoiceButtons(
+          wObj,
+          mode,
+          stepConfig.answer
+      );
+  },
+
+  renderRoteLearningUI(wObj, displayMode) {
+      const language = wObj.lang === 'en' ? 'en' : 'ja';
+      const mode = ROTE_CORE.normalizeMode(language, displayMode);
+
+      if (mode !== displayMode) {
+          const modeSelect = this.getEl('next-display-mode');
+          if (modeSelect) {
+              modeSelect.value = mode;
+              modeSelect.dispatchEvent(new Event('facade-update'));
+          }
+          localStorage.setItem('displayMode', mode);
+      }
+
+      if (language === 'en') {
+          this.renderEnglishRoteUI(wObj, mode);
+      } else {
+          this.renderJapaneseRoteUI(wObj, mode);
+      }
+  },
+
   renderEnglishRoteUI(wObj, displayMode) {
       const mtWarning = this.getEl('mt-warning');
       const spellArea = this.getEl('mt-spell-area');
@@ -6120,9 +6345,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       if (choiceArea) choiceArea.classList.add('hidden');
       if (blindAudioUi) blindAudioUi.classList.add('hidden');
 
-      let mode = ['word', 'kana', 'meaning'].includes(displayMode)
-          ? displayMode
-          : 'word';
+      let mode = ROTE_CORE.normalizeMode('en', displayMode);
 
       if (mode !== displayMode) {
           const modeSelect = this.getEl('next-display-mode');
@@ -6133,8 +6356,9 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           localStorage.setItem('displayMode', mode);
       }
 
-      const step = Model.state.mtStep;
-      let currentTestType = '';
+      const step = ROTE_CORE.normalizeStep(Model.state.mtStep);
+      const stepConfig = ROTE_CORE.getStep('en', mode, step);
+      let currentTestType = stepConfig.test;
       let isMeaning = false;
       let targetText = '';
 
@@ -6311,8 +6535,8 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
 
       let isMemTest = Model.state.mode === 'memory-test';
 
-      if (!isMemTest && wObj.lang === 'en') {
-          this.renderEnglishRoteUI(wObj, displayMode);
+      if (!isMemTest) {
+          this.renderRoteLearningUI(wObj, displayMode);
           return;
       }
 
@@ -8653,17 +8877,31 @@ if (aiCloseBtn) {
             // 1. 拼写输入隔离 (如果是打字阶段，把字母全部交给罗马音引擎)
             if (isSpelling) {
                 let activeInputEl = !dtSpellArea.classList.contains('hidden') ? View.getEl('dt-spell-input') : View.getEl('mt-spell-input');
-                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === 'Backspace' || key === 'Enter') {
+                const isEnglishSpelling = wObj?.lang === 'en';
+                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === "'" || key === 'Backspace' || key === 'Enter') {
                     e.preventDefault(); 
                     activeInputEl.classList.remove('error-state', 'shake-anim');
                     
                     if (key === 'Enter') {
                         Controller.handleSpellConfirm(activeInputEl, wObj, displayMode);
                         View.simulateKeyPress('Enter');
-                    } else if (key === 'Backspace') {
-                        RomajiEngine.input('Backspace');
-                        activeInputEl.innerHTML = RomajiEngine.getDisplayText();
-                        View.simulateKeyPress('Backspace');
+                    } else if (isEnglishSpelling) {
+                        if (key === 'Backspace') {
+                            EnglishInput.input('Backspace');
+                        } else if (key === "'") {
+                            EnglishInput.buffer += "'";
+                        } else {
+                            EnglishInput.input(key);
+                        }
+
+                        activeInputEl.innerHTML = escapeHTML(
+                            EnglishInput.getDisplayText()
+                        );
+                        View.simulateKeyPress(
+                            key === 'Backspace'
+                                ? 'Backspace'
+                                : key.toUpperCase()
+                        );
                     } else {
                         RomajiEngine.input(key);
                         activeInputEl.innerHTML = RomajiEngine.getDisplayText();
@@ -9721,10 +9959,6 @@ if (aiCloseBtn) {
         groupKey = `group|${defCat}|0`;
     }
 
-    const GROUP_SIZE = 10;
-const GROUP_STEP = 7;
-const startIdx = groupIndex * GROUP_STEP;
-
     const groupWords = Model.db
         .map((w, i) => ({ w, i }))
         .filter(item => {
@@ -9736,9 +9970,13 @@ const startIdx = groupIndex * GROUP_STEP;
             );
         });
 
+    const groupRange = ROTE_CORE.getGroupRange(
+        groupIndex,
+        groupWords.length
+    );
     const sourceWords = groupWords.slice(
-        startIdx,
-        startIdx + GROUP_SIZE
+        groupRange.start,
+        groupRange.end
     );
 
     if (sourceWords.length === 0) {
@@ -9765,10 +10003,8 @@ const startIdx = groupIndex * GROUP_STEP;
             ? '默认词库'
             : (virtualLabels[catName] || catName);
 
-    const actualEnd = startIdx + sourceWords.length;
-
     const groupLabel =
-        `${categoryLabel} (第 ${startIdx + 1}-${actualEnd} 词)`;
+        `${categoryLabel} (第 ${groupRange.labelStart}-${groupRange.labelEnd} 词)`;
 
     Model.state.currentGroupKey = groupKey;
     Model.state.currentGroupLabel = groupLabel;
@@ -9782,26 +10018,36 @@ const startIdx = groupIndex * GROUP_STEP;
     localStorage.setItem('lastCustomGroupTxt', groupLabel);
     Hardware.playSound('click'); 
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
-    if (launchMode === 'memory-test') { Model.state.mtRound = 1; Model.state.mtBaseQueue = sourceWords.map(x => x.i); Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); Model.state.totalTestWords = Model.state.studyQueue.length; } 
-    else { Model.state.studyQueue = []; let len = sourceWords.length; for (let i = 0; i < len; i++) { Model.state.studyQueue.push(sourceWords[i].i); for (let j = i - 1; j >= 0; j--) Model.state.studyQueue.push(sourceWords[j].i); for (let k = 1; k <= i; k++) Model.state.studyQueue.push(sourceWords[k].i); } }
+    if (launchMode === 'memory-test') {
+        Model.state.mtRound = 1;
+        Model.state.mtBaseQueue = sourceWords.map(x => x.i);
+        Model.state.studyQueue = [...Model.state.mtBaseQueue]
+            .sort(() => Math.random() - 0.5);
+        Model.state.totalTestWords = Model.state.studyQueue.length;
+    } else {
+        Model.state.studyQueue = ROTE_CORE.buildInterleavedQueue(
+            sourceWords.map(item => item.i)
+        );
+    }
     Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     View.updateComboBadge();
     const modeSelect = View.getEl('next-display-mode');
     let savedMode = localStorage.getItem('displayMode') || 'all';
-    const isEnglishRote = currentLang === 'en' && launchMode === 'rote-learning';
+    const isRoteLaunch = launchMode === 'rote-learning';
 
     if (modeSelect) {
-        if (isEnglishRote) {
+        if (isRoteLaunch) {
             modeSelect.options[0].text = '全显预览';
             modeSelect.options[0].style.display = 'none';
-            modeSelect.options[1].text = '拼写强化';
-            modeSelect.options[2].text = '听力强化';
+            modeSelect.options[1].text = currentLang === 'en'
+                ? '拼写强化'
+                : '汉字强化';
+            modeSelect.options[2].text = currentLang === 'en'
+                ? '听力强化'
+                : '假名强化';
             modeSelect.options[3].text = '释义强化';
-
-            if (!['word', 'kana', 'meaning'].includes(savedMode)) {
-                savedMode = 'word';
-                localStorage.setItem('displayMode', savedMode);
-            }
+            savedMode = ROTE_CORE.normalizeMode(currentLang, savedMode);
+            localStorage.setItem('displayMode', savedMode);
         } else {
             modeSelect.options[0].text = '全显';
             modeSelect.options[0].style.display = '';
@@ -10032,8 +10278,9 @@ const startIdx = groupIndex * GROUP_STEP;
       if (Model.state.isAnimating) return;
 
       const isEnglish = wObj.lang === 'en';
+      const isRote = Model.state.mode === 'rote-learning';
       const isEnglishRote =
-          isEnglish && Model.state.mode === 'rote-learning';
+          isEnglish && isRote;
 
       let targetClean;
       let inputClean;
@@ -10057,14 +10304,15 @@ const startIdx = groupIndex * GROUP_STEP;
           Model.state.comboCount++;
           View.updateComboBadge();
 
-          if (isEnglishRote) {
-              View.showEnglishRoteFullCard(wObj);
-              EnglishInput.reset();
+          if (isRote) {
+              View.showRoteFullCard(wObj);
+              if (isEnglish) EnglishInput.reset();
+              else RomajiEngine.reset();
 
               setTimeout(() => {
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
-                  View.renderMemoryTestUI(wObj, displayMode);
+                  View.renderRoteLearningUI(wObj, displayMode);
               }, 700);
               return;
           }
@@ -10275,74 +10523,19 @@ const startIdx = groupIndex * GROUP_STEP;
           return;
       }
 
-      const isEnglishRote =
-          wObj.lang === 'en' &&
-          Model.state.mode === 'rote-learning';
-
-      if (isEnglishRote) {
-          const step = Model.state.mtStep;
-          const blindAudioUi = View.getEl('mt-blind-audio-ui');
-          const phoneticEl = View.getEl('w-kana');
-          const meaningEl = View.getEl('w-meaning');
-          const typeEl = View.getEl('w-type');
-
+      if (Model.state.mode === 'rote-learning') {
           disableChoiceButtons();
+          View.showRoteFullCard(wObj);
 
-          if (step === 1) {
-              if (displayMode === 'kana') {
-                  if (blindAudioUi) blindAudioUi.classList.add('hidden');
-                  View.setEnglishCardWord(wObj, false, true);
-
-                  if (phoneticEl) {
-                      phoneticEl.innerText = wObj.phonetic || '';
-                      phoneticEl.style.display = 'block';
-                  }
-                  if (typeEl) typeEl.style.display = 'flex';
-
-                  View.revealStudyElement(View.getEl('w-word'));
-                  View.revealStudyElement(phoneticEl);
-              } else if (displayMode === 'meaning') {
-                  if (meaningEl) {
-                      meaningEl.innerText = wObj.meaning || '';
-                      meaningEl.style.display = 'block';
-                      View.revealStudyElement(meaningEl);
-                  }
-              }
-
+          if (Model.state.mtStep === 1) {
               setTimeout(() => {
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
-                  View.renderEnglishRoteUI(wObj, displayMode);
+                  View.renderRoteLearningUI(wObj, displayMode);
               }, 650);
-              return;
+          } else {
+              setTimeout(() => this.mtAdvanceNext(), 850);
           }
-
-          View.showEnglishRoteFullCard(wObj);
-          setTimeout(() => this.mtAdvanceNext(), 850);
-          return;
-      }
-
-      if (Model.state.mtStep === 1) {
-          View.getEl('w-word').innerText = wObj.word;
-          View.syncRootsDisplay();
-          View.revealStudyElement(View.getEl('w-word'));
-
-          setTimeout(() => {
-              Model.state.mtStep = 2;
-              Model.state.isAnimating = false;
-              View.renderMemoryTestUI(wObj, displayMode);
-          }, 600);
-      } else {
-          if (displayMode === 'word' || displayMode === 'kana') {
-              View.getEl('w-meaning').innerText = wObj.meaning;
-          } else if (displayMode === 'meaning') {
-              View.getEl('w-word').innerText = wObj.word;
-          }
-
-          View.syncRootsDisplay();
-          View.getEl('w-example-box').style.display = 'block';
-          disableChoiceButtons();
-          setTimeout(() => this.mtAdvanceNext(), 800);
       }
   },
 

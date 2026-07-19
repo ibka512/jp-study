@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pendulum-v1783845505'; // JLPT 测试包导入与一键移除
-const ASSETS = [
+const CACHE_NAME = 'zhongri-v20260719-rote-stable-1';
+const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
@@ -7,9 +7,11 @@ const ASSETS = [
   './style.css',
   './data.js',
   './english-data.js',
-  './app.js',
-  './wordbank-builder.html',
-  // 核心 CDN 依赖纳入预缓存
+  './rote-learning-core.js',
+  './app.js'
+];
+
+const OPTIONAL_EXTERNAL_ASSETS = [
   'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js',
   'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
   'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Noto+Sans+JP:wght@400;500;700&display=swap',
@@ -17,10 +19,14 @@ const ASSETS = [
 ];
 
 // 安装并强制缓存
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.addAll(LOCAL_ASSETS);
+
+      await Promise.allSettled(
+        OPTIONAL_EXTERNAL_ASSETS.map(asset => cache.add(asset))
+      );
     })
   );
   self.skipWaiting();

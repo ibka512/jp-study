@@ -1,68 +1,19 @@
 # 钟日例句生成报告
 
-- 生成时间：2026-07-19T13:36:30.149351+00:00
+- 生成时间：2026-07-19T13:42:09.421828+00:00
 - 模型：`deepseek-v4-flash`
 - 选择范围：all / 全部等级
 - 本次选择：100
-- 成功写入：46
-- 未通过校验：54
-- 剩余空例句：日语 5881，英语 3851
-- API 请求：5
-- 输入 Token：4366
-- 输出 Token：3014
+- 成功写入：95
+- 未通过校验：5
+- 剩余空例句：日语 5832，英语 3805
+- API 请求：11
+- 输入 Token：10054
+- 输出 Token：7610
 
 ## 未通过项目（最多显示 100 条）
 
-- `builtin-ja-import-0b58a2ef742702` あさって：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-7784849a533833` あまり：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-6efb6040d8e32e` ある：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-2f408e95e9c307` いかが：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-1f90abf644753f` おいしい：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-8a84460c2a872d` お手洗い：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-749af11afdc9c9` かばん：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-c0129359d3087c` きれい：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-c00a58d8468ac1` しかし：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-1a687c7f963ceb` それから：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-c934ba24a83d6a` それでは：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-4b1ae7c13235f2` たくさん：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-fee76afefc38f9` だんだん：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-0e30f2b0b72f7b` ちょうど：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-142e075fcff9d5` ちょっと：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-a8c677f3c9139f` つまらない：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-20a4b1dc7013a7` でも：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-b79701a5614704` とても：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-a8b138502b5bfa` どうして：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-ad81d9797cd793` どこ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-dc82fd7db07f84` まずい：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-d0bae65a128254` また：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-0709441f9ef7b9` まだ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-b6c360900a1f01` まっすぐ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-072630efa85662` アパート：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-82fff4628b757b` エレベーター：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-34ac0f9af5c5c8` カップ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-17ddb1121aaab7` カメラ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-e29b1d6baf09ee` カレー：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-95e83165c10bb8` ギター：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-52cdad1bf870d5` クラス：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-55a21e647ec04c` グラム：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-59da6145d52afd` コップ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-6705918ed6cf79` コート：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-e5c36d66891688` コーヒー：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-c847d24efc64e9` シャワー：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-d2aedadd52c958` スカート：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-065919316322cc` スプーン：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-398c7a76571109` スポーツ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-016ec74a5011bc` タクシー：DeepSeek 请求连续失败：Invalid \escape: line 5 column 23 (char 91)
-- `builtin-ja-import-b87fcd2b9c0222` テスト：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-27f15c264c3c81` テレビ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-ea2c1b62e3a26d` テーブル：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-58f0e415af9abc` テープ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-f5522ccbdfe561` デパート：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-5c2df4709697db` トイレ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-6725294b7b9310` ナイフ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-65b9af4ecb4a03` ネクタイ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-c59963fc93feee` ハンカチ：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
-- `builtin-ja-import-71c352195cb08c` バター：DeepSeek 请求连续失败：Invalid \escape: line 5 column 21 (char 89)
+- `builtin-ja-import-dc82fd7db07f84` まずい：日语注音中间标记不完整
 - `builtin-en-import-aa77e60d4104e4` resemble：例句没有包含目标词原样文字
 - `builtin-en-import-4a451c12916d9b` possess：例句没有包含目标词原样文字
 - `builtin-en-import-85a1f187aa6451` require：例句没有包含目标词原样文字

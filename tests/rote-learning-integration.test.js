@@ -10,6 +10,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 const index = read('index.html');
 const app = read('app.js');
+const style = read('style.css');
 const serviceWorker = read('sw.js');
 const wordbankAssets = read('wordbanks/assets.js');
 
@@ -71,6 +72,23 @@ assert.equal(
     2,
     '普通标签和特殊标签都应经过元数据去重'
 );
+
+for (const source of [index, app, style]) {
+    assert.doesNotMatch(source, /jlpt-test-package/i);
+    assert.doesNotMatch(source, /词库压力测试/);
+    assert.doesNotMatch(source, /testBundleId|isTestWord/);
+}
+
+for (const id of [
+    'btn-import',
+    'btn-run-library-audit',
+    'btn-export-backup',
+    'recycle-bin-list'
+]) {
+    assert.match(index, new RegExp(`id="${id}"`), `误删正式功能：${id}`);
+}
+assert.match(app, /runVocabularyAudit/);
+assert.match(app, /storePreImportRestorePoint/);
 
 for (const asset of [
     'index.html',

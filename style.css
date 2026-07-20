@@ -135,6 +135,179 @@ body::after {
 [data-theme="dark"] body::after { opacity: 0.15; mix-blend-mode: overlay; }
 
 /* ==========================================
+   英语词根词缀审核
+   ========================================== */
+.root-review-entry-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px 16px;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.root-review-entry-card::after {
+  content: 'Aa';
+  position: absolute;
+  right: -10px;
+  bottom: -38px;
+  font-family: Georgia, serif;
+  font-size: 7rem;
+  font-weight: 900;
+  color: var(--primary);
+  opacity: .045;
+  pointer-events: none;
+}
+
+.root-review-entry-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--tertiary);
+  background: var(--accent-green-bg);
+  box-shadow: var(--inner-sheen);
+}
+
+.root-review-entry-icon .material-symbols-rounded { font-size: 1.75rem; }
+.root-review-entry-copy { min-width: 0; position: relative; z-index: 1; }
+.root-review-entry-copy h3 { margin: 0 0 4px; border: 0; padding: 0; }
+.root-review-entry-copy p { margin: 0; opacity: .66; font-size: .84rem; line-height: 1.55; }
+.root-review-entry-status { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.root-review-entry-status span {
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  background: var(--primary-container);
+  color: var(--primary);
+  font-size: .75rem;
+  font-weight: 700;
+}
+.root-review-entry-button {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 2px 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.root-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 7200;
+  background: var(--surface);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(18px);
+  transition: opacity .25s ease, transform .35s var(--spring-snappy);
+}
+
+.root-review-overlay.active { opacity: 1; pointer-events: auto; transform: none; }
+.root-review-shell {
+  width: min(100%, 540px);
+  height: 100%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  background: var(--surface);
+}
+
+.root-review-header {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 10px;
+}
+.root-review-header-copy { text-align: center; line-height: 1.15; }
+.root-review-header-copy h2 { margin: 3px 0 0; font-size: 1.12rem; }
+.root-review-eyebrow { color: var(--tertiary); font-size: .68rem; font-weight: 900; letter-spacing: .16em; }
+
+.root-review-progress-row { display: flex; align-items: center; gap: 12px; padding: 0 20px 14px; }
+.root-review-progress-track { flex: 1; height: 7px; border-radius: 99px; overflow: hidden; background: var(--outline); }
+.root-review-progress-track span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--tertiary); transition: width .35s ease; }
+.root-review-progress-row strong { min-width: 48px; text-align: right; font-size: .78rem; color: var(--primary); }
+
+.root-review-main { min-height: 0; overflow-y: auto; padding: 4px 18px 18px; display: grid; align-content: center; }
+.root-review-card {
+  position: relative;
+  padding: 24px 20px 20px;
+  border-radius: 30px;
+  background: var(--surface-container);
+  border: 1px solid var(--outline);
+  box-shadow: var(--paper-shadow), var(--inner-sheen);
+  overflow: hidden;
+}
+.root-review-card::after {
+  content: 'r';
+  position: absolute;
+  right: -8px;
+  bottom: -74px;
+  font: 900 12rem Georgia, serif;
+  color: var(--primary);
+  opacity: .035;
+  pointer-events: none;
+}
+.root-review-badges { display: flex; justify-content: center; gap: 8px; }
+.root-review-badge { padding: 5px 10px; border-radius: 99px; background: var(--primary-container); color: var(--primary); font-size: .73rem; font-weight: 850; }
+.root-review-badge.muted { background: transparent; border: 1px solid var(--outline); color: var(--on-surface); opacity: .72; }
+.root-review-badge[data-state="accept"] { color: var(--tertiary); border-color: var(--tertiary); opacity: 1; }
+.root-review-badge[data-state="hide"] { color: var(--accent-red); border-color: var(--accent-red); opacity: 1; }
+.root-review-card > h3 { margin: 18px 0 4px; border: 0; justify-content: center; text-align: center; font: 900 clamp(2.5rem, 12vw, 4.4rem) Georgia, serif; letter-spacing: -.035em; line-height: 1.05; }
+.root-review-meaning { margin: 0 0 25px; text-align: center; font-weight: 800; color: var(--primary); }
+.root-review-suggestion-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; font-size: .78rem; font-weight: 850; opacity: .75; }
+button#root-review-edit { min-height: 34px; padding: 5px 10px !important; margin: 0; background: transparent !important; color: var(--primary) !important; box-shadow: none !important; border: 0 !important; font-size: .75rem; }
+button#root-review-edit .material-symbols-rounded { font-size: 1rem; vertical-align: -3px; }
+.root-review-parts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; min-height: 78px; padding: 13px; border-radius: 22px; background: color-mix(in srgb, var(--primary-container) 72%, transparent); }
+.root-review-part { min-width: 70px; padding: 10px 12px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; background: var(--surface-container); border: 1px solid var(--outline); box-shadow: var(--inner-sheen); }
+.root-review-part b { font: italic 800 1.12rem Georgia, serif; color: var(--primary); }
+.root-review-part small { margin-top: 2px; font-size: .68rem; opacity: .72; }
+.root-review-plus { font-size: 1.2rem; font-weight: 900; color: var(--outline); }
+.root-review-no-split { font-size: .84rem; opacity: .62; }
+.root-review-roots-input { width: 100%; margin: 0; min-height: 58px; border-radius: 18px; font-size: .9rem; }
+.root-review-rule { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 13px 14px; border-radius: 18px; background: var(--accent-green-bg); color: var(--on-surface); position: relative; z-index: 1; }
+.root-review-rule .material-symbols-rounded { flex: 0 0 auto; color: var(--tertiary); }
+.root-review-rule p { margin: 0; font-size: .76rem; line-height: 1.55; opacity: .78; }
+
+.root-review-actions {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1.18fr) 42px;
+  gap: 9px;
+  padding: 12px 14px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--outline);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(18px);
+}
+button.root-review-nav-btn { width: 42px; min-height: 62px; padding: 0 !important; margin: 0; background: transparent !important; border: 1px solid var(--outline) !important; color: var(--on-surface) !important; box-shadow: none !important; }
+button.root-review-decision-btn { min-width: 0; min-height: 62px; margin: 0; padding: 9px 10px !important; border-radius: 20px !important; display: flex; justify-content: center; align-items: center; gap: 7px; }
+.root-review-decision-btn > span:last-child { display: flex; flex-direction: column; text-align: left; line-height: 1.2; }
+.root-review-decision-btn strong { font-size: .82rem; }
+.root-review-decision-btn small { margin-top: 3px; font-size: .61rem; opacity: .65; white-space: nowrap; }
+button.root-review-decision-btn.hide-choice { background: var(--accent-red-bg) !important; color: var(--accent-red) !important; border: 1px solid color-mix(in srgb, var(--accent-red) 32%, transparent) !important; box-shadow: none !important; }
+button.root-review-decision-btn.accept-choice { background: var(--accent-green-bg) !important; color: var(--tertiary) !important; border: 1px solid color-mix(in srgb, var(--tertiary) 34%, transparent) !important; box-shadow: none !important; }
+button.root-review-decision-btn.selected { outline: 3px solid currentColor; outline-offset: 2px; }
+
+.root-review-empty, .root-review-complete { text-align: center; padding: 42px 22px; }
+.root-review-empty .material-symbols-rounded, .root-review-complete > .material-symbols-rounded { display: block; margin: 0 auto 15px; font-size: 3.5rem; color: var(--tertiary); }
+.root-review-empty strong, .root-review-empty small { display: block; }
+.root-review-empty small { margin-top: 5px; opacity: .58; }
+.root-review-complete h3 { margin: 0 0 6px; border: 0; justify-content: center; }
+.root-review-complete p { margin: 0 0 20px; opacity: .72; }
+.root-review-complete button { width: 100%; margin: 0 0 10px; }
+.root-review-complete small { display: block; margin-top: 10px; opacity: .6; line-height: 1.55; }
+
+@media (max-width: 380px) {
+  .root-review-actions { grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1.1fr) 34px; gap: 6px; padding-inline: 8px; }
+  button.root-review-nav-btn { width: 34px; }
+  .root-review-decision-btn .material-symbols-rounded { display: none; }
+  .root-review-decision-btn small { font-size: .56rem; }
+  .root-review-card { padding-inline: 15px; }
+}
+
+/* ==========================================
    全局布局与导航架构
    ========================================== */
 

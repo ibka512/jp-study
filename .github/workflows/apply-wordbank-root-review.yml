@@ -34,7 +34,7 @@ jobs:
 
       - name: 验证词库和学习流程
         run: |
-          python -m unittest -v tests.test_wordbank_compiler tests.test_generate_wordbank_roots
+          python -m unittest -v tests.test_wordbank_compiler tests.test_generate_wordbank_roots tests.test_apply_root_review
           node --check data.js
           node --check english-data.js
           for file in wordbanks/*.js; do node --check "$file"; done
@@ -47,5 +47,5 @@ jobs:
           git config user.name "钟日词库审核机器人"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data.js english-data.js index.html sw.js wordbanks reports/root-review-application-latest.json
-          git commit -m "应用 CET-4 首批词根人工审核"
+          git commit -m "应用英语词根人工审核"
           git push origin HEAD:main

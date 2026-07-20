@@ -99,7 +99,8 @@ jobs:
           python -m unittest -v \
             tests.test_wordbank_compiler \
             tests.test_generate_wordbank_examples \
-            tests.test_generate_wordbank_roots
+            tests.test_generate_wordbank_roots \
+            tests.test_apply_root_review
           node --check data.js
           node --check english-data.js
           for file in wordbanks/*.js; do node --check "$file"; done
@@ -129,5 +130,5 @@ jobs:
           git add data.js english-data.js index.html sw.js wordbanks \
             reports/root-generation-latest.json \
             reports/root-generation-latest.md
-          git commit -m "补全英语词根词缀：${LEVEL} ${MAX_WORDS}词"
+          git commit -m "生成英语词根审核候选：${LEVEL} ${MAX_WORDS}词"
           git push origin HEAD:main

@@ -50,6 +50,7 @@ class RootReport:
     not_applicable: int = 0
     failures: list[dict[str, str]] = field(default_factory=list)
     samples: list[dict[str, str]] = field(default_factory=list)
+    suggestions: list[dict[str, Any]] = field(default_factory=list)
     coverage_before: dict[str, int] = field(default_factory=dict)
     coverage_after: dict[str, int] = field(default_factory=dict)
     usage: Usage = field(default_factory=Usage)
@@ -343,8 +344,14 @@ def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_si
                 roots, status, reason = validate_result(candidate, proposal)
                 if status:
                     target = words[candidate.index]
-                    target["roots"] = roots
-                    target["rootsStatus"] = status
+                    report.suggestions.append({
+                        "id": item_id,
+                        "word": clean_text(target.get("word")),
+                        "meaning": clean_text(target.get("meaning")),
+                        "level": clean_text(target.get("level")),
+                        "roots": roots,
+                        "recommendation": "accept" if status == "verified" else "hide",
+                    })
                     if status == "verified":
                         report.generated += 1
                         if len(report.samples) < 40:
@@ -465,8 +472,9 @@ def main() -> int:
                 )
             client = DeepSeekClient(api_key, args.model, args.api_base_url, report.usage)
             run_generation(client, candidates, args.batch_size, en_words, report)
-            report.coverage_after = coverage(en_words)
-            write_wordbank_assets(repo, ja_words, en_words)
+            # AI 结果只进入审核报告，不直接改动正式词库。正式写入必须经过
+            # tools/apply_root_review.py 的人工审核清单。
+            report.coverage_after = report.coverage_before
         else:
             report.coverage_after = report.coverage_before
         write_report(repo, report)

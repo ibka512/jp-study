@@ -99,6 +99,35 @@ class GenerateWordbankRootsTests(unittest.TestCase):
         self.assertIn("result", prompt)
         self.assertIn("headline", prompt)
 
+    def test_generation_stages_suggestion_without_mutating_wordbank(self):
+        candidate = self.candidate("rebuild")
+        words = [candidate.word]
+        report = generator.RootReport(
+            generated_at="test",
+            model="test",
+            level="CET-4",
+            max_words=1,
+            batch_size=1,
+        )
+
+        class FakeClient:
+            def request(self, _candidates):
+                return {"en-1": {
+                    "splittable": True,
+                    "parts": [
+                        {"text": "re", "meaning": "再次", "role": "prefix"},
+                        {"text": "build", "meaning": "建造", "role": "root"},
+                    ],
+                }}
+
+            def review(self, _candidates, _proposals):
+                return {"en-1": {"approved": True}}
+
+        generator.run_generation(FakeClient(), [candidate], 1, words, report)
+        self.assertFalse(words[0].get("roots"))
+        self.assertEqual(report.generated, 1)
+        self.assertEqual(report.suggestions[0]["roots"], "re(再次)-build(建造)")
+
 
 if __name__ == "__main__":
     unittest.main()

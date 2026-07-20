@@ -637,6 +637,22 @@
           </div>
         </div>
 
+        <div class="card-panel root-review-entry-card">
+          <div class="root-review-entry-icon"><span class="material-symbols-rounded">spellcheck</span></div>
+          <div class="root-review-entry-copy">
+            <h3>英语词根词缀审核</h3>
+            <p>像刷卡片一样逐词确认 AI 建议，不懂代码也能完成词库校对。</p>
+            <div class="root-review-entry-status">
+              <span><b id="root-review-entry-total">—</b> 个候选</span>
+              <span><b id="root-review-entry-done">—</b> 已处理</span>
+            </div>
+          </div>
+          <button id="btn-open-root-review" type="button" class="root-review-entry-button">
+            开始审核
+            <span class="material-symbols-rounded">arrow_forward</span>
+          </button>
+        </div>
+
         <div class="card-panel recycle-bin-card">
           <div class="recycle-bin-header">
             <div><h3><span class="material-symbols-rounded">delete_sweep</span> 最近删除</h3><p>词汇、例句和 AI 对话保留 7 天，到期后自动清理。</p></div>
@@ -1501,6 +1517,85 @@
   </div>
 </div>
 
+<div id="root-review-overlay" class="root-review-overlay" aria-hidden="true">
+  <div class="root-review-shell" role="dialog" aria-modal="true" aria-labelledby="root-review-title">
+    <header class="root-review-header">
+      <button id="root-review-close" class="glass-icon-btn" type="button" aria-label="关闭词根审核">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+      <div class="root-review-header-copy">
+        <span class="root-review-eyebrow">词库编辑室</span>
+        <h2 id="root-review-title">词根词缀审核</h2>
+      </div>
+      <button id="root-review-help" class="glass-icon-btn" type="button" aria-label="查看审核标准">
+        <span class="material-symbols-rounded">help</span>
+      </button>
+    </header>
+
+    <div class="root-review-progress-row">
+      <div class="root-review-progress-track"><span id="root-review-progress-bar"></span></div>
+      <strong id="root-review-progress-text">0 / 0</strong>
+    </div>
+
+    <main class="root-review-main">
+      <div id="root-review-loading" class="root-review-empty">
+        <span class="material-symbols-rounded">hourglass_top</span>
+        <strong>正在读取审核批次</strong>
+        <small>词库仍可正常离线学习</small>
+      </div>
+
+      <section id="root-review-card" class="root-review-card" hidden>
+        <div class="root-review-badges">
+          <span id="root-review-level" class="root-review-badge">CET-4</span>
+          <span id="root-review-state" class="root-review-badge muted">待判断</span>
+        </div>
+        <h3 id="root-review-word">word</h3>
+        <p id="root-review-meaning" class="root-review-meaning">释义</p>
+
+        <div class="root-review-suggestion-label">
+          <span>AI 建议拆分</span>
+          <button id="root-review-edit" type="button">
+            <span class="material-symbols-rounded">edit</span> 修改
+          </button>
+        </div>
+        <div id="root-review-parts" class="root-review-parts"></div>
+        <input id="root-review-roots-input" class="root-review-roots-input" type="text" hidden spellcheck="false" aria-label="修改词根词缀拆分">
+
+        <div class="root-review-rule">
+          <span class="material-symbols-rounded">lightbulb</span>
+          <p><strong>只问自己一件事：</strong>这个拆分能否自然帮助你理解单词现在的常用意思？如果只是历史词源或看起来牵强，就选“不显示”。</p>
+        </div>
+      </section>
+
+      <div id="root-review-complete" class="root-review-complete" hidden>
+        <span class="material-symbols-rounded">task_alt</span>
+        <h3>这一批审核完成</h3>
+        <p id="root-review-complete-summary">已完成所有判断。</p>
+        <button id="root-review-copy" type="button"><span class="material-symbols-rounded">content_copy</span> 复制给 ChatGPT</button>
+        <button id="root-review-download" type="button" class="btn-outline"><span class="material-symbols-rounded">download</span> 下载审核文件</button>
+        <small>把复制的内容或下载的文件发给我，我会检查并替你发布到 GitHub。</small>
+      </div>
+    </main>
+
+    <footer id="root-review-actions" class="root-review-actions" hidden>
+      <button id="root-review-prev" type="button" class="root-review-nav-btn" aria-label="上一个词">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <button id="root-review-hide" type="button" class="root-review-decision-btn hide-choice">
+        <span class="material-symbols-rounded">visibility_off</span>
+        <span><strong>不显示</strong><small>拆分会误导</small></span>
+      </button>
+      <button id="root-review-accept" type="button" class="root-review-decision-btn accept-choice">
+        <span class="material-symbols-rounded">check_circle</span>
+        <span><strong>接受拆分</strong><small>对理解有帮助</small></span>
+      </button>
+      <button id="root-review-next" type="button" class="root-review-nav-btn" aria-label="下一个词">
+        <span class="material-symbols-rounded">arrow_forward</span>
+      </button>
+    </footer>
+  </div>
+</div>
+
 <div id="batch-bar" class="batch-bar" style="display: none;" role="toolbar" aria-label="词汇管理操作">
   <span class="batch-count">已选 <span id="batch-count-num">0</span> 词</span>
   <div class="batch-actions">
@@ -1543,5 +1638,6 @@
 <!-- WORDBANK_CHUNKS_END -->
 <script src="rote-learning-core.js"></script>
 <script src="app.js"></script>
+<script src="root-review.js"></script>
 </body>
 </html>

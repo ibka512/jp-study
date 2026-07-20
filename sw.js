@@ -11,7 +11,8 @@ const LOCAL_ASSETS = [
   './english-data.js',
   ...WORD_BANK_ASSETS,
   './rote-learning-core.js',
-  './app.js'
+  './app.js',
+  './root-review.js'
 ];
 
 const OPTIONAL_EXTERNAL_ASSETS = [

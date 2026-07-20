@@ -1,6 +1,7 @@
 {
-  "request": 3,
-  "level": "CET-4",
-  "max_words": 100,
-  "batch_size": 20
+  "request": 4,
+  "level": "ALL",
+  "max_words": 5000,
+  "batch_size": 40,
+  "auto_apply": true
 }

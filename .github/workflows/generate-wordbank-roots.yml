@@ -38,11 +38,12 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 300
     env:
       LEVEL: ${{ inputs.level || 'CET-4' }}
       MAX_WORDS: ${{ inputs.max_words || '100' }}
       BATCH_SIZE: ${{ inputs.batch_size || '20' }}
+      AUTO_APPLY: "false"
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
     steps:
@@ -68,8 +69,9 @@ jobs:
           level = str(request.get('level', 'CET-4'))
           max_words = int(request.get('max_words', 100))
           batch_size = int(request.get('batch_size', 20))
-          if level not in {'CET-4', 'CET-6'}:
-              raise SystemExit('level 必须是 CET-4 或 CET-6')
+          auto_apply = bool(request.get('auto_apply', False))
+          if level not in {'CET-4', 'CET-6', 'ALL'}:
+              raise SystemExit('level 必须是 CET-4、CET-6 或 ALL')
           if not 1 <= max_words <= 5000:
               raise SystemExit('max_words 必须是 1～5000')
           if not 1 <= batch_size <= 40:
@@ -78,6 +80,7 @@ jobs:
               output.write(f'LEVEL={level}\n')
               output.write(f'MAX_WORDS={max_words}\n')
               output.write(f'BATCH_SIZE={batch_size}\n')
+              output.write(f'AUTO_APPLY={str(auto_apply).lower()}\n')
           PY
 
       - name: 检查 API 密钥
@@ -92,7 +95,8 @@ jobs:
           python tools/generate_wordbank_roots.py \
             --level "$LEVEL" \
             --max-words "$MAX_WORDS" \
-            --batch-size "$BATCH_SIZE"
+            --batch-size "$BATCH_SIZE" \
+            $([ "$AUTO_APPLY" = "true" ] && echo "--apply")
 
       - name: 验证词库和学习流程
         run: |
@@ -130,5 +134,10 @@ jobs:
           git add data.js english-data.js index.html sw.js wordbanks \
             reports/root-generation-latest.json \
             reports/root-generation-latest.md
-          git commit -m "生成英语词根审核候选：${LEVEL} ${MAX_WORDS}词"
+          if [ "$AUTO_APPLY" = "true" ]; then
+            MESSAGE="自动补全英语词根词缀：${LEVEL} ${MAX_WORDS}词"
+          else
+            MESSAGE="生成英语词根审核候选：${LEVEL} ${MAX_WORDS}词"
+          fi
+          git commit -m "$MESSAGE"
           git push origin HEAD:main

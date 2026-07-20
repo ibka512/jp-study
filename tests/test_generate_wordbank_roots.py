@@ -128,6 +128,34 @@ class GenerateWordbankRootsTests(unittest.TestCase):
         self.assertEqual(report.generated, 1)
         self.assertEqual(report.suggestions[0]["roots"], "re(再次)-build(建造)")
 
+    def test_generation_can_apply_a_double_reviewed_result(self):
+        candidate = self.candidate("rebuild")
+        words = [candidate.word]
+        report = generator.RootReport(
+            generated_at="test", model="test", level="ALL", max_words=1, batch_size=1
+        )
+
+        class FakeClient:
+            def request(self, _candidates):
+                return {"en-1": {"splittable": True, "parts": [
+                    {"text": "re", "meaning": "再次", "role": "prefix"},
+                    {"text": "build", "meaning": "建造", "role": "root"},
+                ]}}
+
+            def review(self, _candidates, _proposals):
+                return {"en-1": {"approved": True}}
+
+        generator.run_generation(FakeClient(), [candidate], 1, words, report, apply_results=True)
+        self.assertEqual(words[0]["roots"], "re(再次)-build(建造)")
+        self.assertEqual(words[0]["rootsReview"], "auto-strict")
+
+    def test_all_level_selects_every_english_level(self):
+        words = [
+            {"word": "one", "level": "CET-4", "roots": ""},
+            {"word": "two", "level": "CET-6", "roots": ""},
+        ]
+        self.assertEqual(len(generator.select_candidates(words, "ALL", 10)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -51,6 +51,7 @@ class RootReport:
     failures: list[dict[str, str]] = field(default_factory=list)
     samples: list[dict[str, str]] = field(default_factory=list)
     suggestions: list[dict[str, Any]] = field(default_factory=list)
+    auto_applied: bool = False
     coverage_before: dict[str, int] = field(default_factory=dict)
     coverage_after: dict[str, int] = field(default_factory=dict)
     usage: Usage = field(default_factory=Usage)
@@ -105,6 +106,7 @@ def select_candidates(words: list[dict[str, Any]], level: str, max_words: int) -
         and not is_roots_reviewed(word)
         and (
             not normalized_level
+            or normalized_level == "all"
             or clean_text(word.get("level")).casefold() == normalized_level
         )
         and bool(word_key(word.get("word")))
@@ -324,7 +326,8 @@ def validate_result(candidate: Candidate, item: dict[str, Any]) -> tuple[str, st
 
 
 def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_size: int,
-                   words: list[dict[str, Any]], report: RootReport) -> None:
+                   words: list[dict[str, Any]], report: RootReport,
+                   apply_results: bool = False) -> None:
     for offset in range(0, len(candidates), batch_size):
         pending = candidates[offset:offset + batch_size]
         final_reasons: dict[str, str] = {}
@@ -352,6 +355,10 @@ def run_generation(client: DeepSeekClient, candidates: list[Candidate], batch_si
                         "roots": roots,
                         "recommendation": "accept" if status == "verified" else "hide",
                     })
+                    if apply_results:
+                        target["roots"] = roots
+                        target["rootsStatus"] = status
+                        target["rootsReview"] = "auto-strict"
                     if status == "verified":
                         report.generated += 1
                         if len(report.samples) < 40:
@@ -432,6 +439,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--level", default="CET-4")
     parser.add_argument("--max-words", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=20)
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="将通过双重审校的结果直接写入正式英语词库",
+    )
     parser.add_argument("--api-key-env", default="DEEPSEEK_API_KEY")
     parser.add_argument(
         "--api-base-url",
@@ -461,6 +473,7 @@ def main() -> int:
             max_words=args.max_words,
             batch_size=args.batch_size,
             selected=len(candidates),
+            auto_applied=args.apply,
             coverage_before=coverage(en_words),
         )
         if candidates:
@@ -471,10 +484,17 @@ def main() -> int:
                     "Secrets and variables → Actions 中添加；不要把密钥写入代码。"
                 )
             client = DeepSeekClient(api_key, args.model, args.api_base_url, report.usage)
-            run_generation(client, candidates, args.batch_size, en_words, report)
-            # AI 结果只进入审核报告，不直接改动正式词库。正式写入必须经过
-            # tools/apply_root_review.py 的人工审核清单。
-            report.coverage_after = report.coverage_before
+            run_generation(
+                client,
+                candidates,
+                args.batch_size,
+                en_words,
+                report,
+                apply_results=args.apply,
+            )
+            report.coverage_after = coverage(en_words)
+            if args.apply:
+                write_wordbank_assets(repo, ja_words, en_words)
         else:
             report.coverage_after = report.coverage_before
         write_report(repo, report)

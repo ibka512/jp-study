@@ -18767,3 +18767,116 @@ window.onload = () => {
         });
     }
 })();
+
+
+/* ===== 第二轮统一动效（motion-v2） ===== */
+(() => {
+    if (window.__zhongriMotionV2) return;
+    window.__zhongriMotionV2 = true;
+
+    const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+    );
+
+    const installProgressDetailsMotion = () => {
+        document
+            .querySelectorAll('.home-progress-details')
+            .forEach(details => {
+                if (details.dataset.motionReady === 'true') {
+                    return;
+                }
+
+                const summary = details.querySelector('summary');
+                const content = details.querySelector(
+                    '.home-sub-progress-group'
+                );
+
+                if (!summary || !content) return;
+
+                details.dataset.motionReady = 'true';
+                let animation = null;
+
+                summary.addEventListener('click', event => {
+                    if (reducedMotion.matches) return;
+
+                    event.preventDefault();
+
+                    if (animation) {
+                        animation.cancel();
+                        animation = null;
+                    }
+
+                    const closing = details.open;
+
+                    if (!details.open) {
+                        details.open = true;
+                    }
+
+                    const startHeight = closing
+                        ? content.offsetHeight
+                        : 0;
+
+                    const endHeight = closing
+                        ? 0
+                        : content.scrollHeight;
+
+                    content.style.overflow = 'hidden';
+
+                    animation = content.animate(
+                        [
+                            {
+                                height: `${startHeight}px`,
+                                opacity: closing ? 1 : 0,
+                                transform: closing
+                                    ? 'translateY(0)'
+                                    : 'translateY(-4px)'
+                            },
+                            {
+                                height: `${endHeight}px`,
+                                opacity: closing ? 0 : 1,
+                                transform: closing
+                                    ? 'translateY(-4px)'
+                                    : 'translateY(0)'
+                            }
+                        ],
+                        {
+                            duration: closing ? 190 : 260,
+                            easing: closing
+                                ? 'cubic-bezier(0.4, 0, 1, 1)'
+                                : 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+                        }
+                    );
+
+                    animation.onfinish = () => {
+                        if (closing) {
+                            details.open = false;
+                        }
+
+                        content.style.removeProperty('height');
+                        content.style.removeProperty('opacity');
+                        content.style.removeProperty('transform');
+                        content.style.removeProperty('overflow');
+                        animation = null;
+                    };
+
+                    animation.oncancel = () => {
+                        content.style.removeProperty('height');
+                        content.style.removeProperty('opacity');
+                        content.style.removeProperty('transform');
+                        content.style.removeProperty('overflow');
+                        animation = null;
+                    };
+                });
+            });
+    };
+
+    installProgressDetailsMotion();
+
+    /*
+     * 底部抽屉的结构可能由初始化过程补充，
+     * 因此在应用完成初始化后再做一次轻量检查。
+     */
+    window.addEventListener('load', () => {
+        installProgressDetailsMotion();
+    }, { once: true });
+})();

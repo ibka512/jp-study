@@ -1,0 +1,65 @@
+name: 钟日代码检查
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zhongri-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 取出项目
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 运行 Python 测试
+        run: |
+          python -m unittest -v \
+            tests.test_wordbank_compiler \
+            tests.test_seed_exam_wordbanks \
+            tests.test_generate_wordbank_examples \
+            tests.test_generate_wordbank_roots \
+            tests.test_apply_root_review
+
+      - name: 检查 JavaScript 语法
+        run: |
+          node --check data.js
+          node --check english-data.js
+          node --check rote-learning-core.js
+          node --check app.js
+          node --check root-review.js
+          node --check sw.js
+          for file in wordbanks/*.js; do node --check "$file"; done
+
+      - name: 运行前端与词库测试
+        run: |
+          node tests/rote-learning-core.test.js
+          node tests/rote-learning-integration.test.js
+          node tests/wordbank-data.test.js
+          node tests/app-shell-safety.test.js
+
+      - name: 检查空白错误
+        run: git diff --check HEAD^

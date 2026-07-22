@@ -1,13 +1,13 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v12';
+const CACHE_NAME = 'zhongri-shell-v13';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './logo.png',
-  './style.css?v=motion-v2',
+  './style.css?v=motion-v2-fix1',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -34,7 +34,7 @@ const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
-  './style.css?v=motion-v2',
+  './style.css?v=motion-v2-fix1',
   './release-info.js',
   './core-utils.js',
   './haptics.js',

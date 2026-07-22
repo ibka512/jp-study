@@ -16,10 +16,59 @@ const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const ROTE_CORE = globalThis.RoteLearningCore;
+const MATHJAX_SOURCE =
+    'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+
+let mathJaxLoadPromise = null;
 
 if (!ROTE_CORE) {
     throw new Error('循环强记核心模块加载失败');
 }
+
+const loadMathJax = () => {
+    if (window.MathJax?.typesetPromise) {
+        return Promise.resolve(window.MathJax);
+    }
+
+    if (mathJaxLoadPromise) {
+        return mathJaxLoadPromise;
+    }
+
+    mathJaxLoadPromise = new Promise((resolve, reject) => {
+        const existingScript =
+            document.getElementById('MathJax-script');
+        const script =
+            existingScript || document.createElement('script');
+
+        const handleLoaded = () => {
+            if (window.MathJax?.typesetPromise) {
+                resolve(window.MathJax);
+                return;
+            }
+            script.remove();
+            mathJaxLoadPromise = null;
+            reject(new Error('MathJax 初始化失败'));
+        };
+
+        const handleError = () => {
+            script.remove();
+            mathJaxLoadPromise = null;
+            reject(new Error('MathJax 下载失败'));
+        };
+
+        script.addEventListener('load', handleLoaded, { once: true });
+        script.addEventListener('error', handleError, { once: true });
+
+        if (!existingScript) {
+            script.id = 'MathJax-script';
+            script.async = true;
+            script.src = MATHJAX_SOURCE;
+            document.head.appendChild(script);
+        }
+    });
+
+    return mathJaxLoadPromise;
+};
 
 const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'theme',
@@ -6036,9 +6085,16 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     exBox.innerHTML = htmlStr;
     let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
     
-    if (!useRuby && window.MathJax && window.MathJax.typesetPromise) { 
+    if (!useRuby) {
         window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
-            .then(() => MathJax.typesetPromise(Array.from(jpExEls)))
+            .then(() => loadMathJax())
+            .then(mathJax => {
+                const connectedExamples = Array.from(jpExEls)
+                    .filter(element => element.isConnected);
+                if (connectedExamples.length) {
+                    return mathJax.typesetPromise(connectedExamples);
+                }
+            })
             .catch((err) => { console.warn('MathJax 排版被中断', err); });
     }
   },
@@ -7390,6 +7446,14 @@ const Controller = {
     if (useRuby === null) useRuby = 'true'; 
     let rubyCheck = View.getEl('setting-ruby-render');
     if(rubyCheck) rubyCheck.checked = (useRuby === 'true');
+    if (useRuby === 'false') {
+        loadMathJax().catch(error => {
+            console.warn('MathJax 按需加载失败', error);
+            localStorage.setItem('useRubyRender', 'true');
+            if (rubyCheck) rubyCheck.checked = true;
+            showToast('MathJax 加载失败，已恢复原生 Ruby 排版');
+        });
+    }
     let savedTTS = localStorage.getItem('ttsEngine') || 'azure';
     let ttsSelect = View.getEl('setting-tts-engine');
     if(ttsSelect) {
@@ -7751,12 +7815,34 @@ setupVirtualScroll() {
         rubyCheck.addEventListener('change', (e) => {
             Hardware.playSound('click'); Hardware.vibrate(15);
             localStorage.setItem('useRubyRender', e.target.checked);
-            showToast(e.target.checked ? "已切换为原生 Ruby 排版" : "已切换为 MathJax 引擎");
-            if (!document.getElementById('detail-overlay').classList.contains('hidden') && document.getElementById('detail-overlay').classList.contains('active')) {
-                Controller.renderDetailCard('none', false);
-            } else if (!document.getElementById('study-area').classList.contains('hidden')) {
-                View.renderStudyCard('none');
+
+            const rerenderVisibleCard = () => {
+                if (!document.getElementById('detail-overlay').classList.contains('hidden') && document.getElementById('detail-overlay').classList.contains('active')) {
+                    Controller.renderDetailCard('none', false);
+                } else if (!document.getElementById('study-area').classList.contains('hidden')) {
+                    View.renderStudyCard('none');
+                }
+            };
+
+            if (e.target.checked) {
+                showToast('已切换为原生 Ruby 排版');
+                rerenderVisibleCard();
+                return;
             }
+
+            showToast('正在加载 MathJax…');
+            loadMathJax()
+                .then(() => {
+                    showToast('已切换为 MathJax 引擎');
+                    rerenderVisibleCard();
+                })
+                .catch(error => {
+                    console.warn('MathJax 按需加载失败', error);
+                    e.target.checked = true;
+                    localStorage.setItem('useRubyRender', 'true');
+                    showToast('MathJax 加载失败，已恢复原生 Ruby 排版');
+                    rerenderVisibleCard();
+                });
         });
     }
     // 初始化 DeepSeek API 密钥设置
@@ -10440,8 +10526,12 @@ if (aiCloseBtn) {
         void el.offsetWidth; 
         el.style.transform = 'rotateX(0)'; 
         el.style.opacity = '1'; 
-        if (localStorage.getItem('useRubyRender') === 'false' && window.MathJax) {
-            MathJax.typesetPromise([el]);
+        if (localStorage.getItem('useRubyRender') === 'false') {
+            loadMathJax()
+                .then(mathJax => mathJax.typesetPromise([el]))
+                .catch(error => {
+                    console.warn('MathJax 排版被中断', error);
+                });
         }
     }, 150); 
 });

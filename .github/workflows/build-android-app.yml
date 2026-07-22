@@ -1,0 +1,69 @@
+name: 构建钟日 Android 测试版
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "index.html"
+      - "style.css"
+      - "sw.js"
+      - "*.js"
+      - "manifest.json"
+      - "logo.png"
+      - "vendor/**"
+      - "wordbanks/**"
+      - "package.json"
+      - "capacitor.config.json"
+      - "scripts/build-capacitor-web.mjs"
+      - ".github/workflows/build-android-app.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: 生成可安装 APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 获取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 配置 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 生成 Web 资源
+        run: npm run build:web
+
+      - name: 创建并同步 Android 工程
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: 构建 Debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhongri-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

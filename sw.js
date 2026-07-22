@@ -1,13 +1,13 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v11';
+const CACHE_NAME = 'zhongri-shell-v12';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './logo.png',
-  './style.css?v=motion-v1',
+  './style.css?v=motion-v2',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -18,7 +18,7 @@ const LOCAL_ASSETS = [
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=motion-v1',
+  './app.js?v=motion-v2',
   './root-review.js'
 ];
 
@@ -34,14 +34,14 @@ const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
-  './style.css?v=motion-v1',
+  './style.css?v=motion-v2',
   './release-info.js',
   './core-utils.js',
   './haptics.js',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=motion-v1',
+  './app.js?v=motion-v2',
   './root-review.js'
 ].map(toAbsoluteUrl));
 

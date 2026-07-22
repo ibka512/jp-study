@@ -18,6 +18,8 @@
     capacitor.getPlatform() === 'android'
   );
   const notifications = capacitor?.Plugins?.LocalNotifications || null;
+  const nativeApp = capacitor?.Plugins?.App || null;
+  let backNavigationRegistered = false;
 
   const showMessage = message => {
     const toast = document.getElementById('toast');
@@ -81,7 +83,109 @@
     }, 280);
   };
 
+  const closeTopLayer = () => {
+    const rootReview = document.getElementById('root-review-overlay');
+    if (rootReview?.classList.contains('active')) {
+      document.getElementById('root-review-close')?.click();
+      return true;
+    }
+
+    const activeModals = Array.from(
+      document.querySelectorAll('.modal-overlay.active')
+    );
+    const activeModal = activeModals[activeModals.length - 1];
+
+    if (activeModal) {
+      const closeButtonByModal = {
+        'detail-overlay': '#detail-close',
+        'ai-word-collector-overlay': '#ai-word-collector-close',
+        'ai-quiz-overlay': '#ai-quiz-close'
+      };
+      const closeSelector = closeButtonByModal[activeModal.id];
+      const closeButton = closeSelector
+        ? document.querySelector(closeSelector)
+        : null;
+
+      if (closeButton) {
+        closeButton.click();
+      } else if (
+        activeModal.id &&
+        typeof window.toggleModal === 'function'
+      ) {
+        window.toggleModal(activeModal.id, false);
+        window.ZhongriHaptics?.trigger?.('navigation');
+      } else {
+        activeModal.classList.remove('active');
+        activeModal.setAttribute('aria-hidden', 'true');
+        document.body.classList.toggle(
+          'modal-open',
+          Boolean(document.querySelector('.modal-overlay.active'))
+        );
+        window.ZhongriHaptics?.trigger?.('navigation');
+      }
+      return true;
+    }
+
+    const studyArea = document.getElementById('study-area');
+    if (studyArea && !studyArea.classList.contains('hidden')) {
+      document.getElementById('btn-exit-study')?.click();
+      return true;
+    }
+
+    const aiChatView = document.getElementById('ai-chat-view');
+    if (aiChatView && !aiChatView.classList.contains('hidden')) {
+      document.getElementById('btn-ai-chat-back')?.click();
+      return true;
+    }
+
+    const activeSettingsSection = document.querySelector(
+      '#tab-settings.active .settings-section:not([hidden])'
+    );
+    if (activeSettingsSection) {
+      activeSettingsSection
+        .querySelector('[data-settings-back]')
+        ?.click();
+      return true;
+    }
+
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.id !== 'tab-home') {
+      document
+        .querySelector('.nav-item[data-target="tab-home"]')
+        ?.click();
+      return true;
+    }
+
+    return false;
+  };
+
+  const registerAndroidBackNavigation = async () => {
+    if (
+      backNavigationRegistered ||
+      !isAndroidApp ||
+      !nativeApp?.addListener
+    ) {
+      return;
+    }
+
+    backNavigationRegistered = true;
+    await nativeApp.addListener('backButton', async () => {
+      if (closeTopLayer()) {
+        return;
+      }
+
+      window.ZhongriHaptics?.trigger?.('navigation');
+      try {
+        await nativeApp.minimizeApp();
+      } catch (error) {
+        console.warn('应用进入后台失败', error);
+      }
+    });
+  };
+
   const initialize = async () => {
+    await registerAndroidBackNavigation();
+
     const card = document.getElementById('native-reminder-card');
     const enabledInput = document.getElementById('setting-study-reminder-enabled');
     const timeInput = document.getElementById('setting-study-reminder-time');

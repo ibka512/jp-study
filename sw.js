@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v15';
+const CACHE_NAME = 'zhongri-shell-v16';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -18,7 +18,7 @@ const LOCAL_ASSETS = [
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=deepseek-v4-flash',
+  './app.js?v=deepseek-v4-flash-thinking',
   './root-review.js'
 ];
 
@@ -41,7 +41,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=deepseek-v4-flash',
+  './app.js?v=deepseek-v4-flash-thinking',
   './root-review.js'
 ].map(toAbsoluteUrl));
 

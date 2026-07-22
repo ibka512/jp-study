@@ -10230,3 +10230,59 @@ button.import-mode-btn.active > .material-symbols-rounded {
     .fsrs-rating-grid { gap:8px; }
     .fsrs-rating-btn { padding:10px 8px; }
 }
+
+/* 设置首页：学习语言词书卡 */
+.book-selector-intro { margin:7px 0 0; color:var(--outline); font-size:.78rem; line-height:1.45; }
+.settings-mode-card .book-shelf { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding:0; border:0; background:transparent; }
+.settings-mode-card .book-card {
+    position:relative;
+    display:grid;
+    grid-template-columns:58px minmax(0,1fr) auto;
+    align-items:center;
+    gap:13px;
+    min-height:142px;
+    height:auto;
+    padding:18px;
+    overflow:hidden;
+    border:1px solid var(--outline-soft);
+    border-radius:22px;
+    opacity:1;
+    transform:none;
+    color:var(--on-surface);
+    background:var(--surface-container-low);
+    text-align:left;
+    font:inherit;
+    cursor:pointer;
+    transition:border-color .22s var(--spring-smooth),box-shadow .22s var(--spring-smooth),transform .22s var(--spring-smooth);
+}
+.settings-mode-card .book-card::after { content:''; position:absolute; right:-28px; bottom:-48px; width:118px; height:118px; border-radius:50%; border:1px solid color-mix(in srgb,var(--book-accent) 18%,transparent); pointer-events:none; }
+.settings-mode-card .jp-book { --book-accent:#617d72; --book-soft:#e4ece7; }
+.settings-mode-card .en-book { --book-accent:#93664e; --book-soft:#efe2d9; }
+.settings-mode-card .book-card:hover { transform:translateY(-2px); border-color:color-mix(in srgb,var(--book-accent) 42%,var(--outline-soft)); }
+.settings-mode-card .book-card.active { transform:none; border-color:var(--book-accent); box-shadow:0 10px 26px color-mix(in srgb,var(--book-accent) 16%,transparent); background:linear-gradient(145deg,color-mix(in srgb,var(--book-soft) 66%,var(--surface)),var(--surface-container-low)); }
+.book-language-mark { position:relative; z-index:1; display:grid; place-items:center; width:58px; height:72px; border-radius:16px 13px 13px 16px; color:var(--book-accent); background:color-mix(in srgb,var(--book-soft) 76%,var(--surface)); box-shadow:inset 4px 0 0 color-mix(in srgb,var(--book-accent) 22%,transparent); font-family:var(--font-jp-serif); font-size:1.75rem; font-weight:900; }
+.book-card-copy { position:relative; z-index:1; display:flex; flex-direction:column; min-width:0; }
+.book-card-kicker { color:var(--book-accent); font-size:.6rem; font-weight:900; letter-spacing:.14em; }
+.settings-mode-card .book-title { margin-top:3px; color:var(--on-surface); font-size:1rem; letter-spacing:.02em; text-shadow:none; }
+.book-meta { margin-top:5px; color:var(--outline); font-size:.7rem; }
+.book-progress-track { height:4px; margin-top:11px; overflow:hidden; border-radius:999px; background:color-mix(in srgb,var(--outline) 14%,transparent); }
+.book-progress-fill { display:block; width:0; height:100%; border-radius:inherit; background:var(--book-accent); transition:width .35s var(--spring-smooth); }
+.book-progress-copy { margin-top:5px; color:var(--outline); font-size:.62rem; }
+.book-status { position:relative; z-index:1; align-self:start; display:flex; align-items:center; gap:3px; padding:5px 8px; border-radius:999px; color:var(--outline); background:color-mix(in srgb,var(--outline) 7%,var(--surface)); font-size:.64rem; font-weight:800; white-space:nowrap; }
+.book-status .material-symbols-rounded { display:none; font-size:.85rem; }
+.book-card.active .book-status { color:var(--book-accent); background:color-mix(in srgb,var(--book-soft) 76%,var(--surface)); }
+.book-card.active .book-status .material-symbols-rounded { display:inline-block; }
+.book-loading { position:absolute; z-index:4; inset:0; display:flex; align-items:center; justify-content:center; gap:8px; color:var(--book-accent); background:color-mix(in srgb,var(--surface) 88%,transparent); opacity:0; pointer-events:none; font-size:.78rem; font-weight:900; transition:opacity .18s ease; }
+.book-card.is-loading .book-loading { opacity:1; }
+.book-loading-spinner { width:18px; height:18px; border:2px solid color-mix(in srgb,var(--book-accent) 22%,transparent); border-top-color:var(--book-accent); border-radius:50%; animation:book-loading-spin .75s linear infinite; }
+.book-shelf.is-switching .book-card:not(.is-loading) { opacity:.62; }
+.book-selector-note { display:flex; align-items:center; gap:6px; margin:12px 2px 0; color:var(--outline); font-size:.7rem; }
+.book-selector-note .material-symbols-rounded { color:var(--tertiary); font-size:1rem; }
+@keyframes book-loading-spin { to { transform:rotate(360deg); } }
+[data-theme="dark"] .settings-mode-card .jp-book { --book-soft:#26342f; }
+[data-theme="dark"] .settings-mode-card .en-book { --book-soft:#3b2d25; }
+@media (max-width:700px) {
+    .settings-mode-card .book-shelf { grid-template-columns:1fr; }
+    .settings-mode-card .book-card { min-height:128px; grid-template-columns:52px minmax(0,1fr) auto; padding:15px; }
+    .book-language-mark { width:52px; height:64px; }
+}

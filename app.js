@@ -5480,6 +5480,7 @@ let dbTotalEl = this.getEl('db-total-count');
             ? '<span>开始复习</span><span class="material-symbols-rounded">arrow_forward</span>'
             : '<span>今日已完成</span><span class="material-symbols-rounded">check</span>';
     }
+    this.renderBookSelector();
 
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
@@ -5563,6 +5564,32 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
             btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
         }
     }
+  },
+
+  renderBookSelector() {
+      document.querySelectorAll('.book-card[data-lang]').forEach(card => {
+          const language = card.dataset.lang === 'en' ? 'en' : 'ja';
+          const isActive = language === Model.state.currentLangMode;
+          const isLoaded = Model.builtInLoadOrder.includes(language);
+          const words = Model.db.filter(word => (word.lang || 'ja') === language);
+          const wordIds = new Set(words.map(word => Model.getWordId(word)));
+          let mastered = 0;
+          Object.entries(Model.mtWordClears).forEach(([wordId, state]) => {
+              if (wordIds.has(wordId) && state && typeof state === 'object' && state.kanji && state.kana && state.meaning) mastered++;
+          });
+          const percent = words.length ? Math.round(mastered / words.length * 100) : 0;
+          const count = card.querySelector('[data-book-count]');
+          const progress = card.querySelector('[data-book-progress]');
+          const progressCopy = card.querySelector('[data-book-progress-copy]');
+          const status = card.querySelector('[data-book-status]');
+
+          card.classList.toggle('active', isActive);
+          card.setAttribute('aria-pressed', String(isActive));
+          if (count) count.textContent = isLoaded ? `${words.length} 词 · 已掌握 ${mastered}` : '点击后载入词书';
+          if (progress) progress.style.width = `${isLoaded ? percent : 0}%`;
+          if (progressCopy) progressCopy.textContent = isLoaded ? `学习进度 ${percent}%` : '学习记录会安全保留';
+          if (status) status.textContent = isActive ? '当前使用' : '选择';
+      });
   },
 
   updateTestSelects() {
@@ -7779,31 +7806,30 @@ setupVirtualScroll() {
     // 📚 词书切换核心事件
     document.querySelectorAll('.book-card').forEach(card => {
         card.addEventListener('click', async () => {
-            let targetLang = card.getAttribute('data-lang');
-            if (targetLang !== Model.state.currentLangMode) {
-                Hardware.playSound('click'); Hardware.vibrate(20);
-                card.setAttribute('aria-busy', 'true');
-                showToast(`正在加载${targetLang === 'en' ? '英语' : '日语'}词库…`);
+            const targetLang = card.getAttribute('data-lang');
+            if (targetLang === Model.state.currentLangMode || this._bookSwitching) {
+                Hardware.vibrate(10);
+                return;
+            }
 
-                try {
-                    await Model.ensureBuiltInLanguage(targetLang);
-                } catch (error) {
-                    console.error('[Wordbank] 词库切换加载失败', error);
-                    showToast('词库加载失败，请检查网络后重试');
-                    return;
-                } finally {
-                    card.removeAttribute('aria-busy');
-                }
+            const shelf = card.closest('.book-shelf');
+            const cards = Array.from(document.querySelectorAll('.book-card[data-lang]'));
+            this._bookSwitching = true;
+            Hardware.playSound('click');
+            Hardware.vibrate(15);
+            card.setAttribute('aria-busy', 'true');
+            card.classList.add('is-loading');
+            shelf?.classList.add('is-switching');
+            cards.forEach(item => { item.disabled = true; });
 
+            try {
+                await Model.ensureBuiltInLanguage(targetLang);
                 Model.state.currentLangMode = targetLang;
                 localStorage.setItem('langMode', targetLang);
                 document.body.setAttribute('data-lang', targetLang);
-                
-                document.querySelectorAll('.book-card').forEach(b => b.classList.remove('active'));
-                card.classList.add('active');
 
                 // 切换后强制清空跨语言选择，防止数据串线
-                let selFilter = View.getEl('wb-folder-filter');
+                const selFilter = View.getEl('wb-folder-filter');
                 if (selFilter) selFilter.value = 'all';
                 localStorage.setItem('lastSelectedFolder', 'all');
                 localStorage.removeItem('lastCustomGroupVal');
@@ -7814,7 +7840,21 @@ setupVirtualScroll() {
                 View.updateWordbankUI();
                 View.resetWordbankRenderer();
                 View.renderDashboard();
+                Hardware.playSound('success');
+                Hardware.vibrate(35);
                 showToast(`已切换至${targetLang === 'en' ? '英语' : '日语'}词书`);
+            } catch (error) {
+                console.error('[Wordbank] 词库切换加载失败', error);
+                Hardware.playSound('error');
+                Hardware.vibrate(45);
+                showToast('词书载入失败，请检查网络后重试');
+            } finally {
+                this._bookSwitching = false;
+                card.removeAttribute('aria-busy');
+                card.classList.remove('is-loading');
+                shelf?.classList.remove('is-switching');
+                cards.forEach(item => { item.disabled = false; });
+                View.renderBookSelector();
             }
         });
     });

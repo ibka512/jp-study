@@ -5456,8 +5456,23 @@ const View = {
 let dbTotalEl = this.getEl('db-total-count');
     if (dbTotalEl) dbTotalEl.innerText = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;    
     let stats = Model.calculateStats();
-    this.getEl('total-days').innerText = stats.totalDays;
-    this.getEl('streak-days').innerText = stats.streak;
+    this.getEl('total-days') && (this.getEl('total-days').innerText = stats.totalDays);
+    this.getEl('streak-days') && (this.getEl('streak-days').innerText = stats.streak);
+    const dueItems = Model.getDueFsrsCards ? Model.getDueFsrsCards(new Date(), Model.getCurrentLang()) : [];
+    const dueCountEl = this.getEl('fsrs-due-count');
+    const dueDetailEl = this.getEl('fsrs-due-detail');
+    const streakTextEl = this.getEl('fsrs-streak-text');
+    if (dueCountEl) dueCountEl.innerText = dueItems.length;
+    if (streakTextEl) streakTextEl.innerText = `连续学习 ${stats.streak || 0} 天`;
+    if (dueDetailEl) {
+        const groups = dueItems.reduce((map, item) => {
+            map[item.dimension] = (map[item.dimension] || 0) + 1;
+            return map;
+        }, {});
+        const labels = { kanji: '拼写', spelling: '拼写', reading: '读音', listening: '听力', meaning: '释义' };
+        const summary = Object.entries(groups).map(([dimension, count]) => `${labels[dimension] || dimension} ${count}`).join(' · ');
+        dueDetailEl.innerText = summary || '今天没有到期项目，继续保持节奏';
+    }
 
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
@@ -5591,6 +5606,7 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
     let isMemTest = (Model.state.mode === 'memory-test');
     let isRote = (Model.state.mode === 'rote-learning');
     let isFilterTest = (Model.state.mode === 'filter-test');
+    let isFsrsReview = (Model.state.mode === 'fsrs-review');
     // 切卡时自动收起 AI 解析面板
 let aiPanel = View.getEl('ai-inline-panel');
 if (aiPanel) aiPanel.classList.add('hidden');
@@ -5683,7 +5699,8 @@ void card.offsetWidth;
                 forceRoteFull,
                 isMemTest,
                 isRote,
-                isFilterTest
+                isFilterTest,
+                isFsrsReview
             );
 
             triggerSRAnnouncement();
@@ -5705,7 +5722,8 @@ void card.offsetWidth;
             forceRoteFull,
             isMemTest,
             isRote,
-            isFilterTest
+            isFilterTest,
+            isFsrsReview
         );
 
         triggerSRAnnouncement();
@@ -5714,7 +5732,7 @@ void card.offsetWidth;
   },
 
 
-    updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
+    updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest, isFsrsReview) {
     const isEnglish = w.lang === 'en';
     
     // 动态修改提示按钮的文案
@@ -5724,6 +5742,7 @@ void card.offsetWidth;
     }
 
     this.getEl('mt-blind-audio-ui').classList.add('hidden');
+    this.getEl('capsule-fsrs-review')?.classList.add('hidden');
 
     this.getEl('w-word').style.display = 'block';
         this.getEl('w-kana').style.display = isEnglish ? 'block' : 'block';
@@ -5734,6 +5753,21 @@ void card.offsetWidth;
 
     let mask = (str) => '■'.repeat(Array.from(str || '').length);
     let maskFixed = "■■■"; 
+
+    if (isFsrsReview) {
+        ['word','kana','type','meaning'].forEach(k => { const el = this.getEl(`w-${k}`); if (el) { el.className = k === 'word' ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); } });
+        this.getEl('w-example-box').className = 'dt-example-box';
+        this.getEl('w-example-box').style.display = 'block';
+        this.getEl('capsule-pendulum').classList.add('hidden');
+        this.getEl('capsule-filter-test').classList.add('hidden');
+        this.getEl('capsule-filter-judge').classList.add('hidden');
+        this.getEl('dual-track-ui').classList.add('hidden');
+        this.getEl('memory-test-ui').classList.add('hidden');
+        this.getEl('capsule-fsrs-review').classList.remove('hidden');
+        this.getEl('btn-display-mode-trigger').style.display = 'none';
+        this.getEl('star-btn').style.display = 'block';
+        return;
+    }
 
     if (isFilterTest) {
         let displayMode = this.getEl('test-display-select').value || 'kana'; 
@@ -7801,6 +7835,10 @@ setupVirtualScroll() {
     View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
     
     View.getEl('btn-start-filter-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startFilterTest(); });
+    View.getEl('btn-start-fsrs-review')?.addEventListener('click', () => { Hardware.unlockSpeech(); this.startFsrsReview(); });
+    ['again', 'hard', 'good', 'easy'].forEach(rating => {
+        View.getEl(`fsrs-rating-${rating}`)?.addEventListener('click', () => this.applyFsrsRating(rating));
+    });
     View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
@@ -9082,6 +9120,11 @@ if (aiCloseBtn) {
         // 🟣 学习/复习/测试区域快捷键
         if (!View.getEl('study-area').classList.contains('hidden')) {
             let mode = Model.state.mode;
+            if (mode === 'fsrs-review' && /^[1-4]$/.test(key)) {
+                e.preventDefault();
+                ['again', 'hard', 'good', 'easy'][Number(key) - 1] && Controller.applyFsrsRating(['again', 'hard', 'good', 'easy'][Number(key) - 1]);
+                return;
+            }
             let dtSpellArea = View.getEl('dt-spell-area');
             let mtSpellArea = View.getEl('mt-spell-area');
             let dtChoiceArea = View.getEl('dt-choice-area');
@@ -10412,6 +10455,71 @@ if (aiCloseBtn) {
       
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
+
+    startFsrsReview() {
+        const items = Model.getDueFsrsCards(new Date(), Model.getCurrentLang());
+        if (!items.length) {
+            showToast('今天没有到期复习，继续保持节奏');
+            return;
+        }
+        Model.state.mode = 'fsrs-review';
+        Model.state.studyQueue = items.map(item => Model.db.indexOf(item.word));
+        Model.state.fsrsReviewItems = items;
+        Model.state.currentIndex = 0;
+        Model.state.initialQueueLength = items.length;
+        View.getEl('capsule-pendulum')?.classList.add('hidden');
+        View.getEl('capsule-filter-test')?.classList.add('hidden');
+        View.getEl('capsule-filter-judge')?.classList.add('hidden');
+        View.getEl('capsule-fsrs-review')?.classList.remove('hidden');
+        View.getEl('keyboard-hint-bar')?.classList.remove('hidden');
+        View.showPage('study-area');
+        View.renderStudyCard('none');
+        this.renderFsrsReviewControls();
+        Hardware.vibrate(40);
+    },
+
+    renderFsrsReviewControls() {
+        const item = Model.state.fsrsReviewItems?.[Model.state.currentIndex];
+        const container = View.getEl('fsrs-rating-buttons');
+        if (!item || !container) return;
+        const card = Model.fsrsCards[item.key] || null;
+        const preview = ZhongriFsrsScheduler.preview(card, new Date());
+        const options = [
+            ['again', '再来', '完全想不起，或回答错误'],
+            ['hard', '困难', '想起来了，但很费劲、不稳定'],
+            ['good', '认识', '正确想起，难度适中'],
+            ['easy', '太简单', '一看到就想起，几乎没有难度']
+        ];
+        const labels = { kanji: '拼写', spelling: '拼写', reading: '读音', listening: '听力', meaning: '释义' };
+        View.getEl('fsrs-review-dimension').innerText = `复习${labels[item.dimension] || item.dimension}`;
+        View.getEl('fsrs-review-progress').innerText = `${Model.state.currentIndex + 1} / ${Model.state.fsrsReviewItems.length}`;
+        container.innerHTML = options.map(([rating, title, tip]) => `<button type="button" class="fsrs-rating-btn" data-rating="${rating}"><strong>${title}</strong><small>${tip}</small><em>${preview[rating].label}</em></button>`).join('');
+        container.onclick = event => {
+            const button = event.target.closest('.fsrs-rating-btn');
+            if (button) this.applyFsrsRating(button.dataset.rating);
+        };
+    },
+
+    applyFsrsRating(rating) {
+        if (Model.state.mode !== 'fsrs-review' || Model.state.isAnimating) return;
+        const item = Model.state.fsrsReviewItems?.[Model.state.currentIndex];
+        if (!item) return;
+        Model.state.isAnimating = true;
+        Model.recordFsrsReview({ word: item.word, dimension: item.dimension, rating, source: 'fsrs-review' });
+        Hardware.playSound(rating === 'again' ? 'error' : 'success');
+        Hardware.vibrate(rating === 'again' ? 35 : 20);
+        window.setTimeout(() => {
+            Model.state.isAnimating = false;
+            Model.state.currentIndex++;
+            if (Model.state.currentIndex >= Model.state.fsrsReviewItems.length) {
+                showToast('今日复习完成');
+                View.getEl('btn-exit-study')?.click();
+            } else {
+                View.renderStudyCard('next');
+                this.renderFsrsReviewControls();
+            }
+        }, 220);
+    },
 
     processFilterTestResult(isCorrect) {
       if (Model.state.isAnimating) return;

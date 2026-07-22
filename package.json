@@ -1,0 +1,22 @@
+{
+  "name": "zhongri-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "钟日学习应用的 Android Capacitor 包装",
+  "scripts": {
+    "build:web": "node scripts/build-capacitor-web.mjs",
+    "android:prepare": "npm run build:web && npx cap add android && npx cap sync android",
+    "android:debug": "npm run android:prepare && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/local-notifications": "8.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

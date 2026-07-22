@@ -1,0 +1,11 @@
+{
+  "appId": "com.ibka.zhongri",
+  "appName": "钟日",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

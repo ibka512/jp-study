@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v18';
+const CACHE_NAME = 'zhongri-shell-v19';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -19,7 +19,7 @@ const LOCAL_ASSETS = [
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './app.js?v=deepseek-v4-flash-thinking',
-  './native-app.js?v=android-reminders-v1',
+  './native-app.js?v=native-back-v1',
   './root-review.js'
 ];
 

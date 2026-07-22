@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v3';
+const CACHE_NAME = 'zhongri-shell-v4';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,8 @@ const LOCAL_ASSETS = [
   './style.css',
   './data.js',
   './english-data.js',
-  ...WORD_BANK_ASSETS,
+  './wordbanks/assets.js',
+  './wordbank-loader.js',
   './release-info.js',
   './core-utils.js',
   './haptics.js',
@@ -27,6 +28,7 @@ const OPTIONAL_EXTERNAL_ASSETS = [
 
 const toAbsoluteUrl = asset => new URL(asset, self.registration.scope).href;
 const PRECACHE_URLS = new Set(LOCAL_ASSETS.map(toAbsoluteUrl));
+const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
@@ -152,6 +154,11 @@ self.addEventListener('fetch', event => {
   }
 
   if (isSameOrigin && PRECACHE_URLS.has(requestUrl.href)) {
+    event.respondWith(staleWhileRevalidate(event.request, event));
+    return;
+  }
+
+  if (isSameOrigin && requestUrl.href.startsWith(WORD_BANK_BASE_URL)) {
     event.respondWith(staleWhileRevalidate(event.request, event));
     return;
   }

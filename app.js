@@ -1,18365 +1,4665 @@
-/**
-  * é’Ÿæ—¥ - æ ¸å¿ƒæ§åˆ¶é€»è¾‘
- */
-
-const DATA_SCHEMA_VERSION = 8;
-const MIGRATION_SNAPSHOT_KEY = 'migrationSafetySnapshot_v1';
-
-const BACKUP_FORMAT_ID = 'zhongri-backup';
-const BACKUP_FORMAT_VERSION = 10;
-
-const USER_WORDS_STORAGE_KEY = 'userWords_v1';
-const WORD_OVERRIDES_STORAGE_KEY = 'wordOverrides_v1';
-const LEGACY_WORD_DB_STORAGE_KEY = 'myWordDB_v3';
-const WORD_STORAGE_VERSION_KEY = 'wordStorageVersion';
-const WORD_STORAGE_VERSION = 1;
-const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
-
-const CORE_UTILS = globalThis.ZhongriCoreUtils;
-const HAPTICS = globalThis.ZhongriHaptics;
-const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
-    version: 'æœªçŸ¥ç‰ˆæœ¬',
-    build: 'æœ¬åœ°ç¼“å­˜',
-    publishedAt: null
-});
-const ROTE_CORE = globalThis.RoteLearningCore;
-const MATHJAX_SOURCE =
-    'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
-
-let mathJaxLoadPromise = null;
-
-if (!CORE_UTILS) {
-    throw new Error('é’Ÿæ—¥å…¬å…±å·¥å…·æ¨¡å—åŠ è½½å¤±è´¥');
-}
-
-if (!HAPTICS) {
-    throw new Error('é’Ÿæ—¥è§¦æ„Ÿæ¨¡å—åŠ è½½å¤±è´¥');
-}
-
-if (!ROTE_CORE) {
-    throw new Error('å¾ªç¯å¼ºè®°æ ¸å¿ƒæ¨¡å—åŠ è½½å¤±è´¥');
-}
-
-const {
-    cloneDataValue,
-    escapeHTML,
-    escapeRegExp,
-    hashStableText,
-    normalizeEntryText
-} = CORE_UTILS;
-
-const loadMathJax = () => {
-    if (window.MathJax?.typesetPromise) {
-        return Promise.resolve(window.MathJax);
-    }
-
-    if (mathJaxLoadPromise) {
-        return mathJaxLoadPromise;
-    }
-
-    mathJaxLoadPromise = new Promise((resolve, reject) => {
-        const existingScript =
-            document.getElementById('MathJax-script');
-        const script =
-            existingScript || document.createElement('script');
-
-        const handleLoaded = () => {
-            if (window.MathJax?.typesetPromise) {
-                resolve(window.MathJax);
-                return;
-            }
-            script.remove();
-            mathJaxLoadPromise = null;
-            reject(new Error('MathJax åˆå§‹åŒ–å¤±è´¥'));
-        };
-
-        const handleError = () => {
-            script.remove();
-            mathJaxLoadPromise = null;
-            reject(new Error('MathJax ä¸‹è½½å¤±è´¥'));
-        };
-
-        script.addEventListener('load', handleLoaded, { once: true });
-        script.addEventListener('error', handleError, { once: true });
-
-        if (!existingScript) {
-            script.id = 'MathJax-script';
-            script.async = true;
-            script.src = MATHJAX_SOURCE;
-            document.head.appendChild(script);
-        }
-    });
-
-    return mathJaxLoadPromise;
-};
-
-const BACKUP_PREFERENCE_KEYS = Object.freeze([
-    'theme',
-    'langMode',
-    'autoSpeak',
-    'hapticsEnabled',
-    'showRoots',
-        'darkBtnStyle',
-    'postponeTested',
-    'wordOrderMode',
-    'skipMastered',
-    'useRubyRender',
-    'ttsEngine',
-    'displayMode',
-    'lastCustomGroupTxt',
-    'lastCustomGroupVal',
-    'lastSelectedFolder',
-    'lastTestDisplay',
-    'lastTestRange'
-]);
-const createRandomWordId = () => {
-    if (
-        typeof crypto !== 'undefined' &&
-        typeof crypto.randomUUID === 'function'
-    ) {
-        return `user-${crypto.randomUUID()}`;
-    }
-
-    return (
-        `user-${Date.now().toString(36)}-` +
-        Math.random().toString(36).slice(2, 10)
-    );
-};
-
-const createFallbackBuiltInWordId = entry => {
-    const lang = entry?.lang === 'en' ? 'en' : 'ja';
-    const word = String(entry?.word || '').normalize('NFKC').trim();
-    const reading = lang === 'en'
-        ? String(entry?.phonetic || '').normalize('NFKC').trim()
-        : String(entry?.kana || '').normalize('NFKC').trim();
-
-    return `builtin-${lang}-${hashStableText(`${lang}|${word}|${reading}`)}`;
-};
-
-const ensureStableWordId = (
-    entry,
-    { builtInHint = false } = {}
-) => {
-    if (!entry || typeof entry !== 'object') {
-        return '';
-    }
-
-    const existingId = String(entry._id || '').trim();
-
-    if (existingId) {
-        entry._id = existingId;
-        return existingId;
-    }
-
-    const isBuiltIn =
-        builtInHint ||
-        entry.builtIn === true;
-
-    entry._id = isBuiltIn
-        ? createFallbackBuiltInWordId(entry)
-        : createRandomWordId();
-
-    return entry._id;
-};
-
-const getStableWordId = entry => {
-    return ensureStableWordId(entry, {
-        builtInHint: entry?.builtIn === true
-    });
-};
-
-const normalizeWordAliases = value => {
-    const source = Array.isArray(value)
-        ? value
-        : String(value ?? '').split(/[ã€,ï¼Œ;ï¼›|ï½œ/]+/);
-
-    return [
-        ...new Set(
-            source
-                .map(item => String(item ?? '').normalize('NFKC').trim())
-                .filter(Boolean)
-        )
-    ].slice(0, 24);
-};
-
-const normalizeReviewStatus = value => {
-    const normalized = String(value || '').trim().toLowerCase();
-
-    return ['draft', 'reviewed', 'verified'].includes(normalized)
-        ? normalized
-        : 'draft';
-};
-
-const normalizeWordSources = value => {
-    const source = Array.isArray(value)
-        ? value
-        : String(value ?? '').split(/[\n;ï¼›|ï½œ]+/);
-
-    return [
-        ...new Set(
-            source
-                .map(item => {
-                    if (typeof item === 'string') {
-                        return item.trim();
-                    }
-
-                    if (item && typeof item === 'object') {
-                        return String(
-                            item.name ||
-                            item.source ||
-                            item.title ||
-                            ''
-                        ).trim();
-                    }
-
-                    return '';
-                })
-                .filter(Boolean)
-        )
-    ].slice(0, 20);
-};
-
-const normalizeHeadword = (value, lang = 'ja') => {
-    let text = normalizeEntryText(value)
-        .replace(/[â€œâ€]/g, '"')
-        .replace(/[â€˜â€™]/g, "'")
-        .replace(/\s*([-â€â€‘â€’â€“â€”])\s*/g, '-')
-        .trim();
-
-    if (lang === 'en') {
-        text = text
-            .replace(/\s*'\s*/g, "'")
-            .replace(/\s+/g, ' ');
-    }
-
-    return text;
-};
-
-const normalizeWordType = (value) => {
-    const aliasMap = new Map([
-        ['å', 'åè¯'],
-        ['åè¯', 'åè¯'],
-        ['åè©', 'åè¯'],
-        ['noun', 'åè¯'],
-        ['n', 'åè¯'],
-        ['åŠ¨', 'åŠ¨è¯'],
-        ['å‹•', 'åŠ¨è¯'],
-        ['åŠ¨è¯', 'åŠ¨è¯'],
-        ['å‹•è©', 'åŠ¨è¯'],
-        ['verb', 'åŠ¨è¯'],
-        ['v', 'åŠ¨è¯'],
-        ['å½¢', 'å½¢å®¹è¯'],
-        ['å½¢å®¹è¯', 'å½¢å®¹è¯'],
-        ['å½¢å®¹è©', 'å½¢å®¹è¯'],
-        ['adjective', 'å½¢å®¹è¯'],
-        ['adj', 'å½¢å®¹è¯'],
-        ['å½¢åŠ¨', 'å½¢å®¹åŠ¨è¯'],
-        ['å½¢å‹•', 'å½¢å®¹åŠ¨è¯'],
-        ['å½¢å®¹åŠ¨è¯', 'å½¢å®¹åŠ¨è¯'],
-        ['å½¢å®¹å‹•è©', 'å½¢å®¹åŠ¨è¯'],
-        ['ãƒŠå½¢å®¹è¯', 'å½¢å®¹åŠ¨è¯'],
-        ['ãƒŠå½¢å®¹è©', 'å½¢å®¹åŠ¨è¯'],
-        ['å‰¯', 'å‰¯è¯'],
-        ['å‰¯è¯', 'å‰¯è¯'],
-        ['å‰¯è©', 'å‰¯è¯'],
-        ['adverb', 'å‰¯è¯'],
-        ['adv', 'å‰¯è¯'],
-        ['ä»£', 'ä»£è¯'],
-        ['ä»£è¯', 'ä»£è¯'],
-        ['ä»£è©', 'ä»£è¯'],
-        ['pronoun', 'ä»£è¯'],
-        ['pron', 'ä»£è¯'],
-        ['ä»‹è¯', 'ä»‹è¯'],
-        ['ä»‹è©', 'ä»‹è¯'],
-        ['å‰ç½®è¯', 'ä»‹è¯'],
-        ['å‰ç½®è©', 'ä»‹è¯'],
-        ['preposition', 'ä»‹è¯'],
-        ['prep', 'ä»‹è¯'],
-        ['è¿è¯', 'è¿è¯'],
-        ['é€£è©', 'è¿è¯'],
-        ['æ¥ç»­è¯', 'è¿è¯'],
-        ['æ¥ç¶šè©', 'è¿è¯'],
-        ['conjunction', 'è¿è¯'],
-        ['conj', 'è¿è¯'],
-        ['åŠ©è¯', 'åŠ©è¯'],
-        ['åŠ©è©', 'åŠ©è¯'],
-        ['åŠ©åŠ¨è¯', 'åŠ©åŠ¨è¯'],
-        ['åŠ©å‹•è©', 'åŠ©åŠ¨è¯'],
-        ['æ„Ÿå¹è¯', 'æ„Ÿå¹è¯'],
-        ['æ„Ÿå˜†è©', 'æ„Ÿå¹è¯'],
-        ['å† è¯', 'å† è¯'],
-        ['å† è©', 'å† è¯'],
-        ['article', 'å† è¯'],
-        ['çŸ­è¯­', 'çŸ­è¯­'],
-        ['è¯ç»„', 'çŸ­è¯­'],
-        ['å›ºå®šæ­é…', 'å›ºå®šæ­é…'],
-        ['æƒ¯ç”¨è¯­', 'æƒ¯ç”¨è¯­'],
-        ['æ…£ç”¨å¥', 'æƒ¯ç”¨è¯­'],
-        ['ç†Ÿè¯­', 'ç†Ÿè¯­'],
-        ['ç†Ÿèª', 'ç†Ÿè¯­'],
-        ['æ•°è¯', 'æ•°è¯'],
-        ['æ•°è©', 'æ•°è¯'],
-        ['é‡è¯', 'é‡è¯'],
-        ['é‡è©', 'é‡è¯'],
-        ['æ¥å¤´è¯', 'æ¥å¤´è¯'],
-        ['æ¥é ­è¾', 'æ¥å¤´è¯'],
-        ['æ¥å°¾è¯', 'æ¥å°¾è¯'],
-        ['æ¥å°¾è¾', 'æ¥å°¾è¯']
-    ]);
-
-    const source = normalizeEntryText(value)
-        .replace(/[ï¼/ã€ï¼Œ,;ï¼›|ï¼‹+&ï¼†]+/g, 'ãƒ»')
-        .replace(/\s*ãƒ»\s*/g, 'ãƒ»')
-        .replace(/ãƒ»{2,}/g, 'ãƒ»')
-        .replace(/^ãƒ»|ãƒ»$/g, '');
-
-    const parts = source
-        .split('ãƒ»')
-        .map(part => {
-            let token = part
-                .replace(/\s+/g, '')
-                .replace(/[.]$/g, '')
-                .replace(/åè©/g, 'åè¯')
-                .replace(/å‹•è©/g, 'åŠ¨è¯')
-                .replace(/å½¢å®¹è©/g, 'å½¢å®¹è¯')
-                .replace(/å½¢å®¹å‹•è©/g, 'å½¢å®¹åŠ¨è¯')
-                .replace(/å‰¯è©/g, 'å‰¯è¯')
-                .replace(/ä»£è©/g, 'ä»£è¯')
-                .replace(/ä»‹è©/g, 'ä»‹è¯')
-                .replace(/æ¥ç¶šè©/g, 'è¿è¯')
-                .replace(/åŠ©å‹•è©/g, 'åŠ©åŠ¨è¯')
-                .replace(/è‡ªå‹•è©/g, 'è‡ªåŠ¨è¯')
-                .replace(/ä»–å‹•è©/g, 'ä»–åŠ¨è¯')
-                .replace(/ã‚µå¤‰/g, 'ã‚µå˜');
-
-            const lower = token.toLowerCase();
-
-            if (aliasMap.has(token)) {
-                return aliasMap.get(token);
-            }
-
-            if (aliasMap.has(lower)) {
-                return aliasMap.get(lower);
-            }
-
-            const suruMatch = token.match(
-                /^ã‚µå˜(?:åŠ¨è¯)?(?:ã™ã‚‹)?([è‡ªä»–]?)$/
-            );
-
-            if (suruMatch) {
-                return `ã‚µå˜åŠ¨è¯ã™ã‚‹${suruMatch[1] || ''}`;
-            }
-
-            if (/^å½¢åŠ¨(?:è¯)?$/.test(token)) {
-                return 'å½¢å®¹åŠ¨è¯';
-            }
-
-            return token;
-        })
-        .filter(Boolean);
-
-    return [...new Set(parts)].join('ãƒ»');
-};
-
-const normalizeMeaningText = (value) => {
-    const source = normalizeEntryText(value, false)
-        .replace(/\r?\n+/g, 'ï¼›')
-        .replace(/[ã€,ï¼Œ;ï¼›]+/g, 'ï¼›')
-        .replace(/\s*ï¼›\s*/g, 'ï¼›')
-        .replace(/ï¼›{2,}/g, 'ï¼›')
-        .replace(/^ï¼›|ï¼›$/g, '');
-
-    return [...new Set(
-        source
-            .split('ï¼›')
-            .map(part => part.trim())
-            .filter(Boolean)
-    )].join('ï¼›');
-};
-
-const normalizePhoneticText = (value) => {
-    let text = normalizeEntryText(value, false)
-        .replace(/^\s*[\/\[ã€(ï¼ˆ]+/, '')
-        .replace(/[\/\]ã€‘)ï¼‰]+\s*$/, '')
-        .trim();
-
-    if (!text) {
-        return '';
-    }
-
-    text = text.replace(/\s+/g, ' ');
-
-    return `/${text}/`;
-};
-
-const normalizeKanaText = (value) => {
-    return normalizeEntryText(value)
-        .replace(/[ã€ã€‘\[\]()ï¼ˆï¼‰]/g, '')
-        .replace(/\s+/g, '');
-};
-
-const normalizeRootsText = (value) => {
-    const text = normalizeEntryText(value, false)
-        .replace(/[ï¼ˆ]/g, '(')
-        .replace(/[ï¼‰]/g, ')')
-        .replace(/[â€â€‘â€’â€“â€”âˆ’]+/g, '-')
-        .replace(/\s*-\s*/g, '-')
-        .replace(/-{2,}/g, '-')
-        .trim();
-
-    if (
-        /^(?:æ— |æš‚æ— |ä¸ç¡®å®š|æ— æ³•å¯é æ‹†è§£|none|null|n\/a)$/i
-            .test(text)
-    ) {
-        return '';
-    }
-
-    return text;
-};
-
-const WORD_LEVEL_OPTIONS = Object.freeze({
-    ja: Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']),
-    en: Object.freeze(['CET-4', 'CET-6'])
-});
-
-const DIFFICULTY_LABELS = Object.freeze({
-    0: 'éš¾åº¦æœªå®š',
-    1: 'å…¥é—¨',
-    2: 'è¾ƒæ˜“',
-    3: 'ä¸­ç­‰',
-    4: 'è¾ƒéš¾',
-    5: 'å›°éš¾'
-});
-
-const normalizeWordLevel = (value, lang = 'ja') => {
-    const raw = normalizeEntryText(value)
-        .toUpperCase()
-        .replace(/\s+/g, '')
-        .replace(/^JLPT[-_]?/, '')
-        .replace(/^CET[-_]?([46])$/, 'CET-$1')
-        .replace(/^å¤§å­¦è‹±è¯­([å››å…­])çº§$/, match => {
-            return match.includes('å››') ? 'CET-4' : 'CET-6';
-        });
-
-    if (!raw) {
-        return '';
-    }
-
-    if (lang === 'ja') {
-        const normalized = /^N[1-5]$/.test(raw)
-            ? raw
-            : '';
-
-        return normalized;
-    }
-
-    if (/^(?:CET-?4|å››çº§)$/.test(raw)) {
-        return 'CET-4';
-    }
-
-    if (/^(?:CET-?6|å…­çº§)$/.test(raw)) {
-        return 'CET-6';
-    }
-
-    return '';
-};
-
-const normalizeSourceLevels = (value, lang = 'ja') => {
-    const source = Array.isArray(value) ? value : [];
-
-    return source
-        .map(item => {
-            if (typeof item === 'string') {
-                const level = normalizeWordLevel(item, lang);
-                return level ? { source: '', level } : null;
-            }
-
-            if (!item || typeof item !== 'object') {
-                return null;
-            }
-
-            const level = normalizeWordLevel(item.level, lang);
-
-            if (!level) {
-                return null;
-            }
-
-            return {
-                source: String(item.source || '').trim(),
-                level
-            };
-        })
-        .filter(Boolean)
-        .slice(0, 20);
-};
-
-const normalizeWordDifficulty = value => {
-    const parsed = Number.parseInt(value, 10);
-
-    if (!Number.isFinite(parsed)) {
-        return 0;
-    }
-
-    return Math.min(5, Math.max(0, parsed));
-};
-
-const normalizeWordTags = value => {
-    const source = Array.isArray(value)
-        ? value
-        : String(value ?? '')
-            .split(/[ã€,ï¼Œ;ï¼›|ï½œ/]+/);
-
-    return [
-        ...new Set(
-            source
-                .map(tag => normalizeEntryText(tag))
-                .filter(Boolean)
-        )
-    ].slice(0, 12);
-};
-
-const WORD_FREQUENCY_VALUES = Object.freeze([
-    'é«˜é¢‘',
-    'ä¸­é¢‘',
-    'ä½é¢‘'
-]);
-
-const WORD_SPECIAL_TAG_PRIORITY = Object.freeze([
-    'ç‰‡å‡åè¯',
-    'æ‹Ÿå£°æ‹Ÿæ€',
-    'ç¼©ç•¥è¯­',
-    'å£è¯­',
-    'å°Šæ•¬è¯­',
-    'è°¦è®©è¯­',
-    'ç¤¼è²Œè¯­',
-    'æƒ¯ç”¨è¡¨è¾¾',
-    'æ¥å¤´è¯',
-    'æ¥å°¾è¯',
-    'æ„è¯æˆåˆ†',
-    'å¼‚ä½“å†™æ³•'
-]);
-
-const normalizeWordFrequency = value => {
-    const normalized = String(value ?? '')
-        .normalize('NFKC')
-        .trim()
-        .toLowerCase();
-
-    if (!normalized) {
-        return '';
-    }
-
-    if (
-        normalized.includes('é«˜é¢‘') ||
-        normalized === 'high' ||
-        normalized.includes('high-frequency') ||
-        normalized.includes('high frequency')
-    ) {
-        return 'é«˜é¢‘';
-    }
-
-    if (
-        normalized.includes('ä¸­é¢‘') ||
-        normalized === 'medium' ||
-        normalized === 'mid' ||
-        normalized.includes('medium-frequency') ||
-        normalized.includes('medium frequency')
-    ) {
-        return 'ä¸­é¢‘';
-    }
-
-    if (
-        normalized.includes('ä½é¢‘') ||
-        normalized === 'low' ||
-        normalized.includes('low-frequency') ||
-        normalized.includes('low frequency')
-    ) {
-        return 'ä½é¢‘';
-    }
-
-    return '';
-};
-
-const isRedundantWordMetadataTag = (tag, lang = 'ja') => {
-    const normalized = normalizeEntryText(tag)
-        .normalize('NFKC')
-        .trim();
-    const compactTag = normalized
-        .toUpperCase()
-        .replace(/[\s_-]+/g, '');
-
-    return Boolean(
-        normalizeWordLevel(normalized, lang) ||
-        normalizeWordFrequency(normalized) ||
-        /^JLPT(?:è¯æ±‡)?$/i.test(normalized) ||
-        /^(?:å¤§å­¦è‹±è¯­|å¤§å­¦è‹±è¯­è¯æ±‡|å››å…­çº§|CET)$/i.test(normalized) ||
-        compactTag === 'éš¾åº¦æœªå®š' ||
-        Object.values(DIFFICULTY_LABELS).includes(normalized)
-    );
-};
-
-const normalizeWordPitch = value => {
-    return normalizeEntryText(value || '', false)
-        .replace(/\s+/g, '')
-        .slice(0, 24);
-};
-
-const CIRCLED_PITCH_NUMBERS = Object.freeze([
-    'â“ª', 'â‘ ', 'â‘¡', 'â‘¢', 'â‘£', 'â‘¤', 'â‘¥',
-    'â‘¦', 'â‘§', 'â‘¨', 'â‘©', 'â‘ª', 'â‘«', 'â‘¬',
-    'â‘­', 'â‘®', 'â‘¯', 'â‘°', 'â‘±', 'â‘²', 'â‘³'
-]);
-
-const formatWordPitchDisplay = value => {
-    const normalized = normalizeWordPitch(value);
-
-    if (!normalized) {
-        return '';
-    }
-
-    const numberMatches = normalized.match(/\d{1,2}/g);
-
-    if (numberMatches?.length) {
-        return numberMatches
-            .map(token => {
-                const number = Number.parseInt(token, 10);
-
-                return CIRCLED_PITCH_NUMBERS[number] || token;
-            })
-            .join(' ');
-    }
-
-    const circledMatches = normalized.match(
-        /[â“ªâ‘ â‘¡â‘¢â‘£â‘¤â‘¥â‘¦â‘§â‘¨â‘©â‘ªâ‘«â‘¬â‘­â‘®â‘¯â‘°â‘±â‘²â‘³]/g
-    );
-
-    if (circledMatches?.length) {
-        return circledMatches.join(' ');
-    }
-
-    return normalized;
-};
-
-const normalizeWordSpecialTags = value => {
-    const normalized = normalizeWordTags(value).map(tag => {
-        if (/ã‚«ã‚¿ã‚«ãƒŠ|ç‰‡å‡å/.test(tag)) {
-            return 'ç‰‡å‡åè¯';
-        }
-
-        if (/ã‚ªãƒãƒãƒˆãƒš|æ‹Ÿå£°|æ“¬å£°|æ‹Ÿæ€|æ“¬æ…‹/.test(tag)) {
-            return 'æ‹Ÿå£°æ‹Ÿæ€';
-        }
-
-        if (/ç•¥èª|ç¼©ç•¥|ç¸®ç•¥/.test(tag)) {
-            return 'ç¼©ç•¥è¯­';
-        }
-
-        if (/å£èª|å£è¯­|å£é ­èª|å£å¤´è¯­/.test(tag)) {
-            return 'å£è¯­';
-        }
-
-        if (/å°Šæ•¬èª|å°Šæ•¬è¯­/.test(tag)) {
-            return 'å°Šæ•¬è¯­';
-        }
-
-        if (/è¬™è­²èª|è°¦è®©è¯­|è¬™è®“èª/.test(tag)) {
-            return 'è°¦è®©è¯­';
-        }
-
-        if (/ä¸å¯§èª|ç¤¼è²Œè¯­|ç¦®è²Œèª/.test(tag)) {
-            return 'ç¤¼è²Œè¯­';
-        }
-
-        if (/æ…£ç”¨|æƒ¯ç”¨|æˆå¥/.test(tag)) {
-            return 'æƒ¯ç”¨è¡¨è¾¾';
-        }
-
-        if (/æ¥é ­|æ¥å¤´/.test(tag)) {
-            return 'æ¥å¤´è¯';
-        }
-
-        if (/æ¥å°¾/.test(tag)) {
-            return 'æ¥å°¾è¯';
-        }
-
-        if (/é€ èª|æ„è¯|æ§‹è©|é€ è¯|é€ è©/.test(tag)) {
-            return 'æ„è¯æˆåˆ†';
-        }
-
-        if (/ç•°ä½“|å¼‚ä½“|ç•°è¡¨è¨˜|å¼‚å†™|ç•°å¯«/.test(tag)) {
-            return 'å¼‚ä½“å†™æ³•';
-        }
-
-        return tag;
-    });
-
-    const unique = [...new Set(normalized.filter(Boolean))];
-    const priority = new Map(
-        WORD_SPECIAL_TAG_PRIORITY.map((tag, index) => [tag, index])
-    );
-
-    return unique
-        .sort((left, right) => {
-            const leftIndex = priority.has(left)
-                ? priority.get(left)
-                : Number.MAX_SAFE_INTEGER;
-            const rightIndex = priority.has(right)
-                ? priority.get(right)
-                : Number.MAX_SAFE_INTEGER;
-
-            if (leftIndex !== rightIndex) {
-                return leftIndex - rightIndex;
-            }
-
-            return left.localeCompare(right, 'zh-CN');
-        })
-        .slice(0, 12);
-};
-
-const normalizeWordSourceText = (value, maxLength = 160) => {
-    return normalizeEntryText(value || '').slice(0, maxLength);
-};
-
-const getDifficultyLabel = value => {
-    return DIFFICULTY_LABELS[
-        normalizeWordDifficulty(value)
-    ] || DIFFICULTY_LABELS[0];
-};
-
-const getWordMetadataHTML = (
-    entry = {},
-    {
-        compact = false,
-        showUnassigned = false,
-        includeTags = false,
-        specialTagLimit = null
-    } = {}
-) => {
-    const lang = entry.lang === 'en' ? 'en' : 'ja';
-    const level = normalizeWordLevel(entry.level, lang);
-    const frequency = normalizeWordFrequency(entry.frequency);
-    const difficulty = normalizeWordDifficulty(
-        entry.difficulty
-    );
-    const tags = normalizeWordTags(entry.tags)
-        .filter(tag => !isRedundantWordMetadataTag(tag, lang));
-    const specialTags = normalizeWordSpecialTags(
-        entry.specialTags
-    ).filter(tag => !isRedundantWordMetadataTag(tag, lang));
-    const maxSpecialTags = Number.isInteger(specialTagLimit)
-        ? Math.max(0, specialTagLimit)
-        : (compact ? 1 : 2);
-    const chips = [];
-
-    if (level) {
-        chips.push(
-            `<span class="word-meta-chip is-level">${escapeHTML(level)}</span>`
-        );
-    } else if (showUnassigned) {
-        chips.push(
-            '<span class="word-meta-chip is-muted">æœªåˆ†çº§</span>'
-        );
-    }
-
-    if (frequency) {
-        const frequencyClass = {
-            'é«˜é¢‘': 'frequency-high',
-            'ä¸­é¢‘': 'frequency-medium',
-            'ä½é¢‘': 'frequency-low'
-        }[frequency] || '';
-
-        chips.push(
-            `<span class="word-meta-chip is-frequency ${frequencyClass}">` +
-                `${escapeHTML(frequency)}` +
-            '</span>'
-        );
-    }
-
-    if (difficulty > 0) {
-        chips.push(
-            `<span class="word-meta-chip is-difficulty difficulty-${difficulty}">` +
-                `${compact ? difficulty + 'Â·' + escapeHTML(getDifficultyLabel(difficulty)) : escapeHTML(getDifficultyLabel(difficulty))}` +
-            '</span>'
-        );
-    } else if (showUnassigned && !compact) {
-        chips.push(
-            '<span class="word-meta-chip is-muted">éš¾åº¦æœªå®š</span>'
-        );
-    }
-
-    specialTags
-        .slice(0, maxSpecialTags)
-        .forEach(tag => {
-            chips.push(
-                `<span class="word-meta-chip is-special">${escapeHTML(tag)}</span>`
-            );
-        });
-
-    if (includeTags) {
-        const specialTagSet = new Set(specialTags);
-
-        tags
-            .filter(tag => {
-                if (normalizeWordFrequency(tag)) {
-                    return false;
-                }
-
-                const normalizedSpecial =
-                    normalizeWordSpecialTags([tag])[0] || '';
-
-                return !specialTagSet.has(normalizedSpecial);
-            })
-            .slice(0, 4)
-            .forEach(tag => {
-                chips.push(
-                    `<span class="word-meta-chip is-tag">${escapeHTML(tag)}</span>`
-                );
-            });
-    }
-
-    return chips.join('');
-};
-
-const validateVocabularyData = (entries = []) => {
-    const issues = [];
-    const idMap = new Map();
-    const identityMap = new Map();
-
-    const addIssue = (
-        severity,
-        index,
-        word,
-        message,
-        field = ''
-    ) => {
-        issues.push({
-            severity,
-            index,
-            word: String(word || `ç¬¬ ${index + 1} æ¡`),
-            message,
-            field
-        });
-    };
-
-    entries.forEach((rawEntry, index) => {
-        const raw = rawEntry && typeof rawEntry === 'object'
-            ? rawEntry
-            : {};
-        const lang = raw.lang === 'en' ? 'en' : 'ja';
-        const normalized = normalizeWordEntry(
-            raw,
-            { preserveWord: true }
-        );
-        const wordLabel = normalized.word || `ç¬¬ ${index + 1} æ¡`;
-        const id = String(raw._id || '').trim();
-
-        if (!id) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                'ç¼ºå°‘ç¨³å®š IDï¼ˆ_idï¼‰',
-                '_id'
-            );
-        } else if (idMap.has(id)) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                `ç¨³å®š ID ä¸ç¬¬ ${idMap.get(id) + 1} æ¡é‡å¤ï¼š${id}`,
-                '_id'
-            );
-        } else {
-            idMap.set(id, index);
-        }
-
-        if (!normalized.word) {
-            addIssue('error', index, wordLabel, 'ç¼ºå°‘å•è¯', 'word');
-        }
-
-        if (!normalized.type) {
-            addIssue('error', index, wordLabel, 'ç¼ºå°‘è¯æ€§', 'type');
-        }
-
-        if (!normalized.meaning) {
-            addIssue('error', index, wordLabel, 'ç¼ºå°‘ä¸­æ–‡é‡Šä¹‰', 'meaning');
-        }
-
-        const identity =
-            `${lang}::${normalizeHeadword(normalized.word, lang).toLowerCase()}`;
-
-        if (normalized.word) {
-            if (identityMap.has(identity)) {
-                const firstIndex = identityMap.get(identity);
-                const bothBuiltIn =
-                    raw.builtIn === true &&
-                    entries[firstIndex]?.builtIn === true;
-
-                addIssue(
-                    bothBuiltIn ? 'error' : 'warning',
-                    index,
-                    wordLabel,
-                    `ä¸ç¬¬ ${firstIndex + 1} æ¡åŒè¯­è¨€åŒè¯é‡å¤`,
-                    'word'
-                );
-            } else {
-                identityMap.set(identity, index);
-            }
-        }
-
-        const rawLevel = normalizeEntryText(raw.level || '');
-        const normalizedLevel = normalizeWordLevel(rawLevel, lang);
-
-        if (rawLevel && !normalizedLevel) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                lang === 'en'
-                    ? 'çº§åˆ«åªèƒ½æ˜¯ CET-4 æˆ– CET-6'
-                    : 'çº§åˆ«åªèƒ½æ˜¯ N5ã€N4ã€N3ã€N2 æˆ– N1',
-                'level'
-            );
-        } else if (raw.builtIn === true && !normalizedLevel) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                'å†…ç½®è¯ç¼ºå°‘çº§åˆ«',
-                'level'
-            );
-        }
-
-        const rawDifficulty = raw.difficulty;
-        const difficulty = normalizeWordDifficulty(rawDifficulty);
-
-        if (
-            rawDifficulty !== undefined &&
-            rawDifficulty !== null &&
-            String(rawDifficulty).trim() !== '' &&
-            Number(rawDifficulty) !== 0 &&
-            (
-                !Number.isInteger(Number(rawDifficulty)) ||
-                Number(rawDifficulty) < 1 ||
-                Number(rawDifficulty) > 5
-            )
-        ) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                'éš¾åº¦å¿…é¡»æ˜¯ 1ï½5 çš„æ•´æ•°',
-                'difficulty'
-            );
-        } else if (raw.builtIn === true && difficulty === 0) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                'å†…ç½®è¯ç¼ºå°‘éš¾åº¦',
-                'difficulty'
-            );
-        }
-
-        if (lang === 'ja') {
-            const containsKanji =
-                /[\u3400-\u4DBF\u4E00-\u9FFFã€…ã€†ãƒ¶]/
-                    .test(normalized.word);
-
-            if (containsKanji && !normalized.kana) {
-                addIssue(
-                    'error',
-                    index,
-                    wordLabel,
-                    'æ—¥è¯­æ±‰å­—è¯ç¼ºå°‘å‡å',
-                    'kana'
-                );
-            }
-        } else if (!normalized.phonetic) {
-            addIssue(
-                raw.builtIn === true ? 'error' : 'warning',
-                index,
-                wordLabel,
-                'è‹±è¯­è¯ç¼ºå°‘éŸ³æ ‡',
-                'phonetic'
-            );
-        }
-
-        if (!normalized.example) {
-            addIssue(
-                'warning',
-                index,
-                wordLabel,
-                'ç¼ºå°‘ä¾‹å¥',
-                'example'
-            );
-        } else {
-            const exampleBlocks = normalized.example
-                .split('||')
-                .map(block => block.trim())
-                .filter(Boolean);
-
-            const missingTranslation = exampleBlocks.some(block => {
-                const divider = findExampleDividerIndex(block);
-                return divider <= 0 || divider >= block.length - 1;
-            });
-
-            if (missingTranslation) {
-                addIssue(
-                    'warning',
-                    index,
-                    wordLabel,
-                    'éƒ¨åˆ†ä¾‹å¥ç¼ºå°‘ä¸­æ–‡ç¿»è¯‘',
-                    'example'
-                );
-            }
-        }
-    });
-
-    const errors = issues.filter(issue => {
-        return issue.severity === 'error';
-    });
-    const warnings = issues.filter(issue => {
-        return issue.severity === 'warning';
-    });
-
-    return {
-        total: entries.length,
-        japanese: entries.filter(entry => {
-            return (entry?.lang || 'ja') === 'ja';
-        }).length,
-        english: entries.filter(entry => {
-            return entry?.lang === 'en';
-        }).length,
-        builtIn: entries.filter(entry => {
-            return entry?.builtIn === true;
-        }).length,
-        errors,
-        warnings,
-        issues,
-        passed: errors.length === 0
-    };
-};
-
-const findExampleDividerIndex = (block) => {
-    const spacedDivider = block.search(/\s\/\s/);
-
-    if (spacedDivider !== -1) {
-        return spacedDivider + 1;
-    }
-
-    for (
-        let index = block.lastIndexOf('/');
-        index !== -1;
-        index = block.lastIndexOf('/', index - 1)
-    ) {
-        const translation = block
-            .slice(index + 1)
-            .trim();
-
-        if (
-            translation &&
-            /[\u3400-\u4DBF\u4E00-\u9FFF]/
-                .test(translation)
-        ) {
-            return index;
-        }
-    }
-
-    return -1;
-};
-
-const normalizeExampleBlock = (value) => {
-    const block = normalizeEntryText(value, false)
-        .replace(/\r?\n+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    if (!block) {
-        return '';
-    }
-
-    const dividerIndex = findExampleDividerIndex(block);
-
-    if (dividerIndex <= 0 || dividerIndex >= block.length - 1) {
-        return block;
-    }
-
-    const original = block
-        .slice(0, dividerIndex)
-        .trim();
-
-    const translation = block
-        .slice(dividerIndex + 1)
-        .trim();
-
-    if (!original || !translation) {
-        return block;
-    }
-
-    return `${original} / ${translation}`;
-};
-
-const normalizeExampleText = (value, lang = '') => {
-    const source = String(value ?? '')
-        .normalize('NFC')
-        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-        .replace(/ï¼/g, '/')
-        .replace(/[ï½œ|]{2}/g, '||')
-        .trim();
-
-    if (!source) {
-        return '';
-    }
-
-    let blocks = source
-        .split(/\s*\|\|\s*/)
-        .map(block => block.trim())
-        .filter(Boolean);
-
-    const allBlocksHaveNoDivider = blocks.every(block => {
-        return findExampleDividerIndex(block) === -1;
-    });
-
-    /*
-     * åªåœ¨èƒ½å¤Ÿæ˜ç¡®åˆ¤æ–­â€œåŸæ–‡ + ä¸­æ–‡ç¿»è¯‘â€æ—¶ï¼Œ
-     * æ‰æŠŠç›¸é‚»çš„ä¸¤ä¸ª || åŒºå—é…æˆä¸€æ¡ä¾‹å¥ã€‚
-     * è¿™æ ·ä¸ä¼šæŠŠä¸¤ä¸ªç‹¬ç«‹å¤–è¯­ä¾‹å¥è¯¯æ‹¼æˆä¸€ç»„ç¿»è¯‘ã€‚
-     */
-    const canPairAsBilingual =
-        blocks.length >= 2 &&
-        blocks.length % 2 === 0 &&
-        allBlocksHaveNoDivider &&
-        blocks.every((block, index) => {
-            if (index % 2 === 1) {
-                return /[\u3400-\u4DBF\u4E00-\u9FFF]/
-                    .test(block);
-            }
-
-            if (lang === 'en') {
-                return /[A-Za-z]/.test(block);
-            }
-
-            if (lang === 'ja') {
-                return /[ã-ã‚–ã‚¡-ãƒºãƒ¼]/u.test(block);
-            }
-
-            return false;
-        });
-
-    if (canPairAsBilingual) {
-        const pairedBlocks = [];
-
-        for (let index = 0; index < blocks.length; index += 2) {
-            pairedBlocks.push(
-                `${blocks[index]} / ${blocks[index + 1]}`
-            );
-        }
-
-        blocks = pairedBlocks;
-    }
-
-    const normalizedBlocks = blocks
-        .map(normalizeExampleBlock)
-        .filter(Boolean);
-
-    return [...new Set(normalizedBlocks)].join(' || ');
-};
-
-const normalizeWordEntry = (
-    entry = {},
-    { preserveWord = false } = {}
-) => {
-    const lang = entry.lang === 'en' ? 'en' : 'ja';
-    const normalizedTags = normalizeWordTags(entry.tags);
-    const explicitSpecialTags = Array.isArray(entry.specialTags)
-        ? entry.specialTags.length > 0
-        : Boolean(String(entry.specialTags || '').trim());
-    const specialTagSource = explicitSpecialTags
-        ? entry.specialTags
-        : normalizedTags;
-    const normalizedSpecialTags = normalizeWordSpecialTags(
-        specialTagSource
-    );
-    const frequency =
-        normalizeWordFrequency(entry.frequency) ||
-        normalizeWordFrequency(
-            normalizedTags.join(' ')
-        );
-
-    const normalized = {
-        ...entry,
-        lang,
-        word: preserveWord
-            ? String(entry.word ?? '')
-            : normalizeHeadword(entry.word, lang),
-        type: normalizeWordType(entry.type),
-        meaning: normalizeMeaningText(entry.meaning),
-        example: normalizeExampleText(entry.example, lang),
-        folder: normalizeEntryText(entry.folder || ''),
-        level: normalizeWordLevel(entry.level, lang),
-        difficulty: normalizeWordDifficulty(entry.difficulty),
-        tags: normalizedTags,
-        frequency,
-        pitch: lang === 'ja'
-            ? normalizeWordPitch(
-                entry.pitch || entry.vocabPitch
-            )
-            : '',
-        specialTags: explicitSpecialTags
-            ? normalizedSpecialTags
-            : normalizedSpecialTags.filter(tag => {
-                return WORD_SPECIAL_TAG_PRIORITY.includes(tag);
-            }),
-        sourceId: normalizeWordSourceText(
-            entry.sourceId || entry.sourceID,
-            128
-        ),
-        sourceName: normalizeWordSourceText(
-            entry.sourceName,
-            120
-        ),
-        sourceVersion: normalizeWordSourceText(
-            entry.sourceVersion,
-            80
-        ),
-        aliases: normalizeWordAliases(entry.aliases),
-        sourceLevels: normalizeSourceLevels(entry.sourceLevels, lang),
-        reviewStatus: normalizeReviewStatus(entry.reviewStatus),
-        source: normalizeWordSources(entry.source),
-        dataVersion: Math.max(
-            1,
-            Number.parseInt(entry.dataVersion, 10) || 1
-        ),
-        builtIn: entry.builtIn === true
-    };
-
-    if (lang === 'en') {
-        normalized.phonetic = normalizePhoneticText(
-            entry.phonetic
-        );
-        normalized.roots = normalizeRootsText(entry.roots);
-    } else {
-        normalized.kana = normalizeKanaText(entry.kana);
-        normalized.roots = '';
-    }
-
-    return normalized;
-};
-
-const getWordEntryQuality = (entry = {}) => {
-    const normalized = normalizeWordEntry(entry);
-    const items = [];
-
-    const add = (level, text, field = '') => {
-        items.push({ level, text, field });
-    };
-
-    const missingBaseFields = [];
-
-    if (!normalized.word) {
-        missingBaseFields.push('å•è¯');
-        add('error', 'ç¼ºå°‘å•è¯', 'word');
-    }
-
-    if (!normalized.type) {
-        missingBaseFields.push('è¯æ€§');
-        add('error', 'ç¼ºå°‘è¯æ€§', 'type');
-    }
-
-    if (!normalized.meaning) {
-        missingBaseFields.push('é‡Šä¹‰');
-        add('error', 'ç¼ºå°‘ä¸­æ–‡é‡Šä¹‰', 'meaning');
-    }
-
-    if (missingBaseFields.length === 0) {
-        add('ok', 'å•è¯ã€è¯æ€§å’Œé‡Šä¹‰å®Œæ•´');
-    }
-
-    const typeParts = normalized.type
-        .split('ãƒ»')
-        .filter(Boolean);
-
-    const knownTypePattern =
-        /^(?:åè¯|åŠ¨è¯|å½¢å®¹è¯|å½¢å®¹åŠ¨è¯|å‰¯è¯|ä»£è¯|ä»‹è¯|è¿è¯|åŠ©è¯|åŠ©åŠ¨è¯|æ„Ÿå¹è¯|å† è¯|è‡ªåŠ¨è¯|ä»–åŠ¨è¯|çŸ­è¯­|å›ºå®šæ­é…|æƒ¯ç”¨è¯­|ç†Ÿè¯­|æ•°è¯|é‡è¯|æ¥å¤´è¯|æ¥å°¾è¯|ã‚µå˜åŠ¨è¯ã™ã‚‹[è‡ªä»–]?)$/;
-
-    if (
-        normalized.type &&
-        typeParts.some(type => {
-            return !knownTypePattern.test(type);
-        })
-    ) {
-        add(
-            'warn',
-            'æœ‰æ— æ³•è¯†åˆ«çš„è¯æ€§ï¼Œè¯·ç¡®è®¤å†™æ³•',
-            'type'
-        );
-    } else if (normalized.type) {
-        add('ok', 'è¯æ€§æ ¼å¼å¯ä»¥è¯†åˆ«');
-    }
-
-    if (normalized.lang === 'en') {
-        if (!normalized.phonetic) {
-            add('warn', 'ç¼ºå°‘éŸ³æ ‡ï¼Œä»å¯ä¿å­˜', 'phonetic');
-        } else if (!/^\/[^/]+\/$/.test(normalized.phonetic)) {
-            add('warn', 'éŸ³æ ‡æ ¼å¼å»ºè®®æ ¸å¯¹', 'phonetic');
-        } else {
-            add('ok', 'éŸ³æ ‡æ ¼å¼æ­£å¸¸');
-        }
-
-        if (normalized.roots) {
-            add(
-                'warn',
-                'AI è¯æ ¹ä»…ä¾›è¾…åŠ©ï¼Œå»ºè®®äººå·¥æ ¸å¯¹',
-                'roots'
-            );
-        } else {
-            add('info', 'è¯æ ¹ä¸ç¡®å®šæ—¶ç•™ç©ºæ˜¯æ­£å¸¸çš„');
-        }
-    } else {
-        const containsKanji =
-            /[\u3400-\u4DBF\u4E00-\u9FFFã€…ã€†ãƒ¶]/
-                .test(normalized.word);
-
-        if (containsKanji && !normalized.kana) {
-            add('warn', 'æ±‰å­—è¯ç¼ºå°‘å‡å', 'kana');
-        } else if (
-            normalized.kana &&
-            !/^[ã-ã‚–ã‚¡-ãƒºãƒ¼ãƒ»]+$/u.test(normalized.kana)
-        ) {
-            add('warn', 'å‡åä¸­å«æœ‰å¼‚å¸¸å­—ç¬¦', 'kana');
-        } else if (normalized.kana) {
-            add('ok', 'å‡åæ ¼å¼æ­£å¸¸');
-        }
-    }
-
-    if (!normalized.example) {
-        add('warn', 'ç¼ºå°‘ä¾‹å¥ï¼Œä»å¯ä¿å­˜', 'example');
-    } else {
-        const exampleBlocks = normalized.example
-            .split('||')
-            .map(block => block.trim())
-            .filter(Boolean);
-
-        const allHaveTranslation = exampleBlocks.every(block => {
-            const index = findExampleDividerIndex(block);
-
-            return (
-                index > 0 &&
-                index < block.length - 1
-            );
-        });
-
-        if (allHaveTranslation) {
-            add('ok', 'ä¾‹å¥åŒ…å«å¯¹åº”ç¿»è¯‘');
-        } else {
-            add(
-                'warn',
-                'éƒ¨åˆ†ä¾‹å¥ç¼ºå°‘ä¸­æ–‡ç¿»è¯‘',
-                'example'
-            );
-        }
-    }
-
-    if (normalized.level) {
-        add('ok', `çº§åˆ«ï¼š${normalized.level}`);
-    } else if (normalized.builtIn) {
-        add('warn', 'å†…ç½®è¯ç¼ºå°‘çº§åˆ«', 'level');
-    } else {
-        add('info', 'ä¸ªäººè¯æ±‡å¯ä»¥ä¸å¡«å†™è€ƒè¯•çº§åˆ«');
-    }
-
-    if (normalized.difficulty > 0) {
-        add(
-            'ok',
-            `éš¾åº¦ï¼š${getDifficultyLabel(normalized.difficulty)}`
-        );
-    } else if (normalized.builtIn) {
-        add('warn', 'å†…ç½®è¯ç¼ºå°‘éš¾åº¦', 'difficulty');
-    } else {
-        add('info', 'å°šæœªè®¾ç½®éš¾åº¦');
-    }
-
-    return {
-        normalized,
-        items,
-        errorCount: items.filter(item => {
-            return item.level === 'error';
-        }).length,
-        warningCount: items.filter(item => {
-            return item.level === 'warn';
-        }).length
-    };
-};
-
-const JAPANESE_RUBY_INSTRUCTION = `
-
-ã€æ—¥è¯­æ³¨éŸ³æ ¼å¼è§„åˆ™ã€‘
-å‡¡æ˜¯å›ç­”ä¸­å‡ºç°æ—¥è¯­ï¼Œæ‰€æœ‰åŒ…å«æ±‰å­—çš„æ—¥è¯­è¯è¯­éƒ½å¿…é¡»æ ‡æ³¨å‡åè¯»éŸ³ã€‚
-
-è¯·ä¸¥æ ¼ä½¿ç”¨â€œæ—¥è¯­åŸæ–‡ã€Šå‡åè¯»éŸ³ã€‹â€æ ¼å¼ï¼Œä¾‹å¦‚ï¼š
-æ—¥æœ¬èªã€Šã«ã»ã‚“ã”ã€‹
-å‹‰å¼·ã€Šã¹ã‚“ãã‚‡ã†ã€‹ã™ã‚‹
-é£Ÿã€ŠãŸã€‹ã¹ã‚‹
-æ°—æŒã€Šãã‚‚ã€‹ã¡
-ä¸€äººã€Šã²ã¨ã‚Šã€‹
-
-å¿…é¡»æ ¹æ®å¥å­è¯­å¢ƒé€‰æ‹©æ­£ç¡®è¯»éŸ³ã€‚
-çº¯å¹³å‡åã€çº¯ç‰‡å‡åå’Œä¸­æ–‡æ±‰å­—ä¸è¦æ ‡æ³¨ã€‚
-ä¸è¦ç›´æ¥è¾“å‡º HTMLã€ruby æ ‡ç­¾ã€æ‹¬å·è¯»éŸ³æˆ–å…¶ä»–æ³¨éŸ³æ ¼å¼ã€‚
-æ—¥è¯­æ±‰å­—ä¸èƒ½é—æ¼æ³¨éŸ³ã€‚`;
-
-const withJapaneseRubyInstruction = (prompt = '') => {
-    const basePrompt = prompt || 'ä½ æ˜¯ç²¾é€šå¤šè¯­è¨€çš„ç§äººå¤–æ•™ï¼Œè€å¿ƒè§£ç­”ç”¨æˆ·çš„ä»»ä½•è¯­è¨€å­¦ä¹ é—®é¢˜ã€‚';
-
-    if (basePrompt.includes('ã€æ—¥è¯­æ³¨éŸ³æ ¼å¼è§„åˆ™ã€‘')) {
-        return basePrompt;
-    }
-
-    return basePrompt + JAPANESE_RUBY_INSTRUCTION;
-};
-
-const renderAIMessageHTML = (text, targetWord = '') => {
-    /*
-     * AI æµå¼è¾“å‡ºå¶å°”ä¼šæ··å…¥é›¶å®½å­—ç¬¦ï¼Œ
-     * æˆ–ä½¿ç”¨å¤–è§‚ç›¸ä¼¼çš„å…¨è§’æ‹¬å·ã€‚
-     * å…ˆç»Ÿä¸€æ ¼å¼ï¼Œå†å¼€å§‹è½¬ä¹‰å’Œæ¸²æŸ“ã€‚
-     */
-    const normalizedText = String(text || '')
-        .normalize('NFC')
-        .replace(
-            /[\u200B-\u200D\u2060\uFEFF]/g,
-            ''
-        )
-        .replace(/[ã€ˆï¼œÂ«]/g, 'ã€Š')
-        .replace(/[ã€‰ï¼Â»]/g, 'ã€‹')
-        .replace(/ã€Š[\s\u00A0]+/g, 'ã€Š')
-        .replace(/[\s\u00A0]+ã€‹/g, 'ã€‹');
-
-    let html = escapeHTML(normalizedText);
-
-    const safeTargetWord =
-        escapeHTML(
-            String(targetWord || '')
-                .trim()
-                .replace(
-                    /[\u200B-\u200D\u2060\uFEFF]/g,
-                    ''
-                )
-        );
-
-    const rubyBlocks = [];
-
-    /*
-     * å°†æš‚å­˜çš„æ—¥è¯­æ³¨éŸ³ç»“æ„ä¿å­˜æˆå ä½ç¬¦ï¼Œ
-     * é¿å…åç»­æ ‡é¢˜ã€åŠ ç²—å’Œç›®æ ‡è¯é«˜äº®ç ´å rubyã€‚
-     */
-    const storeRuby = (
-        match,
-        baseText,
-        readingText
-    ) => {
-        const cleanBase =
-            String(baseText || '')
-                .trim();
-
-        const cleanReading =
-            String(readingText || '')
-                .trim();
-
-        const containsKanji =
-            /[\u3400-\u4DBF\u4E00-\u9FFFã€…ã€†ãƒ¶]/
-                .test(cleanBase);
-
-        if (
-            !containsKanji ||
-            !cleanReading
-        ) {
-            return match;
-        }
-
-        const token =
-            `@@JP_RUBY_${rubyBlocks.length}@@`;
-
-        let rubyHTML =
-            '<ruby class="jp-ruby">' +
-                '<rb>' +
-                    cleanBase +
-                '</rb>' +
-                '<rt>' +
-                    cleanReading +
-                '</rt>' +
-            '</ruby>';
-
-        /*
-         * ç›®æ ‡è¯ç»§ç»­ä¿ç•™åŸæ¥çš„èƒ¶å›Šé«˜äº®ã€‚
-         */
-        if (
-            safeTargetWord &&
-            (
-                safeTargetWord.includes(
-                    cleanBase
-                ) ||
-                cleanBase.includes(
-                    safeTargetWord
-                )
-            )
-        ) {
-            rubyHTML =
-                '<span class="ai-key-chip ai-key-chip-ruby">' +
-                    rubyHTML +
-                '</span>';
-        }
-
-        rubyBlocks.push(rubyHTML);
-
-        return token;
-    };
-
-        /*
-     * åªåŒ¹é…ç´§è´´æ³¨éŸ³æ‹¬å·çš„è¯ã€‚
-     *
-     * å¯ä»¥æ­£ç¡®å¤„ç†ï¼š
-     * é“ã€Šã¿ã¡ã€‹
-     * é“ ã€Šã¿ã¡ã€‹
-     * é£Ÿã¹ã‚‹ã€ŠãŸã¹ã‚‹ã€‹
-     *
-     * åŒæ—¶é¿å…æŠŠâ€œå¤œã®é“ã€Šã¿ã¡ã€‹â€
-     * æ•´ä½“è¯¯è®¤ä¸ºä¸€ä¸ªè¯ã€‚
-     */
-    html = html.replace(
-        /([\u3400-\u4DBF\u4E00-\u9FFFã€…ã€†ãƒ¶0-9ï¼-ï¼™]+(?:[ã-ã‚–ã‚¡-ãƒºãƒ¼]{1,6})?)[ \t\u00A0\u3000]*ã€Š([ã-ã‚–ã‚¡-ãƒºãƒ¼ãƒ» \t\u00A0\u3000]+?)ã€‹/g,
-        storeRuby
-    );
-
-    html = html
-        .replace(
-            /### (.*?)\n/g,
-            '<h4>$1</h4>\n'
-        )
-        .replace(
-            /\*\*(.*?)\*\*/g,
-            '<strong>$1</strong>'
-        )
-        .replace(
-            /\n/g,
-            '<br>'
-        );
-
-    /*
-     * é«˜äº®æ²¡æœ‰è¢«æ³¨éŸ³æ ‡è®°åŒ…ä½çš„ç›®æ ‡è¯ã€‚
-     */
-    if (safeTargetWord) {
-        const wordPattern =
-            new RegExp(
-                escapeRegExp(
-                    safeTargetWord
-                ),
-                'g'
-            );
-
-        html = html.replace(
-            wordPattern,
-            '<span class="ai-key-chip">' +
-                safeTargetWord +
-            '</span>'
-        );
-    }
-
-    /*
-     * æ¢å¤æš‚å­˜çš„ ruby æ³¨éŸ³ç»“æ„ã€‚
-     */
-    html = html.replace(
-        /@@JP_RUBY_(\d+)@@/g,
-        (match, index) => {
-            return (
-                rubyBlocks[
-                    Number(index)
-                ] ||
-                ''
-            );
-        }
-    );
-
-    return html;
-};
-
-window.createStarParticles = (el) => {
-    let rect = el.getBoundingClientRect();
-    for (let i = 0; i < 5; i++) {
-        let p = document.createElement('div'); 
-        p.className = 'star-particle';
-        p.style.left = (rect.left + rect.width / 2) + 'px'; 
-        p.style.top = (rect.top + rect.height / 2) + 'px';
-        let angle = Math.random() * Math.PI * 2; 
-        let dist = 25 + Math.random() * 25;
-        p.style.setProperty('--tx', Math.cos(angle) * dist + 'px'); 
-        p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
-        document.body.appendChild(p); 
-        setTimeout(() => p.remove(), 400);
-    }
-};
-
-// æ–°å¢ï¼šç”¨äºè®°å½•æ‰“å¼€å¼¹çª—å‰æœ€åæ“ä½œçš„ DOM å…ƒç´ 
-let previousFocusElement = null;
-
-window.toggleModal = (id, show) => {
-    let el = document.getElementById(id);
-    if (!el) return;
-
-    if (!show && id === 'ai-sheet-overlay') {
-        if (
-            typeof Controller !== 'undefined' &&
-            typeof Controller._saveCurrentChat === 'function'
-        ) {
-            Controller._saveCurrentChat();
-        }
-
-        const inputEl = document.getElementById('ai-chat-input');
-
-        if (inputEl) {
-            inputEl.value = '';
-        }
-    }
-    
-    if (show) {
-        // 1. ç„¦ç‚¹å€Ÿå‡ºï¼šä»…åœ¨å½“å‰æ²¡æœ‰ä»»ä½•å¼¹çª—å¼€å¯æ—¶è®°å½•ç„¦ç‚¹
-        if (document.querySelectorAll('.modal-overlay.active').length === 0) {
-            previousFocusElement = document.activeElement;
-        }
-        el.classList.add('active');
-        
-        // 2. ç„¦ç‚¹å…¥åœºï¼šå»¶è¿Ÿç­‰å¾… CSS åŠ¨ç”»ç”Ÿæ•ˆåï¼Œè‡ªåŠ¨èšç„¦å¼¹çª—å†…ç¬¬ä¸€ä¸ªå¯äº¤äº’å…ƒç´ 
-        setTimeout(() => {
-            let focusable = Array.from(el.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-                                 .filter(node => node.offsetParent !== null);
-            
-            if (focusable.length > 0 && !el.contains(document.activeElement)) {
-                focusable[0].focus();
-            }
-        }, 100);
-        
-    } else {
-        el.classList.remove('active');
-        
-        // 3. ç„¦ç‚¹å½’è¿˜ï¼šå½“æ‰€æœ‰å¼¹çª—éƒ½å…³é—­æ—¶ï¼Œå°†ç„¦ç‚¹è¿˜ç»™è§¦å‘å¼¹çª—çš„åŸå…ƒç´ 
-        if (document.querySelectorAll('.modal-overlay.active').length === 0 && previousFocusElement) {
-            previousFocusElement.focus();
-            previousFocusElement = null;
-        }
-    }
-    
-    if (document.querySelectorAll('.modal-overlay.active').length > 0) {
-        document.body.classList.add('modal-open');
-    } else {
-        document.body.classList.remove('modal-open');
-    }
-};
-
-
-window.showToast = (msg) => {
-    let t = document.getElementById('toast');
-    t.innerText = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2000);
-};
-
-window.showConfirm = (title, msg, onConfirm) => {
-    document.getElementById('dialog-title').innerHTML = title;
-    document.getElementById('dialog-msg').innerHTML = msg;
-    window.toggleModal('dialog-overlay', true);
-    document.getElementById('dialog-confirm').onclick = () => { Hardware.vibrate(15); window.toggleModal('dialog-overlay', false); onConfirm(); };
-    document.getElementById('dialog-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('dialog-overlay', false); };
-};
-
-window.showPrompt = (title, defaultVal, onConfirm) => {
-    const titleEl = document.getElementById('prompt-title');
-    const helperEl = document.getElementById('prompt-helper');
-    const iconEl = document.getElementById('prompt-icon');
-    const visibilityBtn = document.getElementById('prompt-visibility');
-    const input = document.getElementById('prompt-input');
-
-    titleEl.textContent = title;
-    helperEl.hidden = true;
-    helperEl.textContent = '';
-
-    iconEl.textContent = 'edit';
-
-    input.type = 'text';
-    input.autocomplete = 'off';
-    input.placeholder = 'è¯·è¾“å…¥å†…å®¹';
-    input.value = defaultVal || '';
-
-    visibilityBtn.hidden = true;
-
-    window.toggleModal('prompt-overlay', true);
-
-    setTimeout(() => {
-        input.focus();
-        input.select();
-    }, 100);
-
-    document.getElementById('prompt-confirm').onclick = () => {
-        Hardware.vibrate(15);
-
-        const val = input.value.trim();
-
-        if (val) {
-            window.toggleModal('prompt-overlay', false);
-            onConfirm(val);
-        }
-    };
-
-    document.getElementById('prompt-cancel').onclick = () => {
-        Hardware.vibrate(10);
-        window.toggleModal('prompt-overlay', false);
-    };
-};
-
-const Nav = {
-    init() {
-        document.querySelectorAll('.nav-item').forEach(item => {
-            // 1. å“åº”æ‰‹æŒ‡æŒ‰ä¸‹ï¼šå®ç°â€œå³åˆ»åé¦ˆâ€ï¼Œå¹¶å°†éœ‡åŠ¨æ—¶é•¿ä» 10 å¢è‡³ 25ï¼Œç¡®ä¿æ‰€æœ‰æœºå‹éƒ½èƒ½æ„Ÿå—åˆ°å¹²è„†çš„éœ‡æ„Ÿ
-            item.addEventListener('pointerdown', (e) => {
-                if (e.pointerType === 'mouse' && e.button !== 0) return;
-                Hardware.playSound('click'); Hardware.vibrate(25);
-                let targetId = e.currentTarget.getAttribute('data-target');
-                let titleData = e.currentTarget.getAttribute('data-title');
-                this.switchTab(targetId, titleData, e.currentTarget);
-            });
-            
-            // 2. ä¿ç•™ click ç”¨äºå…¼å®¹ï¼šæ‹¦æˆªçœŸå®çš„ç‰©ç†æŠ¬æ‰‹ç‚¹å‡»(é˜²é‡å¤æ‰§è¡Œ)ï¼Œä½†æ”¾è¡Œä»£ç çº§åˆ«çš„è™šæ‹Ÿç‚¹å‡»(å¦‚ä½¿ç”¨ç”µè„‘é”®ç›˜å·¦å³æ–¹å‘é”®åˆ‡æ¢ Tab)
-            item.addEventListener('click', (e) => {
-                if (e.isTrusted) return; 
-                Hardware.playSound('click'); Hardware.vibrate(25);
-                let targetId = e.currentTarget.getAttribute('data-target');
-                let titleData = e.currentTarget.getAttribute('data-title');
-                this.switchTab(targetId, titleData, e.currentTarget);
-            });
-        });
-
-
-        let inputs = document.querySelectorAll('input[type="text"], textarea');
-let nav = document.getElementById('bottom-nav');
-inputs.forEach(el => {
-    el.addEventListener('focus', () => {
-        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
-        if(nav) nav.style.transform = 'translateY(150%)';
-    });
-    el.addEventListener('blur', () => {
-        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
-        if(nav) nav.style.transform = 'translateY(0)';
-    });
-});
-    },
-        switchTab(targetId, titleData, navItemEl) {
-        if (Model.state.batchMode || Model.state.manageMode) {
-            Model.state.batchMode = false;
-            Model.state.manageMode = false;
-            Model.state.selectedSet.clear();
-            
-            View.updateWordbankUI(); 
-            Model.state.renderedStartIndex = -1; 
-        }
-
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        if(navItemEl) navItemEl.classList.add('active');
-
-
-        document.querySelectorAll('.tab-content').forEach(el => {
-            el.classList.add('hidden');
-            el.classList.remove('active');
-        });
-        
-        let targetEl = document.getElementById(targetId);
-        if(targetEl) {
-            targetEl.classList.remove('hidden');
-            void targetEl.offsetWidth; 
-            targetEl.classList.add('active');
-        }
-
-        if (titleData) {
-            let [icon, text] = titleData.split('|');
-            let titleEl = document.getElementById('app-global-title');
-            if(titleEl) titleEl.innerHTML = `<span class="material-symbols-rounded" style="color:var(--tertiary); font-size:1.8rem; margin-right: 6px;">${icon}</span> ${text}`;
-        }
-
-        if (targetId === 'tab-home') {
-    View.renderDashboard();
-} else if (targetId === 'tab-ai-history') {
-    Controller.renderAIHistory();
-} else if (targetId === 'tab-wordbank') {
-            if(Model.state.renderedStartIndex === -1) {
-                View.resetWordbankRenderer();
-            } else {
-                View.renderVirtualGrid();
-            }
-        }
-        
-        window.dispatchEvent(new Event('scroll')); 
-    }
-};
-
-const BottomSheet = {
-    init() {
-        document.querySelectorAll('select:not(.no-bs)').forEach(sel => {
-            let facade = document.createElement('div');
-            facade.className = 'bs-facade';
-            facade.setAttribute('tabindex', '0');
-            facade.setAttribute('role', 'button');
-
-            if (sel.style.marginBottom) {
-                facade.style.marginBottom = sel.style.marginBottom;
-            }
-
-            if (sel.style.flex) {
-                facade.style.flex = sel.style.flex;
-            }
-
-            if (sel.style.width) {
-                facade.style.width = sel.style.width;
-            }
-
-            if (sel.style.marginTop) {
-                facade.style.marginTop = sel.style.marginTop;
-            }
-
-            let textSpan = document.createElement('span');
-            textSpan.className = 'bs-facade-text';
-            textSpan.innerText =
-                sel.options[sel.selectedIndex]?.text || '';
-
-            let arrowSpan = document.createElement('span');
-            arrowSpan.className = 'material-symbols-rounded';
-            arrowSpan.innerText = 'keyboard_arrow_down';
-            arrowSpan.style.opacity = '0.5';
-
-            facade.appendChild(textSpan);
-            facade.appendChild(arrowSpan);
-
-            sel.style.display = 'none';
-            sel.parentNode.insertBefore(facade, sel.nextSibling);
-
-            facade.addEventListener('click', () => {
-                Hardware.vibrate(10);
-                this.open(sel, textSpan);
-            });
-
-            sel.addEventListener('facade-update', () => {
-                textSpan.innerText =
-                    sel.options[sel.selectedIndex]?.text || '';
-            });
-        });
-
-        /*
-         * ä¸ºæ‰€æœ‰åº•éƒ¨æŠ½å±‰å®‰è£…å³ä¸Šè§’æ”¶èµ·æŒ‰é’®ï¼Œ
-         * åŒæ—¶ä¿ç•™åŸæœ‰çš„æ‹–åŠ¨å…³é—­èƒ½åŠ›ã€‚
-         */
-        this.installCollapseButtons();
-        this.initDragSupport();
-    },
-
-    installCollapseButtons() {
-        document
-            .querySelectorAll('.modal-overlay .bottom-sheet')
-            .forEach(sheet => {
-                const alreadyInstalled =
-                    Array.from(sheet.children).some(child => {
-                        return child.classList?.contains(
-                            'sheet-collapse-btn'
-                        );
-                    });
-
-                if (alreadyInstalled) {
-                    return;
-                }
-
-                const overlay =
-                    sheet.closest('.modal-overlay');
-
-                if (!overlay?.id) {
-                    return;
-                }
-
-                const button =
-                    document.createElement('button');
-
-                button.type = 'button';
-                button.className = 'sheet-collapse-btn';
-                button.title = 'æ”¶èµ·æŠ½å±‰';
-                button.setAttribute('aria-label', 'æ”¶èµ·æŠ½å±‰');
-                button.innerHTML = `
-                    <span class="material-symbols-rounded">
-                        keyboard_arrow_down
-                    </span>
-                `;
-
-                button.addEventListener('click', event => {
-                    event.stopPropagation();
-                    Hardware.vibrate(10);
-                    window.toggleModal(overlay.id, false);
-                });
-
-                sheet.insertBefore(button, sheet.firstChild);
-            });
-    },
-
-    initDragSupport() {
-        document
-            .querySelectorAll('.modal-overlay .bottom-sheet')
-            .forEach(sheet => {
-                /*
-                 * é˜²æ­¢åˆå§‹åŒ–å‡½æ•°é‡å¤æ‰§è¡Œæ—¶ï¼Œ
-                 * åŒä¸€ä¸ªæŠ½å±‰è¢«ç»‘å®šå¤šæ¬¡äº‹ä»¶ã€‚
-                 */
-                if (sheet.dataset.dragReady === 'true') {
-                    return;
-                }
-
-                const overlay =
-                    sheet.closest('.modal-overlay');
-
-                /*
-                 * åªå¯»æ‰¾æŠ½å±‰æœ€å¤–å±‚çš„æ¨ªæ¡ï¼Œ
-                 * é¿å…è¯¯é€‰å†…å®¹åŒºå†…çš„åŒåå…ƒç´ ã€‚
-                 */
-                const handle =
-                    Array.from(sheet.children).find(child => {
-                        return child.classList.contains('bs-handle');
-                    });
-
-                if (!overlay || !handle) {
-                    return;
-                }
-
-                sheet.dataset.dragReady = 'true';
-
-                /*
-                 * æ¨ªæ¡åŒæ—¶æ”¯æŒé”®ç›˜æ“ä½œã€‚
-                 */
-                handle.setAttribute('role', 'button');
-                handle.setAttribute('tabindex', '0');
-                handle.setAttribute(
-                    'aria-label',
-                    'å‘ä¸‹æ‹–åŠ¨å…³é—­æŠ½å±‰'
-                );
-
-                let dragging = false;
-                let pointerId = null;
-                let startY = 0;
-                let currentY = 0;
-                let startTime = 0;
-                let finishTimer = null;
-
-                const clearMotionState = () => {
-                    if (finishTimer) {
-                        window.clearTimeout(finishTimer);
-                        finishTimer = null;
-                    }
-
-                    dragging = false;
-                    pointerId = null;
-                    currentY = 0;
-
-                    sheet.classList.remove(
-                        'is-dragging',
-                        'is-settling',
-                        'is-dismissing'
-                    );
-
-                    handle.classList.remove('is-dragging');
-                    overlay.classList.remove('sheet-dismissing');
-
-                    sheet.style.removeProperty(
-                        '--sheet-drag-y'
-                    );
-                };
-
-                /*
-                 * æ²¡æœ‰è¾¾åˆ°å…³é—­è·ç¦»æ—¶ï¼Œ
-                 * è®©æŠ½å±‰å¼¹å›åŸä½ã€‚
-                 */
-                const springBack = () => {
-                    sheet.classList.remove(
-                        'is-dragging',
-                        'is-dismissing'
-                    );
-
-                    handle.classList.remove('is-dragging');
-                    overlay.classList.remove(
-                        'sheet-dismissing'
-                    );
-
-                    sheet.classList.add('is-settling');
-
-                    sheet.style.setProperty(
-                        '--sheet-drag-y',
-                        '0px'
-                    );
-
-                    finishTimer = window.setTimeout(() => {
-                        sheet.classList.remove('is-settling');
-
-                        sheet.style.removeProperty(
-                            '--sheet-drag-y'
-                        );
-
-                        finishTimer = null;
-                    }, 300);
-                };
-
-                /*
-                 * å®Œæ•´æ‰§è¡ŒæŠ½å±‰é€€å‡ºåŠ¨ç”»ï¼Œ
-                 * ç„¶åè°ƒç”¨ç°æœ‰çš„å¼¹çª—å…³é—­æ–¹æ³•ã€‚
-                 */
-                const dismissSheet = () => {
-                    sheet.classList.remove(
-                        'is-dragging',
-                        'is-settling'
-                    );
-
-                    handle.classList.remove('is-dragging');
-
-                    sheet.classList.add('is-dismissing');
-                    overlay.classList.add(
-                        'sheet-dismissing'
-                    );
-
-                    const dismissDistance = Math.max(
-                        window.innerHeight,
-                        sheet.offsetHeight + 120
-                    );
-
-                    sheet.style.setProperty(
-                        '--sheet-drag-y',
-                        `${dismissDistance}px`
-                    );
-
-                    Hardware.vibrate(12);
-
-                    finishTimer = window.setTimeout(() => {
-                        window.toggleModal(
-                            overlay.id,
-                            false
-                        );
-
-                        finishTimer =
-                            window.setTimeout(() => {
-                                clearMotionState();
-                            }, 420);
-                    }, 220);
-                };
-
-                const endDrag = event => {
-                    if (
-                        !dragging ||
-                        event.pointerId !== pointerId
-                    ) {
-                        return;
-                    }
-
-                    const elapsed = Math.max(
-                        performance.now() - startTime,
-                        1
-                    );
-
-                    const totalDistance = Math.max(
-                        0,
-                        event.clientY - startY
-                    );
-
-                    const velocity =
-                        totalDistance / elapsed;
-
-                    /*
-                     * æŠ½å±‰è¶Šé«˜ï¼Œå…³é—­é˜ˆå€¼ä¼šé€‚å½“å¢åŠ ï¼Œ
-                     * ä½†ä¸ä¼šè¶…è¿‡ 160 åƒç´ ã€‚
-                     */
-                    const closeThreshold = Math.min(
-                        160,
-                        Math.max(
-                            90,
-                            sheet.offsetHeight * 0.22
-                        )
-                    );
-
-                    dragging = false;
-
-                    try {
-                        handle.releasePointerCapture(
-                            pointerId
-                        );
-                    } catch (error) {}
-
-                    pointerId = null;
-
-                    /*
-                     * æ»¡è¶³ä»»ä¸€æ¡ä»¶å³å¯å…³é—­ï¼š
-                     *
-                     * 1. ä¸‹æ‹‰è·ç¦»è¶³å¤Ÿï¼›
-                     * 2. ä¸‹æ‹‰è·ç¦»è¶…è¿‡ 28 åƒç´ ï¼Œ
-                     *    å¹¶ä¸”æ‰‹åŠ¿é€Ÿåº¦è¶³å¤Ÿå¿«ã€‚
-                     */
-                    const shouldClose =
-                        currentY > closeThreshold ||
-                        (
-                            currentY > 28 &&
-                            velocity > 0.55
-                        );
-
-                    if (shouldClose) {
-                        dismissSheet();
-                    } else {
-                        springBack();
-                    }
-                };
-
-                handle.addEventListener(
-                    'pointerdown',
-                    event => {
-                        if (
-                            !overlay.classList.contains(
-                                'active'
-                            )
-                        ) {
-                            return;
-                        }
-
-                        if (
-                            event.pointerType === 'mouse' &&
-                            event.button !== 0
-                        ) {
-                            return;
-                        }
-
-                        if (
-                            overlay.classList.contains(
-                                'sheet-dismissing'
-                            )
-                        ) {
-                            return;
-                        }
-
-                        event.preventDefault();
-
-                        if (finishTimer) {
-                            window.clearTimeout(
-                                finishTimer
-                            );
-
-                            finishTimer = null;
-                        }
-
-                        dragging = true;
-                        pointerId = event.pointerId;
-                        startY = event.clientY;
-                        currentY = 0;
-                        startTime = performance.now();
-
-                        sheet.classList.remove(
-                            'is-settling',
-                            'is-dismissing'
-                        );
-
-                        overlay.classList.remove(
-                            'sheet-dismissing'
-                        );
-
-                        sheet.classList.add(
-                            'is-dragging'
-                        );
-
-                        handle.classList.add(
-                            'is-dragging'
-                        );
-
-                        sheet.style.setProperty(
-                            '--sheet-drag-y',
-                            '0px'
-                        );
-
-                        try {
-                            handle.setPointerCapture(
-                                pointerId
-                            );
-                        } catch (error) {}
-                    }
-                );
-
-                handle.addEventListener(
-                    'pointermove',
-                    event => {
-                        if (
-                            !dragging ||
-                            event.pointerId !== pointerId
-                        ) {
-                            return;
-                        }
-
-                        event.preventDefault();
-
-                        const rawDistance =
-                            event.clientY - startY;
-
-                        /*
-                         * å‘ä¸‹æ—¶å®Œå…¨è·Ÿæ‰‹ã€‚
-                         * å‘ä¸Šæ—¶å¢åŠ é˜»åŠ›ï¼Œæœ€å¤šåªç§»åŠ¨ 18 åƒç´ ã€‚
-                         */
-                        currentY = rawDistance < 0
-                            ? Math.max(
-                                -18,
-                                rawDistance * 0.18
-                            )
-                            : rawDistance;
-
-                        sheet.style.setProperty(
-                            '--sheet-drag-y',
-                            `${currentY}px`
-                        );
-                    }
-                );
-
-                handle.addEventListener(
-                    'pointerup',
-                    endDrag
-                );
-
-                handle.addEventListener(
-                    'pointercancel',
-                    event => {
-                        if (
-                            !dragging ||
-                            event.pointerId !== pointerId
-                        ) {
-                            return;
-                        }
-
-                        dragging = false;
-                        pointerId = null;
-
-                        springBack();
-                    }
-                );
-
-                /*
-                 * ä¸ºé”®ç›˜å’Œè¾…åŠ©è®¾å¤‡æä¾›å…³é—­æ–¹å¼ã€‚
-                 */
-                handle.addEventListener(
-                    'keydown',
-                    event => {
-                        if (
-                            !overlay.classList.contains(
-                                'active'
-                            )
-                        ) {
-                            return;
-                        }
-
-                        if (
-                            event.key === 'Enter' ||
-                            event.key === ' ' ||
-                            event.key === 'ArrowDown'
-                        ) {
-                            event.preventDefault();
-                            dismissSheet();
-                        }
-                    }
-                );
-            });
-    },
-
-    open(selectEl, textSpan) {
-        const container =
-            document.getElementById('bs-options');
-
-        const overlay =
-            document.getElementById('bs-overlay');
-
-        const isWordbankPicker =
-            selectEl.id === 'wb-folder-filter';
-
-        const isRangePicker =
-            selectEl.id === 'test-range-select';
-
-        const isDisplayModePicker = [
-            'next-display-mode',
-            'test-display-select'
-        ].includes(selectEl.id);
-
-        container.innerHTML = '';
-        container.className = 'bs-options';
-
-        [
-            'wordbank-picker-open',
-            'range-picker-open',
-            'display-mode-picker-open',
-            'compact-picker-open'
-        ].forEach(className => {
-            overlay?.classList.remove(className);
-        });
-
-        container.classList.toggle(
-            'is-wordbank-picker',
-            isWordbankPicker
-        );
-
-        container.classList.toggle(
-            'is-range-picker',
-            isRangePicker
-        );
-
-        container.classList.toggle(
-            'is-display-mode-picker',
-            isDisplayModePicker
-        );
-
-        overlay?.classList.toggle(
-            'wordbank-picker-open',
-            isWordbankPicker
-        );
-
-        overlay?.classList.toggle(
-            'range-picker-open',
-            isRangePicker
-        );
-
-        overlay?.classList.toggle(
-            'display-mode-picker-open',
-            isDisplayModePicker
-        );
-
-        const titleMap = {
-            'test-range-select': 'é€‰æ‹©æ£€éªŒèŒƒå›´',
-            'test-display-select': 'é»˜è®¤æ˜¾ç¤ºæ¨¡å¼',
-            'next-display-mode': (
-                Model.state.mode === 'rote-learning' &&
-                Model.state.currentLangMode === 'en'
-            )
-                ? 'é€‰æ‹©å¼ºåŒ–æ¨¡å¼'
-                : 'é®ç›–æ¨¡å¼',
-            'wb-folder-filter': 'é€‰æ‹©è¯åº“',
-            'wb-level-filter': 'é€‰æ‹©è€ƒè¯•çº§åˆ«',
-            'wb-difficulty-filter': 'é€‰æ‹©å­¦ä¹ éš¾åº¦',
-            'move-dest-select': 'ç§»åŠ¨è‡³ç›®æ ‡æ–‡ä»¶å¤¹',
-            'import-lang-select': 'é€‰æ‹©è¯æ±‡è¯­è¨€',
-            'import-folder-select': 'é€‰æ‹©ç›®æ ‡è¯åº“',
-            'import-level-select': 'é€‰æ‹©æ‰¹æ¬¡çº§åˆ«',
-            'import-difficulty-select': 'é€‰æ‹©æ‰¹æ¬¡éš¾åº¦',
-            'import-duplicate-mode': 'é€‰æ‹©é‡å¤è¯å¤„ç†æ–¹å¼',
-            'setting-word-order-mode': 'é€‰æ‹©è¯æ±‡æ’åˆ—æ–¹å¼'
-        };
-
-        document.getElementById('bs-title').innerText =
-            titleMap[selectEl.id] || 'è¯·é€‰æ‹©';
-
-        const visibleOptions =
-            Array.from(selectEl.options).filter(option => {
-                return option.style.display !== 'none';
-            });
-
-        const longestOptionLength =
-            visibleOptions.reduce((maxLength, option) => {
-                return Math.max(
-                    maxLength,
-                    Array.from(option.text.trim()).length
-                );
-            }, 0);
-
-        const saveSelection = option => {
-            Hardware.vibrate(15);
-            selectEl.value = option.value;
-
-            if (selectEl.id === 'test-range-select') {
-                localStorage.setItem(
-                    'lastTestRange',
-                    option.value
-                );
-            }
-
-            if (selectEl.id === 'test-display-select') {
-                localStorage.setItem(
-                    'lastTestDisplay',
-                    option.value
-                );
-            }
-
-            if (selectEl.id === 'wb-folder-filter') {
-                localStorage.setItem(
-                    'lastSelectedFolder',
-                    option.value
-                );
-            }
-
-            selectEl.dispatchEvent(
-                new Event('facade-update')
-            );
-
-            selectEl.dispatchEvent(
-                new Event('change')
-            );
-
-            window.toggleModal('bs-overlay', false);
-        };
-
-        const countWordsForOption = option => {
-            if (!isWordbankPicker && !isRangePicker) {
-                return null;
-            }
-
-            return Model.db.filter(word => {
-                if (
-                    (word.lang || 'ja') !==
-                    Model.state.currentLangMode
-                ) {
-                    return false;
-                }
-
-                return option.value === 'all'
-                    ? true
-                    : Model.checkFilter(
-                          word,
-                          option.value
-                      );
-            }).length;
-        };
-
-        const displayIconMap = {
-            all: 'visibility',
-            word: 'text_fields',
-            kana: 'record_voice_over',
-            meaning: 'translate',
-            audio: 'headphones',
-            spell: 'spellcheck'
-        };
-
-        const genericIconMap = {
-            all: 'grid_view',
-            ja: 'translate',
-            en: 'abc',
-            N5: 'looks_5',
-            N4: 'looks_4',
-            N3: 'looks_3',
-            N2: 'looks_two',
-            N1: 'looks_one',
-            'CET-4': 'filter_4',
-            'CET-6': 'filter_6',
-            '1': 'filter_1',
-            '2': 'filter_2',
-            '3': 'filter_3',
-            '4': 'filter_4',
-            '5': 'filter_5',
-            skip: 'skip_next',
-            update: 'sync',
-            keep: 'content_copy'
-        };
-
-        const makeButton = (option, meta = {}) => {
-            const button = document.createElement('div');
-            const count = countWordsForOption(option);
-
-            button.className = 'bs-option';
-            button.classList.toggle('selected', option.selected);
-            button.classList.toggle('is-wide', Boolean(meta.wide));
-            button.classList.toggle(
-                'is-featured',
-                Boolean(meta.featured)
-            );
-
-            button.setAttribute('tabindex', '0');
-            button.setAttribute('role', 'button');
-            button.setAttribute(
-                'aria-pressed',
-                option.selected ? 'true' : 'false'
-            );
-
-            const icon =
-                meta.icon ||
-                (isDisplayModePicker
-                    ? displayIconMap[option.value]
-                    : genericIconMap[option.value]) ||
-                'tune';
-
-            button.innerHTML = `
-                <span class="bs-option-icon material-symbols-rounded">
-                    ${icon}
-                </span>
-
-                <span class="bs-option-label">
-                    ${escapeHTML(meta.label || option.text)}
-                </span>
-
-                ${
-                    count === null
-                        ? ''
-                        : `
-                            <span class="bs-option-count">
-                                ${count}
-                            </span>
-                        `
-                }
-
-                <span class="bs-option-check material-symbols-rounded">
-                    check
-                </span>
-            `;
-
-            button.addEventListener('click', () => {
-                saveSelection(option);
-            });
-
-            button.addEventListener('keydown', event => {
-                if (
-                    event.key !== 'Enter' &&
-                    event.key !== ' '
-                ) {
-                    return;
-                }
-
-                event.preventDefault();
-                saveSelection(option);
-            });
-
-            return button;
-        };
-
-        const buildGroupedPicker = (
-            groupDefinitions,
-            resolveMeta
-        ) => {
-            const groups = {};
-
-            groupDefinitions.forEach(([key, title]) => {
-                const section =
-                    document.createElement('section');
-
-                const heading =
-                    document.createElement('div');
-
-                const grid =
-                    document.createElement('div');
-
-                section.className =
-                    `bs-option-group bs-option-group-${key}`;
-
-                section.hidden = true;
-                heading.className = 'bs-option-group-title';
-                heading.textContent = title;
-                grid.className = 'bs-option-grid';
-
-                section.appendChild(heading);
-                section.appendChild(grid);
-                container.appendChild(section);
-
-                groups[key] = { section, grid };
-            });
-
-            visibleOptions.forEach(option => {
-                const meta = resolveMeta(option);
-                const target = groups[meta.group];
-
-                if (!target) {
-                    return;
-                }
-
-                target.section.hidden = false;
-                target.grid.appendChild(
-                    makeButton(option, meta)
-                );
-            });
-        };
-
-        if (isWordbankPicker) {
-            const metaMap = {
-                all: ['quick', 'æŸ¥çœ‹æ‰€æœ‰', 'grid_view'],
-                virtual_starred: [
-                    'quick',
-                    'æ”¶è—è¯æ±‡',
-                    'star'
-                ],
-                virtual_wrong_all: [
-                    'wrong',
-                    'æ™ºèƒ½é”™é¢˜æœ¬',
-                    'error_med',
-                    true,
-                    true
-                ],
-                virtual_wrong_spell: [
-                    'wrong',
-                    'æ‹¼å†™',
-                    'spellcheck'
-                ],
-                virtual_wrong_listening: [
-                    'wrong',
-                    'å¬åŠ›',
-                    'headphones'
-                ],
-                virtual_wrong_reading: [
-                    'wrong',
-                    'è¯»éŸ³',
-                    'record_voice_over'
-                ],
-                virtual_wrong_meaning: [
-                    'wrong',
-                    'é‡Šä¹‰',
-                    'translate'
-                ],
-                virtual_wrong_ai: [
-                    'wrong',
-                    'AI å°æµ‹',
-                    'quiz'
-                ],
-                virtual_wrong_repeated: [
-                    'wrong',
-                    'åå¤å‡ºé”™',
-                    'priority_high'
-                ],
-                virtual_wrong_resolved: [
-                    'wrong',
-                    'å·²è§£å†³',
-                    'task_alt',
-                    true
-                ],
-                virtual_cleared: [
-                    'progress',
-                    'å®Œå…¨é€šå…³',
-                    'workspace_premium'
-                ],
-                virtual_uncleared: [
-                    'progress',
-                    'æœªé€šå…³',
-                    'hourglass_empty'
-                ],
-                virtual_know_kanji: [
-                    'progress',
-                    Model.state.currentLangMode === 'en'
-                        ? 'æ‹¼å†™æŒæ¡'
-                        : 'æ±‰å­—äº†è§£',
-                    'visibility'
-                ],
-                virtual_know_kana: [
-                    'progress',
-                    Model.state.currentLangMode === 'en'
-                        ? 'å¬åŠ›æŒæ¡'
-                        : 'è¯»éŸ³äº†è§£',
-                    Model.state.currentLangMode === 'en'
-                        ? 'hearing'
-                        : 'record_voice_over'
-                ],
-                virtual_know_meaning: [
-                    'progress',
-                    'é‡Šä¹‰äº†è§£',
-                    'psychology_alt'
-                ]
-            };
-
-            buildGroupedPicker(
-                [
-                    ['quick', 'å¿«æ·å…¥å£'],
-                    ['wrong', 'é”™é¢˜æœ¬'],
-                    ['progress', 'å­¦ä¹ çŠ¶æ€'],
-                    ['folders', 'æˆ‘çš„è¯åº“']
-                ],
-                option => {
-                    const fixed = metaMap[option.value];
-
-                    if (fixed) {
-                        return {
-                            group: fixed[0],
-                            label: fixed[1],
-                            icon: fixed[2],
-                            wide: Boolean(fixed[3]),
-                            featured: Boolean(fixed[4])
-                        };
-                    }
-
-                    const label = option.text.trim();
-
-                    return {
-                        group: 'folders',
-                        label,
-                        icon: option.value === 'default'
-                            ? 'library_books'
-                            : 'folder',
-                        wide: Array.from(label).length >= 9
-                    };
-                }
-            );
-        } else if (isRangePicker) {
-            buildGroupedPicker(
-                [
-                    ['folders', 'è¯åº“'],
-                    ['quick', 'å¿«æ·èŒƒå›´'],
-                    ['weak', 'ä¸“é¡¹æ”»åš'],
-                    ['review', 'å¤ä¹ å·©å›º']
-                ],
-                option => {
-                    const value = option.value;
-                    const label = option.text
-                        .replace(/^ä¸“é¡¹æ”»åš[:ï¼š]\s*/, '')
-                        .replace(/^å¤ä¹ å·©å›º[:ï¼š]\s*/, '')
-                        .trim();
-
-                    if (value.startsWith('virtual_miss_')) {
-                        const icon = value.endsWith('kanji')
-                            ? 'spellcheck'
-                            : value.endsWith('kana')
-                                ? 'headphones'
-                                : 'translate';
-
-                        return {
-                            group: 'weak',
-                            label,
-                            icon
-                        };
-                    }
-
-                    if (value.startsWith('virtual_know_')) {
-                        const icon = value.endsWith('kanji')
-                            ? 'verified'
-                            : value.endsWith('kana')
-                                ? 'hearing_disabled'
-                                : 'psychology_alt';
-
-                        return {
-                            group: 'review',
-                            label,
-                            icon
-                        };
-                    }
-
-                    if (value === 'virtual_starred') {
-                        return {
-                            group: 'quick',
-                            label: 'æ”¶è—è¯æ±‡',
-                            icon: 'star'
-                        };
-                    }
-
-                    if (value === 'virtual_cleared') {
-                        return {
-                            group: 'quick',
-                            label: 'å®Œå…¨é€šå…³',
-                            icon: 'workspace_premium'
-                        };
-                    }
-
-                    if (value === 'virtual_uncleared') {
-                        return {
-                            group: 'quick',
-                            label: 'æ‰€æœ‰æœªé€šå…³',
-                            icon: 'hourglass_empty'
-                        };
-                    }
-
-                    return {
-                        group: 'folders',
-                        label: option.text,
-                        icon: 'folder',
-                        wide:
-                            Array.from(option.text).length >= 10
-                    };
-                }
-            );
-        } else {
-            const useCompactGrid =
-                visibleOptions.length >= 2 &&
-                visibleOptions.length <= 8 &&
-                longestOptionLength <= 18;
-
-            container.classList.toggle(
-                'is-compact-grid',
-                useCompactGrid
-            );
-
-            container.classList.toggle(
-                'is-compact-list',
-                !useCompactGrid
-            );
-
-            container.classList.toggle(
-                'is-display-mode-picker',
-                isDisplayModePicker
-            );
-
-            overlay?.classList.add('compact-picker-open');
-
-            visibleOptions.forEach(option => {
-                container.appendChild(
-                    makeButton(option)
-                );
-            });
-        }
-
-        window.toggleModal('bs-overlay', true);
-    }
-};
-
-const RomajiEngine = {
-    mode: 'hiragana', // 'hiragana' or 'katakana'
-    raw: '',          // å·²è½¬æ¢çš„å‡å
-    buffer: '',       // ç¼“å†²ä¸­çš„ç½—é©¬å­—
-    map: {
-        "a":"ã‚","i":"ã„","u":"ã†","e":"ãˆ","o":"ãŠ","ka":"ã‹","ki":"ã","ku":"ã","ke":"ã‘","ko":"ã“","ga":"ãŒ","gi":"ã","gu":"ã","ge":"ã’","go":"ã”",
-        "sa":"ã•","shi":"ã—","si":"ã—","su":"ã™","se":"ã›","so":"ã","za":"ã–","ji":"ã˜","zi":"ã˜","zu":"ãš","ze":"ãœ","zo":"ã",
-        "ta":"ãŸ","chi":"ã¡","ti":"ã¡","tsu":"ã¤","tu":"ã¤","te":"ã¦","to":"ã¨","da":"ã ","di":"ã¢","du":"ã¥","de":"ã§","do":"ã©",
-        "na":"ãª","ni":"ã«","nu":"ã¬","ne":"ã­","no":"ã®","ha":"ã¯","hi":"ã²","fu":"ãµ","hu":"ãµ","he":"ã¸","ho":"ã»",
-        "ba":"ã°","bi":"ã³","bu":"ã¶","be":"ã¹","bo":"ã¼","pa":"ã±","pi":"ã´","pu":"ã·","pe":"ãº","po":"ã½",
-        "ma":"ã¾","mi":"ã¿","mu":"ã‚€","me":"ã‚","mo":"ã‚‚","ya":"ã‚„","yu":"ã‚†","yo":"ã‚ˆ","ra":"ã‚‰","ri":"ã‚Š","ru":"ã‚‹","re":"ã‚Œ","ro":"ã‚",
-        "wa":"ã‚","wo":"ã‚’","nn":"ã‚“","n ":"ã‚“","-":"ãƒ¼",
-        "kya":"ãã‚ƒ","kyu":"ãã‚…","kyo":"ãã‚‡","gya":"ãã‚ƒ","gyu":"ãã‚…","gyo":"ãã‚‡",
-        "sha":"ã—ã‚ƒ","sya":"ã—ã‚ƒ","shu":"ã—ã‚…","syu":"ã—ã‚…","sho":"ã—ã‚‡","syo":"ã—ã‚‡",
-                "ja":"ã˜ã‚ƒ","zya":"ã˜ã‚ƒ","jya":"ã˜ã‚ƒ","ju":"ã˜ã‚…","zyu":"ã˜ã‚…","jyu":"ã˜ã‚…","jo":"ã˜ã‚‡","zyo":"ã˜ã‚‡","jyo":"ã˜ã‚‡",
-        "cha":"ã¡ã‚ƒ","tya":"ã¡ã‚ƒ","cya":"ã¡ã‚ƒ","chu":"ã¡ã‚…","tyu":"ã¡ã‚…","cyu":"ã¡ã‚…","cho":"ã¡ã‚‡","tyo":"ã¡ã‚‡","cyo":"ã¡ã‚‡",
-
-        "nya":"ã«ã‚ƒ","nyu":"ã«ã‚…","nyo":"ã«ã‚‡","hya":"ã²ã‚ƒ","hyu":"ã²ã‚…","hyo":"ã²ã‚‡",
-        "bya":"ã³ã‚ƒ","byu":"ã³ã‚…","byo":"ã³ã‚‡","pya":"ã´ã‚ƒ","pyu":"ã´ã‚…","pyo":"ã´ã‚‡",
-        "mya":"ã¿ã‚ƒ","myu":"ã¿ã‚…","myo":"ã¿ã‚‡","rya":"ã‚Šã‚ƒ","ryu":"ã‚Šã‚…","ryo":"ã‚Šã‚‡"
-    },
-    reset() { this.raw = ''; this.buffer = ''; this.mode = 'hiragana'; },
-    toggleMode() { this.mode = this.mode === 'hiragana' ? 'katakana' : 'hiragana'; Hardware.vibrate(10); },
-    toKatakana(hira) { return hira.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60)); },
-    input(char) {
-        if (char === 'Backspace') {
-            if (this.buffer.length > 0) this.buffer = this.buffer.slice(0, -1);
-            else if (this.raw.length > 0) this.raw = this.raw.slice(0, -1);
-            Hardware.vibrate(10); return;
-        }
-        Hardware.vibrate(15);
-        this.buffer += char.toLowerCase();
-        
-        // ä¿ƒéŸ³è§„åˆ™
-        if (this.buffer.length >= 2 && this.buffer[0] === this.buffer[1] && !"aeiouy-".includes(this.buffer[0]) && this.buffer[0] !== 'n') {
-            this.raw += this.mode === 'hiragana' ? "ã£" : "ãƒƒ";
-            this.buffer = this.buffer.slice(1);
-        }
-        // æ‹¨éŸ³è§„åˆ™
-        if (this.buffer.length >= 2 && this.buffer[0] === 'n' && this.buffer[1] !== 'n' && !"aeiouy-".includes(this.buffer[1])) {
-            this.raw += this.mode === 'hiragana' ? "ã‚“" : "ãƒ³";
-            this.buffer = this.buffer.slice(1);
-        }
-        // åŒ¹é…åˆæˆ
-        for (let i = 3; i > 0; i--) {
-            if (this.buffer.length >= i) {
-                let chunk = this.buffer.slice(0, i);
-                if (this.map[chunk]) {
-                    let kana = this.map[chunk];
-                    this.raw += this.mode === 'hiragana' ? kana : this.toKatakana(kana);
-                    this.buffer = this.buffer.slice(i);
-                    break;
-                }
-            }
-        }
-    },
-    getDisplayText() { return this.raw + (this.buffer ? `<span class="pending-romaji">${this.buffer}</span>` : ''); },
-    getFinalText() { 
-        let finalBuf = this.buffer;
-        if (finalBuf === 'n') finalBuf = this.mode === 'hiragana' ? 'ã‚“' : 'ãƒ³';
-        return this.raw + finalBuf; 
-    }
-};
-
-// Simple English word input buffer for spelling mode
-const EnglishInput = {
-    buffer: '',
-    reset() { this.buffer = ''; },
-    input(char) {
-        if (char === 'Backspace') {
-            this.buffer = this.buffer.slice(0, -1);
-            return;
-        }
-        if (char.length === 1 && /[a-zA-Z-]/.test(char)) {
-            this.buffer += char.toLowerCase();
-        }
-    },
-    getDisplayText() { return this.buffer || ''; },
-    getFinalText() { return this.buffer; }
-};
-
-const Model = {
-  db: [],
-  builtInWords: [],
-  userWords: [],
-  wordOverrides: {},
-  builtInIdSet: new Set(),
-  folders: ["é»˜è®¤è¯åº“"],
-  folderLangs: { "é»˜è®¤è¯åº“": "ja" },
-  stars: [],
-  records: [],
-  aiConversations: [],
-  editingIdx: -1,
-  mtGroupClears: {},
-  mtWordClears: {},
-  getFolderLang(folderName) {
-    return this.folderLangs[folderName] || "ja";
-  },
-    getCurrentLang() {
-    return this.state.currentLangMode || "ja";
-  },
-
-  state: {
-    mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
-    dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
-    mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
-    ftState: 'A', ftHint: null, ftShowKanaHint: false,
-        comboCount: 0,
-    maxProgressSeen: 0, uniqueWordCount: 0, initialQueueLength: 0,
-    batchMode: false, manageMode: false, selectedSet: new Set(), activeDetailIdx: 0, detailArray: [], moveTargetIdx: -1, 
-    isAnimating: false, filteredDb: [], renderedStartIndex: -1, renderedEndIndex: -1, currentLangMode: 'ja'
-  },
-
-
-  getWordId(word) {
-      return getStableWordId(word);
-  },
-
-  getWordById(wordId) {
-      const target = String(wordId || '').trim();
-
-      if (!target) {
-          return null;
-      }
-
-      return this.db.find(word => {
-          return this.getWordId(word) === target;
-      }) || null;
-  },
-
-  isStarred(word) {
-      const wordId = this.getWordId(word);
-      return Boolean(wordId && this.stars.includes(wordId));
-  },
-
-  getClearState(word) {
-      const wordId = this.getWordId(word);
-      const stored = wordId
-          ? this.mtWordClears[wordId]
-          : null;
-
-      if (!stored || typeof stored !== 'object') {
-          return {
-              kanji: false,
-              kana: false,
-              meaning: false
-          };
-      }
-
-      if (
-          word?.lang === 'en' &&
-          stored.word !== undefined
-      ) {
-          return {
-              ...stored,
-              kanji: Boolean(stored.word),
-              kana: Boolean(stored.kana),
-              meaning: Boolean(stored.meaning)
-          };
-      }
-
-      return stored;
-  },
-
-  ensureClearState(word) {
-      const wordId = this.getWordId(word);
-
-      if (!wordId) {
-          return null;
-      }
-
-      if (
-          !this.mtWordClears[wordId] ||
-          typeof this.mtWordClears[wordId] !== 'object'
-      ) {
-          this.mtWordClears[wordId] = {
-              kanji: false,
-              kana: false,
-              meaning: false
-          };
-      }
-
-      return this.mtWordClears[wordId];
-  },
-
-  getDefaultBuiltInWords() {
-      const words = [];
-
-      if (typeof DefaultWords !== 'undefined') {
-          DefaultWords.forEach(word => {
-              const entry = normalizeWordEntry({
-                  ...cloneDataValue(word),
-                  lang: 'ja',
-                  folder: word.folder || 'é»˜è®¤è¯åº“',
-                  builtIn: true
-              });
-
-              ensureStableWordId(entry, {
-                  builtInHint: true
-              });
-
-              words.push(entry);
-          });
-      }
-
-      if (typeof DefaultEnglishWords !== 'undefined') {
-          DefaultEnglishWords.forEach(word => {
-              const entry = normalizeWordEntry({
-                  ...cloneDataValue(word),
-                  lang: 'en',
-                  folder: word.folder || 'å››çº§è¯æ±‡',
-                  builtIn: true
-              });
-
-              ensureStableWordId(entry, {
-                  builtInHint: true
-              });
-
-              words.push(entry);
-          });
-      }
-
-      return words;
-  },
-
-  getWordIdentity(word, includeFolder = true) {
-      const lang = word?.lang === 'en' ? 'en' : 'ja';
-      const headword = normalizeHeadword(
-          word?.word || '',
-          lang
-      ).toLowerCase();
-      const folder = includeFolder
-          ? normalizeEntryText(word?.folder || '')
-          : '';
-
-      return includeFolder
-          ? `${lang}::${folder}::${headword}`
-          : `${lang}::${headword}`;
-  },
-
-  buildWordOverride(canonical, current) {
-      const editableFields = [
-          'word',
-          'kana',
-          'phonetic',
-          'type',
-          'meaning',
-          'example',
-          'roots',
-          'folder',
-          'level',
-          'difficulty',
-          'tags',
-          'frequency',
-          'pitch',
-          'specialTags',
-          'sourceId',
-          'sourceName',
-          'sourceVersion',
-          'aliases',
-          'sourceLevels',
-          'reviewStatus',
-          'source',
-          'dataVersion'
-      ];
-      const override = {};
-
-      editableFields.forEach(field => {
-          const baseValue = canonical[field];
-          const currentValue = current[field];
-
-          if (
-              JSON.stringify(baseValue ?? null) !==
-              JSON.stringify(currentValue ?? null)
-          ) {
-              override[field] = cloneDataValue(currentValue);
-          }
-      });
-
-      if (Object.keys(override).length > 0) {
-          override.updatedAt = new Date().toISOString();
-      }
-
-      return override;
-  },
-
-  rebuildCombinedDB() {
-      const merged = [];
-      const seenIds = new Set();
-      const overrides =
-          this.wordOverrides &&
-          typeof this.wordOverrides === 'object' &&
-          !Array.isArray(this.wordOverrides)
-              ? this.wordOverrides
-              : {};
-
-      this.builtInWords.forEach(canonical => {
-          const wordId = this.getWordId(canonical);
-          const override = overrides[wordId];
-
-          if (override?._deleted === true) {
-              return;
-          }
-
-          const combined = normalizeWordEntry({
-              ...cloneDataValue(canonical),
-              ...(override || {}),
-              _id: wordId,
-              lang: canonical.lang,
-              builtIn: true
-          });
-
-          ensureStableWordId(combined, {
-              builtInHint: true
-          });
-
-          merged.push(combined);
-          seenIds.add(wordId);
-      });
-
-      const normalizedUsers = [];
-
-      (Array.isArray(this.userWords)
-          ? this.userWords
-          : []
-      ).forEach(rawWord => {
-          const word = normalizeWordEntry({
-              ...cloneDataValue(rawWord),
-              builtIn: false
-          });
-
-          ensureStableWordId(word, {
-              builtInHint: false
-          });
-
-          if (seenIds.has(word._id)) {
-              word._id = createRandomWordId();
-          }
-
-          seenIds.add(word._id);
-          normalizedUsers.push(word);
-          merged.push(word);
-      });
-
-      this.userWords = normalizedUsers;
-      this.db = merged;
-      this.builtInIdSet = new Set(
-          this.builtInWords.map(word => this.getWordId(word))
-      );
-  },
-
-  migrateLegacyWordStorage(
-      legacyWords,
-      { markMissingBuiltInsAsDeleted = true } = {}
-  ) {
-      const canonicalById = new Map();
-      const canonicalByIdentity = new Map();
-      const canonicalByLooseIdentity = new Map();
-
-      this.builtInWords.forEach(word => {
-          const wordId = this.getWordId(word);
-          canonicalById.set(wordId, word);
-          canonicalByIdentity.set(
-              this.getWordIdentity(word, true),
-              word
-          );
-
-          const looseIdentity = this.getWordIdentity(
-              word,
-              false
-          );
-
-          if (!canonicalByLooseIdentity.has(looseIdentity)) {
-              canonicalByLooseIdentity.set(
-                  looseIdentity,
-                  []
-              );
-          }
-
-          canonicalByLooseIdentity.get(looseIdentity).push(word);
-      });
-
-      const userWords = [];
-      const overrides = {};
-      const foundBuiltInIds = new Set();
-
-      (Array.isArray(legacyWords)
-          ? legacyWords
-          : []
-      ).forEach(rawWord => {
-          if (!rawWord || typeof rawWord !== 'object') {
-              return;
-          }
-
-          const normalized = normalizeWordEntry({
-              ...cloneDataValue(rawWord),
-              lang: rawWord.lang === 'en' ? 'en' : 'ja'
-          });
-          const rawId = String(rawWord._id || '').trim();
-          let canonical = rawId
-              ? canonicalById.get(rawId)
-              : null;
-
-          if (!canonical) {
-              canonical = canonicalByIdentity.get(
-                  this.getWordIdentity(normalized, true)
-              ) || null;
-          }
-
-          if (!canonical) {
-              const candidates = canonicalByLooseIdentity.get(
-                  this.getWordIdentity(normalized, false)
-              ) || [];
-
-              if (candidates.length === 1) {
-                  const candidate = candidates[0];
-                  const rawFolder = normalizeEntryText(
-                      normalized.folder || ''
-                  );
-                  const canonicalFolder = normalizeEntryText(
-                      candidate.folder || ''
-                  );
-                  const comparableFields = normalized.lang === 'en'
-                      ? [
-                          'phonetic',
-                          'type',
-                          'meaning',
-                          'example',
-                          'roots'
-                      ]
-                      : [
-                          'kana',
-                          'type',
-                          'meaning',
-                          'example'
-                      ];
-                  const comparableValues = comparableFields.filter(field => {
-                      return Boolean(
-                          normalizeEntryText(candidate[field] || '')
-                      );
-                  });
-                  const matchingValues = comparableValues.filter(field => {
-                      return (
-                          normalizeEntryText(normalized[field] || '') ===
-                          normalizeEntryText(candidate[field] || '')
-                      );
-                  });
-                  const contentLooksBuiltIn =
-                      comparableValues.length > 0 &&
-                      matchingValues.length >= Math.min(
-                          3,
-                          comparableValues.length
-                      );
-                  const likelyLegacyBuiltIn =
-                      rawWord.builtIn === true ||
-                      !rawFolder ||
-                      rawFolder === canonicalFolder ||
-                      contentLooksBuiltIn;
-
-                  if (likelyLegacyBuiltIn) {
-                      canonical = candidate;
-                  }
-              }
-          }
-
-          if (canonical) {
-              const wordId = this.getWordId(canonical);
-              const current = normalizeWordEntry({
-                  ...normalized,
-                  _id: wordId,
-                  builtIn: true,
-                  lang: canonical.lang
-              });
-              const override = this.buildWordOverride(
-                  canonical,
-                  current
-              );
-
-              foundBuiltInIds.add(wordId);
-
-              if (Object.keys(override).length > 0) {
-                  overrides[wordId] = override;
-              }
-
-              return;
-          }
-
-          normalized.builtIn = false;
-          ensureStableWordId(normalized, {
-              builtInHint: false
-          });
-          userWords.push(normalized);
-      });
-
-      if (markMissingBuiltInsAsDeleted) {
-          this.builtInWords.forEach(word => {
-              const wordId = this.getWordId(word);
-
-              if (!foundBuiltInIds.has(wordId)) {
-                  overrides[wordId] = {
-                      _deleted: true,
-                      updatedAt: new Date().toISOString()
-                  };
-              }
-          });
-      }
-
-      this.userWords = userWords;
-      this.wordOverrides = overrides;
-      this.rebuildCombinedDB();
-  },
-
-  async persistSeparatedWordData() {
-      await Promise.all([
-          this.writeStorageValue(
-              USER_WORDS_STORAGE_KEY,
-              this.userWords
-          ),
-          this.writeStorageValue(
-              WORD_OVERRIDES_STORAGE_KEY,
-              this.wordOverrides
-          )
-      ]);
-
-      localStorage.setItem(
-          WORD_STORAGE_VERSION_KEY,
-          String(WORD_STORAGE_VERSION)
-      );
-  },
-
-  async init() {
-      await this.loadData();
-  },
-
-  idbAvailable: true,
-
-  async readStorageValue(key) {
-      if (
-          this.idbAvailable &&
-          typeof idbKeyval !== 'undefined'
-      ) {
-          try {
-              const storedValue = await idbKeyval.get(key);
-
-              if (storedValue !== undefined) {
-                  return storedValue;
-              }
-          } catch (error) {
-              console.warn(
-                  `[Storage] è¯»å– ${key} å¤±è´¥ï¼Œå°è¯•æœ¬åœ°å¤‡ç”¨å­˜å‚¨`,
-                  error
-              );
-          }
-      }
-
-      const rawValue = localStorage.getItem(key);
-
-      if (rawValue === null) {
-          return null;
-      }
-
-      try {
-          return JSON.parse(rawValue);
-      } catch (error) {
-          return rawValue;
-      }
-  },
-
-  async writeStorageValue(key, value) {
-      if (
-          this.idbAvailable &&
-          typeof idbKeyval !== 'undefined'
-      ) {
-          try {
-              await idbKeyval.set(key, value);
-              return;
-          } catch (error) {
-              console.warn(
-                  `[Storage] å†™å…¥ ${key} å¤±è´¥ï¼Œå°è¯•æœ¬åœ°å¤‡ç”¨å­˜å‚¨`,
-                  error
-              );
-          }
-      }
-
-      localStorage.setItem(
-          key,
-          JSON.stringify(value)
-      );
-  },
-
-  async createMigrationSnapshot(fromVersion) {
-      const snapshot = {
-          type: 'migration-snapshot',
-          createdAt: new Date().toISOString(),
-          fromVersion,
-          toVersion: DATA_SCHEMA_VERSION,
-
-          db: structuredClone(this.db),
-          folders: structuredClone(this.folders),
-          folderLangs: structuredClone(this.folderLangs),
-          stars: structuredClone(this.stars),
-          records: structuredClone(this.records),
-          mtGroupClears: structuredClone(
-              this.mtGroupClears
-          ),
-          mtWordClears: structuredClone(
-              this.mtWordClears
-          ),
-          aiConversations: structuredClone(
-              this.aiConversations
-          )
-      };
-
-      try {
-          await this.writeStorageValue(
-              MIGRATION_SNAPSHOT_KEY,
-              snapshot
-          );
-
-          console.log(
-              '[Migration] æ›´æ–°å‰å®‰å…¨å¿«ç…§å·²ä¿å­˜'
-          );
-      } catch (error) {
-          /*
-           * å¿«ç…§ä¿å­˜å¤±è´¥æ—¶åœæ­¢è¿ç§»ã€‚
-           * å®å¯æš‚æ—¶ä¸æ›´æ–°ï¼Œä¹Ÿä¸èƒ½å†’é™©æ”¹åç”¨æˆ·æ•°æ®ã€‚
-           */
-          console.error(
-              '[Migration] æ— æ³•å»ºç«‹å®‰å…¨å¿«ç…§',
-              error
-          );
-
-          throw new Error(
-              'æ— æ³•å»ºç«‹æ•°æ®å®‰å…¨å¿«ç…§ï¼Œå·²åœæ­¢æ›´æ–°'
-          );
-      }
-
-      return snapshot;
-  },
-
-  async saveAllUserData() {
-      await Promise.all([
-          this.saveDB(),
-          this.saveFolders(),
-          this.saveFolderLangs(),
-          this.saveStars(),
-          this.saveRecords(),
-          this.saveClears(),
-
-          this.writeStorageValue(
-              'aiConversations',
-              this.aiConversations
-          )
-      ]);
-  },
-
-  async restoreMigrationSnapshot(snapshot) {
-      if (!snapshot) {
-          throw new Error('æ²¡æœ‰å¯æ¢å¤çš„æ•°æ®å¿«ç…§');
-      }
-
-      this.db = Array.isArray(snapshot.db)
-          ? structuredClone(snapshot.db)
-          : [];
-
-      this.folders = Array.isArray(snapshot.folders)
-          ? structuredClone(snapshot.folders)
-          : ['é»˜è®¤è¯åº“'];
-
-      this.folderLangs =
-          snapshot.folderLangs &&
-          typeof snapshot.folderLangs === 'object'
-              ? structuredClone(snapshot.folderLangs)
-              : { 'é»˜è®¤è¯åº“': 'ja' };
-
-      this.stars = Array.isArray(snapshot.stars)
-          ? structuredClone(snapshot.stars)
-          : [];
-
-      this.records = Array.isArray(snapshot.records)
-          ? structuredClone(snapshot.records)
-          : [];
-
-      this.mtGroupClears =
-          snapshot.mtGroupClears &&
-          typeof snapshot.mtGroupClears === 'object'
-              ? structuredClone(snapshot.mtGroupClears)
-              : {};
-
-      this.mtWordClears =
-          snapshot.mtWordClears &&
-          typeof snapshot.mtWordClears === 'object'
-              ? structuredClone(snapshot.mtWordClears)
-              : {};
-
-      this.aiConversations =
-          Array.isArray(snapshot.aiConversations)
-              ? structuredClone(
-                    snapshot.aiConversations
-                )
-              : [];
-
-      await this.saveAllUserData();
-
-      console.warn(
-          '[Migration] å·²æ¢å¤æ›´æ–°å‰çš„æ•°æ®å¿«ç…§'
-      );
-  },
-
-  async runDataMigrations() {
-      let dbChanged = false;
-      let foldersChanged = false;
-      let starsChanged = false;
-      let clearsChanged = false;
-
-      for (const word of this.db) {
-          if (!word.lang) {
-              word.lang = 'ja';
-              dbChanged = true;
-          }
-
-          const shouldBeBuiltIn =
-              this.builtInIdSet.has(String(word._id || '')) ||
-              word.builtIn === true;
-
-          if (word.builtIn !== shouldBeBuiltIn) {
-              word.builtIn = shouldBeBuiltIn;
-              dbChanged = true;
-          }
-
-          const previousId = String(word._id || '');
-          ensureStableWordId(word, {
-              builtInHint: shouldBeBuiltIn
-          });
-
-          if (previousId !== word._id) {
-              dbChanged = true;
-          }
-
-          const normalized = normalizeWordEntry(
-              word,
-              { preserveWord: true }
-          );
-
-          if (
-              normalized.builtIn === true &&
-              normalized.lang === 'en' &&
-              normalized.folder === 'å››çº§è¯æ±‡' &&
-              !normalized.level
-          ) {
-              normalized.level = 'CET-4';
-          }
-
-          const trackedFields = [
-              '_id',
-              'lang',
-              'type',
-              'meaning',
-              'example',
-              'folder',
-              'phonetic',
-              'kana',
-              'roots',
-              'level',
-              'difficulty',
-              'tags',
-              'frequency',
-              'pitch',
-              'specialTags',
-              'sourceId',
-              'sourceName',
-              'sourceVersion',
-              'aliases',
-              'sourceLevels',
-              'reviewStatus',
-              'source',
-              'dataVersion',
-              'builtIn'
-          ];
-
-          const hasChange = trackedFields.some(field => {
-              return (
-                  JSON.stringify(word[field] ?? null) !==
-                  JSON.stringify(normalized[field] ?? null)
-              );
-          });
-
-          if (hasChange) {
-              Object.assign(word, normalized);
-              dbChanged = true;
-          }
-
-          const folder = word.folder || (
-              word.lang === 'en'
-                  ? 'å››çº§è¯æ±‡'
-                  : 'é»˜è®¤è¯åº“'
-          );
-
-          if (!word.folder) {
-              word.folder = folder;
-              dbChanged = true;
-          }
-
-          if (!this.folders.includes(folder)) {
-              this.folders.push(folder);
-              foldersChanged = true;
-          }
-
-          const folderLang = word.lang === 'en' ? 'en' : 'ja';
-
-          if (this.folderLangs[folder] !== folderLang) {
-              this.folderLangs[folder] = folderLang;
-              foldersChanged = true;
-          }
-      }
-
-      const validIds = new Set(
-          this.db.map(word => this.getWordId(word))
-      );
-      const wordsByLegacyKey = new Map();
-
-      const addLegacyKey = (key, wordId) => {
-          const normalizedKey = String(key || '').trim();
-
-          if (!normalizedKey) {
-              return;
-          }
-
-          if (!wordsByLegacyKey.has(normalizedKey)) {
-              wordsByLegacyKey.set(normalizedKey, new Set());
-          }
-
-          wordsByLegacyKey.get(normalizedKey).add(wordId);
-      };
-
-      this.db.forEach(word => {
-          const wordId = this.getWordId(word);
-          const lang = word.lang === 'en' ? 'en' : 'ja';
-          const headword = String(word.word || '').trim();
-
-          addLegacyKey(headword, wordId);
-          addLegacyKey(
-              normalizeHeadword(headword, lang).toLowerCase(),
-              wordId
-          );
-      });
-
-      const migratedStars = [];
-      const migratedStarSet = new Set();
-
-      (Array.isArray(this.stars) ? this.stars : []).forEach(storedKey => {
-          const key = String(storedKey || '').trim();
-          let targetIds = [];
-
-          if (validIds.has(key)) {
-              targetIds = [key];
-          } else {
-              const direct = wordsByLegacyKey.get(key);
-              const normalized = wordsByLegacyKey.get(
-                  key.toLowerCase()
-              );
-
-              targetIds = [
-                  ...(direct || []),
-                  ...(normalized || [])
-              ];
-          }
-
-          targetIds.forEach(wordId => {
-              if (!migratedStarSet.has(wordId)) {
-                  migratedStarSet.add(wordId);
-                  migratedStars.push(wordId);
-              }
-          });
-      });
-
-      if (
-          JSON.stringify(migratedStars) !==
-          JSON.stringify(this.stars)
-      ) {
-          this.stars = migratedStars;
-          starsChanged = true;
-      }
-
-      const normalizeClearState = value => {
-          if (!value || typeof value !== 'object') {
-              return {
-                  kanji: false,
-                  kana: false,
-                  meaning: false
-              };
-          }
-
-          return {
-              ...cloneDataValue(value),
-              kanji: Boolean(
-                  value.kanji ?? value.word ?? false
-              ),
-              kana: Boolean(value.kana ?? false),
-              meaning: Boolean(value.meaning ?? false),
-              needsReview: Boolean(value.needsReview)
-          };
-      };
-
-      const mergeClearState = (base, incoming) => {
-          if (!base) {
-              return normalizeClearState(incoming);
-          }
-
-          const next = normalizeClearState(base);
-          const addition = normalizeClearState(incoming);
-
-          next.kanji = next.kanji || addition.kanji;
-          next.kana = next.kana || addition.kana;
-          next.meaning = next.meaning || addition.meaning;
-          next.needsReview =
-              next.needsReview || addition.needsReview;
-
-          return next;
-      };
-
-      const migratedClears = {};
-
-      Object.entries(
-          this.mtWordClears &&
-          typeof this.mtWordClears === 'object'
-              ? this.mtWordClears
-              : {}
-      ).forEach(([storedKey, storedState]) => {
-          const key = String(storedKey || '').trim();
-          let targetIds = [];
-
-          if (validIds.has(key)) {
-              targetIds = [key];
-          } else {
-              const direct = wordsByLegacyKey.get(key);
-              const normalized = wordsByLegacyKey.get(
-                  key.toLowerCase()
-              );
-
-              targetIds = [
-                  ...(direct || []),
-                  ...(normalized || [])
-              ];
-          }
-
-          if (targetIds.length === 0) {
-              migratedClears[key] = normalizeClearState(storedState);
-              return;
-          }
-
-          [...new Set(targetIds)].forEach(wordId => {
-              migratedClears[wordId] = mergeClearState(
-                  migratedClears[wordId],
-                  storedState
-              );
-          });
-      });
-
-      if (
-          JSON.stringify(migratedClears) !==
-          JSON.stringify(this.mtWordClears)
-      ) {
-          this.mtWordClears = migratedClears;
-          clearsChanged = true;
-      }
-
-      if (dbChanged) {
-          await this.saveDB();
-      }
-
-      if (foldersChanged) {
-          await Promise.all([
-              this.saveFolders(),
-              this.saveFolderLangs()
-          ]);
-      }
-
-      if (starsChanged) {
-          await this.saveStars();
-      }
-
-      if (clearsChanged) {
-          await this.saveClears();
-      }
-  },
-
-  async loadData() {
-      const storedSchemaVersion = Number.parseInt(
-          localStorage.getItem('dataSchemaVersion') || '0',
-          10
-      );
-      const needsMigration =
-          storedSchemaVersion < DATA_SCHEMA_VERSION;
-
-      try {
-          if (typeof idbKeyval === 'undefined') {
-              this.idbAvailable = false;
-          } else {
-              await idbKeyval.get('__zhongri_storage_probe__');
-          }
-      } catch (error) {
-          console.warn(
-              '[DB] idb-keyval ä¸å¯ç”¨ï¼Œé™çº§è‡³ localStorage',
-              error
-          );
-          this.idbAvailable = false;
-      }
-
-      this.builtInWords = this.getDefaultBuiltInWords();
-      this.builtInIdSet = new Set(
-          this.builtInWords.map(word => this.getWordId(word))
-      );
-
-      const [
-          storedUserWords,
-          storedOverrides,
-          legacyDB,
-          storedFolders,
-          storedFolderLangs,
-          storedStars,
-          storedRecords,
-          storedGroupClears,
-          storedWordClears,
-          storedConversations
-      ] = await Promise.all([
-          this.readStorageValue(USER_WORDS_STORAGE_KEY),
-          this.readStorageValue(WORD_OVERRIDES_STORAGE_KEY),
-          this.readStorageValue(LEGACY_WORD_DB_STORAGE_KEY),
-          this.readStorageValue('myFolders_v3'),
-          this.readStorageValue('myFolderLangs'),
-          this.readStorageValue('starredWords'),
-          this.readStorageValue('studyRecords'),
-          this.readStorageValue('mtGroupClears_v3'),
-          this.readStorageValue('mtWordClears_v3'),
-          this.readStorageValue('aiConversations')
-      ]);
-
-      const hasSeparatedStorage =
-          Array.isArray(storedUserWords) ||
-          (
-              storedOverrides &&
-              typeof storedOverrides === 'object' &&
-              !Array.isArray(storedOverrides)
-          ) ||
-          Number.parseInt(
-              localStorage.getItem(WORD_STORAGE_VERSION_KEY) || '0',
-              10
-          ) >= WORD_STORAGE_VERSION;
-
-      if (hasSeparatedStorage) {
-          this.userWords = Array.isArray(storedUserWords)
-              ? cloneDataValue(storedUserWords)
-              : [];
-          this.wordOverrides =
-              storedOverrides &&
-              typeof storedOverrides === 'object' &&
-              !Array.isArray(storedOverrides)
-                  ? cloneDataValue(storedOverrides)
-                  : {};
-          this.rebuildCombinedDB();
-      } else if (Array.isArray(legacyDB)) {
-          this.migrateLegacyWordStorage(legacyDB, {
-              markMissingBuiltInsAsDeleted: true
-          });
-      } else {
-          this.userWords = [];
-          this.wordOverrides = {};
-          this.rebuildCombinedDB();
-      }
-
-      this.folders = Array.isArray(storedFolders)
-          ? cloneDataValue(storedFolders)
-          : ['é»˜è®¤è¯åº“'];
-      this.folderLangs =
-          storedFolderLangs &&
-          typeof storedFolderLangs === 'object' &&
-          !Array.isArray(storedFolderLangs)
-              ? cloneDataValue(storedFolderLangs)
-              : { 'é»˜è®¤è¯åº“': 'ja' };
-      this.stars = Array.isArray(storedStars)
-          ? cloneDataValue(storedStars)
-          : [];
-      this.records = Array.isArray(storedRecords)
-          ? cloneDataValue(storedRecords)
-          : [];
-      this.mtGroupClears =
-          storedGroupClears &&
-          typeof storedGroupClears === 'object' &&
-          !Array.isArray(storedGroupClears)
-              ? cloneDataValue(storedGroupClears)
-              : {};
-      this.mtWordClears =
-          storedWordClears &&
-          typeof storedWordClears === 'object' &&
-          !Array.isArray(storedWordClears)
-              ? cloneDataValue(storedWordClears)
-              : {};
-      this.aiConversations = Array.isArray(storedConversations)
-          ? cloneDataValue(storedConversations)
-          : [];
-
-      this.builtInWords.forEach(word => {
-          const folder = word.folder || (
-              word.lang === 'en'
-                  ? 'å››çº§è¯æ±‡'
-                  : 'é»˜è®¤è¯åº“'
-          );
-
-          if (!this.folders.includes(folder)) {
-              this.folders.push(folder);
-          }
-
-          this.folderLangs[folder] =
-              word.lang === 'en' ? 'en' : 'ja';
-      });
-
-      let migrationSnapshot = null;
-
-      if (needsMigration) {
-          migrationSnapshot =
-              await this.createMigrationSnapshot(
-                  storedSchemaVersion
-              );
-      }
-
-      try {
-          await this.runDataMigrations();
-          await this.persistSeparatedWordData();
-
-          if (needsMigration) {
-              localStorage.setItem(
-                  'dataSchemaVersion',
-                  String(DATA_SCHEMA_VERSION)
-              );
-
-              console.log(
-                  `[Migration] æ•°æ®æ ¼å¼å·²ä» ${storedSchemaVersion} å‡çº§åˆ° ${DATA_SCHEMA_VERSION}`
-              );
-          }
-      } catch (error) {
-          console.error('[Migration] æ•°æ®è¿ç§»å¤±è´¥', error);
-
-          if (migrationSnapshot) {
-              try {
-                  await this.restoreMigrationSnapshot(
-                      migrationSnapshot
-                  );
-
-                  localStorage.setItem(
-                      'dataSchemaVersion',
-                      String(storedSchemaVersion)
-                  );
-              } catch (restoreError) {
-                  console.error(
-                      '[Migration] è‡ªåŠ¨æ¢å¤ä¹Ÿå¤±è´¥',
-                      restoreError
-                  );
-              }
-          }
-
-          throw error;
-      }
-  },
-
-  saveDB() {
-      const canonicalMap = new Map(
-          this.builtInWords.map(word => [
-              this.getWordId(word),
-              word
-          ])
-      );
-      const currentById = new Map();
-      const userWords = [];
-      const overrides = {};
-
-      this.db.forEach(rawWord => {
-          Object.assign(
-              rawWord,
-              normalizeWordEntry(
-                  rawWord,
-                  { preserveWord: true }
-              )
-          );
-
-          ensureStableWordId(rawWord, {
-              builtInHint: rawWord.builtIn === true
-          });
-
-          if (currentById.has(rawWord._id)) {
-              rawWord._id = createRandomWordId();
-              rawWord.builtIn = false;
-          }
-
-          currentById.set(rawWord._id, rawWord);
-      });
-
-      this.db.forEach(word => {
-          const canonical = canonicalMap.get(word._id);
-
-          if (canonical) {
-              word.builtIn = true;
-              word.lang = canonical.lang;
-
-              const override = this.buildWordOverride(
-                  canonical,
-                  word
-              );
-
-              if (Object.keys(override).length > 0) {
-                  overrides[word._id] = override;
-              }
-
-              return;
-          }
-
-          word.builtIn = false;
-          userWords.push(cloneDataValue(word));
-      });
-
-      this.builtInWords.forEach(canonical => {
-          const wordId = this.getWordId(canonical);
-
-          if (!currentById.has(wordId)) {
-              overrides[wordId] = {
-                  _deleted: true,
-                  updatedAt: new Date().toISOString()
-              };
-          }
-      });
-
-      this.userWords = userWords;
-      this.wordOverrides = overrides;
-
-      return this.persistSeparatedWordData();
-  },
-  saveFolders() {
-      if (!this.idbAvailable) { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); return Promise.resolve(); }
-      return idbKeyval.set('myFolders_v3', this.folders);
-  },
-  saveFolderLangs() {
-      if (!this.idbAvailable) { localStorage.setItem('myFolderLangs', JSON.stringify(this.folderLangs)); return Promise.resolve(); }
-      return idbKeyval.set('myFolderLangs', this.folderLangs);
-  },
-  saveStars() {
-      if (!this.idbAvailable) { localStorage.setItem('starredWords', JSON.stringify(this.stars)); return Promise.resolve(); }
-      return idbKeyval.set('starredWords', this.stars);
-  },
-  saveRecords() {
-      if (!this.idbAvailable) { localStorage.setItem('studyRecords', JSON.stringify(this.records)); return Promise.resolve(); }
-      return idbKeyval.set('studyRecords', this.records);
-  },
-  
-  checkFilter(w, filterName) {
-      const st = this.getClearState(w);
-
-      if (filterName === 'virtual_starred') return this.isStarred(w);
-      // ç»Ÿä¸€ä¸‰æ åˆ¤æ–­ï¼šæ—¥è¯­å’Œè‹±è¯­å‡ç”¨ kanji + kana + meaning
-      if (filterName === 'virtual_cleared') {
-          return st.kanji && st.kana && st.meaning; 
-      }
-      if (filterName === 'virtual_uncleared') {
-          return !(st.kanji && st.kana && st.meaning); 
-      }
-      if (filterName === 'virtual_know_kanji') return st.kanji;
-      if (filterName === 'virtual_know_kana') return st.kana;
-      if (filterName === 'virtual_know_meaning') return st.meaning;
-      if (filterName === 'virtual_miss_kanji') return !st.kanji;
-      if (filterName === 'virtual_miss_kana') return !st.kana;
-      if (filterName === 'virtual_miss_meaning') return !st.meaning;
-      
-      return w.folder === (filterName === 'default' ? 'é»˜è®¤è¯åº“' : filterName);
-  },
-
-  saveClears() {
-      if (!this.idbAvailable) {
-          localStorage.setItem('mtGroupClears_v3', JSON.stringify(this.mtGroupClears));
-          localStorage.setItem('mtWordClears_v3', JSON.stringify(this.mtWordClears));
-          return Promise.resolve();
-      }
-      return Promise.all([
-          idbKeyval.set('mtGroupClears_v3', this.mtGroupClears),
-          idbKeyval.set('mtWordClears_v3', this.mtWordClears)
-      ]);
-  },
-  
-    updateFilteredDb(searchQuery, currentFilter) {
-      this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
-          if ((item.w.lang || 'ja') !== Model.state.currentLangMode) return false;
-          let matchFolder = currentFilter === 'all' ? true : this.checkFilter(item.w, currentFilter);
-          let matchSearch = !searchQuery || 
-                            item.w.word.toLowerCase().includes(searchQuery) ||
-                            (item.w.kana || '').toLowerCase().includes(searchQuery) ||
-                            item.w.meaning.toLowerCase().includes(searchQuery);
-          return matchFolder && matchSearch;
-      });
-      this.state.filteredDb.unshift({ w: { word: 'HINT_CARD', type: 'hint' }, idx: -999 });
-  },
-
-
-  splitKanaByMora(kanaStr) {
-      let tokens = kanaStr.replace(/[ã€ã€‘\[\]()]/g, '').match(/([ã-ã‚“ã‚¡-ãƒ³][ã‚ƒã‚…ã‚‡ãƒ£ãƒ¥ãƒ§ããƒã…ã‡ã‰ã‚¡ã‚£ã‚¥ã‚§ã‚©]?|[ã£ãƒƒã‚“ãƒ³ãƒ¼])/g);
-      return tokens || kanaStr.split('');
-  },
-  
-  calculateStats() {
-      let dailyRecords = this.records.filter(r => r.type === 'daily_punch').map(r => r.date);
-      let uniqueDates = [...new Set(dailyRecords)].sort((a, b) => new Date(b) - new Date(a));
-      let totalDays = uniqueDates.length; let streak = 0;
-      let today = new Date(); today.setHours(0,0,0,0);
-      for (let i = 0; i < uniqueDates.length; i++) {
-          let d = new Date(uniqueDates[i]); d.setHours(0,0,0,0);
-          let diff = (today - d) / 86400000;
-          if (i === 0 && diff > 1) break; 
-          if (i > 0) {
-              let prevD = new Date(uniqueDates[i-1]); prevD.setHours(0,0,0,0);
-              if ((prevD - d) / 86400000 > 1) break; 
-          }
-          streak++;
-      }
-      return { totalDays, streak };
-  }
-};
-
-const Hardware = {
-  audioCtx: null, jaVoiceCache: null, enVoiceCache: null, chargeOsc: null, chargeGain: null, _currentAudio: null,
-  init() {
-    HAPTICS.install();
-    try {
-        if (window.speechSynthesis) {
-          let loadVoice = () => { this.jaVoiceCache = window.speechSynthesis.getVoices().find(v => v.lang.includes('ja') || v.lang.includes('JP')); };
-          loadVoice();
-          if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoice;
-        }
-    } catch(e) {}
-  },
-  haptic(type, options) {
-    return HAPTICS.trigger(type, options);
-  },
-  vibrate(pattern, options) {
-    return HAPTICS.triggerLegacy(pattern, options);
-  },
-  playSound(type, { haptic = true } = {}) {
-    if (haptic) {
-        this.haptic(
-            type === 'success' || type === 'error'
-                ? type
-                : 'tap'
-        );
-    }
-    try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        if (!this.audioCtx) this.audioCtx = new AudioContext();
-        if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-        const osc = this.audioCtx.createOscillator(); const gain = this.audioCtx.createGain();
-        osc.connect(gain); gain.connect(this.audioCtx.destination);
-        const now = this.audioCtx.currentTime;
-        if (type === 'click') {
-          osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-          gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-          osc.start(now); osc.stop(now + 0.05);
-        } else if (type === 'success') {
-          osc.type = 'triangle'; osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(783.99, now + 0.2); osc.frequency.setValueAtTime(1046.50, now + 0.3);
-          gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05); gain.gain.linearRampToValueAtTime(0, now + 0.6);   
-          osc.start(now); osc.stop(now + 0.6);
-        } else if (type === 'error') {
-          osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
-          gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-          osc.start(now); osc.stop(now + 0.15);
-        }
-    } catch(e) {}
-  },
-  playChargeSound() {
-      try {
-          const AudioContext = window.AudioContext || window.webkitAudioContext;
-          if (!this.audioCtx) this.audioCtx = new AudioContext();
-          if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-          this.chargeOsc = this.audioCtx.createOscillator();
-          this.chargeGain = this.audioCtx.createGain();
-          this.chargeOsc.connect(this.chargeGain);
-          this.chargeGain.connect(this.audioCtx.destination);
-          let now = this.audioCtx.currentTime;
-          this.chargeOsc.type = 'sine';
-          this.chargeOsc.frequency.setValueAtTime(100, now);
-          this.chargeOsc.frequency.exponentialRampToValueAtTime(800, now + 1.5); 
-          this.chargeGain.gain.setValueAtTime(0, now);
-          this.chargeGain.gain.linearRampToValueAtTime(0.2, now + 0.2); 
-          this.chargeGain.gain.linearRampToValueAtTime(0.5, now + 1.5); 
-          this.chargeOsc.start(now);
-      } catch(e) {}
-  },
-  stopChargeSound() {
-      try {
-          if(this.chargeOsc && this.chargeGain) {
-              let now = this.audioCtx.currentTime;
-              this.chargeGain.gain.cancelScheduledValues(now);
-              this.chargeGain.gain.setValueAtTime(this.chargeGain.gain.value, now);
-              this.chargeGain.gain.linearRampToValueAtTime(0, now + 0.1);
-              this.chargeOsc.stop(now + 0.1);
-              this.chargeOsc = null;
-          }
-      } catch(e) {}
-  },
-  playDingDong() {
-      try {
-          const AudioContext = window.AudioContext || window.webkitAudioContext;
-          if (!this.audioCtx) this.audioCtx = new AudioContext();
-          if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
-          let osc1 = this.audioCtx.createOscillator(); let gain1 = this.audioCtx.createGain();
-          let osc2 = this.audioCtx.createOscillator(); let gain2 = this.audioCtx.createGain();
-          osc1.connect(gain1); gain1.connect(this.audioCtx.destination);
-          osc2.connect(gain2); gain2.connect(this.audioCtx.destination);
-          
-          let now = this.audioCtx.currentTime;
-          osc1.type = 'sine'; osc1.frequency.setValueAtTime(880, now); 
-          gain1.gain.setValueAtTime(0, now); gain1.gain.linearRampToValueAtTime(0.3, now + 0.02); gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-          osc1.start(now); osc1.stop(now + 0.3);
-          
-          osc2.type = 'sine'; osc2.frequency.setValueAtTime(659.25, now + 0.15); 
-          gain2.gain.setValueAtTime(0, now + 0.15); gain2.gain.linearRampToValueAtTime(0.3, now + 0.17); gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-          osc2.start(now + 0.15); osc2.stop(now + 0.6);
-      } catch(e) {}
-  },
-stopAllAudio() {
-        if (window.speechSynthesis) window.speechSynthesis.cancel();
-        if (this._currentAudio) {
-            this._currentAudio.pause();
-            this._currentAudio.src = '';
-            this._currentAudio = null;
-        }
-    },
-isSpeechUnlocked: false,
-      unlockSpeech() {
-
-    try { 
-        if (!window.speechSynthesis) return;
-        if (!this.jaVoiceCache) {
-            let voices = window.speechSynthesis.getVoices();
-            this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
-        }
-        if (this.isSpeechUnlocked) return;
-        let unlock = new SpeechSynthesisUtterance(''); 
-        unlock.volume = 0; 
-        window.speechSynthesis.speak(unlock); 
-        this.isSpeechUnlocked = true; 
-    } catch(e) {}
-},
-fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
-    if (!window.speechSynthesis) {
-        if (onComplete) onComplete();
-        return;
-    }
-    
-    setTimeout(() => {
-        let msg = new SpeechSynthesisUtterance(text);
-        msg.lang = lang;
-        msg.rate = isSentence ? 0.75 : 0.8;
-        
-        let voices = window.speechSynthesis.getVoices();
-        if (lang === 'en-US') {
-            if (!this.enVoiceCache) this.enVoiceCache = voices.find(v => v.lang.includes('en') && (v.lang.includes('US') || v.lang.includes('GB')));
-            if (this.enVoiceCache) msg.voice = this.enVoiceCache;
-        } else if (lang === 'zh-CN') {
-            if (!this.zhVoiceCache) this.zhVoiceCache = voices.find(v => v.lang.includes('zh') || v.lang.includes('CN'));
-            if (this.zhVoiceCache) msg.voice = this.zhVoiceCache;
-        } else {
-            if (!this.jaVoiceCache) this.jaVoiceCache = voices.find(v => v.lang.includes('ja') || v.lang.includes('JP'));
-            if (this.jaVoiceCache) msg.voice = this.jaVoiceCache;
-        }
-        
-        if (onComplete) {
-            msg.onend = onComplete;
-            msg.onerror = onComplete;
-        }
-        
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-        window.speechSynthesis.speak(msg);
-    }, 50);
-},
-
-
-// Helper: speak the appropriate text for a word based on its language
-speakWord(w, btnEl) {
-    if (!w) return;
-    const isEnglish = w.lang === 'en';
-    const text = isEnglish 
-        ? (w.word || '') 
-        : ((w.kana || '').replace(/[ã€ã€‘\[\]()]/g,''));
-    this.speakText(text, btnEl, isEnglish ? 'en' : 'ja');
-},
-
-async speakText(text, btnEl = null, lang = 'ja') {
-  try {
-      if (typeof text !== 'string' || text.trim() === '') return;
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
-      if (this._currentAudio) {
-          this._currentAudio.pause();
-          this._currentAudio = null;
-      }
-            
-            let iconEl = null; let originalIcon = '';
-            if (btnEl) {
-                btnEl.classList.add('speaker-loading');
-                iconEl = btnEl.classList.contains('material-symbols-rounded') ? btnEl : btnEl.querySelector('.material-symbols-rounded');
-                if (iconEl) { originalIcon = iconEl.innerText; iconEl.innerText = 'spa'; }
-            }
-
-            const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
-
-            let isSentence = text.length > 12 || /[ã€‚ï¼Ÿï¼ï¼Œã€]/.test(text);
-            let engine = localStorage.getItem('ttsEngine') || 'azure';
-            const ttsLang = lang === 'en' ? 'en-US' : (lang === 'zh' ? 'zh-CN' : 'ja-JP');
-
-
- if (engine === 'local' || (engine === 'youdao' && isSentence)) {
-    this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang);
-    return;
-}
-
-if (engine === 'youdao') {
-    const langParam = lang === 'en' ? 'eng' : (lang === 'zh' ? 'zh' : 'jap');
-    const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&le=${langParam}`;
-    if (this._currentAudio) {
-        this._currentAudio.pause();
-        this._currentAudio.src = '';
-        this._currentAudio.load();
-        this._currentAudio = null;
-    }
-    const audio = new Audio(url);
-    audio.playbackRate = 0.85;
-    audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
-    this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
-    return;
-}
-if (engine === 'azure') {
-    const workerUrl = "https://ibka.moyu54433.workers.dev/v1/audio/speech";
-    let voice = 'ja-JP-NanamiNeural';
-    if (lang === 'en') voice = 'en-US-AriaNeural';
-    if (lang === 'zh') voice = 'zh-CN-XiaoxiaoNeural';
-    
-    const response = await fetch(workerUrl, {        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "tts-1", input: text, voice: voice })
-    });
-
-    if (!response.ok) throw new Error("Azure API è¯·æ±‚å¤±è´¥");
-    const blob = await response.blob();
-    
-    if (this._currentAudio) {
-        this._currentAudio.pause();
-        if (this._currentAudio.src) URL.revokeObjectURL(this._currentAudio.src);
-        this._currentAudio = null;
-    }
-
-    const audio = new Audio(URL.createObjectURL(blob));
-    audio.playbackRate = isSentence ? 0.75 : 0.85;
-    audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
-    this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
-}
-        } catch(e) {
-            console.warn("[TTS] åœ¨çº¿å¼•æ“å¤±æ•ˆï¼Œé™çº§ä¸ºæœ¬åœ°å‘éŸ³", e);
-            if (btnEl) { btnEl.classList.remove('speaker-loading'); let i = btnEl.querySelector('.material-symbols-rounded'); if(i) i.innerText = 'volume_up'; }
-            this.fallbackLocalTTS(text, isSentence);
-        }
-      }
-};
-
-const View = {
-  getEl: (id) => document.getElementById(id),
-
-  playStudyFeedback(type) {
-      const card = this.getEl('flash-card');
-      if (!card) return;
-
-      const correctClass = 'study-feedback-correct';
-      const wrongClass = 'study-feedback-wrong';
-      const activeClass = type === 'correct' ? correctClass : wrongClass;
-
-      card.classList.remove(correctClass, wrongClass);
-      void card.offsetWidth;
-      card.classList.add(activeClass);
-
-      window.setTimeout(() => {
-          card.classList.remove(activeClass);
-      }, type === 'correct' ? 360 : 300);
-  },
-
-  revealStudyElement(el) {
-      if (!el) return;
-
-      el.classList.remove('blur-text', 'answer-reveal');
-      el.removeAttribute('aria-hidden');
-
-      void el.offsetWidth;
-      el.classList.add('answer-reveal');
-
-      window.setTimeout(() => {
-          el.classList.remove('answer-reveal');
-      }, 460);
-  },
-
-  revealStudyAnswer() {
-      const elements = [
-          this.getEl('w-word'),
-          this.getEl('w-kana'),
-          this.getEl('w-type'),
-          this.getEl('w-meaning'),
-          this.getEl('w-roots'),
-          this.getEl('w-example-box')
-      ].filter(el => {
-          return el && el.style.display !== 'none' && !el.classList.contains('hidden');
-      });
-
-      elements.forEach((el, index) => {
-          window.setTimeout(() => {
-              this.revealStudyElement(el);
-          }, index * 40);
-      });
-  },
-  
-  showPage(pageId) {
-      let studyArea = this.getEl('study-area');
-      let bottomNav = this.getEl('bottom-nav');
-      let globalHeader = this.getEl('global-header');
-
-      if (pageId === 'study-area') {
-          studyArea.classList.remove('hidden');
-          if(bottomNav) bottomNav.style.transform = 'translateY(150%)';
-          if(globalHeader) globalHeader.style.transform = 'translateY(-150%)';
-      } else {
-          studyArea.classList.add('hidden');
-          if(bottomNav) bottomNav.style.transform = 'translateY(0)';
-          if(globalHeader) globalHeader.style.transform = 'translateY(0)';
-      }
-  },
-  
-  toggleTheme(e) {
-    let isDark = document.body.getAttribute('data-theme') === 'dark';
-    let toggleAction = () => {
-        if (isDark) { document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); } 
-        else { document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); }
-    };
-    if (!document.startViewTransition) { toggleAction(); return; }
-    const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
-    const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
-    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
-    document.documentElement.classList.add('theme-switching');
-    const transition = document.startViewTransition(toggleAction);
-    transition.ready.then(() => {
-        document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`], opacity: [0.5, 1] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-new(root)' });
-        document.documentElement.animate({ filter: ['brightness(1) blur(0px)', 'brightness(0.6) blur(4px)'] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-old(root)' });
-    });
-    transition.finished.then(() => { document.documentElement.classList.remove('theme-switching'); });
-  },
-  
-      renderRoots(rootsStr, maskText = false, maskMean = false) {
-      if (!rootsStr) return '';
-      let maskFixed = "â– â– â– "; 
-      return rootsStr.split('-').map((part, index) => {
-          let match = part.match(/(.+?)\((.+?)\)/);
-          if (match) {
-              let tReal = escapeHTML(match[1]);
-              let mReal = escapeHTML(match[2]);
-              let t = maskText ? maskFixed : tReal;
-              let m = maskMean ? maskFixed : mReal;
-              return `<div class="root-capsule capsule-${index % 3}"><span class="r-text blur-target" data-real="${tReal}">${t}</span><span class="r-mean blur-target" data-real="${mReal}">${m}</span></div>`;
-          }
-          let tReal = escapeHTML(part);
-          let t = maskText ? maskFixed : tReal;
-          return `<div class="root-capsule capsule-${index % 3}"><span class="r-text blur-target" data-real="${tReal}">${t}</span></div>`;
-      }).join('<span class="root-plus">+</span>');
-  },
-
-  syncRootsDisplay() {
-      let rootsEl = this.getEl('w-roots');
-      if (!rootsEl || rootsEl.style.display === 'none') return;
-      
-      let wWord = this.getEl('w-word');
-      let wMean = this.getEl('w-meaning');
-      
-      let wordVis = wWord && wWord.style.display !== 'none' && !wWord.innerText.includes('â– ');
-      let meanVis = wMean && wMean.style.display !== 'none' && !wMean.innerText.includes('â– ');
-
-      rootsEl.querySelectorAll('.r-text').forEach(n => {
-          n.innerHTML = wordVis ? (n.dataset.real || 'â– â– â– ') : 'â– â– â– ';
-      });
-      rootsEl.querySelectorAll('.r-mean').forEach(n => {
-          n.innerHTML = meanVis ? (n.dataset.real || 'â– â– â– ') : 'â– â– â– ';
-      });
-  },
-
-
-
-  getCardVisuals(typeStr, lang) {
-    if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
-    
-    // English words: use simple PoS abbreviations as watermark
-    if (lang === 'en') {
-        /*
-         * æ˜¾ç¤ºå±‚ç»§ç»­å…¼å®¹å¤šç§è¯æ€§åˆ†éš”ç¬¦ï¼Œ
-         * å³ä½¿æ—§æ•°æ®å°šæœªç»è¿‡è¿ç§»ï¼Œä¹Ÿèƒ½æ­£ç¡®æ˜¾ç¤ºåŒè‰²å¡ç‰‡ã€‚
-         */
-        let tags = String(typeStr)
-            .split(/[ãƒ»/ï¼ã€,ï¼Œ;ï¼›|]+/)
-            .map(type => type.trim())
-            .filter(Boolean);
-
-        if (tags.length === 0) {
-            tags = [String(typeStr).trim()];
-        }
-
-        const getEnglishWatermark = type => {
-            if (type.includes('åè¯') || type === 'å') {
-                return 'n.';
-            }
-
-            if (type.includes('åŠ¨è¯') || type === 'åŠ¨') {
-                return 'v.';
-            }
-
-            if (
-                type.includes('å½¢å®¹è¯') &&
-                !type.includes('å½¢å®¹åŠ¨è¯')
-            ) {
-                return 'adj.';
-            }
-
-            if (type.includes('å‰¯è¯')) {
-                return 'adv.';
-            }
-
-            if (type.includes('ä»‹è¯')) {
-                return 'prep.';
-            }
-
-            if (
-                type.includes('è¿è¯') ||
-                type.includes('è¿æ¥')
-            ) {
-                return 'conj.';
-            }
-
-            if (type.includes('ä»£è¯')) {
-                return 'pron.';
-            }
-
-            return type.charAt(0);
-        };
-
-        const watermarkItems = [
-            ...new Set(
-                tags
-                    .map(getEnglishWatermark)
-                    .filter(Boolean)
-            )
-        ].slice(0, 2);
-
-        const enWm =
-            watermarkItems.length > 1
-                ? `<span class="wm-multi">${watermarkItems.join('ãƒ»')}</span>`
-                : (watermarkItems[0] || '');
-
-        const getCat = type => {
-            if (
-                type.includes('å½¢å®¹åŠ¨è¯') ||
-                type.includes('å½¢åŠ¨') ||
-                type.includes('å½¢å®¹è¯')
-            ) {
-                return { color: 'var(--bg-adj)' };
-            }
-
-            if (
-                type.includes('åŠ¨è¯') ||
-                type === 'åŠ¨'
-            ) {
-                return { color: 'var(--bg-verb)' };
-            }
-
-            if (
-                type.includes('åè¯') ||
-                type === 'å'
-            ) {
-                return { color: 'var(--bg-noun)' };
-            }
-
-            if (
-                type.includes('å‰¯è¯') ||
-                type.includes('æ¥')
-            ) {
-                return { color: 'var(--bg-adv)' };
-            }
-
-            if (type.includes('ä»£è¯')) {
-                return { color: 'var(--bg-pronoun)' };
-            }
-
-            return { color: 'var(--bg-other)' };
-        };
-
-        const mainColors = [];
-
-        const tagsHTML = tags
-            .map(type => {
-                const catInfo = getCat(type);
-                mainColors.push(catInfo.color);
-
-                return (
-                    `<span class="type-capsule" ` +
-                    `style="background: ${catInfo.color};">` +
-                    `${escapeHTML(type)}` +
-                    `</span>`
-                );
-            })
-            .join('');
-
-        const uniqueColors = [
-            ...new Set(mainColors)
-        ];
-
-        let bg =
-            uniqueColors[0] ||
-            'var(--surface-container)';
-
-        if (uniqueColors.length >= 2) {
-            bg =
-                `linear-gradient(` +
-                `135deg, ` +
-                `${uniqueColors[0]} 50%, ` +
-                `${uniqueColors[1]} 50%` +
-                `)`;
-        }
-
-        if (
-            bg === 'var(--surface-container)' &&
-            tagsHTML
-        ) {
-            bg = 'var(--bg-other)';
-        }
-
-        return {
-            bg,
-            wm: enWm,
-            tagsHTML
-        };
-    }
-    
-    // Japanese words: keep original grammar character watermark
-    let wmSet = new Set();
-    if (typeStr.includes('è‡ªä»–')) { wmSet.add('ãŒ'); wmSet.add('ã‚’'); }
-    else {
-        if (typeStr.includes('è‡ª')) wmSet.add('ãŒ');
-        if (typeStr.includes('ä»–')) wmSet.add('ã‚’');
-    }
-    if (typeStr.includes('å½¢åŠ¨') || typeStr.includes('å½¢å®¹åŠ¨è¯')) wmSet.add('ãª');
-    if (typeStr.includes('å')) wmSet.add('ã®');
-
-    let wmArray = Array.from(wmSet).slice(0, 2);
-    let wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('ãƒ»')}</span>` : wmArray.join('');
-
-    const getCat = (t) => {
-        if (t.includes('å½¢å®¹åŠ¨è¯') || t.includes('å½¢åŠ¨')) return { color: 'var(--bg-adj-na)' };
-        if (t.includes('å½¢')) return { color: 'var(--bg-adj)' };
-        if (/[æ®µå¤‰å˜å‹•è‡ªä»–ã‚µ]/.test(t)) return { color: 'var(--bg-verb)' };
-        if (t.includes('ä»£')) return { color: 'var(--bg-pronoun)' };
-        if (t.includes('å')) return { color: 'var(--bg-noun)' };
-        if (t.includes('å‰¯') || t.includes('æ¥')) return { color: 'var(--bg-adv)' };
-        return { color: 'var(--bg-other)' }; 
-    };
-    let tags = typeStr.split('ãƒ»').map(t => t.trim()).filter(t => t);
-    if (tags.length === 0) tags = [typeStr]; 
-    let mainColors = [];
-    let tagsHTML = tags.map(t => {
-        let catInfo = getCat(t); mainColors.push(catInfo.color);
-        return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
-    }).join('');
-    let uniqueColors = [...new Set(mainColors)];
-    let bg = uniqueColors[0] || 'var(--surface-container)';
-    if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
-    if (bg === 'var(--surface-container)' && tagsHTML) {
-        bg = 'var(--bg-other)';
-    }
-    return { bg, wm, tagsHTML };
-  },
-
-  updateComboBadge() {
-      let badge = this.getEl('combo-badge');
-      if (!badge) return;
-
-      if (Model.state.mode !== 'rote-learning' && Model.state.mode !== 'dual-track' && Model.state.mode !== 'memory-test') {
-          badge.classList.remove('active', 'tier-2', 'tier-3');
-          return;
-      }
-      
-      let count = Model.state.comboCount;
-      if (count > 0) {
-          badge.innerText = `Combo x${count}`;
-          badge.className = 'combo-badge active';
-          void badge.offsetWidth; 
-          badge.classList.add('combo-pop');
-
-          if (count >= 10) badge.classList.add('tier-3');
-          else if (count >= 5) badge.classList.add('tier-2');
-      } else {
-          badge.className = 'combo-badge';
-      }
-  },
-  
-  updatePixelMatrix() {
-    let c = this.getEl('pixel-matrix');
-    let mode = Model.state.mode;
-    
-    let totalPixels = 10;
-    let displayCurrent = 0;
-    
-    if (mode === 'memory-test') {
-        let total = Model.state.mtBaseQueue.length;
-        totalPixels = total;
-        displayCurrent = total - Model.state.studyQueue.length;
-    } else if (mode === 'filter-test') {
-        let totalWords = Model.state.studyQueue.length;
-        if (totalWords <= 100) {
-            totalPixels = totalWords;
-            displayCurrent = Model.state.currentIndex;
-        } else {
-            totalPixels = 10;
-            displayCurrent = Math.floor((Model.state.currentIndex / totalWords) * 10);
-        }
-    } else if (mode === 'rote-learning') {
-        totalPixels = 10;
-        let ratio = Model.state.initialQueueLength ? (Model.state.currentIndex / Model.state.initialQueueLength) : 0;
-        let currentProgress = Math.floor(ratio * 10);
-        
-        if (currentProgress > Model.state.maxProgressSeen) {
-            Model.state.maxProgressSeen = currentProgress;
-        }
-        displayCurrent = Model.state.maxProgressSeen;
-    } else if (mode === 'pendulum' || mode === 'dual-track') {
-        totalPixels = Model.state.studyQueue.length;
-        displayCurrent = Model.state.currentIndex;
-    }
-    
-        if (displayCurrent > totalPixels) displayCurrent = totalPixels;
-
-    let baseCount = Model.state.studyQueue.length;
-    if (mode === 'memory-test') {
-        baseCount = Model.state.mtBaseQueue.length;
-    } else if (mode === 'rote-learning' || mode === 'pendulum' || mode === 'dual-track') {
-        baseCount = Model.state.uniqueWordCount;
-    }
-    
-    if (baseCount > 100 || mode === 'rote-learning' || mode === 'memory-test') {
-        c.classList.add('matrix-legacy');
-    } else {
-        c.classList.remove('matrix-legacy');
-    }
-
-    if (totalPixels <= 10) {
-        c.classList.add('compact-mode');
-    } else {
-        c.classList.remove('compact-mode');
-    }
-
-    while (c.children.length < totalPixels) { let p = document.createElement('div'); p.className = 'pixel'; c.appendChild(p); }
-
-    while (c.children.length > totalPixels) { c.removeChild(c.lastChild); }
-    
-    Array.from(c.children).forEach((p, i) => {
-      p.className = (i < displayCurrent) ? 'pixel filled' : (i === displayCurrent ? 'pixel current' : 'pixel');
-      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/totalPixels)*10))]);
-    });
-  },
-
-
-
-  renderGroupRangePicker() {
-      const container =
-          this.getEl('group-list-container');
-
-      if (!container) {
-          return;
-      }
-
-      container.innerHTML = '';
-      container.className =
-          'bs-scrollable-content group-range-sections';
-      container.classList.remove('is-empty');
-
-      try {
-          const currentLang =
-              Model.state.currentLangMode;
-
-          const isEnglish =
-              currentLang === 'en';
-
-          const entries = [];
-
-          /*
-           * å½“å‰è¯­è¨€ä¸‹çš„çœŸå®è¯åº“ç›´æ¥åˆ†ç»„å±•ç¤ºã€‚
-           * ä¸å†å…ˆåˆ‡æ¢æ ‡ç­¾ï¼Œå†è¿›è¡Œç¬¬äºŒæ¬¡é€‰æ‹©ã€‚
-           */
-          Model.folders.forEach(folder => {
-              if (
-                  (
-                      Model.folderLangs[folder] ||
-                      'ja'
-                  ) !== currentLang
-              ) {
-                  return;
-              }
-
-              entries.push({
-                  cat:
-                      folder === 'é»˜è®¤è¯åº“'
-                          ? 'default'
-                          : folder,
-                  text: folder,
-                  icon:
-                      folder === 'é»˜è®¤è¯åº“'
-                          ? 'library_books'
-                          : 'folder',
-                  tone: 'library'
-              });
-          });
-
-          /*
-           * å­¦ä¹ çŠ¶æ€ä¸è–„å¼±é¡¹ä¹Ÿæ”¾åœ¨åŒä¸€é¡µä¸­ï¼Œ
-           * å½¢æˆä¸â€œé€‰æ‹©è¯åº“â€ä¸€è‡´çš„åˆ†æ å¼ç»“æ„ã€‚
-           */
-          entries.push(
-              {
-                  cat: 'virtual_starred',
-                  text: 'æ”¶è—è¯æ±‡',
-                  icon: 'star',
-                  tone: 'favorite'
-              },
-              {
-                  cat: 'virtual_cleared',
-                  text: 'å®Œå…¨é€šå…³',
-                  icon: 'workspace_premium',
-                  tone: 'review'
-              },
-              {
-                  cat: 'virtual_uncleared',
-                  text: 'æ‰€æœ‰æœªé€šå…³',
-                  icon: 'hourglass_empty',
-                  tone: 'review'
-              },
-              {
-                  cat: 'virtual_miss_kanji',
-                  text: isEnglish
-                      ? 'æœªæŒæ¡æ‹¼å†™'
-                      : 'æœªäº†è§£æ±‰å­—',
-                  icon: 'spellcheck',
-                  tone: 'weak'
-              },
-              {
-                  cat: 'virtual_miss_kana',
-                  text: isEnglish
-                      ? 'æœªæŒæ¡å¬åŠ›'
-                      : 'æœªäº†è§£è¯»éŸ³',
-                  icon: isEnglish
-                      ? 'headphones'
-                      : 'record_voice_over',
-                  tone: 'weak'
-              },
-              {
-                  cat: 'virtual_miss_meaning',
-                  text: 'æœªäº†è§£é‡Šä¹‰',
-                  icon: 'translate',
-                  tone: 'weak'
-              }
-          );
-
-          const selectedGroup =
-              Model.state.currentGroupKey ||
-              localStorage.getItem(
-                  'lastCustomGroupVal'
-              ) ||
-              '';
-
-          const GROUP_SIZE = ROTE_CORE.GROUP_SIZE;
-          const GROUP_STEP = ROTE_CORE.GROUP_STEP;
-          const fragment =
-              document.createDocumentFragment();
-
-          let visibleSectionCount = 0;
-
-          entries.forEach(entry => {
-              const words =
-                  Model.db.filter(word => {
-                      return (
-                          (
-                              word.lang ||
-                              'ja'
-                          ) === currentLang &&
-                          Model.checkFilter(
-                              word,
-                              entry.cat
-                          )
-                      );
-                  });
-
-              /* ç©ºåˆ†ç±»ä¸å æ®æŠ½å±‰ç©ºé—´ã€‚ */
-              if (words.length === 0) {
-                  return;
-              }
-
-              visibleSectionCount++;
-
-              const section =
-                  document.createElement(
-                      'section'
-                  );
-
-              section.className =
-                  `group-range-section ` +
-                  `is-${entry.tone}`;
-
-              const heading =
-                  document.createElement(
-                      'div'
-                  );
-
-              heading.className =
-                  'group-range-section-head';
-
-              heading.innerHTML = `
-                  <span
-                      class="group-range-section-icon material-symbols-rounded"
-                      aria-hidden="true"
-                  >
-                      ${entry.icon}
-                  </span>
-
-                  <span
-                      class="group-range-section-title"
-                  >
-                      ${escapeHTML(entry.text)}
-                  </span>
-
-                  <span
-                      class="group-range-section-count"
-                  >
-                      ${words.length} è¯
-                  </span>
-              `;
-
-              const grid =
-                  document.createElement(
-                      'div'
-                  );
-
-              grid.className =
-                  'group-range-section-grid';
-
-              let groupIndex = 0;
-
-              while (
-                  groupIndex * GROUP_STEP <
-                  words.length
-              ) {
-                  const range = ROTE_CORE.getGroupRange(
-                      groupIndex,
-                      words.length
-                  );
-                  const startIndex = range.start;
-                  const endIndex = range.end;
-
-                  const groupValue =
-                      `group|${entry.cat}|${groupIndex}`;
-
-                  const selected =
-                      selectedGroup === groupValue;
-
-                  const clearCount =
-                      Model.mtGroupClears[
-                          groupValue
-                      ] || 0;
-
-                  const button =
-                      document.createElement(
-                          'div'
-                      );
-
-                  button.className =
-                      `bs-option group-range-option ` +
-                      `${selected ? 'selected' : ''}`;
-
-                  button.setAttribute(
-                      'tabindex',
-                      '0'
-                  );
-
-                  button.setAttribute(
-                      'role',
-                      'button'
-                  );
-
-                  button.setAttribute(
-                      'aria-pressed',
-                      selected ? 'true' : 'false'
-                  );
-
-                  let badgeHTML = '';
-
-                  if (
-                      entry.cat !==
-                          'virtual_uncleared' &&
-                      (
-                          clearCount > 0 ||
-                          entry.cat ===
-                              'virtual_cleared'
-                      )
-                  ) {
-                      let badgeClass =
-                          'hanko-bronze';
-
-                      if (
-                          clearCount >= 10 ||
-                          entry.cat ===
-                              'virtual_cleared'
-                      ) {
-                          badgeClass =
-                              'hanko-diamond';
-                      } else if (
-                          clearCount >= 5
-                      ) {
-                          badgeClass =
-                              'hanko-gold';
-                      } else if (
-                          clearCount >= 3
-                      ) {
-                          badgeClass =
-                              'hanko-silver';
-                      }
-
-                      badgeHTML = `
-                          <span
-                              class="hanko-badge ${badgeClass}"
-                              aria-hidden="true"
-                          ></span>
-                      `;
-                  }
-
-                  const rangeTitle =
-                      words.length <= GROUP_SIZE
-                          ? `å…¨éƒ¨ ${words.length} è¯`
-                          : (
-                              `ç¬¬ ${startIndex + 1}` +
-                              `â€“${endIndex} è¯`
-                          );
-
-                  button.innerHTML = `
-                      <span
-                          class="group-range-icon material-symbols-rounded"
-                          aria-hidden="true"
-                      >
-                          view_module
-                      </span>
-
-                      <span
-                          class="group-range-copy"
-                      >
-                          <strong>
-                              ${rangeTitle}
-                          </strong>
-
-                          <small>
-                              ${endIndex - startIndex}
-                              ä¸ªè¯
-                          </small>
-                      </span>
-
-                      ${badgeHTML}
-
-                      <span
-                          class="group-range-check material-symbols-rounded"
-                          aria-hidden="true"
-                      >
-                          check
-                      </span>
-                  `;
-
-                  const displayText =
-                      `${entry.text} ` +
-                      `(ç¬¬ ${startIndex + 1}` +
-                      `-${endIndex} è¯)`;
-
-                  const choose = () => {
-                      Hardware.playSound('click');
-                      Hardware.vibrate(15);
-
-                      Model.state.currentGroupKey =
-                          groupValue;
-
-                      Model.state.currentGroupLabel =
-                          displayText;
-
-                      const textElement =
-                          this.getEl(
-                              'custom-group-text'
-                          );
-
-                      if (textElement) {
-                          textElement.innerText =
-                              displayText;
-                      }
-
-                      localStorage.setItem(
-                          'lastCustomGroupVal',
-                          groupValue
-                      );
-
-                      localStorage.setItem(
-                          'lastCustomGroupTxt',
-                          displayText
-                      );
-
-                      window.toggleModal(
-                          'group-select-overlay',
-                          false
-                      );
-                  };
-
-                  button.addEventListener(
-                      'click',
-                      choose
-                  );
-
-                  button.addEventListener(
-                      'keydown',
-                      event => {
-                          if (
-                              event.key !== 'Enter' &&
-                              event.key !== ' '
-                          ) {
-                              return;
-                          }
-
-                          event.preventDefault();
-                          choose();
-                      }
-                  );
-
-                  grid.appendChild(button);
-                  groupIndex++;
-
-                  if (groupIndex > 1000) {
-                      break;
-                  }
-              }
-
-              section.appendChild(heading);
-              section.appendChild(grid);
-              fragment.appendChild(section);
-          });
-
-          if (visibleSectionCount === 0) {
-              container.classList.add(
-                  'is-empty'
-              );
-
-              container.innerHTML = `
-                  <div class="group-range-empty">
-                      <span
-                          class="material-symbols-rounded"
-                          aria-hidden="true"
-                      >
-                          spa
-                      </span>
-
-                      <strong>
-                          å½“å‰æ²¡æœ‰å¯é€‰æ‹©çš„å­¦ä¹ èŒƒå›´
-                      </strong>
-                  </div>
-              `;
-
-              return;
-          }
-
-          container.appendChild(fragment);
-      } catch (error) {
-          console.error(
-              '[Group Range Picker]',
-              error
-          );
-
-          container.classList.add(
-              'is-empty'
-          );
-
-          container.innerHTML = `
-              <div
-                  class="group-range-empty is-error"
-              >
-                  <span
-                      class="material-symbols-rounded"
-                      aria-hidden="true"
-                  >
-                      error
-                  </span>
-
-                  <strong>
-                      åŠ è½½å‡ºé”™ï¼Œè¯·é‡è¯•
-                  </strong>
-              </div>
-          `;
-      }
-  },
-
-  updateWordbankManagementUI() {
-    const isManaging = Model.state.batchMode;
-    const selectedCount = Model.state.selectedSet.size;
-
-    const batchBar = this.getEl('batch-bar');
-    const countNum = this.getEl('batch-count-num');
-    const manageBtn = this.getEl('wb-manage-toggle');
-    const manageIcon = this.getEl('manage-icon');
-    const manageLabel = this.getEl('manage-label');
-    const moveBtn = this.getEl('btn-batch-move');
-    const editBtn = this.getEl('btn-batch-edit');
-    const deleteBtn = this.getEl('btn-batch-del');
-    const grid = this.getEl('wb-grid');
-
-    if (batchBar) {
-        batchBar.style.display = isManaging ? 'flex' : 'none';
-    }
-
-    if (countNum) {
-        countNum.innerText = selectedCount;
-    }
-
-    if (manageBtn) {
-        manageBtn.classList.toggle('active', isManaging);
-        manageBtn.setAttribute(
-            'aria-pressed',
-            String(isManaging)
-        );
-        manageBtn.title = isManaging
-            ? 'å®Œæˆç®¡ç†'
-            : 'ç®¡ç†è¯æ±‡';
-    }
-
-    if (manageIcon) {
-        manageIcon.innerText = isManaging
-            ? 'done'
-            : 'edit_note';
-    }
-
-    if (manageLabel) {
-        manageLabel.innerText = isManaging
-            ? 'å®Œæˆ'
-            : 'ç®¡ç†';
-    }
-
-    if (grid) {
-        grid.classList.toggle(
-            'is-managing',
-            isManaging
-        );
-    }
-
-    const hasSelection = selectedCount > 0;
-
-    if (moveBtn) {
-        moveBtn.disabled = !hasSelection;
-    }
-
-    if (deleteBtn) {
-        deleteBtn.disabled = !hasSelection;
-    }
-
-    if (editBtn) {
-        editBtn.hidden = selectedCount !== 1;
-    }
-  },
-
-  updateWordbankUI() {
-    let searchInput = this.getEl('wb-search-input');
-    if (searchInput) searchInput.placeholder = Model.state.currentLangMode === 'en' ? 'æœç´¢è‹±æ–‡ã€éŸ³æ ‡æˆ–é‡Šä¹‰...' : 'æœç´¢æ±‰å­—ã€å‡åæˆ–é‡Šä¹‰...';
-    
-    let modeSel = this.getEl('next-display-mode');
-    if (modeSel) {
-        const isEnglishBook = Model.state.currentLangMode === 'en';
-        modeSel.options[0].text = 'å…¨æ˜¾';
-        modeSel.options[1].text = isEnglishBook ? 'è‹±æ–‡' : 'æ±‰å­—';
-        modeSel.options[2].text = isEnglishBook ? 'éŸ³æ ‡' : 'å‡å';
-        modeSel.options[3].text = 'é‡Šä¹‰';
-        modeSel.options[0].style.display = '';
-    }
-
-    this.updateWordbankManagementUI();
-
-    let selFilter = this.getEl('wb-folder-filter'); 
-    let currentVal = selFilter.value;
-    selFilter.innerHTML = ''; 
-    selFilter.add(new Option('æŸ¥çœ‹æ‰€æœ‰è¯æ±‡', 'all'));
-    selFilter.add(new Option('æ”¶è—è¯æ±‡', 'virtual_starred'));
-    selFilter.add(new Option('å®Œå…¨é€šå…³è¯æ±‡', 'virtual_cleared'));
-        selFilter.add(new Option('æ‰€æœ‰æœªé€šå…³', 'virtual_uncleared'));
-    selFilter.add(new Option(Model.state.currentLangMode === 'en' ? 'ä¸“é¡¹å›¾é‰´: æ‹¼å†™æŒæ¡(é»„)' : 'ä¸“é¡¹å›¾é‰´: æ±‰å­—äº†è§£(é»„)', 'virtual_know_kanji'));
-    selFilter.add(new Option(Model.state.currentLangMode === 'en' ? 'ä¸“é¡¹å›¾é‰´: å¬åŠ›æŒæ¡(çº¢)' : 'ä¸“é¡¹å›¾é‰´: è¯»éŸ³äº†è§£(çº¢)', 'virtual_know_kana'));
-    selFilter.add(new Option('ä¸“é¡¹å›¾é‰´: é‡Šä¹‰äº†è§£(ç™½)', 'virtual_know_meaning'));
-
-    
-    Model.folders.forEach(f => { 
-      if ((Model.folderLangs[f] || 'ja') !== Model.state.currentLangMode) return;
-      selFilter.add(new Option(f, f)); 
-    });
-    
-    let lastFolder = localStorage.getItem('lastSelectedFolder') || currentVal;
-    if(Array.from(selFilter.options).some(opt => opt.value === lastFolder)) {
-        selFilter.value = lastFolder;
-    } else {
-        selFilter.value = 'all';
-    }
-    selFilter.dispatchEvent(new Event('facade-update'));
-
-        // ä»¥å½“å‰è¯ä¹¦è¯­ç§ä½œä¸ºåˆ¤æ–­åŸºå‡†ï¼Œè€Œéç­›é€‰å™¨å€¼
-    const selLang = Model.state.currentLangMode;
-        document.querySelectorAll('.jp-only').forEach(el => {
-        el.style.display = selLang === 'en' ? 'none' : '';
-    });
-    document.querySelectorAll('.en-only').forEach(el => {
-        el.style.display = selLang === 'en' ? 'flex' : 'none';
-        if(el.classList.contains('edit-input-group')) el.style.display = selLang === 'en' ? 'block' : 'none';
-    });
-
-
-    // åŠ¨æ€æ›´æ–°è¯åº“è§†å›¾è®¾ç½®çš„æŒ‰é’®æ–‡æœ¬ï¼Œèµ‹äºˆå…¶è‹±è¯­æ¨¡å¼ä¸‹çš„æ–°åŠŸèƒ½
-    let blurWordBtn = document.querySelector('.vs-blur-btn[data-val="word"]');
-    if (blurWordBtn) blurWordBtn.innerText = selLang === 'en' ? 'ä»…æ˜¾è‹±æ–‡' : 'ä»…æ˜¾å•è¯';
-
-    let blurKanaBtn = document.querySelector('.vs-blur-btn[data-val="kana"]');
-    if (blurKanaBtn) {
-        blurKanaBtn.innerText = selLang === 'en' ? 'ä»…æ˜¾éŸ³æ ‡' : 'ä»…æ˜¾å‡å';
-        blurKanaBtn.classList.remove('jp-only'); // æŒ£è„±æ—¥è¯­ä¸“å±æŸç¼šï¼Œå…è®¸åœ¨è‹±è¯­æ¨¡å¼ä¸‹æ˜¾ç¤º
-    }
-
-
-    const groupOverlay =
-        this.getEl('group-select-overlay');
-
-    if (
-        groupOverlay?.classList.contains('active')
-    ) {
-        this.renderGroupRangePicker();
-    }
-  },
-
-  renderDashboard() {
-    // è‹±è¯­æ¨¡å¼ä¸‹æ˜¾ç¤ºä¸‰æ ï¼ˆå¬åŠ›æ æ›¿ä»£è¯»éŸ³æ ï¼‰ï¼Œæ ‡ç­¾æ–‡å­—åŠ¨æ€åˆ‡æ¢
-    const currentLang = Model.getCurrentLang();
-    const kanaRow = this.getEl('prog-row-kana');
-    if (kanaRow) kanaRow.style.display = 'flex';
-    const kanaBarLabel = document.getElementById('kana-bar-label');
-    if (kanaBarLabel) kanaBarLabel.innerText = currentLang === 'en' ? 'å¬åŠ›' : 'è¯»éŸ³';
-
-let dbTotalEl = this.getEl('db-total-count');
-    if (dbTotalEl) dbTotalEl.innerText = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;    
-    let stats = Model.calculateStats();
-    this.getEl('total-days').innerText = stats.totalDays;
-    this.getEl('streak-days').innerText = stats.streak;
-
-    let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
-    
-    // Build word â†’ lang lookup for accurate counting
-    const wordLangMap = {};
-    Model.db.forEach(w => { wordLangMap[Model.getWordId(w)] = w.lang || 'ja'; });
-    
-Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
-        if (typeof st === 'object') {
-            const lang = wordLangMap[wordKey] || 'ja';
-            if (lang !== Model.state.currentLangMode) return;
-            // å…¼å®¹æ—§è‹±è¯­æ ¼å¼ {word, meaning} â†’ æ˜ å°„ä¸ºä¸‰æ 
-            if (lang === 'en' && st.word !== undefined) {
-                st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
-            }
-            // ç»Ÿä¸€ä¸‰æ åˆ¤æ–­
-            if (st.kanji && st.kana && st.meaning) clearedWordsCount++;
-            if (st.kanji) kanjiCount++;
-            if (st.kana) kanaCount++;
-            if (st.meaning) meaningCount++;
-        }
-    });
-
-    let totalWordsCount = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;
-    let masteryPercent = totalWordsCount === 0 ? 0 : ((clearedWordsCount / totalWordsCount) * 100).toFixed(1);
-    let pKanji = totalWordsCount === 0 ? 0 : ((kanjiCount / totalWordsCount) * 100).toFixed(1);
-    let pKana = totalWordsCount === 0 ? 0 : ((kanaCount / totalWordsCount) * 100).toFixed(1);
-    let pMeaning = totalWordsCount === 0 ? 0 : ((meaningCount / totalWordsCount) * 100).toFixed(1);
-
-    if (this.getEl('mastery-count')) this.getEl('mastery-count').innerText = clearedWordsCount;
-    if (this.getEl('mastery-total')) this.getEl('mastery-total').innerText = totalWordsCount;
-    if (this.getEl('mastery-percent')) this.getEl('mastery-percent').innerText = `(${masteryPercent}%)`;
-    
-    setTimeout(() => {
-        if (this.getEl('mastery-bar')) this.getEl('mastery-bar').style.width = `${masteryPercent}%`;
-        
-        if (this.getEl('prog-bar-kanji')) this.getEl('prog-bar-kanji').style.width = `${pKanji}%`;
-        if (this.getEl('prog-bar-kana')) this.getEl('prog-bar-kana').style.width = `${pKana}%`;
-        if (this.getEl('prog-bar-meaning')) this.getEl('prog-bar-meaning').style.width = `${pMeaning}%`;
-        
-        if (this.getEl('prog-txt-kanji')) this.getEl('prog-txt-kanji').innerHTML = `${kanjiCount} <span style="font-size:0.85em; opacity:0.6;">(${pKanji}%)</span>`;
-        if (this.getEl('prog-txt-kana')) this.getEl('prog-txt-kana').innerHTML = `${kanaCount} <span style="font-size:0.85em; opacity:0.6;">(${pKana}%)</span>`;
-        if (this.getEl('prog-txt-meaning')) this.getEl('prog-txt-meaning').innerHTML = `${meaningCount} <span style="font-size:0.85em; opacity:0.6;">(${pMeaning}%)</span>`;
-    }, 50);
-
-    let lastTxt = localStorage.getItem('lastCustomGroupTxt');
-    if (!lastTxt) {
-        let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || 'é»˜è®¤è¯åº“';
-        lastTxt = `${defFolder} (ç¬¬ 1-10 è¯)`;
-    }
-    this.getEl('custom-group-text').innerText = lastTxt;
-
-    this.updateTestSelects();
-
-        let displaySel = this.getEl('test-display-select');
-    if (displaySel) {
-        let isEn = Model.state.currentLangMode === 'en';
-        displaySel.options[0].text = isEn ? 'ä¸“æ”»è‹±æ–‡æ‹¼å†™ (ç‚¹äº®é»„æ )' : 'ä¸“æ”»æ±‰å­—è¾¨è®¤ (ç‚¹äº®é»„æ )';
-        displaySel.options[1].text = isEn ? 'ä¸“æ”»å‡åè¾¨è®¤' : 'ä¸“æ”»å‡åè¾¨è®¤ (ç‚¹äº®çº¢æ )';
-        displaySel.options[2].text = isEn ? 'ä¸“æ”»å¬åŠ›è¾¨éŸ³ (ç‚¹äº®çº¢æ )' : 'ä¸“æ”»å¬åŠ›è¾¨éŸ³ (ç‚¹äº®çº¢æ )';
-        
-        // è‹±è¯­æ¨¡å¼ä¸‹ç›´æ¥éšè—ç”¨ä¸åˆ°çš„â€œä¸“æ”»å‡åâ€é€‰é¡¹
-        displaySel.options[1].style.display = isEn ? 'none' : '';
-    }
-
-    let lastTestDisplay = localStorage.getItem('lastTestDisplay') || 'kana';
-    if (displaySel && Array.from(displaySel.options).some(o => o.value === lastTestDisplay)) {
-
-        displaySel.value = lastTestDisplay;
-        displaySel.dispatchEvent(new Event('facade-update'));
-    }
-    
-    let t = new Date().toLocaleDateString('zh-CN'); let btn = this.getEl('btn-long-press');
-    if (btn) {
-        let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
-        if(isPunched) {
-            btn.className = 'btn-long-press done';
-            btn.innerHTML = `<span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">task_alt</span> ä»Šæ—¥å·²å®Œæˆ</span>`;
-        } else {
-            btn.className = 'btn-long-press';
-            btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> é•¿æŒ‰æ‰“å¡</span>`;
-        }
-    }
-  },
-
-  updateTestSelects() {
-      let testSel = this.getEl('test-range-select');
-      let defFolder = Model.folders.find(f => (Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) || 'é»˜è®¤è¯åº“';
-      let currentTest = testSel.value || localStorage.getItem('lastTestRange') || defFolder;
-
-      testSel.innerHTML = '';
-      
-      let options = [];
-      Model.folders.forEach(f => {
-          if ((Model.folderLangs[f] || 'ja') === Model.state.currentLangMode) {
-              options.push({ text: f, val: f });
-          }
-      });
-      options.push(
-          { text: 'æ”¶è—è¯æ±‡', val: 'virtual_starred' },
-          { text: 'å®Œå…¨é€šå…³è¯æ±‡', val: 'virtual_cleared' },
-                    { text: 'æ‰€æœ‰æœªé€šå…³', val: 'virtual_uncleared' },
-          { text: Model.state.currentLangMode === 'en' ? 'ä¸“é¡¹æ”»åš: æœªæŒæ¡æ‹¼å†™(é»„)' : 'ä¸“é¡¹æ”»åš: æœªäº†è§£æ±‰å­—(é»„)', val: 'virtual_miss_kanji' },
-          { text: Model.state.currentLangMode === 'en' ? 'ä¸“é¡¹æ”»åš: æœªæŒæ¡å¬åŠ›(çº¢)' : 'ä¸“é¡¹æ”»åš: æœªäº†è§£è¯»éŸ³(çº¢)', val: 'virtual_miss_kana' },
-          { text: 'ä¸“é¡¹æ”»åš: æœªäº†è§£é‡Šä¹‰(ç™½)', val: 'virtual_miss_meaning' },
-          { text: Model.state.currentLangMode === 'en' ? 'å¤ä¹ å·©å›º: å·²æŒæ¡æ‹¼å†™(é»„)' : 'å¤ä¹ å·©å›º: å·²äº†è§£æ±‰å­—(é»„)', val: 'virtual_know_kanji' },
-          { text: Model.state.currentLangMode === 'en' ? 'å¤ä¹ å·©å›º: å·²æŒæ¡å¬åŠ›(çº¢)' : 'å¤ä¹ å·©å›º: å·²äº†è§£è¯»éŸ³(çº¢)', val: 'virtual_know_kana' },
-          { text: 'å¤ä¹ å·©å›º: å·²äº†è§£é‡Šä¹‰(ç™½)', val: 'virtual_know_meaning' }
-
-      );
-
-      options.forEach(opt => { testSel.add(new Option(opt.text, opt.val)); });
-
-if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
-      else if (testSel.options.length > 0) testSel.value = testSel.options[0].value;
-      testSel.dispatchEvent(new Event('facade-update'));  },
-
-    renderStudyCard(anim = 'none') {
-    let idx = Model.state.studyQueue[Model.state.currentIndex];
-    let w = Model.db[idx];
-
-    if (!Number.isInteger(idx) || !w) {
-        Model.state.isAnimating = false;
-        showToast('å½“å‰å­¦ä¹ è¯æ¡æ— æ³•è¯»å–ï¼Œè¯·é‡æ–°é€‰æ‹©è¯ç»„');
-        this.getEl('btn-exit-study')?.click();
-        return;
-    }
-
-    let mode = this.getEl('next-display-mode').value;
-    
-    let isMemTest = (Model.state.mode === 'memory-test');
-    let isRote = (Model.state.mode === 'rote-learning');
-    let isFilterTest = (Model.state.mode === 'filter-test');
-    // åˆ‡å¡æ—¶è‡ªåŠ¨æ”¶èµ· AI è§£æé¢æ¿
-let aiPanel = View.getEl('ai-inline-panel');
-if (aiPanel) aiPanel.classList.add('hidden');
-    let forceRoteFull = false;
-    if (isRote) {
-    let isFirstAppearance = ROTE_CORE.isFirstAppearance(
-        Model.state.studyQueue,
-        Model.state.currentIndex
-    );
-    if (isFirstAppearance) { 
-        forceRoteFull = true; 
-        mode = 'all'; 
-        Model.state.mtStep = 1; 
-    }
-}
-
-    if (Model.state.mode === 'dual-track') {
-        Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
-        let count = Model.state.dtWordAppearanceMap[idx];
-        Model.state.dtSubMode = ((count - 1) % 5 < 3) ? 'choice' : 'spell';
-        mode = 'all';
-    }
-
-    if (isMemTest) {
-        let remain = Model.state.studyQueue.length;
-        let total = Model.state.mtBaseQueue.length;
-        this.getEl('progress-text').innerText = `Round ${Model.state.mtRound} : ${total - remain + 1} / ${total}`;
-    } else {
-        this.getEl('progress-text').innerText = `${Model.state.currentIndex + 1} / ${Model.state.studyQueue.length}`;
-    }
-    
-    if (Model.state.mode === 'pendulum' || Model.state.mode === 'dual-track' || isMemTest || isRote || isFilterTest) {
-        this.updatePixelMatrix(); 
-    }
-
-    let card = this.getEl('flash-card');
-    let visuals = this.getCardVisuals(w.type, w.lang);
-    card.querySelector('.watermark-layer').style.background = visuals.bg;
-    this.getEl('flash-watermark').innerHTML = visuals.wm; 
-    
-    card.classList.remove(
-    'anim-slide-next',
-    'anim-slide-prev',
-    'anim-slide-out-left',
-    'anim-slide-out-right',
-    'anim-slide-in-right',
-    'anim-slide-in-left',
-    'study-card-exit-next',
-    'study-card-exit-prev',
-    'study-card-enter-next',
-    'study-card-enter-prev',
-    'study-feedback-correct',
-    'study-feedback-wrong',
-    'shimmering'
-);
-void card.offsetWidth;
-    
-    // æå–å…¬å…±æ— éšœç¢æ’­æŠ¥é€»è¾‘ï¼Œè‡ªåŠ¨è¿‡æ»¤æ‰éçº¯æ–‡æœ¬çš„å‡åä¿®é¥°ç¬¦
-    const triggerSRAnnouncement = () => {
-        let announcer = document.getElementById('sr-announcer');
-        if (announcer && w && w.word && w.word !== 'HINT_CARD') {
-            const isEn = w.lang === 'en';
-            if (isEn) {
-                announcer.innerText = `Current word: ${w.word}. Meaning: ${w.meaning}.`;
-            } else {
-                let cleanKana = (w.kana || '').replace(/[ã€ã€‘\[\]()]/g, '');
-                announcer.innerText = `å½“å‰å•è¯ï¼š${w.word}ã€‚å‡åï¼š${cleanKana}ã€‚`;
-            }
-        }
-    };
-
-    if (anim !== 'none') {
-        Model.state.isAnimating = true;
-
-        const exitClass = anim === 'next'
-            ? 'study-card-exit-next'
-            : 'study-card-exit-prev';
-
-        const enterClass = anim === 'next'
-            ? 'study-card-enter-next'
-            : 'study-card-enter-prev';
-
-        card.classList.add(exitClass);
-
-        window.setTimeout(() => {
-            this.updateCardContent(
-                w,
-                visuals,
-                mode,
-                forceRoteFull,
-                isMemTest,
-                isRote,
-                isFilterTest
-            );
-
-            triggerSRAnnouncement();
-
-            card.classList.remove(exitClass);
-            void card.offsetWidth;
-            card.classList.add(enterClass);
-
-            window.setTimeout(() => {
-                card.classList.remove(enterClass);
-                Model.state.isAnimating = false;
-            }, 330);
-        }, 180);
-    } else {
-        this.updateCardContent(
-            w,
-            visuals,
-            mode,
-            forceRoteFull,
-            isMemTest,
-            isRote,
-            isFilterTest
-        );
-
-        triggerSRAnnouncement();
-        Model.state.isAnimating = false;
-    }
-  },
-
-
-    updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest) {
-    const isEnglish = w.lang === 'en';
-    
-    // åŠ¨æ€ä¿®æ”¹æç¤ºæŒ‰é’®çš„æ–‡æ¡ˆ
-    let hintBtn = this.getEl('btn-mt-show-hint');
-    if (hintBtn) {
-        hintBtn.innerText = isEnglish ? 'å¬ä¸æ¸…ï¼Ÿç‚¹å‡»æœ—è¯»ä¾‹å¥' : 'å¬ä¸æ¸…ï¼Ÿæ˜¾ç¤ºå‡å';
-    }
-
-    this.getEl('mt-blind-audio-ui').classList.add('hidden');
-
-    this.getEl('w-word').style.display = 'block';
-        this.getEl('w-kana').style.display = isEnglish ? 'block' : 'block';
-    this.getEl('w-meaning').style.display = 'block';
-    this.getEl('w-type').style.display = 'flex';
-    this.getEl('w-example-box').style.display = 'block';
-
-
-    let mask = (str) => 'â– '.repeat(Array.from(str || '').length);
-    let maskFixed = "â– â– â– "; 
-
-    if (isFilterTest) {
-        let displayMode = this.getEl('test-display-select').value || 'kana'; 
-        // è‹±è¯­æ¨¡å¼ï¼škana ç»´åº¦ä¸å­˜åœ¨ï¼Œæ˜ å°„ä¸º wordï¼›audio ç»´åº¦ä¿ç•™ä¸ºå¬åŠ›è¾¨éŸ³
-        if (isEnglish && displayMode === 'kana') {
-            displayMode = 'word';
-        }
-        let st = Model.state.ftState; 
-        let hint = Model.state.ftHint;
-        let showKanaHint = Model.state.ftShowKanaHint; 
-
-        let isVisible = (field) => {
-            if (st === 'C') return true;
-            if (displayMode === field) return true;
-            if (st === 'B' && hint === field) return true;
-            return false;
-        };
-
-                let showW = isVisible('word');
-        let showK = (!isEnglish && isVisible('kana')) || showKanaHint; 
-        let showM = isVisible('meaning');
-        let showA = isVisible('audio');
-
-        // å¼•å…¥åŠ¨æ€å­—å·è®¡ç®—å¼•æ“ï¼Œé˜²æ­¢ç­›é€‰æ£€éªŒæ¨¡å¼é•¿å•è¯æ’ç‰ˆå´©æºƒ
-        let finalWord = showW ? w.word : maskFixed;
-        let wWordEl = this.getEl('w-word');
-        wWordEl.innerText = finalWord;
-        
-        let wLen = Array.from(finalWord || '').length;
-        if (isEnglish) {
-            if (wLen >= 14) wWordEl.style.fontSize = '1.8rem';
-            else if (wLen >= 11) wWordEl.style.fontSize = '2.2rem';
-            else if (wLen >= 8) wWordEl.style.fontSize = '2.8rem';
-            else if (wLen >= 5) wWordEl.style.fontSize = '3.5rem';
-            else wWordEl.style.fontSize = '4.2rem';
-        } else {
-            if (wLen >= 10) wWordEl.style.fontSize = '1.8rem';
-            else if (wLen >= 7) wWordEl.style.fontSize = '2.2rem';
-            else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
-            else wWordEl.style.fontSize = ''; 
-        }
-
-        if (!isEnglish) {
-
-            this.getEl('w-kana').innerText = showK ? (w.kana || '').replace(/[ã€ã€‘\[\]()]/g,'') : maskFixed;
-            this.getEl('w-kana').style.display = 'block';
-        } else {
-            // æ¢å¤ä¸ºçº¯æ–‡æœ¬ï¼ˆèƒŒè¯ç•Œé¢å·²æœ‰ä¸“é—¨çš„å…¨å±€å‘éŸ³æŒ‰é’®ï¼‰
-            this.getEl('w-kana').innerText = showK ? (w.phonetic || '') : maskFixed;
-            this.getEl('w-kana').style.display = 'block';
-        }
-
-
-        this.getEl('w-meaning').innerText = showM ? w.meaning : maskFixed;
-        this.getEl('w-type').innerHTML = visuals.tagsHTML;
-        this.getEl('w-type').style.display = st === 'C' ? 'flex' : 'none'; 
-        
-        let rootsEl = this.getEl('w-roots');
-        let showRootsPref = localStorage.getItem('showRoots') !== 'false';
-        if (rootsEl) {
-            if (isEnglish && w.roots && showRootsPref) {
-                // æ ¹æ®ä¸»å•è¯å’Œä¸»é‡Šä¹‰çš„æ˜¾ç¤ºçŠ¶æ€ï¼Œå†³å®šæ˜¯å¦å¯¹è¯æ ¹çš„å¯¹åº”éƒ¨åˆ†æ‰“ç (â– â– â– )
-                rootsEl.innerHTML = this.renderRoots(w.roots, !showW, !showM);
-                rootsEl.style.display = 'flex';
-            } else {
-                rootsEl.style.display = 'none';
-            }
-        }
-
-        ['word','kana','meaning','type'].forEach(k => {
-             let el = this.getEl(`w-${k}`);
-             if(!el) return;
-             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
-        });
-        if(rootsEl) rootsEl.className = 'roots-row';
-
-                let blindAudioUi = this.getEl('mt-blind-audio-ui');
-        if (st === 'C') {
-            blindAudioUi.classList.add('hidden');
-            this.getEl('w-word').style.display = 'block';
-        } else {
-            if (displayMode === 'audio') {
-                blindAudioUi.classList.remove('hidden');
-                if (!showW) this.getEl('w-word').style.display = 'none';
-            }
-        }
-
-        this.getEl('btn-speaker').style.display = (st === 'C' || (showA && displayMode !== 'audio')) ? 'block' : 'none';
-        
-        if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
-
-             Hardware.speakWord(w);
-        }
-
-        this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
-        this.getEl('w-example-box').style.display = st === 'C' ? 'block' : 'none';
-        this.getEl('w-example-box').className = 'dt-example-box';
-
-        this.getEl('capsule-pendulum').classList.add('hidden');
-        this.getEl('dual-track-ui').classList.add('hidden');
-        this.getEl('memory-test-ui').classList.add('hidden');
-        this.getEl('btn-display-mode-trigger').style.display = 'none';
-        this.getEl('star-btn').style.display = st === 'C' ? 'block' : 'none'; 
-        this.getEl('star-icon').style.fontVariationSettings = Model.isStarred(w) ? "'FILL' 1" : "'FILL' 0";
-
-        if (st === 'C') {
-            this.getEl('capsule-filter-test').classList.add('hidden');
-            this.getEl('capsule-filter-judge').classList.remove('hidden');
-        } else {
-            this.getEl('capsule-filter-judge').classList.add('hidden');
-            this.getEl('capsule-filter-test').classList.remove('hidden');
-            let blurBtn = this.getEl('ft-blur');
-            if (st === 'B') blurBtn.style.display = 'none'; 
-            else blurBtn.style.display = 'flex';
-        }
-        
-        this.syncRootsDisplay();
-        return; 
-    }
-
-    let showWord = true, showKana = !isEnglish, showMeaning = true;
-
-    let isDtSpell = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'spell');
-    let isDtChoice = (Model.state.mode === 'dual-track' && Model.state.dtSubMode === 'choice');
-
-    // ğŸš€ é’ˆå¯¹è‹±è¯­æ¨¡å¼çš„å¾€å¤æµ‹éªŒï¼šæ‹¼å†™é˜¶æ®µéšè—è‹±æ–‡å•è¯ï¼ˆå˜é©¬èµ›å…‹ï¼‰ï¼Œå¹¶ç¡®ä¿é‡Šä¹‰å¯è§
-    if (isEnglish && isDtSpell) {
-        showWord = false;
-    }
-    
-        if (isRote && mode !== 'all' && !forceRoteFull) {
-        if (mode === 'word') {
-            if (isEnglish) {
-                /*
-                 * è‹±è¯­â€œè‹±æ–‡â€æ¨¡å¼ï¼š
-                 * å…ˆæ˜¾ç¤ºé‡Šä¹‰ï¼Œè®©ç”¨æˆ·æ ¹æ®é‡Šä¹‰æ‹¼å†™è‹±æ–‡ã€‚
-                 */
-                showWord = false;
-                showKana = false;
-                showMeaning = true;
-            } else {
-                showKana = Model.state.mtStep > 1;
-                showMeaning = false;
-            }
-        } else if (mode === 'kana') {
-            if (isEnglish) {
-                showWord = false;
-                showKana = true;
-                showMeaning = false;
-            } else {
-                showWord = Model.state.mtStep > 1;
-                showMeaning = false;
-            }
-        } else if (mode === 'meaning') {
-            showWord = false;
-            showKana = isEnglish ? false : Model.state.mtStep > 1;
-            showMeaning = true;
-        }
-    }
-
-    const wordIsMasked = !showWord && !isMemTest;
-
-    /*
-     * è‹±æ–‡å•è¯éšè—æ—¶å›ºå®šä½¿ç”¨ä¸‰ä¸ªæ–¹å—ã€‚
-     * ä¸å†æŒ‰ç…§å•è¯å­—æ¯æ•°é‡ç”Ÿæˆæ–¹å—ï¼Œé¿å…é•¿å•è¯å†²å‡ºå¡ç‰‡ã€‚
-     */
-    let finalWord = wordIsMasked
-        ? (isEnglish ? maskFixed : mask(w.word))
-        : w.word;
-
-    let wWordEl = this.getEl('w-word');
-    wWordEl.innerText = finalWord;
-
-    let wLen = Array.from(w.word || '').length;
-
-    if (isEnglish) {
-        if (wordIsMasked) {
-            wWordEl.style.fontSize = '2.8rem';
-        } else if (wLen >= 14) {
-            wWordEl.style.fontSize = '1.8rem';
-        } else if (wLen >= 11) {
-            wWordEl.style.fontSize = '2.2rem';
-        } else if (wLen >= 8) {
-            wWordEl.style.fontSize = '2.8rem';
-        } else if (wLen >= 5) {
-            wWordEl.style.fontSize = '3.5rem';
-        } else {
-            wWordEl.style.fontSize = '4.2rem';
-        }
-    } else {
-        if (wLen >= 10) {
-            wWordEl.style.fontSize = '1.8rem';
-        } else if (wLen >= 7) {
-            wWordEl.style.fontSize = '2.2rem';
-        } else if (wLen >= 5) {
-            wWordEl.style.fontSize = '2.6rem';
-        } else {
-            wWordEl.style.fontSize = '';
-        }
-    }
- 
-
-    const isEnglishRoteSpell =
-        isEnglish &&
-        isRote &&
-        !forceRoteFull &&
-        Model.state.mtStep === 1 &&
-        (mode === 'word' || mode === 'meaning');
-
-    const isEnglishMemorySpell =
-        isEnglish &&
-        isMemTest &&
-        Model.state.mtRound === 2;
-
-    const hideEnglishPhonetic =
-        isEnglish &&
-        (
-            isDtSpell ||
-            isEnglishRoteSpell ||
-            isEnglishMemorySpell
-        );
-
-    if (!isEnglish) {
-        this.getEl('w-kana').innerText =
-            (!showKana && !isMemTest)
-                ? mask((w.kana || '').replace(/[ã€ã€‘\[\]()]/g, ''))
-                : (w.kana || '');
-    } else {
-        this.getEl('w-kana').innerText = w.phonetic || '';
-        this.getEl('w-kana').style.display =
-            hideEnglishPhonetic ? 'none' : 'block';
-    }
-    this.getEl('w-meaning').innerText = (!showMeaning && !isMemTest) ? mask(w.meaning) : w.meaning;
-    this.getEl('w-type').innerHTML = visuals.tagsHTML; 
-    
-    let rootsEl = this.getEl('w-roots');
-    if (rootsEl) {
-        let showRootsPref = localStorage.getItem('showRoots') !== 'false';
-        if (isEnglish && w.roots && showRootsPref) {
-            let maskW = (!showWord && !isMemTest);
-            let maskM = (!showMeaning && !isMemTest);
-            rootsEl.innerHTML = this.renderRoots(w.roots, maskW, maskM);
-            rootsEl.style.display = 'flex';
-        } else {
-            rootsEl.style.display = 'none';
-        }
-    }
-
-    let isStarred = Model.isStarred(w);
-    let starBtn = this.getEl('star-btn');
-    let starIcon = this.getEl('star-icon');
-    if (starBtn && starIcon) {
-        starIcon.style.fontVariationSettings = isStarred ? "'FILL' 1" : "'FILL' 0";
-        if (isStarred) starBtn.classList.add('active');
-        else starBtn.classList.remove('active');
-        starBtn.style.display = 'block';
-    }
-
-    if (!isMemTest && !isRote) {
-        this.getEl('w-kana').style.display =
-            hideEnglishPhonetic ? 'none' : 'block';
-
-        this.getEl('w-meaning').style.display =
-            isDtChoice ? 'none' : 'block';
-    } else if (!isMemTest) {
-        this.getEl('w-kana').style.display =
-            hideEnglishPhonetic ? 'none' : 'block';
-
-        this.getEl('w-meaning').style.display = 'block';
-    }
-    
-    const isEnglishRoteTraining = isEnglish && isRote && !forceRoteFull;
-    let hideSpeaker =
-        isDtSpell ||
-        isMemTest ||
-        isEnglishRoteTraining ||
-        (isRote && !isEnglish && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
-    this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
-    
-    let displayTrigger = this.getEl('btn-display-mode-trigger');
-    if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track' || isMemTest) ? 'none' : 'inline-flex';
-
-    this.renderExampleBox(w.example, 'w-example-box', Model.state.mode === 'dual-track' ? Model.state.dtSubMode : 'normal', w);
-
-        if (!isMemTest && !isRote && Model.state.mode !== 'dual-track') {
-            ['word','kana','type','meaning'].forEach(k => {
-                let el = this.getEl(`w-${k}`);
-                if(!el) return;
-                el.className = (k === 'word') ? 'word-main blur-target' : (k === 'type' ? 'type-row blur-target' : `${k}-row blur-target`);
-                if (mode !== 'all' && mode !== k && !(mode === 'meaning' && k === 'type')) {
-                    el.classList.add('blur-text');
-                    el.setAttribute('aria-hidden', 'true');
-                } else {
-                    el.removeAttribute('aria-hidden');
-                }
-            });
-            
-            let rEl = this.getEl('w-roots');
-            if (rEl) {
-                rEl.className = 'roots-row'; // å®¹å™¨æœ¬èº«ä¸æ¨¡ç³Šï¼Œé’ˆå¯¹å†…éƒ¨ç²¾ç»†æ¨¡ç³Š
-                // ä¿®å¤ï¼šè¡¥ä¸Šå˜é‡å£°æ˜ï¼Œè¯»å–è®¾ç½®ï¼Œé˜²æ­¢ JS å´©æºƒ
-                let isShowRoots = localStorage.getItem('showRoots') !== 'false';
-                if (isEnglish && w.roots && isShowRoots) {
-                    let blurW = (mode !== 'all' && mode !== 'word');
-                    let blurM = (mode !== 'all' && mode !== 'meaning');
-                    rEl.querySelectorAll('.r-text').forEach(n => {
-                        if (blurW) { n.classList.add('blur-text'); n.setAttribute('aria-hidden', 'true'); }
-                    });
-                    rEl.querySelectorAll('.r-mean').forEach(n => {
-                        if (blurM) { n.classList.add('blur-text'); n.setAttribute('aria-hidden', 'true'); }
-                    });
-                }
-            }
-
-        let exBox = this.getEl('w-example-box'); exBox.className = 'dt-example-box blur-target';
-        if (mode !== 'all' && mode !== 'meaning') {
-            exBox.classList.add('blur-text');
-            exBox.setAttribute('aria-hidden', 'true');
-        } else {
-            exBox.removeAttribute('aria-hidden');
-        }
-    } else if (isMemTest) {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); if(el) { el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); } });
-        let rEl = this.getEl('w-roots'); if(rEl) rEl.className = 'roots-row';
-        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'none'; this.getEl('w-example-box').removeAttribute('aria-hidden');
-    } else if (forceRoteFull) {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); if(el) { el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); } });
-        let rEl = this.getEl('w-roots'); if(rEl) rEl.className = 'roots-row';
-        this.getEl('w-example-box').className = 'dt-example-box'; this.getEl('w-example-box').style.display = 'block'; this.getEl('w-example-box').removeAttribute('aria-hidden');
-        } else {
-        ['word','kana','type','meaning'].forEach(k => { let el = this.getEl(`w-${k}`); if(el) { el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); } });
-        let rEl = this.getEl('w-roots'); if(rEl) rEl.className = 'roots-row';
-        this.getEl('w-example-box').className = 'dt-example-box';
-        // ğŸš€ ä¿®å¤ï¼šå¦‚æœåœ¨å¾€å¤æµ‹éªŒçš„æ‹¼å†™é˜¶æ®µï¼ˆisDtSpellï¼‰ï¼Œå¼ºåˆ¶éšè—ä¾‹å¥é˜²ä½œå¼Š
-        if ((isRote && mode !== 'all') || isDtSpell) this.getEl('w-example-box').style.display = 'none';
-        this.getEl('w-example-box').removeAttribute('aria-hidden');
-    }
-
-
-    this.getEl('capsule-pendulum').classList.add('hidden');
-    this.getEl('capsule-filter-test').classList.add('hidden');
-    this.getEl('capsule-filter-judge').classList.add('hidden');
-    this.getEl('dual-track-ui').classList.add('hidden');
-    this.getEl('memory-test-ui').classList.add('hidden');
-    
-    if (Model.state.mode === 'pendulum' || (isRote && (forceRoteFull || mode === 'all'))) {
-      this.getEl('capsule-pendulum').classList.remove('hidden');
-      this.getEl('btn-prev').disabled = Model.state.currentIndex === 0;
-      this.getEl('btn-next').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1) ? 'none' : 'flex';
-      this.getEl('btn-finish').style.display = (Model.state.currentIndex === Model.state.studyQueue.length - 1) ? 'flex' : 'none';
-    } else if (Model.state.mode === 'dual-track') {
-      this.getEl('dual-track-ui').classList.remove('hidden');
-      this.renderDualTrackUI(w);
-    } else if (isMemTest || (isRote && !forceRoteFull)) {
-      this.getEl('memory-test-ui').classList.remove('hidden');
-      if (isRote) {
-          this.renderRoteLearningUI(w, mode);
-      } else {
-          this.renderMemoryTestUI(w, mode);
-      }
-    }
-    
-    if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
-        Hardware.speakWord(w);
-    } else {
-        let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-        if (autoSpeak && !hideSpeaker) { Hardware.speakWord(w); }
-    }
-
-    this.syncRootsDisplay();
-  },
-
-    renderExampleBox(exString, boxId, mode = 'normal', targetWordObj = null) {
-    let exBox = this.getEl(boxId);
-    if (!exBox) return;
-    
-    if (!exString || typeof exString !== 'string') {
-        exBox.style.display = 'none';
-        exBox.innerHTML = '';
-        return;
-    }
-
-    let useRuby = localStorage.getItem('useRubyRender') !== 'false';
-    
-    let processedStr = exString;
-    // ğŸš€ ç»ˆæä¿®å¤ï¼šå¼ºåˆ¶å°†è‹±è¯­ä¾‹å¥çš„ || æ›¿æ¢ä¸ºæ­£ç¡®çš„ç¿»è¯‘åˆ†éš”ç¬¦ /
-    if (processedStr.includes('||') && !processedStr.includes('/')) {
-        processedStr = processedStr.replace(/\|\|/g, '/');
-    }
-
-    if (mode === 'spell' && targetWordObj) {
-        processedStr = processedStr.replace(/\\overset\{([^\}]+)\}\{([^\}]+)\}/g, (match, ruby, kanji) => {
-            if (targetWordObj.word.includes(kanji) || targetWordObj.kana === ruby) return `\\overset{â—‹}{${kanji}}`; return match;
-        });
-    }
-
-    let htmlStr = processedStr.split('||').map(blk => {
-        let parts = blk.split('/'); 
-        let jpPart = parts[0] ? parts[0].trim() : "æš‚æ— ä¾‹å¥"; 
-        let cnPart = parts[1] ? parts[1].trim() : "";
-        
-        let pureJpText = jpPart.replace(/\$/g, '').replace(/\\overset\{[^\}]+\}\{([^\}]+)\}/g, '$1');
-        let safeJpPart = escapeHTML(jpPart).replace(/\\ï¼†/g, '\\&');
-        
-        if (useRuby) {
-            safeJpPart = safeJpPart.replace(/\$\\overset\{([^\}]+)\}\{([^\}]+)\}\$/g, '<ruby>$2<rt>$1</rt></ruby>');
-        }
-
-        let safeCnPart = escapeHTML(cnPart);
-        
-                let wordLang = targetWordObj ? (targetWordObj.lang || 'ja') : 'ja';
-        let targetWordIndex = targetWordObj ? Model.db.indexOf(targetWordObj) : -1;
-let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" data-lang="${wordLang}" data-word-index="${targetWordIndex}">auto_awesome</span>`;
-        let jpBoxHTML = `<div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="display:flex; align-items:flex-start; gap:6px;"><span class="material-symbols-rounded ex-speaker" style="flex-shrink:0;">volume_up</span><span style="flex:1;">${safeJpPart}</span>${sparkBtnHTML}</div>`;
-
-        if (mode === 'choice' && cnPart) { 
-            return `<div class="ex-item">${jpBoxHTML}<div class="dt-ex-cn hidden-translation" data-text="${safeCnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> ç­”å¯¹é€‰é¡¹åè§£å¯†</div></div>`; 
-        }
-        return `<div class="ex-item">${jpBoxHTML}<div class="dt-ex-cn revealed-translation">${safeCnPart}</div></div>`;
-
-    }).join('');
-    
-    if (!htmlStr.replace(/<[^>]*>/g, '').trim()) { 
-        exBox.style.display = 'none'; 
-        exBox.innerHTML = ''; 
-        return; 
-    }
-
-    exBox.innerHTML = htmlStr;
-    let jpExEls = exBox.querySelectorAll('.dt-ex-jp');
-    
-    if (!useRuby) {
-        window.mathJaxQueue = (window.mathJaxQueue || Promise.resolve())
-            .then(() => loadMathJax())
-            .then(mathJax => {
-                const connectedExamples = Array.from(jpExEls)
-                    .filter(element => element.isConnected);
-                if (connectedExamples.length) {
-                    return mathJax.typesetPromise(connectedExamples);
-                }
-            })
-            .catch((err) => { console.warn('MathJax æ’ç‰ˆè¢«ä¸­æ–­', err); });
-    }
-  },
-
-
-  renderDualTrackUI(wObj) {
-      if (Model.state.dtSubMode === 'spell') {
-          this.getEl('dt-choice-area').classList.add('hidden'); this.getEl('dt-spell-area').classList.remove('hidden');
-          RomajiEngine.reset(); EnglishInput.reset();
-          let inputEl = this.getEl('dt-spell-input'); inputEl.innerHTML = ''; inputEl.classList.remove('error-state', 'shake-anim');
-          View.renderQwertyKeyboard('dt-spell-keyboard', inputEl, wObj, null);
-      }
- else if (Model.state.dtSubMode === 'choice') {
-          this.getEl('dt-spell-area').classList.add('hidden'); this.getEl('dt-choice-area').classList.remove('hidden');
-          let targetMeaning = wObj.meaning;
-          let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
-          if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word && x.meaning !== targetMeaning); 
-          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-          let choices = [{text: targetMeaning, correct: true}];
-          pool.forEach(x => choices.push({text: x.meaning, correct: false})); choices.sort(() => Math.random() - 0.5); 
-          let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
-          choices.forEach((c, idx) => { 
-              let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; 
-              btn.setAttribute('tabindex', '0');
-              btn.setAttribute('role', 'button');
-              let label = String.fromCharCode(65 + idx); // ç”Ÿæˆ A, B, C, D
-              let labelSpan = document.createElement('span'); labelSpan.className = 'choice-label'; labelSpan.innerText = label + '.';
-              let textSpan = document.createElement('span'); textSpan.innerText = c.text;
-              btn.appendChild(labelSpan); btn.appendChild(textSpan);
-              btn.onpointerdown = (e) => { e.preventDefault(); Controller.handleDtChoiceClick(btn, c.correct); }; 
-              cb.appendChild(btn); 
-          });
-      }
-  },
-  
-  setEnglishCardWord(wObj, masked = false, visible = true) {
-      const wordEl = this.getEl('w-word');
-      if (!wordEl) return;
-
-      if (!visible) {
-          wordEl.style.display = 'none';
-          return;
-      }
-
-      wordEl.innerText = masked ? 'â– â– â– ' : (wObj.word || '');
-      wordEl.style.display = 'block';
-
-      if (masked) {
-          wordEl.style.fontSize = '2.8rem';
-          return;
-      }
-
-      const wordLength = Array.from(wObj.word || '').length;
-      if (wordLength >= 14) wordEl.style.fontSize = '1.8rem';
-      else if (wordLength >= 11) wordEl.style.fontSize = '2.2rem';
-      else if (wordLength >= 8) wordEl.style.fontSize = '2.8rem';
-      else if (wordLength >= 5) wordEl.style.fontSize = '3.5rem';
-      else wordEl.style.fontSize = '4.2rem';
-  },
-
-  showEnglishRoteFullCard(wObj) {
-      const phoneticEl = this.getEl('w-kana');
-      const meaningEl = this.getEl('w-meaning');
-      const typeEl = this.getEl('w-type');
-      const rootsEl = this.getEl('w-roots');
-      const exampleEl = this.getEl('w-example-box');
-      const blindAudioUi = this.getEl('mt-blind-audio-ui');
-
-      if (blindAudioUi) blindAudioUi.classList.add('hidden');
-
-      this.setEnglishCardWord(wObj, false, true);
-
-      if (phoneticEl) {
-          phoneticEl.innerText = wObj.phonetic || '';
-          phoneticEl.style.display = 'block';
-      }
-
-      if (meaningEl) {
-          meaningEl.innerText = wObj.meaning || '';
-          meaningEl.style.display = 'block';
-      }
-
-      if (typeEl) typeEl.style.display = 'flex';
-
-      if (rootsEl) {
-          const showRoots = localStorage.getItem('showRoots') !== 'false';
-          if (showRoots && wObj.roots) {
-              rootsEl.innerHTML = this.renderRoots(wObj.roots, false, false);
-              rootsEl.style.display = 'flex';
-          } else {
-              rootsEl.style.display = 'none';
-          }
-      }
-
-      this.renderExampleBox(wObj.example, 'w-example-box', 'normal', wObj);
-      if (exampleEl && wObj.example) exampleEl.style.display = 'block';
-
-      this.syncRootsDisplay();
-      this.revealStudyAnswer();
-  },
-
-  showJapaneseRoteFullCard(wObj) {
-      const wordEl = this.getEl('w-word');
-      const kanaEl = this.getEl('w-kana');
-      const meaningEl = this.getEl('w-meaning');
-      const typeEl = this.getEl('w-type');
-      const rootsEl = this.getEl('w-roots');
-      const exampleEl = this.getEl('w-example-box');
-      const blindAudioUi = this.getEl('mt-blind-audio-ui');
-
-      if (blindAudioUi) blindAudioUi.classList.add('hidden');
-
-      if (wordEl) {
-          wordEl.innerText = wObj.word || '';
-          wordEl.style.display = 'block';
-      }
-
-      if (kanaEl) {
-          kanaEl.innerText = (wObj.kana || '').replace(/[ã€ã€‘\[\]()]/g, '');
-          kanaEl.style.display = 'block';
-      }
-
-      if (meaningEl) {
-          meaningEl.innerText = wObj.meaning || '';
-          meaningEl.style.display = 'block';
-      }
-
-      if (typeEl) typeEl.style.display = 'flex';
-      if (rootsEl) rootsEl.style.display = 'none';
-
-      this.renderExampleBox(wObj.example, 'w-example-box', 'normal', wObj);
-      if (exampleEl) {
-          exampleEl.style.display = wObj.example ? 'block' : 'none';
-      }
-
-      this.revealStudyAnswer();
-  },
-
-  showRoteFullCard(wObj) {
-      if (wObj.lang === 'en') {
-          this.showEnglishRoteFullCard(wObj);
-      } else {
-          this.showJapaneseRoteFullCard(wObj);
-      }
-  },
-
-  renderRoteChoiceButtons(wObj, displayMode, answerField) {
-      const choiceArea = this.getEl('mt-choice-area');
-      const choiceButtons = this.getEl('mt-choice-buttons');
-
-      if (!choiceArea || !choiceButtons) return;
-
-      const targetText = String(wObj[answerField] || '').trim();
-
-      if (!targetText) {
-          choiceArea.classList.add('hidden');
-          showToast('å½“å‰è¯æ¡ç¼ºå°‘è®­ç»ƒæ‰€éœ€å­—æ®µï¼Œå·²è·³è¿‡');
-          window.setTimeout(() => Controller.mtAdvanceNext(), 300);
-          return;
-      }
-
-      choiceArea.classList.remove('hidden');
-
-      const language = wObj.lang === 'en' ? 'en' : 'ja';
-      const candidates = Model.db
-          .filter(candidate => {
-              const candidateLanguage = candidate.lang === 'en' ? 'en' : 'ja';
-              const candidateText = String(candidate[answerField] || '').trim();
-
-              return (
-                  candidateLanguage === language &&
-                  candidate !== wObj &&
-                  candidateText &&
-                  candidateText !== targetText
-              );
-          })
-          .sort(() => Math.random() - 0.5);
-
-      const seen = new Set([targetText]);
-      const choices = [{ text: targetText, correct: true }];
-
-      for (const candidate of candidates) {
-          const text = String(candidate[answerField] || '').trim();
-          if (seen.has(text)) continue;
-
-          seen.add(text);
-          choices.push({ text, correct: false });
-
-          if (choices.length === 4) break;
-      }
-
-      choices.sort(() => Math.random() - 0.5);
-      choiceButtons.innerHTML = '';
-
-      choices.forEach((choice, index) => {
-          const button = document.createElement('div');
-          button.className = 'dt-choice-btn choice-flip-anim';
-          button.setAttribute('tabindex', '0');
-          button.setAttribute('role', 'button');
-
-          const label = document.createElement('span');
-          label.className = 'choice-label';
-          label.innerText = String.fromCharCode(65 + index) + '.';
-
-          const text = document.createElement('span');
-          text.innerText = choice.text;
-
-          button.appendChild(label);
-          button.appendChild(text);
-          button.onpointerdown = event => {
-              event.preventDefault();
-              Controller.handleMtChoiceClick(
-                  button,
-                  choice.correct,
-                  wObj,
-                  displayMode
-              );
-          };
-          choiceButtons.appendChild(button);
-      });
-  },
-
-  renderJapaneseRoteUI(wObj, displayMode) {
-      const mode = ROTE_CORE.normalizeMode('ja', displayMode);
-      const step = ROTE_CORE.normalizeStep(Model.state.mtStep);
-      const stepConfig = ROTE_CORE.getStep('ja', mode, step);
-      const wordEl = this.getEl('w-word');
-      const kanaEl = this.getEl('w-kana');
-      const meaningEl = this.getEl('w-meaning');
-      const typeEl = this.getEl('w-type');
-      const rootsEl = this.getEl('w-roots');
-      const exampleEl = this.getEl('w-example-box');
-      const speakerEl = this.getEl('btn-speaker');
-      const spellArea = this.getEl('mt-spell-area');
-      const choiceArea = this.getEl('mt-choice-area');
-      const blindAudioUi = this.getEl('mt-blind-audio-ui');
-      const mtWarning = this.getEl('mt-warning');
-
-      if (mtWarning) mtWarning.classList.add('hidden');
-      if (spellArea) spellArea.classList.add('hidden');
-      if (choiceArea) choiceArea.classList.add('hidden');
-      if (blindAudioUi) blindAudioUi.classList.add('hidden');
-      if (rootsEl) rootsEl.style.display = 'none';
-      if (exampleEl) exampleEl.style.display = 'none';
-      if (speakerEl) speakerEl.style.display = 'none';
-
-      [wordEl, kanaEl, meaningEl, typeEl].forEach(element => {
-          if (!element) return;
-          element.style.display = 'none';
-          element.classList.remove('blur-text');
-          element.removeAttribute('aria-hidden');
-      });
-
-      if (stepConfig.prompt.includes('word') && wordEl) {
-          wordEl.innerText = wObj.word || '';
-          wordEl.style.display = 'block';
-      }
-
-      if (stepConfig.prompt.includes('kana') && kanaEl) {
-          kanaEl.innerText = (wObj.kana || '').replace(/[ã€ã€‘\[\]()]/g, '');
-          kanaEl.style.display = 'block';
-      }
-
-      if (stepConfig.prompt.includes('meaning') && meaningEl) {
-          meaningEl.innerText = wObj.meaning || '';
-          meaningEl.style.display = 'block';
-      }
-
-      if (stepConfig.test === 'spell') {
-          spellArea.classList.remove('hidden');
-          RomajiEngine.reset();
-          EnglishInput.reset();
-
-          const inputEl = this.getEl('mt-spell-input');
-          inputEl.innerHTML = '';
-          inputEl.classList.remove('error-state', 'shake-anim');
-          this.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, mode);
-          return;
-      }
-
-      this.renderRoteChoiceButtons(
-          wObj,
-          mode,
-          stepConfig.answer
-      );
-  },
-
-  renderRoteLearningUI(wObj, displayMode) {
-      const language = wObj.lang === 'en' ? 'en' : 'ja';
-      const mode = ROTE_CORE.normalizeMode(language, displayMode);
-
-      if (mode !== displayMode) {
-          const modeSelect = this.getEl('next-display-mode');
-          if (modeSelect) {
-              modeSelect.value = mode;
-              modeSelect.dispatchEvent(new Event('facade-update'));
-          }
-          localStorage.setItem('displayMode', mode);
-      }
-
-      if (language === 'en') {
-          this.renderEnglishRoteUI(wObj, mode);
-      } else {
-          this.renderJapaneseRoteUI(wObj, mode);
-      }
-  },
-
-  renderEnglishRoteUI(wObj, displayMode) {
-      const mtWarning = this.getEl('mt-warning');
-      const spellArea = this.getEl('mt-spell-area');
-      const choiceArea = this.getEl('mt-choice-area');
-      const blindAudioUi = this.getEl('mt-blind-audio-ui');
-      const wordEl = this.getEl('w-word');
-      const phoneticEl = this.getEl('w-kana');
-      const meaningEl = this.getEl('w-meaning');
-      const typeEl = this.getEl('w-type');
-      const rootsEl = this.getEl('w-roots');
-      const exampleEl = this.getEl('w-example-box');
-      const speakerEl = this.getEl('btn-speaker');
-
-      if (mtWarning) mtWarning.classList.add('hidden');
-      if (spellArea) spellArea.classList.add('hidden');
-      if (choiceArea) choiceArea.classList.add('hidden');
-      if (blindAudioUi) blindAudioUi.classList.add('hidden');
-
-      let mode = ROTE_CORE.normalizeMode('en', displayMode);
-
-      if (mode !== displayMode) {
-          const modeSelect = this.getEl('next-display-mode');
-          if (modeSelect) {
-              modeSelect.value = mode;
-              modeSelect.dispatchEvent(new Event('facade-update'));
-          }
-          localStorage.setItem('displayMode', mode);
-      }
-
-      const step = ROTE_CORE.normalizeStep(Model.state.mtStep);
-      const stepConfig = ROTE_CORE.getStep('en', mode, step);
-      let currentTestType = stepConfig.test;
-      let isMeaning = false;
-      let targetText = '';
-
-      [wordEl, phoneticEl, meaningEl, typeEl].forEach(el => {
-          if (!el) return;
-          el.classList.remove('blur-text');
-          el.removeAttribute('aria-hidden');
-      });
-
-      if (wordEl) wordEl.style.display = 'none';
-      if (phoneticEl) phoneticEl.style.display = 'none';
-      if (meaningEl) meaningEl.style.display = 'none';
-      if (typeEl) typeEl.style.display = 'none';
-      if (rootsEl) rootsEl.style.display = 'none';
-      if (exampleEl) exampleEl.style.display = 'none';
-      if (speakerEl) speakerEl.style.display = 'none';
-
-      if (mode === 'word') {
-          if (step === 1) {
-              currentTestType = 'spell';
-              this.setEnglishCardWord(wObj, true, true);
-
-              if (meaningEl) {
-                  meaningEl.innerText = wObj.meaning || '';
-                  meaningEl.style.display = 'block';
-              }
-              if (typeEl) typeEl.style.display = 'flex';
-          } else {
-              currentTestType = 'choice-meaning';
-              isMeaning = true;
-              targetText = wObj.meaning || '';
-              this.setEnglishCardWord(wObj, false, true);
-
-              if (phoneticEl) {
-                  phoneticEl.innerText = wObj.phonetic || '';
-                  phoneticEl.style.display = 'block';
-              }
-              if (typeEl) typeEl.style.display = 'flex';
-          }
-      } else if (mode === 'kana') {
-          if (step === 1) {
-              currentTestType = 'choice-word';
-              isMeaning = false;
-              targetText = wObj.word || '';
-
-              if (blindAudioUi) blindAudioUi.classList.remove('hidden');
-
-              requestAnimationFrame(() => {
-                  Hardware.unlockSpeech();
-                  Hardware.speakWord(wObj);
-              });
-          } else {
-              currentTestType = 'choice-meaning';
-              isMeaning = true;
-              targetText = wObj.meaning || '';
-              this.setEnglishCardWord(wObj, false, true);
-
-              if (phoneticEl) {
-                  phoneticEl.innerText = wObj.phonetic || '';
-                  phoneticEl.style.display = 'block';
-              }
-              if (typeEl) typeEl.style.display = 'flex';
-          }
-      } else {
-          if (step === 1) {
-              currentTestType = 'choice-meaning';
-              isMeaning = true;
-              targetText = wObj.meaning || '';
-              this.setEnglishCardWord(wObj, false, true);
-
-              if (phoneticEl) {
-                  phoneticEl.innerText = wObj.phonetic || '';
-                  phoneticEl.style.display = 'block';
-              }
-              if (typeEl) typeEl.style.display = 'flex';
-          } else {
-              currentTestType = 'choice-word';
-              isMeaning = false;
-              targetText = wObj.word || '';
-              this.setEnglishCardWord(wObj, true, true);
-
-              if (meaningEl) {
-                  meaningEl.innerText = wObj.meaning || '';
-                  meaningEl.style.display = 'block';
-              }
-              if (typeEl) typeEl.style.display = 'flex';
-          }
-      }
-
-      if (currentTestType === 'spell') {
-          if (spellArea) spellArea.classList.remove('hidden');
-          RomajiEngine.reset();
-          EnglishInput.reset();
-
-          const inputEl = this.getEl('mt-spell-input');
-          inputEl.innerHTML = '';
-          inputEl.classList.remove('error-state', 'shake-anim');
-          this.renderQwertyKeyboard('mt-spell-keyboard', inputEl, wObj, mode);
-          return;
-      }
-
-      if (choiceArea) choiceArea.classList.remove('hidden');
-
-      const wordLang = wObj.lang || 'en';
-      let pool = Model.db.filter(x => {
-          return (
-              (x.lang || 'ja') === wordLang &&
-              x.folder === wObj.folder &&
-              x.type === wObj.type &&
-              x.word !== wObj.word
-          );
-      });
-
-      if (pool.length < 3) {
-          pool = Model.db.filter(x => {
-              return (
-                  (x.lang || 'ja') === wordLang &&
-                  x.word !== wObj.word
-              );
-          });
-      }
-
-      pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-
-      let choices = [{ text: targetText, correct: true }];
-      pool.forEach(x => {
-          choices.push({
-              text: isMeaning ? x.meaning : x.word,
-              correct: false
-          });
-      });
-      choices.sort(() => Math.random() - 0.5);
-
-      const choiceButtons = this.getEl('mt-choice-buttons');
-      choiceButtons.innerHTML = '';
-
-      choices.forEach((choice, index) => {
-          const btn = document.createElement('div');
-          btn.className = 'dt-choice-btn choice-flip-anim';
-          btn.setAttribute('tabindex', '0');
-          btn.setAttribute('role', 'button');
-
-          const labelSpan = document.createElement('span');
-          labelSpan.className = 'choice-label';
-          labelSpan.innerText = String.fromCharCode(65 + index) + '.';
-
-          const textSpan = document.createElement('span');
-          textSpan.innerText = choice.text;
-
-          btn.appendChild(labelSpan);
-          btn.appendChild(textSpan);
-          btn.onpointerdown = e => {
-              e.preventDefault();
-              Controller.handleMtChoiceClick(
-                  btn,
-                  choice.correct,
-                  wObj,
-                  mode
-              );
-          };
-          choiceButtons.appendChild(btn);
-      });
-  },
-
-  renderMemoryTestUI(wObj, displayMode) {
-      let mtWarning = this.getEl('mt-warning');
-      if (mtWarning) mtWarning.classList.add('hidden');
-
-      this.getEl('mt-spell-area').classList.add('hidden');
-      this.getEl('mt-choice-area').classList.add('hidden');
-
-      let blindAudioUi = this.getEl('mt-blind-audio-ui');
-      if (blindAudioUi) blindAudioUi.classList.add('hidden');
-
-      let isMemTest = Model.state.mode === 'memory-test';
-
-      if (!isMemTest) {
-          this.renderRoteLearningUI(wObj, displayMode);
-          return;
-      }
-
-      let currentTestType = '';
-      let isMeaning = false;
-      let targetText = '';
-
-      if (isMemTest) {
-          this.getEl('w-word').style.display = 'none';
-          this.getEl('w-kana').style.display = 'none';
-          this.getEl('w-meaning').style.display = 'none';
-          this.getEl('w-type').style.display = 'none';
-
-          let round = Model.state.mtRound;
-          let step = Model.state.mtStep;
-          const isEnglishMt = wObj.lang === 'en';
-
-          if (round === 1) {
-              if (blindAudioUi) blindAudioUi.classList.remove('hidden');
-              currentTestType = 'choice';
-              isMeaning = true;
-              targetText = wObj.meaning;
-          } else if (round === 2) {
-              if (isEnglishMt) {
-                  if (blindAudioUi) blindAudioUi.classList.remove('hidden');
-                  currentTestType = 'spell';
-              } else if (step === 1) {
-                  if (blindAudioUi) blindAudioUi.classList.remove('hidden');
-                  currentTestType = 'choice';
-                  isMeaning = false;
-                  targetText = wObj.word;
-              } else if (step === 2) {
-                  this.getEl('w-word').style.display = 'block';
-                  currentTestType = 'spell';
-              }
-          } else if (round === 3) {
-              if (isEnglishMt) {
-                  this.getEl('w-kana').style.display = 'block';
-                  this.getEl('w-kana').innerText = wObj.phonetic || '';
-                  currentTestType = 'choice';
-                  isMeaning = true;
-                  targetText = wObj.meaning;
-              } else if (step === 1) {
-                  this.getEl('w-kana').style.display = 'block';
-                  currentTestType = 'choice';
-                  isMeaning = true;
-                  targetText = wObj.meaning;
-              } else if (step === 2) {
-                  this.getEl('w-kana').style.display = 'block';
-                  this.getEl('w-meaning').style.display = 'block';
-                  currentTestType = 'choice';
-                  isMeaning = false;
-                  targetText = wObj.word;
-              }
-          }
-      } else {
-          if (displayMode === 'all') {
-              if (mtWarning) mtWarning.classList.remove('hidden');
-              return;
-          }
-
-          if (displayMode === 'word') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'spell'
-                  : 'choice-meaning';
-          } else if (displayMode === 'kana') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'choice-word'
-                  : 'choice-meaning';
-          } else if (displayMode === 'meaning') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'spell'
-                  : 'choice-word';
-          }
-
-          isMeaning = currentTestType === 'choice-meaning';
-          targetText = isMeaning ? wObj.meaning : wObj.word;
-      }
-
-      if (currentTestType === 'spell') {
-          this.getEl('mt-spell-area').classList.remove('hidden');
-          RomajiEngine.reset();
-          EnglishInput.reset();
-
-          let inputEl = this.getEl('mt-spell-input');
-          inputEl.innerHTML = '';
-          inputEl.classList.remove('error-state', 'shake-anim');
-          this.renderQwertyKeyboard(
-              'mt-spell-keyboard',
-              inputEl,
-              wObj,
-              displayMode
-          );
-          return;
-      }
-
-      if (currentTestType.startsWith('choice')) {
-          this.getEl('mt-choice-area').classList.remove('hidden');
-
-          const wordLang = wObj.lang || 'ja';
-          let pool = Model.db.filter(x => {
-              return (
-                  (x.lang || 'ja') === wordLang &&
-                  x.folder === wObj.folder &&
-                  x.type === wObj.type &&
-                  x.word !== wObj.word
-              );
-          });
-
-          if (pool.length < 3) {
-              pool = Model.db.filter(x => {
-                  return (
-                      (x.lang || 'ja') === wordLang &&
-                      x.word !== wObj.word
-                  );
-              });
-          }
-
-          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-
-          let choices = [{ text: targetText, correct: true }];
-          pool.forEach(x => {
-              choices.push({
-                  text: isMeaning ? x.meaning : x.word,
-                  correct: false
-              });
-          });
-          choices.sort(() => Math.random() - 0.5);
-
-          let cb = this.getEl('mt-choice-buttons');
-          cb.innerHTML = '';
-
-          choices.forEach((choice, index) => {
-              let btn = document.createElement('div');
-              btn.className = 'dt-choice-btn choice-flip-anim';
-              btn.setAttribute('tabindex', '0');
-              btn.setAttribute('role', 'button');
-
-              let labelSpan = document.createElement('span');
-              labelSpan.className = 'choice-label';
-              labelSpan.innerText = String.fromCharCode(65 + index) + '.';
-
-              let textSpan = document.createElement('span');
-              textSpan.innerText = choice.text;
-
-              btn.appendChild(labelSpan);
-              btn.appendChild(textSpan);
-              btn.onpointerdown = e => {
-                  e.preventDefault();
-                  Controller.handleMtChoiceClick(
-                      btn,
-                      choice.correct,
-                      wObj,
-                      displayMode
-                  );
-              };
-              cb.appendChild(btn);
-          });
-      }
-  },
-
-    renderQwertyKeyboard(containerId, inputEl, wObj, displayMode) {
-      let kb = this.getEl(containerId);
-      kb.innerHTML = ''; 
-      Model.state.spellFailCount = 0; 
-
-      let hintWrap = document.createElement('div');
-      hintWrap.id = containerId + '-hint-wrap';
-      hintWrap.className = 'spell-hint-wrap';
-      let hintBtn = document.createElement('div');
-      hintBtn.className = 'spell-hint-btn';
-      hintBtn.setAttribute('tabindex', '0');
-      hintBtn.setAttribute('role', 'button');
-      const isEnglishKb = wObj.lang === 'en';
-      hintBtn.innerHTML = isEnglishKb 
-          ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> æŸ¥çœ‹é¦–å­—æ¯æç¤º'
-          : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> æŸ¥çœ‹å‡åæç¤º';
-      hintBtn.onpointerdown = (e) => {
-          e.preventDefault();
-          Hardware.vibrate(10);
-          if (isEnglishKb) {
-              let wWord = View.getEl('w-word');
-              if (wWord) {
-                  const firstLetter = (wObj.word || '').charAt(0).toLowerCase();
-                  wWord.innerText = firstLetter ? firstLetter + 'Â·Â·Â·' : 'Â·Â·Â·';
-                  wWord.style.display = 'block';
-                  wWord.style.fontSize = '2.8rem';
-                  wWord.classList.remove('blur-text');
-                  wWord.removeAttribute('aria-hidden');
-                  wWord.classList.add('hint-pop-anim');
-              }
-          } else {
-              let wKana = View.getEl('w-kana');
-              if (wKana) {
-                  wKana.innerText = wObj.kana;
-                  wKana.style.display = 'block';
-                  wKana.classList.remove('blur-text');
-                  wKana.removeAttribute('aria-hidden');
-                  wKana.classList.add('hint-pop-anim');
-              }
-          }
-          hintWrap.classList.remove('show'); 
-      };
-      hintWrap.appendChild(hintBtn);
-      kb.appendChild(hintWrap);
-
-      // æ—¥è¯­é”®ç›˜ vs è‹±è¯­é”®ç›˜ï¼šè‹±è¯­é”®ç›˜å«å®Œæ•´ QWERTY åŠå¸¸ç”¨æ ‡ç‚¹
-      const rows = isEnglishKb ? [
-          ['Q','W','E','R','T','Y','U','I','O','P'],
-          ['A','S','D','F','G','H','J','K','L'],
-          ['Z','X','C','V','B','N','M','-',"'",'Backspace'],
-          ['Enter']
-      ] : [
-          ['Q','W','E','R','T','Y','U','I','O','P'],
-          ['A','S','D','F','G','H','J','K','L','-'],
-          ['Kana','Z','X','C','V','B','N','M','Backspace'],
-          ['Enter']
-      ];
-
-      rows.forEach(r => {
-          let rowEl = document.createElement('div'); rowEl.className = 'qwerty-row';
-          r.forEach(key => {
-              let btn = document.createElement('div'); btn.className = 'qwerty-key';
-              if (key === 'Kana') { btn.innerText = 'ã‚/ã‚¢'; btn.classList.add('qwerty-key-wide'); }
-              else if (key === 'Backspace') { btn.innerHTML = '<span class="material-symbols-rounded">backspace</span>'; btn.classList.add('qwerty-key-wide'); }
-              else if (key === 'Enter') { btn.innerText = 'ç¢ºèª (Enter)'; btn.className = 'qwerty-key qwerty-key-confirm'; }
-              else btn.innerText = key;
-              
-              btn.setAttribute('tabindex', '0');
-              btn.setAttribute('role', 'button');
-              
-              btn.onpointerdown = (e) => { 
-                  e.preventDefault(); 
-                  inputEl.classList.remove('error-state', 'shake-anim');
-                  if (key === 'Kana') { RomajiEngine.toggleMode(); btn.innerText = RomajiEngine.mode === 'hiragana' ? 'ã‚/ã‚¢' : 'ã‚¢/ã‚'; return; }
-                  if (key === 'Enter') { Controller.handleSpellConfirm(inputEl, wObj, displayMode); return; }
-                                    if (isEnglishKb) {
-                      // è¡¥ä¸Šç¼ºå¤±çš„å®ä½“æŒ‰é”®éœ‡åŠ¨åé¦ˆï¼šé€€æ ¼é”®éœ‡åŠ¨è½»ä¸€ç‚¹ï¼Œæ™®é€šæŒ‰é”®éœ‡åŠ¨å¼ºä¸€ç‚¹
-                      Hardware.vibrate(key === 'Backspace' ? 10 : 15);
-                      
-                      if (key === 'Backspace') EnglishInput.input('Backspace');
-                      else if (key === "'") EnglishInput.buffer += "'";
-                      else EnglishInput.input(key);
-                      inputEl.innerHTML = escapeHTML(EnglishInput.getDisplayText());
-                  } else {
-
-                      RomajiEngine.input(key);
-                      inputEl.innerHTML = RomajiEngine.getDisplayText();
-                  }
-              };
-              rowEl.appendChild(btn);
-          });
-          kb.appendChild(rowEl);
-      });
-  },
-
-  resetWordbankRenderer() { 
-      let searchInputEl = this.getEl('wb-search-input');
-      let searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
-      let currentFilter = this.getEl('wb-folder-filter').value;
-      
-      Model.updateFilteredDb(searchQuery, currentFilter);
-      window.scrollTo({
-          top: 0,
-          behavior: 'auto'
-      });
-
-      Model.state.renderedStartIndex = -1;
-      Model.state.renderedEndIndex = -1;
-
-      this.renderVirtualGrid();
-  },
-
-  renderVirtualGrid() {
-    const grid = this.getEl('wb-grid'); 
-    const container = this.getEl('wb-grid-container');
-    if(!grid || !container) return;
-
-        const colsStr = this.getEl('wb-col-select').value;
-    const requestedCols =
-        Number.parseInt(colsStr, 10) || 3;
-
-    grid.setAttribute(
-        'data-cols',
-        String(requestedCols)
-    );
-
-    const computedColumns =
-        window.getComputedStyle(grid)
-            .gridTemplateColumns;
-
-    const actualCols =
-        computedColumns &&
-        computedColumns !== 'none'
-            ? computedColumns
-                .split(/\s+/)
-                .filter(Boolean)
-                .length
-            : 0;
-
-    const cols =
-        actualCols || requestedCols;
-
-    const blurMode =
-        this.getEl('wb-blur-select').value; 
-    
-    const filteredData = Model.state.filteredDb;
-
-    if (filteredData.length === 0) {
-        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 100px 20px;">
-            <span class="material-symbols-rounded" style="font-size: 5rem; margin-bottom: 24px; color: #8F9779; opacity: 0.4;">spa</span>
-            <div style="font-size: 1.3rem; font-weight: 800; color: var(--on-surface); opacity: 0.7; font-family: var(--font-jp-serif), serif; letter-spacing: 2px;">ã€ ä¸€æœŸä¸€ä¼š ã€‘</div>
-            <div style="font-size: 0.95rem; margin-top: 12px; opacity: 0.5; color: var(--on-surface);">ç¼˜åˆ†æœªåˆ°ï¼Œæ¢ä¸ªå…³é”®è¯å†è¯•ä¸€æ¬¡å§</div>
-        </div>`;
-        grid.style.paddingTop = '0px'; grid.style.paddingBottom = '0px';
-        return;
-    }
-
-    const stableRowHeights = {
-        2: 224,
-        3: 208,
-        4: 180
-    };
-
-    const rowHeight =
-        stableRowHeights[requestedCols] || 208;
-
-    const totalRows = Math.ceil(filteredData.length / cols);
-    const rect = container.getBoundingClientRect();
-    const gridTop = window.scrollY + rect.top; 
-    let relativeScrollY = Math.max(0, window.scrollY - gridTop + 20);
-
-    const viewportHeight = window.innerHeight;
-    const bufferRows = 10;
-    
-    let startRow = Math.floor(relativeScrollY / rowHeight) - bufferRows;
-    startRow = Math.max(0, startRow);
-    
-    let visibleRows = Math.ceil(viewportHeight / rowHeight) + (bufferRows * 2);
-    let endRow = startRow + visibleRows;
-    endRow = Math.min(totalRows, endRow);
-
-    let startIndex = startRow * cols;
-    let endIndex = endRow * cols;
-
-    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) { return; }
-    Model.state.renderedStartIndex = startIndex;
-    Model.state.renderedEndIndex = endIndex;
-
-    const paddingTop = startRow * rowHeight;
-    const paddingBottom = Math.max(0, (totalRows - endRow) * rowHeight);
-    grid.style.paddingTop = `${paddingTop}px`;
-    grid.style.paddingBottom = `${paddingBottom}px`;
-    grid.setAttribute(
-        'data-cols',
-        String(requestedCols)
-    );
-
-            let slice = filteredData.slice(startIndex, endIndex);
-    
-    Array.from(grid.children).forEach(child => {
-        if (!child.classList.contains('wb-card')) {
-            grid.removeChild(child);
-        }
-    });
-
-    let existingCards = Array.from(grid.children);
-    let neededCount = slice.length;
-
-
-    slice.forEach((item, index) => {
-      let w = item.w, idx = item.idx; 
-      let contentHTML = '';
-      let renderFingerprint = '';
-      let bgStyle = '';
-      let isHintCard = (idx === -999);
-      let isChecked = false;
-
-      if (isHintCard) {
-          bgStyle = 'transparent';
-          renderFingerprint = 'hint-card';
-          contentHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; border: 2px dashed var(--outline); border-radius: inherit; width: 100%; position: absolute; inset: 0;">
-                <span class="material-symbols-rounded" style="font-size:2rem; margin-bottom:8px; color:var(--tertiary);">touch_app</span>
-                <div style="font-size:1rem; font-weight:800; margin-bottom:4px; color:var(--on-surface);">é•¿æŒ‰å¡ç‰‡</div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">æŸ¥çœ‹è¯¦ç»†é‡Šä¹‰</div>
-            </div>`;
-      } else {
-          let visuals = this.getCardVisuals(w.type, w.lang);
-          const isEnglishWord = w.lang === 'en';
-          bgStyle = visuals.bg;
-          let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; 
-          let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; 
-          let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
-          isChecked = Model.state.selectedSet.has(idx);
-
-          // ç»Ÿä¸€ä¸‰æ ä½“ç³»ï¼šå…¼å®¹æ—§è‹±è¯­ {word, meaning} æ ¼å¼
-          let st = Model.getClearState(w);
-          if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-          if (isEnglishWord && st.word !== undefined) {
-            st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
-          }
-          // ç»Ÿä¸€ä¸‰æ ç¼©ç•¥å›¾
-          let hankoHTML = `
-            <div class="card-tri-bar">
-              <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
-              <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
-              <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
-            </div>`;
-
-          let starFilled = Model.isStarred(w) ? 1 : 0;
-          let starClass = starFilled ? 'active' : '';
-
-          let topRightHTML = '';
-          if (Model.state.batchMode) {
-              topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? 'âœ“' : ''}</div>`;
-          } else {
-              topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
-          }
-
-          let safeWord = escapeHTML(w.word); 
-          let safeKana = isEnglishWord ? (w.phonetic || '') : escapeHTML(w.kana || ''); 
-          let safeMean = escapeHTML(w.meaning);
-          const safePitch = !isEnglishWord
-              ? escapeHTML(formatWordPitchDisplay(w.pitch))
-              : '';
-          const pitchHTML = safePitch
-              ? `<span class="wb-c-pitch">${safePitch}</span>`
-              : '';
-          contentHTML = `
-            ${hankoHTML}
-            <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
-            ${topRightHTML}
-            ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
-            <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-            ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
-            <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
-
-          renderFingerprint =
-              String(idx) +
-              blurMode +
-              Model.state.batchMode +
-              isChecked +
-              starFilled +
-              st.kanji +
-              st.kana +
-              st.meaning +
-              String(w.pitch || '') +
-              String(w.level || '') +
-              String(w.frequency || '') +
-              String(w.difficulty || '') +
-              JSON.stringify(w.specialTags || []);
-      }
-
-      if (index < existingCards.length) {
-          let card = existingCards[index];
-          card.classList.toggle(
-              'is-selected',
-              !isHintCard && isChecked
-          );
-          card.setAttribute(
-              'aria-pressed',
-              String(!isHintCard && isChecked)
-          );
-          if (card.dataset.fingerprint !== renderFingerprint) {
-              card.style.background = bgStyle;
-              card.style.boxShadow = isHintCard ? 'none' : '';
-              card.style.border = isHintCard ? 'none' : '';
-              card.dataset.idx = idx;
-              card.dataset.fingerprint = renderFingerprint;
-              card.innerHTML = contentHTML;
-          }
-      } else {
-          let card = document.createElement('div');
-          card.className =
-              'wb-card' +
-              (!isHintCard && isChecked
-                  ? ' is-selected'
-                  : '');
-          card.setAttribute('tabindex', '0');
-          card.setAttribute('role', 'button');
-          card.setAttribute(
-              'aria-pressed',
-              String(!isHintCard && isChecked)
-          );
-          card.style.background = bgStyle;
-          card.style.boxShadow = isHintCard ? 'none' : '';
-          card.style.border = isHintCard ? 'none' : '';
-          card.dataset.idx = idx;
-          card.dataset.fingerprint = renderFingerprint;
-          card.style.opacity = '1';
-          card.innerHTML = contentHTML;
-          grid.appendChild(card);
-      }
-    });
-
-    while (grid.children.length > neededCount) {
-        grid.removeChild(grid.lastChild);
-    }
-
-
-    let sentinel = this.getEl('wb-scroll-sentinel');
-    if (sentinel) sentinel.style.display = 'none';
-  },
-
-  simulateKeyPress(keyStr) {
-      let keys = document.querySelectorAll('.qwerty-key');
-      keys.forEach(k => {
-          let text = k.innerText;
-          let match = false;
-          if (keyStr === 'Backspace' && k.querySelector('.material-symbols-rounded')) match = true;
-          else if (keyStr === 'Enter' && text.includes('Enter')) match = true;
-          else if (text === keyStr) match = true;
-          
-          if (match) {
-              let isDark = document.body.getAttribute('data-theme') === 'dark';
-              k.style.transition = 'none'; 
-              k.style.transform = 'scale(0.92) translateY(2px)';
-              k.style.background = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(139, 121, 103, 0.15)';
-              k.style.boxShadow = '0 0 0 transparent';
-              
-              if(keyStr === 'Enter') {
-                  k.style.background = isDark ? 'rgba(164, 199, 182, 0.25)' : 'rgba(74, 99, 85, 0.9)';
-              }
-              
-              setTimeout(() => {
-                  k.style.transition = 'all 0.1s'; 
-                  k.style.transform = '';
-                  k.style.background = '';
-                  k.style.boxShadow = '';
-              }, 120);
-          }
-      });
-  }
-};
-
-const AI_TUTOR_BASE_PROMPT = `ä½ æ˜¯ä¸€åé¢å‘ä¸­æ–‡å­¦ä¹ è€…çš„è¯­è¨€å¯¼å¸ˆã€‚
-é»˜è®¤ä½¿ç”¨æ¸…æ™°ã€è‡ªç„¶çš„ä¸­æ–‡è§£é‡Šï¼Œé™¤éç”¨æˆ·è¦æ±‚ä½¿ç”¨ç›®æ ‡è¯­è¨€ã€‚
-å…ˆç›´æ¥å›ç­”é—®é¢˜ï¼Œå†è¡¥å……å¿…è¦è¯´æ˜ï¼›ç®€å•é—®é¢˜ä¿æŒç®€çŸ­ï¼Œå¤æ‚é—®é¢˜åˆ†å±‚è¯´æ˜ã€‚
-å‘ç°è¡¨è¾¾é”™è¯¯æ—¶ï¼Œä¼˜å…ˆç»™å‡ºâ€œåŸè¡¨è¾¾ã€ä¿®æ”¹åè¡¨è¾¾ã€ä¿®æ”¹åŸå› â€ã€‚
-ç¤ºä¾‹å¿…é¡»è‡ªç„¶ã€å¸¸ç”¨å¹¶ç¬¦åˆçœŸå®è¯­å¢ƒï¼ŒåŒºåˆ†å£è¯­ã€ä¹¦é¢è¯­ã€æ­£å¼ä¸éæ­£å¼è¡¨è¾¾ã€‚
-ä¸è¦ä½¿ç”¨ç©ºæ´çš„å¤¸å¥–ã€å®¢å¥—å¼€åœºæˆ–ä¸é—®é¢˜æ— å…³çš„æ€»ç»“ã€‚
-ä¸ç¡®å®šæ—¶æ˜ç¡®è¯´æ˜ï¼Œä¸è¦ç¼–é€ è¯ä¹‰ã€è¯­æ³•è§„åˆ™æˆ–å›ºå®šæ­é…ã€‚`;
-
-const AI_TUTOR_LANGUAGE_PROMPTS = Object.freeze({
-    ja: `æœ¬æ¬¡ä¸»è¦è¾…å¯¼æ—¥è¯­ã€‚
-æ³¨æ„åŒºåˆ†æ—¥å¸¸å£è¯­ã€ä¹¦é¢è¯­å’Œæ•¬è¯­ï¼Œå¹¶æŒ‡å‡ºä¸­æ–‡ç›´è¯‘é€ æˆçš„ä¸è‡ªç„¶è¡¨è¾¾ã€‚
-è§£é‡Šè¯è¯­æ—¶æŒ‰éœ€è¯´æ˜è¯»éŸ³ã€è¯æ€§ã€å¸¸è§æ­é…å’Œä½¿ç”¨é™åˆ¶ã€‚`,
-
-    en: `æœ¬æ¬¡ä¸»è¦è¾…å¯¼è‹±è¯­ã€‚
-è§£é‡Šå•è¯æ—¶æŒ‰éœ€æ ‡æ³¨å›½é™…éŸ³æ ‡ï¼Œå¹¶ä¼˜å…ˆè®²å¸¸è§æ­é…å’Œç°ä»£è‡ªç„¶è¡¨è¾¾ã€‚
-æ³¨æ„åŒºåˆ†æ—¥å¸¸å£è¯­ã€ä¹¦é¢è¯­ã€æ­£å¼ä¸éæ­£å¼è¡¨è¾¾ã€‚
-ä¸è¦æ·»åŠ æ—¥è¯­å‡åæ³¨éŸ³ï¼Œä¹Ÿä¸è¦å †ç Œå†·åƒ»è¯ã€‚`
-});
-
-const AI_CHAT_PRESETS = Object.freeze({
-    free: {
-        title: 'è‡ªç”±ç­”ç–‘',
-        icon: 'forum',
-        description: 'éšæ—¶è¯¢é—®è¯æ±‡ã€è¯­æ³•ä¸è¡¨è¾¾',
-
-        instruction: `æ ¹æ®ç”¨æˆ·çš„é—®é¢˜è‡ªç„¶å›ç­”ï¼Œä¸å¼ºåˆ¶å¥—ç”¨å›ºå®šæ¨¡æ¿ã€‚
-å…ˆè§£å†³ç”¨æˆ·å½“å‰æœ€å…³å¿ƒçš„é—®é¢˜ï¼Œå†æŒ‰éœ€è¦è¡¥å……ä¾‹å­æˆ–æé†’ã€‚`,
-
-        welcome: {
-            ja: 'å¯ä»¥è¯¢é—®æ—¥è¯­è¯æ±‡ã€è¯­æ³•ã€è¡¨è¾¾æ˜¯å¦è‡ªç„¶ï¼Œæˆ–ç›´æ¥ç²˜è´´ä¸€å¥è¯ã€‚',
-            en: 'å¯ä»¥è¯¢é—®è‹±è¯­è¯æ±‡ã€è¯­æ³•ã€è¡¨è¾¾æ˜¯å¦è‡ªç„¶ï¼Œæˆ–ç›´æ¥ç²˜è´´ä¸€å¥è¯ã€‚'
-        },
-
-        shortcuts: {
-            ja: [
-                'è¿™ä¸ªæ—¥è¯­è¡¨è¾¾è‡ªç„¶å—ï¼Ÿ',
-                'æ¯”è¾ƒä¸¤ä¸ªè¿‘ä¹‰è¯',
-                'è§£é‡Šä¸€ä¸ªè¯­æ³•ç‚¹',
-                'å¸®æˆ‘æ£€æŸ¥ä¸€å¥è¯'
-            ],
-
-            en: [
-                'è¿™ä¸ªè‹±è¯­è¡¨è¾¾è‡ªç„¶å—ï¼Ÿ',
-                'æ¯”è¾ƒä¸¤ä¸ªè¿‘ä¹‰è¯',
-                'è§£é‡Šä¸€ä¸ªè¯­æ³•ç‚¹',
-                'å¸®æˆ‘æ£€æŸ¥ä¸€å¥è¯'
-            ]
-        }
-    },
-
-    grammar: {
-        title: 'è¯­æ³•æ‹†è§£',
-        icon: 'account_tree',
-        description: 'åˆ†æå¥å­ç»“æ„ä¸é‡ç‚¹è¯­æ³•',
-
-        instruction: `ç”¨æˆ·æä¾›å¥å­åï¼ŒæŒ‰éœ€è¦ä»â€œå¥å­å¤§æ„ã€ç»“æ„æ‹†è§£ã€é‡ç‚¹è¯­æ³•ã€è‡ªç„¶åº¦ã€ç›¸ä¼¼ä¾‹å¥â€å‡ ä¸ªéƒ¨åˆ†è®²è§£ã€‚
-ä¸è¦ä¸ºäº†å‡‘é½æ ç›®é‡å¤å†…å®¹ï¼›å¥å­å¾ˆç®€å•æ—¶å¯ä»¥åˆå¹¶è¯´æ˜ã€‚`,
-
-        welcome: {
-            ja: 'ç²˜è´´ä¸€æ®µæ—¥è¯­ï¼Œæˆ‘ä¼šå¸®ä½ æ‹†å¼€å¥å­ç»“æ„ã€è¯­æ³•å’Œè‡ªç„¶åº¦ã€‚',
-            en: 'ç²˜è´´ä¸€æ®µè‹±è¯­ï¼Œæˆ‘ä¼šå¸®ä½ æ‹†å¼€å¥å­ç»“æ„ã€è¯­æ³•å’Œè‡ªç„¶åº¦ã€‚'
-        },
-
-        shortcuts: {
-            ja: [
-                'æ‹†è§£è¿™å¥æ—¥è¯­',
-                'è§£é‡Šå¥ä¸­çš„è¯­æ³•',
-                'è¿™å¥è¯ä¸ºä»€ä¹ˆè¿™æ ·è¯´ï¼Ÿ',
-                'ç»™æˆ‘ç›¸ä¼¼ä¾‹å¥'
-            ],
-
-            en: [
-                'æ‹†è§£è¿™å¥è‹±è¯­',
-                'è§£é‡Šå¥ä¸­çš„è¯­æ³•',
-                'è¿™å¥è¯ä¸ºä»€ä¹ˆè¿™æ ·è¯´ï¼Ÿ',
-                'ç»™æˆ‘ç›¸ä¼¼ä¾‹å¥'
-            ]
-        }
-    },
-
-    vocabulary: {
-        title: 'å•è¯ç²¾è®²',
-        icon: 'menu_book',
-        description: 'æŒæ¡è¯ä¹‰ã€æ­é…ä¸çœŸå®ç”¨æ³•',
-
-        instruction: `ç”¨æˆ·æä¾›å•è¯åï¼Œä¼˜å…ˆè¯´æ˜æ ¸å¿ƒå«ä¹‰ã€è¯æ€§æˆ–è¯»éŸ³ã€å¸¸è§æ­é…ã€å®¹æ˜“æ··æ·†çš„è¯ã€çœŸå®ä½¿ç”¨åœºæ™¯å’Œè‡ªç„¶ä¾‹å¥ã€‚
-è®²è§£ç»“æŸæ—¶å¯ç»™ä¸€ä¸ªç®€çŸ­å°æµ‹éªŒï¼Œä½†ç”¨æˆ·åªæƒ³æŸ¥è¯æ—¶ä¸è¦å¼ºè¿«ç»ƒä¹ ã€‚`,
-
-        welcome: {
-            ja: 'è¾“å…¥ä¸€ä¸ªæ—¥è¯­å•è¯ï¼Œæˆ‘ä¼šè®²æ¸…è¯»éŸ³ã€å«ä¹‰ã€æ­é…ä¸ä½¿ç”¨åœºæ™¯ã€‚',
-            en: 'è¾“å…¥ä¸€ä¸ªè‹±è¯­å•è¯ï¼Œæˆ‘ä¼šè®²æ¸…éŸ³æ ‡ã€å«ä¹‰ã€æ­é…ä¸ä½¿ç”¨åœºæ™¯ã€‚'
-        },
-
-        shortcuts: {
-            ja: [
-                'è§£é‡Šè¿™ä¸ªå•è¯',
-                'æ¯”è¾ƒä¸¤ä¸ªè¿‘ä¹‰è¯',
-                'ç»™æˆ‘å¸¸è§æ­é…',
-                'ç”¨è¿™ä¸ªè¯è€ƒè€ƒæˆ‘'
-            ],
-
-            en: [
-                'è§£é‡Šè¿™ä¸ªå•è¯',
-                'æ¯”è¾ƒä¸¤ä¸ªè¿‘ä¹‰è¯',
-                'ç»™æˆ‘å¸¸è§æ­é…',
-                'ç”¨è¿™ä¸ªè¯è€ƒè€ƒæˆ‘'
-            ]
-        }
-    },
-
-    polish: {
-        title: 'ç¿»è¯‘æ¶¦è‰²',
-        icon: 'translate',
-        description: 'ç¿»è¯‘å¹¶æ”¹æˆæ›´è‡ªç„¶çš„è¡¨è¾¾',
-
-        instruction: `å…ˆåˆ¤æ–­ç”¨æˆ·éœ€è¦ç¿»è¯‘ã€çº é”™è¿˜æ˜¯æ¶¦è‰²ã€‚
-å¿…è¦æ—¶ç»™å‡ºâ€œç›´æ¥ç‰ˆæœ¬ã€è‡ªç„¶ç‰ˆæœ¬ã€å…¶ä»–è¯­æ°”ç‰ˆæœ¬ã€ä¿®æ”¹åŸå› â€ã€‚
-ä¿ç•™åŸæ„ï¼Œä¸æ“…è‡ªå¢åŠ ç”¨æˆ·æ²¡æœ‰è¡¨è¾¾çš„ä¿¡æ¯ã€‚`,
-
-        welcome: {
-            ja: 'è¾“å…¥ä¸­æ–‡æˆ–æ—¥è¯­ï¼Œæˆ‘ä¼šç¿»è¯‘ã€çº é”™ï¼Œå¹¶ç»™å‡ºæ›´è‡ªç„¶çš„æ—¥è¯­è¡¨è¾¾ã€‚',
-            en: 'è¾“å…¥ä¸­æ–‡æˆ–è‹±è¯­ï¼Œæˆ‘ä¼šç¿»è¯‘ã€çº é”™ï¼Œå¹¶ç»™å‡ºæ›´è‡ªç„¶çš„è‹±è¯­è¡¨è¾¾ã€‚'
-        },
-
-        shortcuts: {
-            ja: [
-                'ç¿»è¯‘æˆè‡ªç„¶æ—¥è¯­',
-                'æ”¹å¾—æ›´å£è¯­',
-                'æ”¹å¾—æ›´æ­£å¼',
-                'æ£€æŸ¥æ˜¯å¦åœ°é“'
-            ],
-
-            en: [
-                'ç¿»è¯‘æˆè‡ªç„¶è‹±è¯­',
-                'æ”¹å¾—æ›´å£è¯­',
-                'æ”¹å¾—æ›´æ­£å¼',
-                'æ£€æŸ¥æ˜¯å¦åœ°é“'
-            ]
-        }
-    },
-
-    guided: {
-        title: 'å¼•å¯¼ç»ƒä¹ ',
-        icon: 'psychology_alt',
-        description: 'é€šè¿‡æç¤ºè‡ªå·±æ‰¾åˆ°ç­”æ¡ˆ',
-
-        instruction: `é»˜è®¤ä¸è¦ç«‹åˆ»å…¬å¸ƒå®Œæ•´ç­”æ¡ˆã€‚
-å…ˆæŒ‡å‡ºé—®é¢˜èŒƒå›´ï¼Œå†ç»™ä¸€ä¸ªå°æç¤ºå¹¶ç­‰å¾…ç”¨æˆ·å°è¯•ï¼›æ ¹æ®ç”¨æˆ·çš„å›ç­”é€æ­¥å¢åŠ æç¤ºã€‚
-ç”¨æˆ·æ˜ç¡®è¦æ±‚ç›´æ¥çœ‹ç­”æ¡ˆï¼Œæˆ–å¤šæ¬¡å°è¯•ä»ä¸ä¼šæ—¶ï¼Œå†ç»™å‡ºç­”æ¡ˆå¹¶æ€»ç»“åŸå› ã€‚`,
-
-        welcome: {
-            ja: 'é€‰æ‹©ä¸€ä¸ªç»ƒä¹ æ–¹å‘ï¼Œæˆ‘ä¼šå…ˆç»™æç¤ºï¼Œè®©ä½ è‡ªå·±æ‰¾åˆ°æ—¥è¯­ç­”æ¡ˆã€‚',
-            en: 'é€‰æ‹©ä¸€ä¸ªç»ƒä¹ æ–¹å‘ï¼Œæˆ‘ä¼šå…ˆç»™æç¤ºï¼Œè®©ä½ è‡ªå·±æ‰¾åˆ°è‹±è¯­ç­”æ¡ˆã€‚'
-        },
-
-        shortcuts: {
-            ja: [
-                'ç»™æˆ‘ä¸€é“ç¿»è¯‘é¢˜',
-                'é™ªæˆ‘ç»ƒä¹ é€ å¥',
-                'åªç»™æˆ‘ä¸€ä¸ªæç¤º',
-                'æ£€æŸ¥æˆ‘çš„ç­”æ¡ˆ'
-            ],
-
-            en: [
-                'ç»™æˆ‘ä¸€é“ç¿»è¯‘é¢˜',
-                'é™ªæˆ‘ç»ƒä¹ é€ å¥',
-                'åªç»™æˆ‘ä¸€ä¸ªæç¤º',
-                'æ£€æŸ¥æˆ‘çš„ç­”æ¡ˆ'
-            ]
-        }
-    }
-});
-
-const buildAIChatSystemPrompt = (presetId, lang) => {
-    const safeLang =
-        lang === 'en'
-            ? 'en'
-            : 'ja';
-
-    const preset =
-        AI_CHAT_PRESETS[presetId] ||
-        AI_CHAT_PRESETS.free;
-
-    return [
-        AI_TUTOR_BASE_PROMPT,
-        AI_TUTOR_LANGUAGE_PROMPTS[safeLang],
-        `ã€æœ¬æ¬¡æ•™å­¦æ¨¡å¼ï¼š${preset.title}ã€‘`,
-        preset.instruction
-    ].join('\n\n');
-};
-
-const Controller = {
-  aiCache: {},
-  aiActionPayloads: {},
-  aiActionSerial: 0,
-  pendingWordDraft: null,
-  aiWordCollection: {
-      sourcePayload: null,
-      candidates: [],
-      drafts: []
-  },
-  currentChat: { systemPrompt: '', messages: [], cacheKey: '' },
-
-  aiTabChat: {
-      activeIdx: -1,
-      messages: [],
-      systemPrompt: '',
-      cacheKey: '',
-      presetId: '',
-      lang: 'ja',
-      word: '',
-      sentence: ''
-  },
-  async init() {
-    BottomSheet.init(); 
-    Nav.init(); 
-    await Model.init(); 
-    Model.state.currentLangMode = localStorage.getItem('langMode') || 'ja';
-    document.body.setAttribute('data-lang', Model.state.currentLangMode);
-    
-    // æ¸²æŸ“ä¹¦æ¶
-    document.querySelectorAll('.book-card').forEach(b => b.classList.remove('active'));
-    let activeBook = document.querySelector(`.book-card[data-lang="${Model.state.currentLangMode}"]`);
-    if (activeBook) activeBook.classList.add('active');
-
-    Hardware.init(); 
-    View.renderDashboard(); 
-    View.updateWordbankUI(); 
-    this.bindEvents();
-    this.initializeImportPanel();
-    await this.updateRestorePointUI();
-    this.setupVirtualScroll();
-    this.setupHeaderScrollShadow();
-    
-    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
-    
-    let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
-    let autoSpeakCheck = View.getEl('setting-auto-speak');
-    if(autoSpeakCheck) autoSpeakCheck.checked = autoSpeak;
-
-    let hapticsCheck = View.getEl('setting-haptics-enabled');
-    if (hapticsCheck) hapticsCheck.checked = HAPTICS.isEnabled();
-    
-    let showRoots = localStorage.getItem('showRoots') !== 'false'; 
-    let showRootsCheckEl = View.getEl('setting-show-roots');
-    if(showRootsCheckEl) showRootsCheckEl.checked = showRoots;
-
-    
-
-    let darkBtnStyle = localStorage.getItem('darkBtnStyle') === 'translucent';
-    let darkBtnCheck = View.getEl('setting-dark-btn');
-    if(darkBtnCheck) {
-        darkBtnCheck.checked = darkBtnStyle;
-        if(darkBtnStyle) document.body.setAttribute('data-dark-btn', 'translucent');
-    }
-
-    let savedWordOrderMode = localStorage.getItem('wordOrderMode');
-
-    if (!['weak-first', 'new-first', 'original'].includes(savedWordOrderMode)) {
-        const legacyPostponeTested =
-            localStorage.getItem('postponeTested') === 'true';
-
-        savedWordOrderMode =
-            legacyPostponeTested
-                ? 'new-first'
-                : 'weak-first';
-
-        localStorage.setItem(
-            'wordOrderMode',
-            savedWordOrderMode
-        );
-    }
-
-    let wordOrderSelect =
-        View.getEl('setting-word-order-mode');
-
-    if (wordOrderSelect) {
-        wordOrderSelect.value = savedWordOrderMode;
-        wordOrderSelect.dispatchEvent(
-            new Event('facade-update')
-        );
-    }
-
-    let skipMastered = localStorage.getItem('skipMastered') === 'true';
-    let skipCheck = View.getEl('setting-skip-mastered');
-    if(skipCheck) skipCheck.checked = skipMastered;
-
-    let showRootsCheck = View.getEl('setting-show-roots');
-    if (showRootsCheck) {
-        showRootsCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('showRoots', e.target.checked);
-            showToast(e.target.checked ? "å·²å¼€å¯è¯æ ¹è¯ç¼€å±•ç¤º" : "å·²å…³é—­è¯æ ¹è¯ç¼€å±•ç¤º");
-            if (!document.getElementById('study-area').classList.contains('hidden')) { View.renderStudyCard('none'); }
-        });
-    }
-
-    let useRuby = localStorage.getItem('useRubyRender');
-    if (useRuby === null) useRuby = 'true'; 
-    let rubyCheck = View.getEl('setting-ruby-render');
-    if(rubyCheck) rubyCheck.checked = (useRuby === 'true');
-    if (useRuby === 'false') {
-        loadMathJax().catch(error => {
-            console.warn('MathJax æŒ‰éœ€åŠ è½½å¤±è´¥', error);
-            localStorage.setItem('useRubyRender', 'true');
-            if (rubyCheck) rubyCheck.checked = true;
-            showToast('MathJax åŠ è½½å¤±è´¥ï¼Œå·²æ¢å¤åŸç”Ÿ Ruby æ’ç‰ˆ');
-        });
-    }
-    let savedTTS = localStorage.getItem('ttsEngine') || 'azure';
-    let ttsSelect = View.getEl('setting-tts-engine');
-    if(ttsSelect) {
-        ttsSelect.value = savedTTS;
-        ttsSelect.dispatchEvent(new Event('facade-update')); 
-    }
-
-
-let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
-
-  const appVersion = View.getEl('settings-app-version');
-  const appPublished = View.getEl('settings-app-published');
-  if (appVersion) {
-      appVersion.textContent = `${RELEASE_INFO.version} Â· ${RELEASE_INFO.build}`;
-  }
-  if (appPublished) {
-      const publishedAt = new Date(RELEASE_INFO.publishedAt);
-      appPublished.textContent = Number.isNaN(publishedAt.getTime())
-          ? 'å½“å‰ç¼“å­˜ç‰ˆæœ¬'
-          : new Intl.DateTimeFormat('zh-CN', {
-              dateStyle: 'medium',
-              timeStyle: 'short'
-          }).format(publishedAt);
-  }
-
-  let updatePromptShown = false;
-  const promptForUpdate = () => {
-      if (updatePromptShown) return;
-      updatePromptShown = true;
-      showConfirm('ç‰ˆæœ¬æ›´æ–°', 'åº”ç”¨å·²æœ‰æ–°ç‰ˆæœ¬ï¼Œæ˜¯å¦ç«‹å³åˆ·æ–°ä»¥ä½“éªŒæœ€æ–°åŠŸèƒ½ï¼Ÿ', () => {
-          window.location.reload();
-      });
-  };
-
-  window.addEventListener('zhongri-update-ready', promptForUpdate);
-  if (window.__zhongriUpdateReady) promptForUpdate();
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'SW_UPDATED') {
-        promptForUpdate();
-      }
-    });
-  }
-},
-
-setupVirtualScroll() {
-    const container =
-        View.getEl('wb-grid-container');
-
-    const wordbankTab =
-        document.getElementById('tab-wordbank');
-
-    if (!container || !wordbankTab) {
-        return;
-    }
-
-    let ticking = false;
-    let resizeTimer = null;
-
-    let lastLayoutWidth = Math.round(
-        window.visualViewport?.width ||
-        window.innerWidth
-    );
-
-    window.addEventListener(
-        'scroll',
-        () => {
-            if (
-                !wordbankTab.classList.contains(
-                    'active'
-                )
-            ) {
-                return;
-            }
-
-            if (ticking) {
-                return;
-            }
-
-            ticking = true;
-
-            window.requestAnimationFrame(() => {
-                View.renderVirtualGrid();
-                ticking = false;
-            });
-        },
-        { passive: true }
-    );
-
-    window.addEventListener(
-        'resize',
-        () => {
-            clearTimeout(resizeTimer);
-
-            resizeTimer = setTimeout(() => {
-                if (
-                    !wordbankTab.classList.contains(
-                        'active'
-                    )
-                ) {
-                    return;
-                }
-
-                const nextLayoutWidth = Math.round(
-                    window.visualViewport?.width ||
-                    window.innerWidth
-                );
-
-                const widthChanged =
-                    Math.abs(
-                        nextLayoutWidth -
-                        lastLayoutWidth
-                    ) >= 8;
-
-                /*
-                 * æ‰‹æœºæµè§ˆå™¨æ”¶èµ·æˆ–å±•å¼€åœ°å€æ æ—¶ï¼Œ
-                 * é€šå¸¸åªä¼šæ”¹å˜å¯è§†é«˜åº¦ã€‚
-                 * è¿™ç§å˜åŒ–ä¸åº”é‡ç½®è¯åº“ã€‚
-                 */
-                if (!widthChanged) {
-                    return;
-                }
-
-                lastLayoutWidth =
-                    nextLayoutWidth;
-
-                const savedScrollY =
-                    window.scrollY;
-
-                Model.state.renderedStartIndex =
-                    -1;
-
-                Model.state.renderedEndIndex =
-                    -1;
-
-                View.renderVirtualGrid();
-
-                window.requestAnimationFrame(() => {
-                    window.scrollTo({
-                        top: savedScrollY,
-                        behavior: 'auto'
-                    });
-
-                    View.renderVirtualGrid();
-                });
-            }, 140);
-        },
-        { passive: true }
-    );
-},
-
-  setupHeaderScrollShadow() {
-      const header = View.getEl('global-header');
-      if (!header) return;
-
-      const updateHeaderStatus = () => {
-          if (window.scrollY > 10) {
-              header.classList.add('scrolled');
-          } else {
-              header.classList.remove('scrolled');
-          }
-      };
-
-      window.addEventListener('scroll', updateHeaderStatus, { passive: true });
-      updateHeaderStatus();
-  },
-
-
-
-  closeDetailIfOpen() {
-      if (document.getElementById('detail-overlay').classList.contains('active')) {
-          Hardware.vibrate(10);
-          window.toggleModal('detail-overlay', false);
-          if (document.getElementById('tab-wordbank').classList.contains('active')) {
-              Model.state.renderedStartIndex = -1;
-              View.renderVirtualGrid();
-          }
-      }
-  },
-
-  bindEvents() {
-    document.querySelectorAll('.modal-overlay').forEach(ov => { 
-        ov.addEventListener('click', (e) => { 
-            if(e.target === ov) {
-                Hardware.vibrate(10);
-                window.toggleModal(ov.id, false); 
-                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); }
-            }
-        }); 
-    });
-    
-    document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
-        btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
-    });
-    
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); View.showPage('tab-home'); View.renderDashboard(); });
-
-    // ğŸ“š è¯ä¹¦åˆ‡æ¢æ ¸å¿ƒäº‹ä»¶
-    document.querySelectorAll('.book-card').forEach(card => {
-        card.addEventListener('click', () => {
-            let targetLang = card.getAttribute('data-lang');
-            if (targetLang !== Model.state.currentLangMode) {
-                Hardware.playSound('click'); Hardware.vibrate(20);
-                Model.state.currentLangMode = targetLang;
-                localStorage.setItem('langMode', targetLang);
-                document.body.setAttribute('data-lang', targetLang);
-                
-                document.querySelectorAll('.book-card').forEach(b => b.classList.remove('active'));
-                card.classList.add('active');
-
-                // åˆ‡æ¢åå¼ºåˆ¶æ¸…ç©ºè·¨è¯­è¨€é€‰æ‹©ï¼Œé˜²æ­¢æ•°æ®ä¸²çº¿
-                let selFilter = View.getEl('wb-folder-filter');
-                if (selFilter) selFilter.value = 'all';
-                localStorage.setItem('lastSelectedFolder', 'all');
-                localStorage.removeItem('lastCustomGroupVal');
-                localStorage.removeItem('lastCustomGroupTxt');
-                Model.state.currentGroupKey = '';
-                Model.state.currentGroupLabel = '';
-
-                View.updateWordbankUI();
-                View.resetWordbankRenderer();
-                View.renderDashboard();
-                showToast(`å·²åˆ‡æ¢è‡³${targetLang === 'en' ? 'è‹±è¯­' : 'æ—¥è¯­'}è¯ä¹¦`);
-            }
-        });
-    });
-
-    View.getEl(
-        'btn-custom-group-select'
-    ).addEventListener(
-        'click',
-        () => {
-            Hardware.playSound('click');
-            Hardware.vibrate(15);
-
-            View.renderGroupRangePicker();
-
-            window.toggleModal(
-                'group-select-overlay',
-                true
-            );
-        }
-    );
-
-    View.getEl('btn-start-pendulum').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('pendulum'); });
-    View.getEl('btn-start-dual-track').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('dual-track'); });
-    View.getEl('btn-start-rote-learning').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('rote-learning'); });
-    View.getEl('btn-start-memory-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startPendulum('memory-test'); });
-    
-    View.getEl('btn-start-filter-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startFilterTest(); });
-    View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
-    View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
-
-    View.getEl('ft-forget').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
-    View.getEl('ft-blur').addEventListener('click', () => { 
-        Hardware.playSound('click'); Hardware.vibrate(20); 
-        let currentDisplay = View.getEl('test-display-select').value || 'kana'; 
-        
-        let poolMap = {
-            'word': ['kana', 'audio'],       
-            'kana': ['word', 'meaning'],     
-            'meaning': ['kana', 'audio'],    
-            'audio': ['meaning']             
-        };
-        
-        let pool = poolMap[currentDisplay] || ['word', 'kana', 'meaning', 'audio'].filter(x => x !== currentDisplay);
-        Model.state.ftHint = pool[Math.floor(Math.random() * pool.length)]; 
-        Model.state.ftState = 'B'; 
-        View.renderStudyCard('none'); 
-    });
-    View.getEl('ft-know').addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.vibrate(20);
-
-        Model.state.ftState = 'C';
-        View.renderStudyCard('none');
-
-        requestAnimationFrame(() => {
-            View.revealStudyAnswer();
-        });
-    });
-    View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
-    View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
-
-    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
-    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
-    View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
-    
-    let displayTrigger = View.getEl('btn-display-mode-trigger');
-    if (displayTrigger) { displayTrigger.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span')); }); }
-
-    let btnMtReplay = View.getEl('btn-mt-replay');
-    if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakWord(w); }); }
-
-    let btnMtShowHint = View.getEl('btn-mt-show-hint');
-    if (btnMtShowHint) {
-        btnMtShowHint.addEventListener('click', () => {
-            Hardware.vibrate(10);
-            let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-            const isEnglish = w && w.lang === 'en';
-            
-            if (isEnglish) {
-                // è‹±è¯­æ¨¡å¼ï¼šæå–çº¯è‹±æ–‡ä¾‹å¥éƒ¨åˆ†å¹¶æœ—è¯»
-                if (w.example) {
-                    // å…¼å®¹ || å’Œ / ä¸¤ç§åˆ†éš”ç¬¦ï¼Œç²¾å‡†åˆ‡å‡ºå‰åŠæ®µçš„è‹±æ–‡
-                    let exampleEnPart = w.example.split('||')[0].split('/')[0].trim();
-                    Hardware.unlockSpeech();
-                    Hardware.speakText(exampleEnPart, null, 'en');
-                } else {
-                    window.showToast('æš‚æ— ä¾‹å¥');
-                }
-            } else {
-                // æ—¥è¯­æ¨¡å¼ï¼šä¿æŒåŸæœ‰çš„æ˜¾ç¤ºå‡åé€»è¾‘
-                if (Model.state.mode === 'filter-test') {
-                    Model.state.ftShowKanaHint = true;
-                    View.renderStudyCard('none');
-                } else {
-                    let wKana = View.getEl('w-kana');
-                    if(wKana) {
-                        wKana.style.display = 'block';
-                        wKana.classList.remove('blur-text');
-                        wKana.removeAttribute('aria-hidden');
-                    }
-                }
-            }
-        });
-    }
-
-    let autoSpeakCheck = View.getEl('setting-auto-speak');
-    if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "å·²å¼€å¯è‡ªåŠ¨æœ—è¯»" : "å·²å…³é—­è‡ªåŠ¨æœ—è¯»"); }); }
-
-    let hapticsCheck = View.getEl('setting-haptics-enabled');
-    if (hapticsCheck) {
-        hapticsCheck.addEventListener('change', event => {
-            HAPTICS.setEnabled(event.target.checked);
-            if (event.target.checked) {
-                Hardware.haptic('toggle', { force: true });
-            }
-            showToast(
-                event.target.checked
-                    ? 'å·²å¼€å¯åœºæ™¯åŒ–è§¦æ„Ÿåé¦ˆ'
-                    : 'å·²å…³é—­è§¦æ„Ÿåé¦ˆ'
-            );
-        });
-    }
-
-
-    let darkBtnCheck = View.getEl('setting-dark-btn');
-    if (darkBtnCheck) {
-        darkBtnCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('darkBtnStyle', e.target.checked ? 'translucent' : 'solid');
-            if(e.target.checked) document.body.setAttribute('data-dark-btn', 'translucent');
-            else document.body.removeAttribute('data-dark-btn');
-            showToast(e.target.checked ? "å·²å¼€å¯é€æ˜å åŠ è´¨æ„Ÿ" : "å·²æ¢å¤å®è‰²æŒ‰é’®è´¨æ„Ÿ");
-        });
-    }
-
-    let wordOrderSelect =
-        View.getEl('setting-word-order-mode');
-
-    if (wordOrderSelect) {
-        wordOrderSelect.addEventListener(
-            'change',
-            (e) => {
-                Hardware.playSound('click');
-                Hardware.vibrate(15);
-
-                localStorage.setItem(
-                    'wordOrderMode',
-                    e.target.value
-                );
-
-                const modeNames = {
-                    'weak-first': 'è–„å¼±è¯ä¼˜å…ˆ',
-                    'new-first': 'æ–°è¯ä¼˜å…ˆ',
-                    'original': 'è¯åº“åŸé¡ºåº'
-                };
-
-                showToast(
-                    `è¯æ±‡æ’åˆ—å·²åˆ‡æ¢ä¸º${modeNames[e.target.value]}`
-                );
-            }
-        );
-    }
-
-    let skipCheck = View.getEl('setting-skip-mastered');
-    if (skipCheck) {
-        skipCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('skipMastered', e.target.checked);
-            showToast(e.target.checked ? "å·²å¼€å¯æ™ºèƒ½è·³è¿‡å·²äº®ç»´åº¦" : "å·²å…³é—­æ™ºèƒ½è·³è¿‡å·²äº®ç»´åº¦");
-        });
-    }
-
-    let rubyCheck = View.getEl('setting-ruby-render');
-    if (rubyCheck) {
-        rubyCheck.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
-            localStorage.setItem('useRubyRender', e.target.checked);
-
-            const rerenderVisibleCard = () => {
-                if (!document.getElementById('detail-overlay').classList.contains('hidden') && document.getElementById('detail-overlay').classList.contains('active')) {
-                    Controller.renderDetailCard('none', false);
-                } else if (!document.getElementById('study-area').classList.contains('hidden')) {
-                    View.renderStudyCard('none');
-                }
-            };
-
-            if (e.target.checked) {
-                showToast('å·²åˆ‡æ¢ä¸ºåŸç”Ÿ Ruby æ’ç‰ˆ');
-                rerenderVisibleCard();
-                return;
-            }
-
-            showToast('æ­£åœ¨åŠ è½½ MathJaxâ€¦');
-            loadMathJax()
-                .then(() => {
-                    showToast('å·²åˆ‡æ¢ä¸º MathJax å¼•æ“');
-                    rerenderVisibleCard();
-                })
-                .catch(error => {
-                    console.warn('MathJax æŒ‰éœ€åŠ è½½å¤±è´¥', error);
-                    e.target.checked = true;
-                    localStorage.setItem('useRubyRender', 'true');
-                    showToast('MathJax åŠ è½½å¤±è´¥ï¼Œå·²æ¢å¤åŸç”Ÿ Ruby æ’ç‰ˆ');
-                    rerenderVisibleCard();
-                });
-        });
-    }
-    // åˆå§‹åŒ– DeepSeek API å¯†é’¥è®¾ç½®
-    let aiKeyInput = View.getEl('setting-ai-key');
-    if (aiKeyInput) {
-        aiKeyInput.value = localStorage.getItem('deepseekApiKey') || '';
-        aiKeyInput.addEventListener('change', (e) => {
-            localStorage.setItem('deepseekApiKey', e.target.value.trim());
-            showToast("DeepSeek API Key å·²ä¿å­˜");
-        });
-    }
-
-    let ttsSelectTrigger = View.getEl('setting-tts-engine');
-if (ttsSelectTrigger) {
-    ttsSelectTrigger.addEventListener('change', (e) => {
-        Hardware.playSound('click'); Hardware.vibrate(15);
-        localStorage.setItem('ttsEngine', e.target.value);
-        let names = { 'local': 'ç³»ç»Ÿè‡ªå¸¦', 'youdao': 'ç½‘æ˜“æœ‰é“', 'azure': 'å¾®è½¯è¯­éŸ³' };
-        showToast(`å·²åˆ‡æ¢è‡³ ${names[e.target.value]} å‘éŸ³`);
-    });
-}
-
-
-let aiSheetCopy = View.getEl('ai-sheet-copy');
-if (aiSheetCopy) {
-    aiSheetCopy.addEventListener('click', () => {
-        Hardware.vibrate(15);
-        let c = View.getEl('ai-chat-messages');
-        if (c) {
-            let t = '';
-            c.querySelectorAll('.ai-chat-bubble-text').forEach(b => {
-                t += b.innerText + '\n\n';
-            });
-            t = t.trim();
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(t).then(() => showToast('å·²å¤åˆ¶å¯¹è¯å…¨æ–‡')).catch(() => showToast('å¤åˆ¶å¤±è´¥ï¼Œè¯·æ‰‹åŠ¨é€‰æ‹©æ–‡å­—'));
-            } else {
-                showToast('å¤åˆ¶å¤±è´¥ï¼Œè¯·æ‰‹åŠ¨é€‰æ‹©æ–‡å­—');
-            }
-        }
-    });
-}
-let aiWordCollectorClose =
-    View.getEl('ai-word-collector-close');
-
-if (aiWordCollectorClose) {
-    aiWordCollectorClose.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(10);
-            Controller._closeAIWordCollector();
-        }
-    );
-}
-
-let aiWordCandidateList =
-    View.getEl('ai-word-candidate-list');
-
-if (aiWordCandidateList) {
-    aiWordCandidateList.addEventListener(
-        'change',
-        () => {
-            Controller._updateAIWordCandidateCount();
-        }
-    );
-}
-
-let aiWordPreviewList =
-    View.getEl('ai-word-preview-list');
-
-if (aiWordPreviewList) {
-    aiWordPreviewList.addEventListener(
-        'input',
-        event => {
-            const field = event.target.closest(
-                '[data-ai-draft-index][data-ai-draft-field]'
-            );
-
-            if (field) {
-                Controller._updateAIWordDraftField(
-                    field,
-                    false
-                );
-            }
-        }
-    );
-
-    aiWordPreviewList.addEventListener(
-        'change',
-        event => {
-            const field = event.target.closest(
-                '[data-ai-draft-index][data-ai-draft-field]'
-            );
-
-            if (field) {
-                Controller._updateAIWordDraftField(
-                    field,
-                    true
-                );
-            }
-        }
-    );
-}
-
-let aiWordSelectAll =
-    View.getEl('ai-word-select-all');
-
-if (aiWordSelectAll) {
-    aiWordSelectAll.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(10);
-            Controller._toggleAllAIWordCandidates();
-        }
-    );
-}
-
-let aiWordSelectCancel =
-    View.getEl('ai-word-select-cancel');
-
-if (aiWordSelectCancel) {
-    aiWordSelectCancel.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(10);
-            Controller._closeAIWordCollector();
-        }
-    );
-}
-
-let aiWordEnrich =
-    View.getEl('ai-word-enrich');
-
-if (aiWordEnrich) {
-    aiWordEnrich.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(15);
-            Controller._enrichSelectedAIWords();
-        }
-    );
-}
-
-let aiWordBack =
-    View.getEl('ai-word-back');
-
-if (aiWordBack) {
-    aiWordBack.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(10);
-            Controller._showAIWordCollectorStage(
-                'select'
-            );
-        }
-    );
-}
-
-let aiWordSave =
-    View.getEl('ai-word-save');
-
-if (aiWordSave) {
-    aiWordSave.addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(18);
-            Controller._saveAIWordDrafts();
-        }
-    );
-}
-
-let btnNewAIChat = View.getEl('btn-new-ai-chat');
-
-if (btnNewAIChat) {
-    btnNewAIChat.addEventListener('click', () => {
-        Hardware.vibrate(15);
-        Controller.openAIPresetPicker();
-    });
-}
-
-
-
-document
-    .querySelectorAll('.ai-preset-option')
-    .forEach(option => {
-        option.addEventListener(
-            'click',
-            () => {
-                Hardware.vibrate(18);
-
-                Controller.startAITabPreset(
-                    option.dataset.preset
-                );
-            }
-        );
-    });
-
-let btnAIChatBack = View.getEl('btn-ai-chat-back');
-
-if (btnAIChatBack) {
-    /*
-     * æ‰‹æŒ‡æŒ‰ä¸‹æ—¶ç«‹å³è§¦å‘éœ‡åŠ¨ï¼Œ
-     * ä¸å¿…ç­‰åˆ°æ¾æ‰‹åæ‰äº§ç”Ÿåé¦ˆã€‚
-     */
-    btnAIChatBack.addEventListener(
-        'pointerdown',
-        (event) => {
-            if (
-                event.pointerType === 'mouse' &&
-                event.button !== 0
-            ) {
-                return;
-            }
-
-            Hardware.vibrate(30);
-        }
-    );
-
-    btnAIChatBack.addEventListener('click', () => {
-        if (
-            Controller.aiTabChat.messages.length > 0 &&
-            Controller.aiTabChat.activeIdx === -1
-        ) {
-            let conv = {
-                id: Date.now(),
-
-                date:
-                    new Date().toLocaleDateString('zh-CN') +
-                    ' ' +
-                    new Date().toLocaleTimeString(
-                        'zh-CN',
-                        {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        }
-                    ),
-
-                sentence:
-                    Controller.aiTabChat.sentence || '',
-
-                word:
-                    Controller.aiTabChat.word ||
-                    'è‡ªç”±å¯¹è¯',
-
-                lang:
-                    Controller.aiTabChat.lang ||
-                    Model.state.currentLangMode,
-
-                cacheKey:
-                    Controller.aiTabChat.cacheKey,
-
-                                systemPrompt:
-                    Controller.aiTabChat.systemPrompt,
-
-                presetId:
-                    Controller.aiTabChat.presetId || '',
-
-                messages: [
-                    ...Controller.aiTabChat.messages
-                ]
-            };
-
-            Model.aiConversations.unshift(conv);
-            Controller._persistConversations();
-        }
-
-        Controller.closeAITabChat();
-    });
-}
-
-let aiTabChatSend = View.getEl('ai-tab-chat-send');
-if (aiTabChatSend) {
-    aiTabChatSend.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        Controller.sendAITabMessage();
-    });
-}
-let aiTabChatInput = View.getEl('ai-tab-chat-input');
-
-if (aiTabChatInput) {
-    /*
-     * ç‚¹å‡»è¾“å…¥æ¡†æ—¶ç«‹å³ç»™äºˆè½»å¾®éœ‡åŠ¨ã€‚
-     * ä½¿ç”¨ pointerdownï¼Œè®©åé¦ˆåœ¨æ‰‹æŒ‡æŒ‰ä¸‹æ—¶å‘ç”Ÿã€‚
-     */
-    aiTabChatInput.addEventListener(
-        'pointerdown',
-        (event) => {
-            if (
-                event.pointerType === 'mouse' &&
-                event.button !== 0
-            ) {
-                return;
-            }
-
-            Hardware.vibrate(18);
-        }
-    );
-
-    aiTabChatInput.addEventListener(
-        'keydown',
-        (e) => {
-            if (
-                e.key === 'Enter' &&
-                !e.shiftKey &&
-                document
-                    .getElementById('tab-ai-history')
-                    .classList.contains('active')
-            ) {
-                e.preventDefault();
-                Controller.sendAITabMessage();
-            }
-        }
-    );
-}
-let btnClearAI = View.getEl('btn-clear-ai-history');
-if (btnClearAI) {
-    btnClearAI.addEventListener('click', () => {
-        Hardware.vibrate(20);
-        showConfirm('æ¸…ç©ºå…¨éƒ¨è®°å½•', 'ç¡®å®šè¦åˆ é™¤æ‰€æœ‰ AI å¯¹è¯è®°å½•å—ï¼Ÿæ­¤æ“ä½œä¸å¯æ¢å¤ã€‚', () => {
-            Model.aiConversations = [];
-            Controller._persistConversations();
-            Controller.renderAIHistory();
-            showToast('å·²æ¸…ç©ºå…¨éƒ¨å¯¹è¯è®°å½•');
-        });
-    });
-}
-
-let aiChatSend = View.getEl('ai-chat-send');
-if (aiChatSend) {
-    aiChatSend.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        Controller.sendAIMessage();
-    });
-}
-let aiChatInput = View.getEl('ai-chat-input');
-if (aiChatInput) {
-    aiChatInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            Controller.sendAIMessage();
-        }
-    });
-}
-
-let testVibrateBtn = View.getEl('btn-test-vibrate');
-if (testVibrateBtn) {
-    testVibrateBtn.addEventListener('click', () => {
-        Hardware.playSound('click', { haptic: false });
-        const accepted = Hardware.haptic(
-            'diagnostic',
-            { force: true }
-        );
-        if (accepted) {
-            showToast('æµè§ˆå™¨å·²å‘é€ä¸¤æ¬¡å¼ºéœ‡åŠ¨è¯·æ±‚');
-        } else {
-            showToast('æµè§ˆå™¨æ‹’ç»äº†éœ‡åŠ¨è¯·æ±‚ï¼Œè¯·æ”¹ç”¨ Android Chrome');
-        }
-    });
-}
-
-        let searchInput = View.getEl('wb-search-input');
-    if (searchInput) { 
-        searchInput.addEventListener('input', () => { 
-            if (Model.state.batchMode) Controller.toggleBatchMode(); 
-            View.resetWordbankRenderer(); 
-        }); 
-        searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                searchInput.blur();
-            }
-        });
-    }
-
-    let wbGridContainer = View.getEl('wb-grid-container');
-    if (wbGridContainer) {
-        wbGridContainer.addEventListener('pointerdown', () => {
-            if (document.activeElement && document.activeElement.id === 'wb-search-input') {
-                document.activeElement.blur();
-            }
-        }, { passive: true });
-    }
-
-    const btnExport = View.getEl('btn-export-backup');
-
-    if (btnExport) {
-        btnExport.addEventListener('click', () => {
-            this.exportBackup();
-        });
-    }
-
-    const btnImport = View.getEl('btn-import-backup');
-    const fileImport = View.getEl('file-import-backup');
-
-    if (btnImport && fileImport) {
-        btnImport.addEventListener('click', () => {
-            Hardware.vibrate(15);
-            fileImport.click();
-        });
-
-        fileImport.addEventListener('change', event => {
-            const selectedFile = event.target.files?.[0];
-
-            if (selectedFile) {
-                this.importBackup(selectedFile);
-            }
-
-            event.target.value = '';
-        });
-    }
-
-    const btnUndoImport = View.getEl('btn-undo-import');
-
-    if (btnUndoImport) {
-        btnUndoImport.addEventListener('click', () => {
-            this.restorePreImportBackup();
-        });
-    }
-
-
-    let lpBtn = View.getEl('btn-long-press');
-    let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
-    const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; isLpPressing = false; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
-    if(lpBtn) {
-        lpBtn.addEventListener('pointerdown', (e) => {
-            if(lpBtn.classList.contains('done') || isLpPressing) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
-            isLpPressing = true; Hardware.unlockSpeech(); try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
-            lpBtn.classList.add('pressing'); Hardware.playChargeSound(); vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("æ‰“å¡æˆåŠŸï¼èƒ½é‡æ»¡ç‚¹"); }, 1500);
-        });
-        lpBtn.addEventListener('pointerup', clearPunch); 
-        lpBtn.addEventListener('pointercancel', clearPunch); 
-        lpBtn.addEventListener('pointerleave', clearPunch); 
-        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); }); 
-
-    }
-
-    ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { 
-        let el = View.getEl(id);
-        if (el) {
-            el.addEventListener('change', (e) => { 
-                Hardware.playSound('click'); 
-                Hardware.vibrate(10);
-                if(id === 'next-display-mode') { 
-                    localStorage.setItem('displayMode', e.target.value); 
-                    Model.state.mtStep = 1; 
-                    View.renderStudyCard('none'); 
-                } else if(id.includes('wb')) { 
-                    if (Model.state.batchMode) Controller.toggleBatchMode();
-                    View.resetWordbankRenderer(); 
-                } 
-            });
-        }
-    });
-    
-    let folderFilter = View.getEl('wb-folder-filter');
-    if (folderFilter) {
-        folderFilter.addEventListener('change', () => { 
-            Hardware.playSound('click'); 
-            Hardware.vibrate(10);
-            if (Model.state.batchMode) Controller.toggleBatchMode();
-            View.resetWordbankRenderer(); 
-        });
-    }
-    
-
-    View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakWord(w, e.currentTarget); });
-    View.getEl('star-btn').addEventListener('click', (e) => {
-        Hardware.playSound('click');
-
-        const wordObj =
-            Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-        const wordId = Model.getWordId(wordObj);
-        const index = Model.stars.indexOf(wordId);
-        const button = e.currentTarget;
-        const icon = View.getEl('star-icon');
-
-        if (index > -1) {
-            Model.stars.splice(index, 1);
-            button.classList.remove('active');
-            icon.style.fontVariationSettings = "'FILL' 0";
-        } else {
-            Model.stars.push(wordId);
-            button.classList.add('active');
-            icon.style.fontVariationSettings = "'FILL' 1";
-            window.createStarParticles(button);
-            Hardware.vibrate(20);
-        }
-
-        Model.saveStars();
-    });
-
-    let dtStarBtn = View.getEl('dt-star-btn');
-    if (dtStarBtn) {
-        dtStarBtn.addEventListener('click', (e) => {
-            Hardware.playSound('click');
-            Hardware.vibrate(10);
-
-            const realIdx =
-                Model.state.detailArray[Model.state.activeDetailIdx];
-            const word = Model.db[realIdx];
-            const wordId = Model.getWordId(word);
-            const starIndex = Model.stars.indexOf(wordId);
-            const starButton = e.currentTarget;
-            const icon = View.getEl('dt-star-icon');
-
-            if (starIndex > -1) {
-                Model.stars.splice(starIndex, 1);
-                starButton.classList.remove('active');
-                icon.style.fontVariationSettings = "'FILL' 0";
-            } else {
-                Model.stars.push(wordId);
-                starButton.classList.add('active');
-                icon.style.fontVariationSettings = "'FILL' 1";
-                window.createStarParticles(starButton);
-            }
-
-            Model.saveStars();
-            Model.state.renderedStartIndex = -1;
-        });
-    }
-
-        document.addEventListener('click', (e) => { 
-        // æ‹¦æˆª AI é—ªè€€æŒ‰é’®ç‚¹å‡»
-        let aiBtn = e.target.closest('.ai-sparkle-btn, .ai-sparkle-capsule, .ai-sparkle-icon');
-if (aiBtn) {
-    Hardware.vibrate(15);
-    Controller.openAISheet(
-        aiBtn.dataset.sentence,
-        aiBtn.dataset.word,
-        aiBtn.dataset.lang || 'ja',
-        Number(aiBtn.dataset.wordIndex)
-    );
-    return; 
-}
-
-        let aiResponseAction = e.target.closest('.ai-response-action');
-if (aiResponseAction) {
-    Hardware.vibrate(12);
-    Controller.handleAIResponseAction(
-        aiResponseAction.dataset.action,
-        aiResponseAction.dataset.payloadId
-    );
-    return;
-}
-        // AI å†…è”é¢æ¿å…³é—­æŒ‰é’®
-let aiCloseBtn = e.target.closest('.ai-inline-close-btn');
-if (aiCloseBtn) {
-    let panel = aiCloseBtn.closest('.ai-inline-panel');
-    if (panel) panel.classList.add('hidden');
-    return;
-}
-        let target = e.target.closest('.blur-target, .wb-blur-trigger');
-
-        if (
-            target &&
-            (
-                target.classList.contains('blur-text') ||
-                (
-                    target.parentElement &&
-                    target.parentElement.classList.contains('blur-text')
-                )
-            )
-        ) {
-            let el = target.classList.contains('blur-text')
-                ? target
-                : target.parentElement;
-
-            View.revealStudyElement(el);
-
-            if (el.id === 'w-word') {
-                document.querySelectorAll('#w-roots .r-text').forEach(n => {
-                    View.revealStudyElement(n);
-                });
-            } else if (el.id === 'w-meaning') {
-                document.querySelectorAll('#w-roots .r-mean').forEach(n => {
-                    View.revealStudyElement(n);
-                });
-            } else if (el.classList.contains('r-text')) {
-                let wWord = document.getElementById('w-word');
-
-                if (wWord) {
-                    View.revealStudyElement(wWord);
-                }
-
-                document.querySelectorAll('#w-roots .r-text').forEach(n => {
-                    View.revealStudyElement(n);
-                });
-            } else if (el.classList.contains('r-mean')) {
-                let wMean = document.getElementById('w-meaning');
-
-                if (wMean) {
-                    View.revealStudyElement(wMean);
-                }
-
-                document.querySelectorAll('#w-roots .r-mean').forEach(n => {
-                    View.revealStudyElement(n);
-                });
-            }
-
-            Hardware.playSound('click');
-            Hardware.vibrate(15);
-        }
-
-        let exJp = e.target.closest('.dt-ex-jp'); 
-        if (exJp) { 
-            let textToSpeak = exJp.getAttribute('data-speak'); 
-            if (textToSpeak) { 
-                Hardware.unlockSpeech(); 
-                let currentIdx = -1;
-                if (document.getElementById('detail-overlay').classList.contains('active')) {
-                    currentIdx = Model.state.detailArray[Model.state.activeDetailIdx];
-                } else if (Model.state.studyQueue && Model.state.studyQueue.length > 0) {
-                    currentIdx = Model.state.studyQueue[Model.state.currentIndex];
-                }
-                const wEx = currentIdx > -1 ? Model.db[currentIdx] : null;
-                let lang = (wEx && wEx.lang === 'en') ? 'en' : 'ja';
-                Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp, lang); 
-                Hardware.vibrate(10); 
-            } 
-        }
-
-        // éŸ³æ ‡å–‡å­å‘éŸ³ç›‘å¬
-        let phSpeaker = e.target.closest('.phonetic-speaker');
-        if (phSpeaker) {
-            Hardware.unlockSpeech();
-            let currentIdx = -1;
-            if (document.getElementById('detail-overlay').classList.contains('active')) {
-                currentIdx = Model.state.detailArray[Model.state.activeDetailIdx];
-            } else if (Model.state.studyQueue && Model.state.studyQueue.length > 0) {
-                currentIdx = Model.state.studyQueue[Model.state.currentIndex];
-            }
-            const wObj = currentIdx > -1 ? Model.db[currentIdx] : null;
-            if (wObj) {
-                Hardware.speakWord(wObj, phSpeaker);
-                Hardware.vibrate(15);
-            }
-        }
-    });
-
-
-    let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
-    const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
-    const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
-    const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
-    let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
-    grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
-    grid.addEventListener('click', (e) => {
-      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
-      if (e.target.closest('.btn-wb-star')) {
-          Hardware.playSound('click');
-          Hardware.vibrate(10);
-
-          const word = Model.db[idx];
-          const wordId = Model.getWordId(word);
-          const starIndex = Model.stars.indexOf(wordId);
-          const starButton = e.target.closest('.btn-wb-star');
-          const icon = starButton.querySelector('.material-symbols-rounded');
-
-          if (starIndex > -1) {
-              Model.stars.splice(starIndex, 1);
-              starButton.classList.remove('active');
-              icon.style.fontVariationSettings = "'FILL' 0";
-          } else {
-              Model.stars.push(wordId);
-              starButton.classList.add('active');
-              icon.style.fontVariationSettings = "'FILL' 1";
-              window.createStarParticles(starButton);
-          }
-
-          Model.saveStars();
-          return;
-      }
-      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
-      if (Model.state.batchMode) {
-          e.stopPropagation();
-
-          if (Model.state.selectedSet.has(idx)) {
-              Model.state.selectedSet.delete(idx);
-          } else {
-              Model.state.selectedSet.add(idx);
-          }
-
-          const isSelected =
-              Model.state.selectedSet.has(idx);
-
-          Hardware.playSound('click');
-          Hardware.vibrate(10);
-
-          card.classList.toggle(
-              'is-selected',
-              isSelected
-          );
-          card.setAttribute(
-              'aria-pressed',
-              String(isSelected)
-          );
-
-          const checkEl =
-              card.querySelector('.wb-checkbox');
-
-          if (checkEl) {
-              checkEl.classList.toggle(
-                  'checked',
-                  isSelected
-              );
-              checkEl.innerText =
-                  isSelected ? 'âœ“' : '';
-          }
-
-          View.updateWordbankManagementUI();
-      }
-    });
-
-    View.getEl('wb-manage-toggle').addEventListener(
-        'click',
-        () => this.toggleBatchMode()
-    );
-    View.getEl('btn-batch-cancel').addEventListener(
-        'click',
-        () => this.toggleBatchMode(false)
-    );
-    View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); 
-    View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
-    View.getEl('btn-batch-move').addEventListener(
-        'click',
-        () => {
-            Hardware.vibrate(15);
-            this.openMoveModal(-2);
-        }
-    );
-    View.getEl('btn-batch-edit').addEventListener(
-        'click',
-        () => {
-            if (Model.state.selectedSet.size !== 1) {
-                return;
-            }
-
-            const [idx] = Model.state.selectedSet;
-            Hardware.playSound('click');
-            Hardware.vibrate(15);
-            this.editWord(idx);
-        }
-    );
-    View.getEl('btn-batch-del').addEventListener(
-        'click',
-        () => this.batchDelete()
-    );
-    View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
-    View.getEl('btn-import').addEventListener('click', () => this.importWords());
-    View.getEl('import-lang-select').addEventListener('change', () => {
-        this.updateImportFormatUI();
-        this.updateImportFolderOptions();
-        this.updateImportMetadataOptions();
-    });
-    View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
-    View.getEl('btn-reset-progress').addEventListener('click', () => {
-        Hardware.vibrate(20);
-        showConfirm(
-            'æ¸…ç©ºå­¦ä¹ è¿›åº¦ï¼Ÿ',
-            'è¯åº“ã€æ”¶è—ã€AI å¯¹è¯å’Œè®¾ç½®éƒ½ä¼šä¿ç•™ï¼›æŒæ¡åº¦ã€é€šå…³ä¸å­¦ä¹ è®°å½•å°†å½’é›¶ã€‚',
-            () => this.clearLearningProgress()
-        );
-    });
-    View.getEl('btn-remove-imported').addEventListener('click', () => {
-        Hardware.vibrate(20);
-        showConfirm(
-            'æ¢å¤å†…ç½®è¯åº“ï¼Ÿ',
-            'ä¸ªäººå¯¼å…¥è¯æ±‡å’Œè‡ªå»ºè¯åº“å°†è¢«ç§»é™¤ï¼Œå†…ç½®æ—¥è¯­ä¸è‹±è¯­è¯åº“ä¼šé‡æ–°è½½å…¥ã€‚',
-            () => this.restoreBuiltInLibrary()
-        );
-    });
-    View.getEl('btn-reset').addEventListener('click', () => {
-        Hardware.vibrate(30);
-        showConfirm(
-            'å®Œå…¨é‡ç½®åº”ç”¨ï¼Ÿ',
-            '<strong style="color: var(--accent-red);">æ­¤æ“ä½œä¼šåˆ é™¤è¯åº“æ”¹åŠ¨ã€æ”¶è—ã€å­¦ä¹ è®°å½•ã€AI å¯¹è¯å’Œåå¥½è®¾ç½®ã€‚</strong><br><br>DeepSeek API Key ä¼šä¿ç•™ï¼Œæ‰§è¡Œå‰ä¼šè‡ªåŠ¨å»ºç«‹æ¢å¤ç‚¹ã€‚',
-            () => this.fullResetApp()
-        );
-    });
-    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
-    View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
-    View.getEl('btn-save-edit').addEventListener('click', () => {
-        Hardware.vibrate(20);
-
-        const wordValue =
-            View.getEl('edit-word').value.trim();
-
-        const typeValue =
-            View.getEl('edit-type').value.trim();
-
-        const meaningValue =
-            View.getEl('edit-meaning').value.trim();
-
-        if (!wordValue || !typeValue || !meaningValue) {
-            showToast('è¯·å¡«å†™å•è¯ã€è¯æ€§å’Œé‡Šä¹‰');
-            return;
-        }
-
-        const readingValue =
-            View.getEl('edit-kana').value.trim();
-
-        const exampleValue =
-            View.getEl('edit-example').value.trim();
-
-        const rootsInput =
-            View.getEl('edit-roots');
-
-        const rootsValue =
-            rootsInput
-                ? rootsInput.value.trim()
-                : '';
-
-        const editLang =
-            Model.editingIdx > -1
-                ? (Model.db[Model.editingIdx]?.lang || 'ja')
-                : (Controller.pendingWordDraft?.lang || 'ja');
-
-        const levelValue = normalizeWordLevel(
-            View.getEl('edit-level')?.value || '',
-            editLang
-        );
-
-        const difficultyValue = normalizeWordDifficulty(
-            View.getEl('edit-difficulty')?.value || 0
-        );
-
-        const tagsValue = normalizeWordTags(
-            View.getEl('edit-tags')?.value || ''
-        );
-
-        if (Model.editingIdx > -1) {
-            const word =
-                Model.db[Model.editingIdx];
-
-            const normalizedEdit = normalizeWordEntry({
-                ...word,
-                word: wordValue,
-                type: typeValue,
-                meaning: meaningValue,
-                example: exampleValue,
-                phonetic:
-                    word.lang === 'en'
-                        ? readingValue
-                        : (word.phonetic || ''),
-                kana:
-                    word.lang === 'en'
-                        ? (word.kana || '')
-                        : readingValue,
-                roots:
-                    word.lang === 'en'
-                        ? rootsValue
-                        : '',
-                level: levelValue,
-                difficulty: difficultyValue,
-                tags: tagsValue
-            });
-
-            Object.assign(word, normalizedEdit);
-
-            Model.saveDB();
-            View.resetWordbankRenderer();
-
-            window.toggleModal(
-                'edit-overlay',
-                false
-            );
-
-            showToast('ä¿®æ”¹å·²ä¿å­˜å¹¶æ•´ç†æ ¼å¼');
-            return;
-        }
-
-        const draft =
-            Controller.pendingWordDraft;
-
-        if (!draft) {
-            return;
-        }
-
-        const newWord = normalizeWordEntry({
-            word: wordValue,
-            type: typeValue,
-            meaning: meaningValue,
-            example: exampleValue,
-            folder: draft.folder,
-            lang: draft.lang,
-            phonetic:
-                draft.lang === 'en'
-                    ? readingValue
-                    : '',
-            kana:
-                draft.lang === 'ja'
-                    ? readingValue
-                    : '',
-            roots:
-                draft.lang === 'en'
-                    ? rootsValue
-                    : '',
-            level: levelValue,
-            difficulty: difficultyValue,
-            tags: tagsValue,
-            builtIn: false,
-            isImported: true,
-            importedAt: new Date().toISOString(),
-            srs: {
-                ease: 2.5,
-                interval: 0,
-                nextReview: Date.now()
-            }
-        });
-
-        Model.db.push(newWord);
-        Model.saveDB();
-
-        Controller.pendingWordDraft = null;
-
-        View.updateWordbankUI();
-        View.resetWordbankRenderer();
-
-        window.toggleModal(
-            'edit-overlay',
-            false
-        );
-
-        showToast(`å·²åŠ å…¥ã€Œ${wordValue}ã€`);
-    });
-
-    View.getEl('btn-cancel-edit').addEventListener('click', () => {
-        Hardware.vibrate(10);
-        Controller.pendingWordDraft = null;
-        window.toggleModal('edit-overlay', false);
-    });
-
-        // ğŸŸ¢ WCAG ä¼ªæŒ‰é’® (role="button") ç©ºæ ¼è§¦å‘æœºåˆ¶ (è§„èŒƒï¼šSpace é‡Šæ”¾æ—¶è§¦å‘)
-    document.addEventListener('keyup', (e) => {
-        let el = document.activeElement;
-        if (el && el.getAttribute('role') === 'button' && e.key === ' ') {
-            e.preventDefault();
-            el.click(); // å…¼å®¹ç»‘äº† onclick çš„å…ƒç´ ï¼ˆå¦‚åº•éƒ¨èœå•ï¼‰
-            el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0 })); // å…¼å®¹ç»‘äº† onpointerdown çš„å…ƒç´ ï¼ˆå¦‚é”®ç›˜ã€é€‰æ‹©é¢˜ï¼‰
-        }
-    });
-
-    // ğŸš€ å®ä½“é”®ç›˜ç›²æ“æ¥ç®¡ä¸­æ¢ (Physical Keyboard Integration)
-    document.addEventListener('keydown', (e) => {
-
-        
-        // ğŸŸ¢ WCAG ç„¦ç‚¹é™·é˜± (Focus Trap) - å¿…é¡»ç½®äºæœ€é¡¶å±‚é˜²çº¿ä¹‹å‰
-        if (e.key === 'Tab') {
-            let activeModal = document.querySelector('.modal-overlay.active');
-            if (activeModal) {
-                // ç­›é€‰å‡ºå¼¹çª—å†…æ‰€æœ‰ç‰©ç†å¯è§çš„ã€å¯èšç„¦çš„å…ƒç´ 
-                let focusable = Array.from(activeModal.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-                                     .filter(node => node.offsetParent !== null);
-
-                if (focusable.length > 0) {
-                    let firstEl = focusable[0];
-                    let lastEl = focusable[focusable.length - 1];
-
-                    if (e.shiftKey) { // Shift + Tabï¼šåå‘åˆ‡æ¢
-                        if (document.activeElement === firstEl || !activeModal.contains(document.activeElement)) {
-                            e.preventDefault();
-                            lastEl.focus();
-                        }
-                    } else { // Tabï¼šæ­£å‘åˆ‡æ¢
-                        if (document.activeElement === lastEl || !activeModal.contains(document.activeElement)) {
-                            e.preventDefault();
-                            firstEl.focus();
-                        }
-                    }
-                } else {
-                    // å¦‚æœå¼¹çª—å†…æ²¡æœ‰ä»»ä½•å¯äº¤äº’å…ƒç´ ï¼Œå½»åº•é”æ­» Tab é”®
-                    e.preventDefault(); 
-                }
-                return; // é˜»æ–­åç»­æ‰€æœ‰é’ˆå¯¹ä¸»ç•Œé¢çš„å¿«æ·é”®é€»è¾‘
-            }
-        }
-
-        // ğŸ”’ ç¬¬ä¸€å±‚é˜²çº¿ï¼šå¦‚æœç”¨æˆ·æ­£åœ¨è¾“å…¥æ¡†é‡Œæ‰“å­—ï¼Œé™é»˜æ‰€æœ‰å¿«æ·é”® (æ”¾è¡Œ Escape)
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
-            if (e.key !== 'Escape') return; 
-        }
-        
-        // ğŸŸ¢ WCAG ä¼ªæŒ‰é’® (role="button") å›è½¦è§¦å‘ä¸ç©ºæ ¼æ‹¦æˆªæœºåˆ¶
-        let activeEl = document.activeElement;
-        if (activeEl && activeEl.getAttribute('role') === 'button' && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault(); // å…³é”®ï¼šé˜»æ­¢ç©ºæ ¼é”®å¼•èµ·é¡µé¢é»˜è®¤å‘ä¸‹æ»šåŠ¨
-            
-            // è§„èŒƒï¼šEnter é”®åœ¨æŒ‰ä¸‹æ—¶ç«‹å³è§¦å‘
-            if (e.key === 'Enter') {
-                activeEl.click(); 
-                activeEl.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', button: 0 }));
-            }
-            return; // æ‹¦æˆªäº‹ä»¶ï¼Œé˜²æ­¢è§¦å‘ä¸‹æ–¹çš„å…¨å±€ç©ºæ ¼å‘éŸ³ç­‰å¿«æ·é”®
-        }
-        
-        let key = e.key;
-        let keyLower = key.toLowerCase();
-
-        // ğŸŸ¢ å…¨å±€é€šç”¨å¿«æ·é”®ï¼šEsc é€€å‡ºä¸å…³é—­
-        if (key === 'Escape') {
-            if (View.getEl('bs-overlay').classList.contains('active')) { window.toggleModal('bs-overlay', false); return; }
-            if (View.getEl('view-settings-overlay').classList.contains('active')) { window.toggleModal('view-settings-overlay', false); return; }
-            if (View.getEl('group-select-overlay').classList.contains('active')) { window.toggleModal('group-select-overlay', false); return; }
-            if (View.getEl('dialog-overlay').classList.contains('active')) { window.toggleModal('dialog-overlay', false); return; }
-            if (View.getEl('move-overlay').classList.contains('active')) { window.toggleModal('move-overlay', false); return; }
-            if (View.getEl('detail-overlay').classList.contains('active')) { Controller.closeDetailIfOpen(); return; }
-            if (!View.getEl('study-area').classList.contains('hidden')) { View.getEl('btn-exit-study').click(); return; }
-        }
-
-        // ğŸŸ¡ åº•éƒ¨ä¸‹æ‹‰èœå•ï¼ˆBottom Sheetï¼‰çš„é”®ç›˜æ¥ç®¡
-        let bsOverlay = View.getEl('bs-overlay');
-        let groupOverlay = View.getEl('group-select-overlay');
-        let moveOverlay = View.getEl('move-overlay');
-        let activeOverlay = bsOverlay.classList.contains('active') ? bsOverlay : 
-                            (groupOverlay.classList.contains('active') ? groupOverlay : 
-                            (moveOverlay.classList.contains('active') ? moveOverlay : null));
-
-        if (activeOverlay) {
-            let options = Array.from(activeOverlay.querySelectorAll('.bs-option'));
-            if (options.length === 0) return;
-            let currentIdx = options.findIndex(o => o.classList.contains('selected'));
-            
-            // ä¸Šä¸‹é”®åˆ‡æ¢é«˜äº®é¡¹
-            if (key === 'ArrowDown' || key === 'ArrowUp') {
-                e.preventDefault();
-                if (currentIdx === -1) currentIdx = 0;
-                else {
-                    options[currentIdx].classList.remove('selected');
-                    if (key === 'ArrowDown') currentIdx = (currentIdx + 1) % options.length;
-                    else currentIdx = (currentIdx - 1 + options.length) % options.length;
-                }
-                options[currentIdx].classList.add('selected');
-                // ç¡®ä¿é«˜äº®é¡¹è‡ªåŠ¨æ»šåŠ¨åˆ°å¯è§†åŒºåŸŸå†…
-                options[currentIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                return;
-            }
-            // ç©ºæ ¼æˆ–å›è½¦ç¡®è®¤é€‰ä¸­
-            if (key === 'Enter' || key === ' ') {
-                e.preventDefault();
-                if (currentIdx !== -1) options[currentIdx].click();
-                return;
-            }
-            return; // åœ¨èœå•é‡Œæ—¶ï¼Œå±è”½å…¶ä»–å­—æ¯é”®å¼•å‘çš„ä¹±è·³è½¬
-        }
-
-                // âšª è¯åº“è¯¦æƒ…å¡ç‰‡ç¿»é¡µæ¥ç®¡
-        let detailOverlay = View.getEl('detail-overlay');
-        if (detailOverlay && detailOverlay.classList.contains('active')) {
-            if (key === 'ArrowLeft') { e.preventDefault(); View.getEl('detail-prev').click(); return; }
-            if (key === 'ArrowRight') { e.preventDefault(); View.getEl('detail-next').click(); return; }
-            // é¡ºæ‰‹åŠ ä¸ªç©ºæ ¼å‘éŸ³ï¼Œä½“éªŒæ›´å¥½
-            if (key === ' ') { 
-                e.preventDefault(); 
-                let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
-                let w = Model.db[realIdx]; 
-                if (w) { Hardware.unlockSpeech(); Hardware.speakWord(w); Hardware.vibrate(10); } 
-                return; 
-            }
-        }
-
-        // ğŸ”µ åº•éƒ¨å¯¼èˆªæ (Tab)çš„å…¨å±€å·¦å³åˆ‡æ¢
-        // è§¦å‘æ¡ä»¶ï¼šæ²¡æœ‰ä»»ä½•å¼¹çª—å¤„äºæ‰“å¼€çŠ¶æ€ï¼Œä¸”ä¸åœ¨å­¦ä¹ åŒºå†…
-        let isAnyModalOpen = document.querySelectorAll('.modal-overlay.active').length > 0;
-        if (!isAnyModalOpen && View.getEl('study-area').classList.contains('hidden')) {
-            if (key === 'ArrowLeft' || key === 'ArrowRight') {
-                e.preventDefault();
-                let navItems = Array.from(document.querySelectorAll('.nav-item'));
-                let currentIdx = navItems.findIndex(item => item.classList.contains('active'));
-                if (currentIdx !== -1) {
-                    let nextIdx = key === 'ArrowRight' ? (currentIdx + 1) % navItems.length : (currentIdx - 1 + navItems.length) % navItems.length;
-                    navItems[nextIdx].click();
-                }
-                return;
-            }
-        }
-
-        // ğŸ”µ é¦–é¡µï¼ˆé“å ´ï¼‰ç‰¹å®šå¿«æ·é”®
-        if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden') && !isAnyModalOpen) {
-            if (keyLower === 'a') { e.preventDefault(); View.getEl('btn-start-pendulum').click(); return; }
-            if (keyLower === 'b') { e.preventDefault(); View.getEl('btn-start-dual-track').click(); return; }
-            if (keyLower === 'c') { e.preventDefault(); View.getEl('btn-start-rote-learning').click(); return; }
-            if (keyLower === 'd') { e.preventDefault(); View.getEl('btn-start-memory-test').click(); return; }
-            if (keyLower === 'e') { e.preventDefault(); View.getEl('btn-start-filter-test').click(); return; }
-            if (keyLower === 'f') { e.preventDefault(); View.getEl('btn-test-range-trigger').click(); return; }
-            if (keyLower === 'g') { e.preventDefault(); View.getEl('btn-test-display-trigger').click(); return; }
-            if (keyLower === 't' || (e.ctrlKey && keyLower === 't')) { e.preventDefault(); View.toggleTheme(); return; }
-            
-            // é•¿æŒ‰ç©ºæ ¼æ‰“å¡ (é€šè¿‡æ•è· keydown å¹¶å¿½ç•¥ç³»ç»Ÿçš„æŒ‰é”®è¿å‡»)
-            if (key === ' ') {
-                e.preventDefault();
-                let lpBtn = View.getEl('btn-long-press');
-                if (lpBtn && !e.repeat) { 
-                    lpBtn.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', button: 0 }));
-                }
-                return;
-            }
-        }
-
-
-        // ğŸŸ£ å­¦ä¹ /å¤ä¹ /æµ‹è¯•åŒºåŸŸå¿«æ·é”®
-        if (!View.getEl('study-area').classList.contains('hidden')) {
-            let mode = Model.state.mode;
-            let dtSpellArea = View.getEl('dt-spell-area');
-            let mtSpellArea = View.getEl('mt-spell-area');
-            let dtChoiceArea = View.getEl('dt-choice-area');
-            let mtChoiceArea = View.getEl('mt-choice-area');
-            
-            // ğŸ”’ æ¨¡å¼çŠ¶æ€è¯†åˆ«
-            let isSpelling = (!dtSpellArea.classList.contains('hidden')) || (!mtSpellArea.classList.contains('hidden'));
-            let isChoice = (!dtChoiceArea.classList.contains('hidden')) || (!mtChoiceArea.classList.contains('hidden'));
-
-            let wObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-            let displayMode = View.getEl('next-display-mode').value;
-
-            // 1. æ‹¼å†™è¾“å…¥éš”ç¦» (å¦‚æœæ˜¯æ‰“å­—é˜¶æ®µï¼ŒæŠŠå­—æ¯å…¨éƒ¨äº¤ç»™ç½—é©¬éŸ³å¼•æ“)
-            if (isSpelling) {
-                let activeInputEl = !dtSpellArea.classList.contains('hidden') ? View.getEl('dt-spell-input') : View.getEl('mt-spell-input');
-                const isEnglishSpelling = wObj?.lang === 'en';
-                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === "'" || key === 'Backspace' || key === 'Enter') {
-                    e.preventDefault(); 
-                    activeInputEl.classList.remove('error-state', 'shake-anim');
-                    
-                    if (key === 'Enter') {
-                        Controller.handleSpellConfirm(activeInputEl, wObj, displayMode);
-                        View.simulateKeyPress('Enter');
-                    } else if (isEnglishSpelling) {
-                        if (key === 'Backspace') {
-                            EnglishInput.input('Backspace');
-                        } else if (key === "'") {
-                            EnglishInput.buffer += "'";
-                        } else {
-                            EnglishInput.input(key);
-                        }
-
-                        activeInputEl.innerHTML = escapeHTML(
-                            EnglishInput.getDisplayText()
-                        );
-                        View.simulateKeyPress(
-                            key === 'Backspace'
-                                ? 'Backspace'
-                                : key.toUpperCase()
-                        );
-                    } else {
-                        RomajiEngine.input(key);
-                        activeInputEl.innerHTML = RomajiEngine.getDisplayText();
-                        View.simulateKeyPress(key.toUpperCase());
-                    }
-                    return;
-                }
-            }
-
-            // 2. é€‰æ‹©é¢˜å¿«æ·é”® (A, B, C, D) ä»¥åŠå…¼å®¹æ•°å­— 1, 2, 3, 4
-            if (isChoice && ['a', 'b', 'c', 'd', '1', '2', '3', '4'].includes(keyLower)) {
-                e.preventDefault();
-                let choiceContainer = !dtChoiceArea.classList.contains('hidden') ? View.getEl('dt-choice-buttons') : View.getEl('mt-choice-buttons');
-                if (choiceContainer) {
-                    let buttons = choiceContainer.querySelectorAll('.dt-choice-btn');
-                    let idx = -1;
-                    if (['a', 'b', 'c', 'd'].includes(keyLower)) idx = ['a', 'b', 'c', 'd'].indexOf(keyLower);
-                    else idx = parseInt(keyLower) - 1;
-
-                    if (buttons[idx]) buttons[idx].dispatchEvent(new PointerEvent('pointerdown'));
-                }
-                return;
-            }
-
-            // 3. Hé”®ï¼šæ˜¾ç¤ºå‡åæç¤º (é˜²è¯¯è§¦ï¼šæ‰“å­—é˜¶æ®µ H å±äºå‘éŸ³ï¼Œä¸å¯è§¦å‘æ­¤åŠŸèƒ½)
-            if (keyLower === 'h' && !isSpelling) {
-                let btnMtShowHint = View.getEl('btn-mt-show-hint');
-                if (btnMtShowHint && !View.getEl('mt-blind-audio-ui').classList.contains('hidden')) {
-                    e.preventDefault(); btnMtShowHint.click(); return;
-                }
-                let hintWrap = document.querySelector('.spell-hint-wrap.show .spell-hint-btn');
-                if (hintWrap) { e.preventDefault(); hintWrap.click(); return; }
-            }
-
-            // 4. æ–¹å‘é”®åŠå›è½¦ï¼šä¸»å¯¼æµç¨‹å‰è¿›åé€€ / åˆ¤å®šåˆ¤æ–­
-            if (key === 'ArrowRight' || key === 'Enter') {
-                let btnNext = View.getEl('btn-next');
-                let btnFinish = View.getEl('btn-finish');
-                let ftKnow = View.getEl('ft-know');
-                let ftCorrect = View.getEl('ft-correct');
-                
-                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftKnow) {
-                    e.preventDefault(); ftKnow.click(); return;
-                }
-                if (!View.getEl('capsule-filter-judge').classList.contains('hidden') && ftCorrect) {
-                    e.preventDefault(); ftCorrect.click(); return;
-                }
-
-                if (btnNext && window.getComputedStyle(btnNext).display !== 'none' && !btnNext.disabled) {
-                    e.preventDefault(); btnNext.click();
-                } else if (btnFinish && window.getComputedStyle(btnFinish).display !== 'none') {
-                    e.preventDefault(); btnFinish.click();
-                }
-            } else if (key === 'ArrowLeft') {
-                let btnPrev = View.getEl('btn-prev');
-                let ftForget = View.getEl('ft-forget');
-                let ftWrong = View.getEl('ft-wrong');
-                
-                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftForget) {
-                    e.preventDefault(); ftForget.click(); return;
-                }
-                if (!View.getEl('capsule-filter-judge').classList.contains('hidden') && ftWrong) {
-                    e.preventDefault(); ftWrong.click(); return;
-                }
-
-                if (btnPrev && window.getComputedStyle(btnPrev).display !== 'none' && !btnPrev.disabled) {
-                    e.preventDefault(); btnPrev.click();
-                }
-            } else if (key === 'ArrowDown') {
-                let ftBlur = View.getEl('ft-blur');
-                if (!View.getEl('capsule-filter-test').classList.contains('hidden') && ftBlur && window.getComputedStyle(ftBlur).display !== 'none') {
-                    e.preventDefault(); ftBlur.click(); return;
-                }
-            } 
-            // 5. ç©ºæ ¼é”®ï¼šä¸‡èƒ½æ­æ™“/å‘éŸ³
-            else if (key === ' ') {
-                e.preventDefault();
-                let blurTarget = document.querySelector('.blur-text');
-                if (blurTarget) {
-                    blurTarget.click();
-                } else {
-                    let btnSpeaker = View.getEl('btn-speaker');
-                    let btnMtReplay = View.getEl('btn-mt-replay');
-                    if (!View.getEl('mt-blind-audio-ui').classList.contains('hidden') && btnMtReplay) {
-                        btnMtReplay.click();
-                    } else if (btnSpeaker && window.getComputedStyle(btnSpeaker).display !== 'none') {
-                        btnSpeaker.click();
-                    }
-                }
-            }
-        }
-    });
-
-    // ğŸš€ æ¾å¼€ç©ºæ ¼é”®ï¼šåœæ­¢æ‰“å¡è“„åŠ›
-    document.addEventListener('keyup', (e) => {
-        if (e.key === ' ') {
-            if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden')) {
-                let lpBtn = View.getEl('btn-long-press');
-                if (lpBtn) {
-                    lpBtn.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', button: 0 }));
-                }
-            }
-        }
-    });
-
-    // ğŸš€ æ™ºèƒ½å‘¼å‡º/éšè—é”®ç›˜æç¤ºæ¡ (æ„ŸçŸ¥é”®ç›˜æ“ä½œ)
-    let keyboardHintBar = View.getEl('keyboard-hint-bar');
-    if (keyboardHintBar) {
-        document.addEventListener('keydown', (e) => {
-            // åªè¦æ£€æµ‹åˆ°é”®ç›˜æ•²å‡»ï¼Œä¸”åœ¨å¤ä¹ ç•Œé¢å†…ï¼Œå°±å¼¹å‡ºæç¤ºæ¡
-            if (!View.getEl('study-area').classList.contains('hidden') && !['Meta', 'Alt', 'Control', 'Shift'].includes(e.key)) {
-                keyboardHintBar.classList.remove('hidden');
-            }
-        });
-        document.addEventListener('pointerdown', (e) => {
-            // å¦‚æœç”¨æˆ·ä½¿ç”¨æ‰‹æŒ‡è§¦æ‘¸æˆ–é¼ æ ‡ç‚¹å‡»ï¼Œè¯´æ˜è„±ç¦»äº†çº¯é”®ç›˜ç›²æ“ï¼Œè‡ªåŠ¨éšè—æç¤ºæ¡
-            if (e.pointerType === 'mouse' || e.pointerType === 'touch') {
-                keyboardHintBar.classList.add('hidden');
-            }
-        });
-    }
-  },
-
-  collectBackupPreferences() {
-      const preferences = {};
-
-      for (const key of BACKUP_PREFERENCE_KEYS) {
-          const value = localStorage.getItem(key);
-
-          if (value !== null) {
-              preferences[key] = value;
-          }
-      }
-
-      return preferences;
-  },
-
-  applyBackupPreferences(preferences) {
-      if (
-          !preferences ||
-          typeof preferences !== 'object' ||
-          Array.isArray(preferences)
-      ) {
-          return;
-      }
-
-      for (const key of BACKUP_PREFERENCE_KEYS) {
-          if (
-              Object.prototype.hasOwnProperty.call(
-                  preferences,
-                  key
-              )
-          ) {
-              localStorage.setItem(
-                  key,
-                  String(preferences[key])
-              );
-          }
-      }
-  },
-
-  buildBackupPayload(kind = 'manual') {
-      const cloneValue = value => {
-          return JSON.parse(
-              JSON.stringify(value)
-          );
-      };
-
-      return {
-          format: BACKUP_FORMAT_ID,
-          backupVersion: BACKUP_FORMAT_VERSION,
-          schemaVersion:
-              typeof DATA_SCHEMA_VERSION === 'number'
-                  ? DATA_SCHEMA_VERSION
-                  : 1,
-
-          appName: 'é’Ÿæ—¥',
-          kind,
-          exportDate: new Date().toISOString(),
-
-          data: {
-              db: cloneValue(Model.db),
-              userWords: cloneValue(Model.userWords),
-              wordOverrides: cloneValue(Model.wordOverrides),
-              wordStorageVersion: WORD_STORAGE_VERSION,
-              folders: cloneValue(Model.folders),
-              folderLangs: cloneValue(
-                  Model.folderLangs
-              ),
-              stars: cloneValue(Model.stars),
-              records: cloneValue(Model.records),
-              mtGroupClears: cloneValue(
-                  Model.mtGroupClears
-              ),
-              mtWordClears: cloneValue(
-                  Model.mtWordClears
-              ),
-              aiConversations: cloneValue(
-                  Model.aiConversations
-              )
-          },
-
-          preferences:
-              this.collectBackupPreferences()
-      };
-  },
-
-  normalizeBackupPayload(rawData) {
-      if (
-          rawData &&
-          rawData.format === BACKUP_FORMAT_ID &&
-          rawData.data
-      ) {
-          return {
-              format: BACKUP_FORMAT_ID,
-              backupVersion:
-                  Number(rawData.backupVersion) || 5,
-              schemaVersion:
-                  Number(rawData.schemaVersion) || 1,
-              appName: rawData.appName || 'é’Ÿæ—¥',
-              kind: rawData.kind || 'manual',
-              exportDate:
-                  rawData.exportDate || null,
-
-              data: {
-                  db: rawData.data.db,
-                  userWords: Array.isArray(rawData.data.userWords)
-                      ? rawData.data.userWords
-                      : null,
-                  wordOverrides:
-                      rawData.data.wordOverrides &&
-                      typeof rawData.data.wordOverrides === 'object' &&
-                      !Array.isArray(rawData.data.wordOverrides)
-                          ? rawData.data.wordOverrides
-                          : null,
-                  wordStorageVersion:
-                      Number(rawData.data.wordStorageVersion) || 0,
-                  folders: rawData.data.folders,
-                  folderLangs:
-                      rawData.data.folderLangs,
-                  stars: rawData.data.stars,
-                  records: rawData.data.records,
-                  mtGroupClears:
-                      rawData.data.mtGroupClears,
-                  mtWordClears:
-                      rawData.data.mtWordClears,
-
-                  aiConversations:
-                      Array.isArray(
-                          rawData.data.aiConversations
-                      )
-                          ? rawData.data.aiConversations
-                          : null
-              },
-
-              preferences:
-                  rawData.preferences &&
-                  typeof rawData.preferences ===
-                      'object'
-                      ? rawData.preferences
-                      : {}
-          };
-      }
-
-      /*
-       * å…¼å®¹æ—§ç‰ˆ v4 å¤‡ä»½ã€‚
-       */
-      if (
-          rawData &&
-          Array.isArray(rawData.db) &&
-          Array.isArray(rawData.folders)
-      ) {
-          return {
-              format: BACKUP_FORMAT_ID,
-              backupVersion: 4,
-              schemaVersion: 0,
-              appName: 'é’Ÿæ—¥',
-              kind: 'legacy',
-              exportDate:
-                  rawData.exportDate || null,
-
-              data: {
-                  db: rawData.db,
-                  userWords: null,
-                  wordOverrides: null,
-                  wordStorageVersion: 0,
-                  folders: rawData.folders,
-                  folderLangs:
-                      rawData.folderLangs || {},
-                  stars: rawData.stars || [],
-                  records: rawData.records || [],
-                  mtGroupClears:
-                      rawData.mtGroupClears || {},
-                  mtWordClears:
-                      rawData.mtWordClears || {},
-
-                  aiConversations:
-                      Array.isArray(
-                          rawData.aiConversations
-                      )
-                          ? rawData.aiConversations
-                          : null
-              },
-
-              preferences:
-                  rawData.preferences &&
-                  typeof rawData.preferences ===
-                      'object'
-                      ? rawData.preferences
-                      : {}
-          };
-      }
-
-      throw new Error('æ— æ³•è¯†åˆ«æ­¤å¤‡ä»½æ–‡ä»¶');
-  },
-
-  validateBackupPayload(payload) {
-      if (
-          !payload ||
-          payload.format !== BACKUP_FORMAT_ID ||
-          !payload.data
-      ) {
-          throw new Error('å¤‡ä»½æ–‡ä»¶æ ¼å¼ä¸æ­£ç¡®');
-      }
-
-      if (!Array.isArray(payload.data.db)) {
-          throw new Error('å¤‡ä»½ä¸­ç¼ºå°‘è¯åº“æ•°æ®');
-      }
-
-      if (!Array.isArray(payload.data.folders)) {
-          throw new Error('å¤‡ä»½ä¸­ç¼ºå°‘æ–‡ä»¶å¤¹æ•°æ®');
-      }
-
-      const invalidWord = payload.data.db.find(word => {
-          return (
-              !word ||
-              typeof word !== 'object' ||
-              typeof word.word !== 'string'
-          );
-      });
-
-      if (invalidWord) {
-          throw new Error('å¤‡ä»½ä¸­çš„è¯æ±‡æ•°æ®ä¸å®Œæ•´');
-      }
-
-      return true;
-  },
-
-  renderBackupSummary(payload) {
-      const data = payload.data;
-
-      let dateText = 'æœªçŸ¥æ—¶é—´';
-
-      if (payload.exportDate) {
-          const parsedDate =
-              new Date(payload.exportDate);
-
-          if (!Number.isNaN(parsedDate.getTime())) {
-              dateText =
-                  parsedDate.toLocaleString('zh-CN');
-          }
-      }
-
-      const wordCount =
-          Array.isArray(data.db)
-              ? data.db.length
-              : 0;
-
-      const folderCount =
-          Array.isArray(data.folders)
-              ? data.folders.length
-              : 0;
-
-      const recordCount =
-          Array.isArray(data.records)
-              ? data.records.length
-              : 0;
-
-      const aiIncluded =
-          Array.isArray(data.aiConversations);
-
-      const aiCount =
-          aiIncluded
-              ? data.aiConversations.length
-              : 0;
-
-      const preferenceCount =
-          payload.preferences &&
-          typeof payload.preferences === 'object'
-              ? Object.keys(
-                    payload.preferences
-                ).length
-              : 0;
-
-      return `
-          <div style="
-              margin-top: 12px;
-              padding: 16px;
-              border-radius: 18px;
-              background: var(--surface);
-              border: 1px solid var(--outline);
-              text-align: left;
-              line-height: 1.8;
-          ">
-              <div>
-                  <strong>å¤‡ä»½æ—¶é—´ï¼š</strong>
-                  ${escapeHTML(dateText)}
-              </div>
-
-              <div>
-                  <strong>è¯æ±‡ï¼š</strong>
-                  ${wordCount} æ¡
-              </div>
-
-              <div>
-                  <strong>è¯åº“ï¼š</strong>
-                  ${folderCount} ä¸ª
-              </div>
-
-              <div>
-                  <strong>å­¦ä¹ è®°å½•ï¼š</strong>
-                  ${recordCount} æ¡
-              </div>
-
-              <div>
-                  <strong>AI å¯¹è¯ï¼š</strong>
-                  ${
-                      aiIncluded
-                          ? `${aiCount} æ¡`
-                          : 'æ—§ç‰ˆå¤‡ä»½æœªåŒ…å«'
-                  }
-              </div>
-
-              <div>
-                  <strong>åå¥½è®¾ç½®ï¼š</strong>
-                  ${
-                      preferenceCount > 0
-                          ? `${preferenceCount} é¡¹`
-                          : 'æœªåŒ…å«'
-                  }
-              </div>
-          </div>
-      `;
-  },
-
-  async storePreImportRestorePoint(kind = 'pre-import-restore') {
-      const restorePoint =
-          this.buildBackupPayload(kind);
-
-      await Model.writeStorageValue(
-          PRE_IMPORT_RESTORE_KEY,
-          restorePoint
-      );
-
-      await this.updateRestorePointUI();
-
-      return restorePoint;
-  },
-
-  async removePreImportRestorePoint() {
-      try {
-          if (
-              typeof idbKeyval !== 'undefined'
-          ) {
-              await idbKeyval.del(
-                  PRE_IMPORT_RESTORE_KEY
-              );
-          }
-      } catch (error) {
-          console.warn(
-              '[Backup] åˆ é™¤ IndexedDB æ¢å¤ç‚¹å¤±è´¥',
-              error
-          );
-      }
-
-      localStorage.removeItem(
-          PRE_IMPORT_RESTORE_KEY
-      );
-
-      await this.updateRestorePointUI();
-  },
-
-  async updateRestorePointUI() {
-      const button =
-          View.getEl('btn-undo-import');
-
-      const note =
-          View.getEl('backup-restore-note');
-
-      if (!button && !note) {
-          return;
-      }
-
-      let restorePoint = null;
-
-      try {
-          restorePoint =
-              await Model.readStorageValue(
-                  PRE_IMPORT_RESTORE_KEY
-              );
-      } catch (error) {
-          console.warn(
-              '[Backup] è¯»å–å¯¼å…¥æ¢å¤ç‚¹å¤±è´¥',
-              error
-          );
-      }
-
-      const hasRestorePoint =
-          Boolean(
-              restorePoint &&
-              restorePoint.data &&
-              Array.isArray(
-                  restorePoint.data.db
-              )
-          );
-
-      if (button) {
-          button.style.display =
-              hasRestorePoint
-                  ? 'flex'
-                  : 'none';
-      }
-
-      if (note) {
-          note.style.display =
-              hasRestorePoint
-                  ? 'block'
-                  : 'none';
-      }
-  },
-
-  async applyBackupPayload(payload) {
-      this.validateBackupPayload(payload);
-
-      const data = payload.data;
-
-      const restoredDB =
-          JSON.parse(
-              JSON.stringify(data.db)
-          );
-
-      const restoredFolders =
-          JSON.parse(
-              JSON.stringify(data.folders)
-          );
-
-      const restoredFolderLangs =
-          data.folderLangs &&
-          typeof data.folderLangs === 'object'
-              ? JSON.parse(
-                    JSON.stringify(
-                        data.folderLangs
-                    )
-                )
-              : {};
-
-      if (restoredFolders.length === 0) {
-          restoredFolders.push('é»˜è®¤è¯åº“');
-      }
-
-      /*
-       * è¡¥é½è¯åº“è¯­è¨€ã€‚
-       */
-      for (const folder of restoredFolders) {
-          if (!restoredFolderLangs[folder]) {
-              const containsEnglish =
-                  restoredDB.some(word => {
-                      return (
-                          word.folder === folder &&
-                          word.lang === 'en'
-                      );
-                  });
-
-              restoredFolderLangs[folder] =
-                  containsEnglish
-                      ? 'en'
-                      : 'ja';
-          }
-      }
-
-      /*
-       * è¡¥é½æ—§å¤‡ä»½ä¸­æ²¡æœ‰è¯­è¨€ä¿¡æ¯çš„è¯æ±‡ã€‚
-       */
-      for (const word of restoredDB) {
-          if (!word.lang) {
-              word.lang =
-                  restoredFolderLangs[
-                      word.folder
-                  ] || 'ja';
-          }
-      }
-
-      Model.builtInWords = Model.getDefaultBuiltInWords();
-      Model.builtInIdSet = new Set(
-          Model.builtInWords.map(word => Model.getWordId(word))
-      );
-
-      if (
-          Array.isArray(data.userWords) &&
-          data.wordOverrides &&
-          typeof data.wordOverrides === 'object' &&
-          !Array.isArray(data.wordOverrides)
-      ) {
-          Model.userWords = cloneDataValue(data.userWords);
-          Model.wordOverrides = cloneDataValue(data.wordOverrides);
-          Model.rebuildCombinedDB();
-      } else {
-          Model.migrateLegacyWordStorage(restoredDB, {
-              markMissingBuiltInsAsDeleted: false
-          });
-      }
-
-      Model.folders = restoredFolders;
-      Model.folderLangs = restoredFolderLangs;
-
-      Model.stars =
-          Array.isArray(data.stars)
-              ? JSON.parse(
-                    JSON.stringify(data.stars)
-                )
-              : [];
-
-      Model.records =
-          Array.isArray(data.records)
-              ? JSON.parse(
-                    JSON.stringify(
-                        data.records
-                    )
-                )
-              : [];
-
-      Model.mtGroupClears =
-          data.mtGroupClears &&
-          typeof data.mtGroupClears ===
-              'object'
-              ? JSON.parse(
-                    JSON.stringify(
-                        data.mtGroupClears
-                    )
-                )
-              : {};
-
-      Model.mtWordClears =
-          data.mtWordClears &&
-          typeof data.mtWordClears ===
-              'object'
-              ? JSON.parse(
-                    JSON.stringify(
-                        data.mtWordClears
-                    )
-                )
-              : {};
-
-      /*
-       * è€å¤‡ä»½æ²¡æœ‰ AI å¯¹è¯æ—¶ï¼Œ
-       * ä¿ç•™è®¾å¤‡é‡Œç°æœ‰çš„ AI å¯¹è¯ï¼Œ
-       * é¿å…å¯¼å…¥æ—§æ–‡ä»¶æ—¶æ„å¤–æ¸…ç©ºã€‚
-       */
-      if (
-          Array.isArray(
-              data.aiConversations
-          )
-      ) {
-          Model.aiConversations =
-              JSON.parse(
-                  JSON.stringify(
-                      data.aiConversations
-                  )
-              );
-      }
-
-      this.applyBackupPreferences(
-          payload.preferences
-      );
-
-      await Model.runDataMigrations();
-      await Model.saveAllUserData();
-  },
-
-  async exportBackup() {
-      const payload =
-          this.buildBackupPayload('manual');
-
-      const dateStamp =
-          new Date()
-              .toISOString()
-              .slice(0, 19)
-              .replace(/[T:]/g, '-');
-
-      const fileName =
-          `é’Ÿæ—¥å®Œæ•´å¤‡ä»½_${dateStamp}.json`;
-
-      const blob = new Blob(
-          [
-              JSON.stringify(
-                  payload,
-                  null,
-                  2
-              )
-          ],
-          {
-              type:
-                  'application/json;charset=utf-8'
-          }
-      );
-
-      Hardware.playSound('success');
-      Hardware.vibrate(50);
-
-      try {
-          if (
-              navigator.share &&
-              navigator.canShare
-          ) {
-              const file = new File(
-                  [blob],
-                  fileName,
-                  {
-                      type:
-                          'application/json'
-                  }
-              );
-
-              if (
-                  navigator.canShare({
-                      files: [file]
-                  })
-              ) {
-                  await navigator.share({
-                      files: [file],
-                      title: 'é’Ÿæ—¥æ•°æ®å¤‡ä»½',
-                      text:
-                          'é’Ÿæ—¥å®Œæ•´å­¦ä¹ æ•°æ®å¤‡ä»½'
-                  });
-
-                  showToast('å¤‡ä»½æ–‡ä»¶å·²ç”Ÿæˆ');
-                  return;
-              }
-          }
-      } catch (error) {
-          if (error?.name === 'AbortError') {
-              showToast('å·²å–æ¶ˆå¯¼å‡º');
-              return;
-          }
-
-          console.warn(
-              '[Backup] ç³»ç»Ÿåˆ†äº«å¤±è´¥ï¼Œæ”¹ç”¨ä¸‹è½½',
-              error
-          );
-      }
-
-      this.fallbackDownload(
-          blob,
-          fileName
-      );
-  },
-
-  fallbackDownload(blob, fileName) {
-      const url =
-          URL.createObjectURL(blob);
-
-      const anchor =
-          document.createElement('a');
-
-      anchor.style.display = 'none';
-      anchor.href = url;
-      anchor.download = fileName;
-
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      window.setTimeout(() => {
-          URL.revokeObjectURL(url);
-      }, 1000);
-
-      showToast('å¤‡ä»½æ–‡ä»¶å·²ç”Ÿæˆ');
-  },
-
-  async importBackup(file) {
-      if (!file) {
-          return;
-      }
-
-      if (file.size > 25 * 1024 * 1024) {
-          Hardware.playSound('error');
-          Hardware.vibrate(50);
-          showToast('å¤‡ä»½æ–‡ä»¶è¿‡å¤§');
-          return;
-      }
-
-      try {
-          const fileText =
-              await file.text();
-
-          const rawData =
-              JSON.parse(fileText);
-
-          const payload =
-              this.normalizeBackupPayload(
-                  rawData
-              );
-
-          this.validateBackupPayload(
-              payload
-          );
-
-          const summary =
-              this.renderBackupSummary(
-                  payload
-              );
-
-          showConfirm(
-              'ç¡®è®¤å¯¼å…¥è¿™ä»½å¤‡ä»½ï¼Ÿ',
-              `
-                  ${summary}
-
-                  <div style="
-                      margin-top: 14px;
-                      color: var(--accent-red);
-                      font-size: 0.86rem;
-                      line-height: 1.65;
-                  ">
-                      å½“å‰è¯åº“å’Œå­¦ä¹ è¿›åº¦å°†è¢«æ›¿æ¢ã€‚
-                      å¯¼å…¥å‰ä¼šè‡ªåŠ¨ä¿å­˜æ¢å¤ç‚¹ï¼Œ
-                      å¯ä»¥é€šè¿‡â€œæ’¤é”€ä¸Šæ¬¡å¯¼å…¥â€æ¢å¤ã€‚
-                  </div>
-              `,
-              async () => {
-                  showToast('æ­£åœ¨æ¢å¤æ•°æ®â€¦');
-
-                  let restorePoint = null;
-
-                  try {
-                      restorePoint =
-                          await this
-                              .storePreImportRestorePoint();
-
-                      await this.applyBackupPayload(
-                          payload
-                      );
-
-                      Hardware.playSound(
-                          'success'
-                      );
-
-                      Hardware.vibrate(100);
-
-                      showToast('æ•°æ®æ¢å¤æˆåŠŸ');
-
-                      window.setTimeout(() => {
-                          location.reload();
-                      }, 900);
-                  } catch (error) {
-                      console.error(
-                          '[Backup] å¯¼å…¥å¤±è´¥',
-                          error
-                      );
-
-                      if (restorePoint) {
-                          try {
-                              await this
-                                  .applyBackupPayload(
-                                      restorePoint
-                                  );
-
-                              showToast(
-                                  'å¯¼å…¥å¤±è´¥ï¼Œå·²æ¢å¤åŸæ•°æ®'
-                              );
-                          } catch (
-                              restoreError
-                          ) {
-                              console.error(
-                                  '[Backup] è‡ªåŠ¨æ¢å¤å¤±è´¥',
-                                  restoreError
-                              );
-
-                              showToast(
-                                  'å¯¼å…¥å’Œè‡ªåŠ¨æ¢å¤å‡å¤±è´¥'
-                              );
-                          }
-                      } else {
-                          showToast(
-                              'å¯¼å…¥å¤±è´¥ï¼Œæœªä¿®æ”¹æ•°æ®'
-                          );
-                      }
-
-                      Hardware.playSound(
-                          'error'
-                      );
-
-                      Hardware.vibrate(50);
-                  }
-              }
-          );
-      } catch (error) {
-          console.error(
-              '[Backup] è¯»å–å¤‡ä»½å¤±è´¥',
-              error
-          );
-
-          Hardware.playSound('error');
-          Hardware.vibrate(50);
-
-          showToast(
-              error?.message ||
-              'æ— æ³•è¯»å–å¤‡ä»½æ–‡ä»¶'
-          );
-      }
-  },
-
-  async restorePreImportBackup() {
-      let restorePoint = null;
-
-      try {
-          restorePoint =
-              await Model.readStorageValue(
-                  PRE_IMPORT_RESTORE_KEY
-              );
-      } catch (error) {
-          console.error(
-              '[Backup] è¯»å–æ¢å¤ç‚¹å¤±è´¥',
-              error
-          );
-      }
-
-      if (
-          !restorePoint ||
-          !restorePoint.data ||
-          !Array.isArray(
-              restorePoint.data.db
-          )
-      ) {
-          showToast('æ²¡æœ‰å¯ç”¨çš„æ¢å¤ç‚¹');
-          await this.updateRestorePointUI();
-          return;
-      }
-
-      const summary =
-          this.renderBackupSummary(
-              restorePoint
-          );
-
-      showConfirm(
-          'æ’¤é”€ä¸Šæ¬¡æ•°æ®æ“ä½œï¼Ÿ',
-          `
-              ${summary}
-
-              <div style="
-                  margin-top: 14px;
-                  color: var(--accent-red);
-                  font-size: 0.86rem;
-                  line-height: 1.65;
-              ">
-                  å°†æ¢å¤åˆ°ä¸Šæ¬¡å¯¼å…¥æˆ–é‡ç½®ä¹‹å‰çš„çŠ¶æ€ã€‚
-              </div>
-          `,
-          async () => {
-              /*
-               * å…ˆåœ¨å†…å­˜ä¸­ä¿å­˜å½“å‰çŠ¶æ€ã€‚
-               * å¦‚æœæ’¤é”€è¿‡ç¨‹å¤±è´¥ï¼Œä»èƒ½æ¢å¤å›æ¥ã€‚
-               */
-              const currentSafetyCopy =
-                  this.buildBackupPayload(
-                      'before-undo-data-operation'
-                  );
-
-              try {
-                  showToast(
-                      'æ­£åœ¨æ¢å¤æ•°æ®æ“ä½œå‰çš„çŠ¶æ€â€¦'
-                  );
-
-                  await this.applyBackupPayload(
-                      restorePoint
-                  );
-
-                  await this
-                      .removePreImportRestorePoint();
-
-                  Hardware.playSound(
-                      'success'
-                  );
-
-                  Hardware.vibrate(100);
-
-                  showToast(
-                      'å·²æ’¤é”€ä¸Šæ¬¡æ•°æ®æ“ä½œ'
-                  );
-
-                  window.setTimeout(() => {
-                      location.reload();
-                  }, 900);
-              } catch (error) {
-                  console.error(
-                      '[Backup] æ’¤é”€æ•°æ®æ“ä½œå¤±è´¥',
-                      error
-                  );
-
-                  try {
-                      await this.applyBackupPayload(
-                          currentSafetyCopy
-                      );
-
-                      showToast(
-                          'æ’¤é”€å¤±è´¥ï¼Œå·²ä¿ç•™å½“å‰æ•°æ®'
-                      );
-                  } catch (
-                      restoreError
-                  ) {
-                      console.error(
-                          '[Backup] ä¿ç•™å½“å‰æ•°æ®å¤±è´¥',
-                          restoreError
-                      );
-
-                      showToast(
-                          'æ•°æ®æ¢å¤å‡ºç°ä¸¥é‡é”™è¯¯'
-                      );
-                  }
-
-                  Hardware.playSound('error');
-                  Hardware.vibrate(50);
-              }
-          }
-      );
-  },
-
-    startPendulum(launchMode = 'pendulum') {
-    const currentLang = Model.state.currentLangMode;
-
-    const defFolder =
-        Model.folders.find(folder => {
-            return (Model.folderLangs[folder] || 'ja') === currentLang;
-        }) || 'é»˜è®¤è¯åº“';
-
-    const defCat =
-        defFolder === 'é»˜è®¤è¯åº“'
-            ? 'default'
-            : defFolder;
-
-    let groupKey =
-        Model.state.currentGroupKey ||
-        localStorage.getItem('lastCustomGroupVal') ||
-        `group|${defCat}|0`;
-
-    let [prefix, catName, indexText] = groupKey.split('|');
-    let groupIndex = Number.parseInt(indexText, 10);
-
-    if (
-        prefix !== 'group' ||
-        !Number.isInteger(groupIndex) ||
-        groupIndex < 0
-    ) {
-        catName = defCat;
-        groupIndex = 0;
-        groupKey = `group|${defCat}|0`;
-    }
-
-    const groupWords = Model.db
-        .map((w, i) => ({ w, i }))
-        .filter(item => {
-            const wordLang = item.w.lang || 'ja';
-
-            return (
-                wordLang === currentLang &&
-                Model.checkFilter(item.w, catName)
-            );
-        });
-
-    const groupRange = ROTE_CORE.getGroupRange(
-        groupIndex,
-        groupWords.length
-    );
-    const sourceWords = groupWords.slice(
-        groupRange.start,
-        groupRange.end
-    );
-
-    if (sourceWords.length === 0) {
-        return showToast('æ‰€é€‰èŒƒå›´å†…æš‚æ— è¯æ±‡å“¦');
-    }
-
-    const virtualLabels = {
-        virtual_cleared: 'å®Œå…¨é€šå…³',
-        virtual_uncleared: 'æ‰€æœ‰æœªé€šå…³',
-        virtual_miss_kanji:
-            currentLang === 'en'
-                ? 'æœªæŒæ¡æ‹¼å†™'
-                : 'æœªäº†è§£æ±‰å­—',
-        virtual_miss_kana:
-            currentLang === 'en'
-                ? 'æœªæŒæ¡å¬åŠ›'
-                : 'æœªäº†è§£è¯»éŸ³',
-        virtual_miss_meaning: 'æœªäº†è§£é‡Šä¹‰',
-        virtual_starred: 'æ”¶è—'
-    };
-
-    const categoryLabel =
-        catName === 'default'
-            ? 'é»˜è®¤è¯åº“'
-            : (virtualLabels[catName] || catName);
-
-    const groupLabel =
-        `${categoryLabel} (ç¬¬ ${groupRange.labelStart}-${groupRange.labelEnd} è¯)`;
-
-    Model.state.currentGroupKey = groupKey;
-    Model.state.currentGroupLabel = groupLabel;
-
-    const groupText = View.getEl('custom-group-text');
-    if (groupText) {
-        groupText.innerText = groupLabel;
-    }
-
-    localStorage.setItem('lastCustomGroupVal', groupKey);
-    localStorage.setItem('lastCustomGroupTxt', groupLabel);
-    Hardware.playSound('click'); 
-    Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
-    if (launchMode === 'memory-test') {
-        Model.state.mtRound = 1;
-        Model.state.mtBaseQueue = sourceWords.map(x => x.i);
-        Model.state.studyQueue = [...Model.state.mtBaseQueue]
-            .sort(() => Math.random() - 0.5);
-        Model.state.totalTestWords = Model.state.studyQueue.length;
-    } else {
-        Model.state.studyQueue = ROTE_CORE.buildInterleavedQueue(
-            sourceWords.map(item => item.i)
-        );
-    }
-    Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
-    View.updateComboBadge();
-    const modeSelect = View.getEl('next-display-mode');
-    let savedMode = localStorage.getItem('displayMode') || 'all';
-    const isRoteLaunch = launchMode === 'rote-learning';
-
-    if (modeSelect) {
-        if (isRoteLaunch) {
-            modeSelect.options[0].text = 'å…¨æ˜¾é¢„è§ˆ';
-            modeSelect.options[0].style.display = 'none';
-            modeSelect.options[1].text = currentLang === 'en'
-                ? 'æ‹¼å†™å¼ºåŒ–'
-                : 'æ±‰å­—å¼ºåŒ–';
-            modeSelect.options[2].text = currentLang === 'en'
-                ? 'å¬åŠ›å¼ºåŒ–'
-                : 'å‡åå¼ºåŒ–';
-            modeSelect.options[3].text = 'é‡Šä¹‰å¼ºåŒ–';
-            savedMode = ROTE_CORE.normalizeMode(currentLang, savedMode);
-            localStorage.setItem('displayMode', savedMode);
-        } else {
-            modeSelect.options[0].text = 'å…¨æ˜¾';
-            modeSelect.options[0].style.display = '';
-            modeSelect.options[1].text = currentLang === 'en' ? 'è‹±æ–‡' : 'æ±‰å­—';
-            modeSelect.options[2].text = currentLang === 'en' ? 'éŸ³æ ‡' : 'å‡å';
-            modeSelect.options[3].text = 'é‡Šä¹‰';
-        }
-
-        modeSelect.value = savedMode;
-        modeSelect.dispatchEvent(new Event('facade-update'));
-    }
-    View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
-  },
-
-  buildFilterTestQueue(rawQueue) {
-      const savedMode =
-          localStorage.getItem('wordOrderMode');
-
-      const orderMode =
-          ['weak-first', 'new-first', 'original']
-              .includes(savedMode)
-              ? savedMode
-              : 'weak-first';
-
-      const queue = [...rawQueue];
-
-      if (orderMode === 'original') {
-          return queue;
-      }
-
-      const newWords = [];
-      const weakWords = [];
-      const clearedWords = [];
-
-      queue.forEach(idx => {
-          const word = Model.db[idx];
-
-          if (!word) {
-              return;
-          }
-
-          const status =
-              Model.getClearState(word);
-
-          if (
-              !status ||
-              typeof status !== 'object'
-          ) {
-              newWords.push(idx);
-              return;
-          }
-
-          const masteredCount = [
-              status.kanji,
-              status.kana,
-              status.meaning
-          ].filter(Boolean).length;
-
-          if (status.needsReview === true) {
-              weakWords.push(idx);
-          } else if (masteredCount === 0) {
-              newWords.push(idx);
-          } else if (masteredCount === 3) {
-              clearedWords.push(idx);
-          } else {
-              weakWords.push(idx);
-          }
-      });
-
-      const shuffle = list => {
-          return [...list].sort(
-              () => Math.random() - 0.5
-          );
-      };
-
-      if (orderMode === 'new-first') {
-          return [
-              ...shuffle(newWords),
-              ...shuffle(weakWords),
-              ...shuffle(clearedWords)
-          ];
-      }
-
-      return [
-          ...shuffle(weakWords),
-          ...shuffle(newWords),
-          ...shuffle(clearedWords)
-      ];
-  },
-
-  startFilterTest() {
-      let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
-      let displayMode = View.getEl('test-display-select').value || 'kana';
-      let isSkipEnabled = localStorage.getItem('skipMastered') === 'true';
-
-      let sourceWords = Model.db
-          .map((w, i) => ({ w, i }))
-          .filter(item => {
-          let wordLang = item.w.lang || 'ja';
-
-          if (wordLang !== Model.state.currentLangMode) {
-              return false;
-          }
-
-          let inRange =
-              cat === 'all'
-                  ? true
-                  : Model.checkFilter(item.w, cat);
-
-          if (!inRange) return false;
-
-          if (isSkipEnabled) {
-              let st = Model.getClearState(item.w);
-              if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-
-              if (displayMode === 'word' && st.kanji) return false;
-              if ((displayMode === 'kana' || displayMode === 'audio') && st.kana) return false;
-              if (displayMode === 'meaning' && st.meaning) return false;
-          }
-          return true;
-      });
-      
-      if (sourceWords.length === 0) {
-          return showConfirm('æ­¤ç»´åº¦å·²åœ†æ»¡', 'å½“å‰èŒƒå›´å†…è¯¥æ¨¡å¼å¯¹åº”çš„ã€Œç»´åº¦æ ã€å·²å…¨éƒ¨ç‚¹äº®ã€‚æ˜¯å¦å‰å¾€è®¾ç½®å…³é—­ã€Œæ™ºèƒ½è·³è¿‡ã€ï¼Ÿ', () => {
-              Nav.switchTab('tab-settings', ' |ã€ç’°å¢ƒè¨­å®šã€‘', document.querySelector('[data-target="tab-settings"]'));
-          });
-      }
-      Hardware.playSound('click'); 
-      Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0;
-      
-      const rawQueue =
-          sourceWords.map(x => x.i);
-
-      Model.state.studyQueue =
-          this.buildFilterTestQueue(rawQueue);
-      
-      View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
-  },
-
-    processFilterTestResult(isCorrect) {
-      if (Model.state.isAnimating) return;
-      Model.state.isAnimating = true;
-
-      let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
-      const wordKey = Model.getWordId(w);
-      const clearState = Model.ensureClearState(w);
-      const isEnglish = w.lang === 'en';
-
-      let mode = View.getEl('test-display-select').value || 'kana';
-
-      if (isEnglish && mode === 'kana') {
-          mode = 'word';
-      }
-
-      if (isCorrect) {
-          if (mode === 'word') {
-              clearState.kanji = true;
-          } else if (mode === 'kana' || mode === 'audio') {
-              clearState.kana = true;
-          } else if (mode === 'meaning') {
-              clearState.meaning = true;
-          }
-
-          if (
-              clearState.kana &&
-              clearState.meaning
-          ) {
-              clearState.kanji = true;
-          }
-
-          if (
-              clearState.kanji &&
-              clearState.meaning
-          ) {
-              clearState.kana = true;
-          }
-
-          if (
-              clearState.kanji &&
-              clearState.kana
-          ) {
-              clearState.meaning = true;
-          }
-
-          if (
-              clearState.kanji &&
-              clearState.kana &&
-              clearState.meaning
-          ) {
-              clearState.needsReview =
-                  false;
-          }
-      } else {
-          clearState.needsReview =
-              true;
-
-          if (mode === 'word') {
-              clearState.kanji = false;
-          } else if (mode === 'kana' || mode === 'audio') {
-              clearState.kana = false;
-          } else if (mode === 'meaning') {
-              clearState.meaning = false;
-          }
-      }
-
-      Model.saveClears();
-      View.playStudyFeedback(isCorrect ? 'correct' : 'wrong');
-
-      window.setTimeout(() => {
-          Model.state.currentIndex++;
-          Model.state.ftState = 'A';
-          Model.state.ftHint = null;
-          Model.state.ftShowKanaHint = false;
-
-          if (Model.state.currentIndex >= Model.state.studyQueue.length) {
-              Model.state.isAnimating = false;
-              Hardware.playSound('success');
-              Hardware.vibrate(1000);
-              showToast('æ­å–œï¼Œå…¨éƒ¨é¶å‘æ£€éªŒå®Œæˆï¼');
-              View.getEl('btn-exit-study').click();
-          } else {
-              View.renderStudyCard('next');
-          }
-      }, isCorrect ? 380 : 320);
-  },
-
-  handleSpellConfirm(inputEl, wObj, displayMode) {
-      if (Model.state.isAnimating) return;
-
-      const isEnglish = wObj.lang === 'en';
-      const isRote = Model.state.mode === 'rote-learning';
-      const isEnglishRote =
-          isEnglish && isRote;
-
-      let targetClean;
-      let inputClean;
-
-      if (isEnglish) {
-          targetClean = (wObj.word || '').toLowerCase().trim();
-          inputClean = (EnglishInput.buffer || '').toLowerCase().trim();
-      } else {
-          targetClean = (wObj.kana || '').replace(/[ã€ã€‘\[\]()]/g, '');
-          inputClean = RomajiEngine.getFinalText();
-      }
-
-      if (!inputClean) return;
-
-      if (inputClean === targetClean) {
-          Model.state.isAnimating = true;
-          Hardware.playSound('success');
-          Hardware.vibrate(50);
-          View.playStudyFeedback('correct');
-
-          Model.state.comboCount++;
-          View.updateComboBadge();
-
-          if (isRote) {
-              View.showRoteFullCard(wObj);
-              if (isEnglish) EnglishInput.reset();
-              else RomajiEngine.reset();
-
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderRoteLearningUI(wObj, displayMode);
-              }, 700);
-              return;
-          }
-
-          let wWord = View.getEl('w-word');
-          let wKana = View.getEl('w-kana');
-          let wMeaning = View.getEl('w-meaning');
-
-          if (wWord) {
-              wWord.innerText = wObj.word || '';
-              wWord.style.display = 'block';
-          }
-
-          if (wKana) {
-              wKana.innerText = isEnglish
-                  ? (wObj.phonetic || '')
-                  : (wObj.kana || '');
-              wKana.style.display = 'block';
-          }
-
-          if (wMeaning) {
-              wMeaning.innerText = wObj.meaning || '';
-              wMeaning.style.display = 'block';
-          }
-
-          View.syncRootsDisplay();
-          View.revealStudyAnswer();
-
-          if (Model.state.mode === 'dual-track') {
-              setTimeout(() => this.dtAdvanceNext(), 420);
-          } else if (Model.state.mode === 'memory-test') {
-              if (!isEnglish) {
-                  View.getEl('w-kana').innerText = wObj.kana;
-                  View.getEl('w-kana').style.display = 'block';
-              }
-              setTimeout(() => this.mtAdvanceNext(), 600);
-          } else {
-              if (
-                  !isEnglish &&
-                  (displayMode === 'word' || displayMode === 'meaning')
-              ) {
-                  View.getEl('w-kana').innerText = wObj.kana;
-              }
-
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderMemoryTestUI(wObj, displayMode);
-              }, 500);
-          }
-
-          if (isEnglish) EnglishInput.reset();
-          return;
-      }
-
-      Hardware.playSound('error');
-      Hardware.vibrate(60);
-      View.playStudyFeedback('wrong');
-
-      inputEl.classList.remove('shake-anim');
-      void inputEl.offsetWidth;
-      inputEl.classList.add('shake-anim', 'error-state');
-
-      Model.state.comboCount = Math.max(0, Model.state.comboCount - 3);
-      View.updateComboBadge();
-      Model.state.currentWordFailed = true;
-
-      Model.state.spellFailCount =
-          (Model.state.spellFailCount || 0) + 1;
-
-      if (Model.state.spellFailCount >= 2) {
-          let activeKbId = Model.state.mode === 'dual-track'
-              ? 'dt-spell-keyboard'
-              : 'mt-spell-keyboard';
-          let hintWrap = View.getEl(activeKbId + '-hint-wrap');
-          if (hintWrap) hintWrap.classList.add('show');
-      }
-
-      if (isEnglishRote && Model.state.spellFailCount >= 3) {
-          Hardware.unlockSpeech();
-          Hardware.speakWord(wObj);
-      }
-  },
-
-  handleDtChoiceClick(btn, isCorrect) {
-      if (Model.state.isAnimating) return;
-      if (isCorrect) {
-          Model.state.isAnimating = true;
-          btn.classList.add('correct');
-          Hardware.playSound('success');
-          Hardware.vibrate(40);
-          View.playStudyFeedback('correct');
-
-          Model.state.comboCount++;
-          View.updateComboBadge();
-          
-          let wMeaning = View.getEl('w-meaning');
-          if(wMeaning) { wMeaning.style.display = 'block'; View.syncRootsDisplay(); }
-
-          document.getElementById('w-example-box').querySelectorAll('.dt-ex-cn.hidden-translation').forEach(el => { 
-    el.style.transform = 'rotateX(90deg)'; el.style.opacity = '0'; 
-    setTimeout(() => { 
-        el.innerText = el.dataset.text; 
-        el.className = 'dt-ex-cn revealed-translation'; 
-        el.style.transform = 'rotateX(-90deg)'; 
-        void el.offsetWidth; 
-        el.style.transform = 'rotateX(0)'; 
-        el.style.opacity = '1'; 
-        if (localStorage.getItem('useRubyRender') === 'false') {
-            loadMathJax()
-                .then(mathJax => mathJax.typesetPromise([el]))
-                .catch(error => {
-                    console.warn('MathJax æ’ç‰ˆè¢«ä¸­æ–­', error);
-                });
-        }
-    }, 150); 
-});
-          document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
-      } else { 
-          Hardware.playSound('error');
-          Hardware.vibrate(50);
-          View.playStudyFeedback('wrong');
-
-          btn.classList.remove('shake-anim', 'wrong');
-          requestAnimationFrame(() => {
-              void btn.offsetWidth; 
-              btn.classList.add('shake-anim', 'wrong'); 
-          });
-          Model.state.comboCount = Math.max(0, Model.state.comboCount - 3); View.updateComboBadge(); 
-      }
-  },
-
-  handleMtChoiceClick(btn, isCorrect, wObj, displayMode) {
-      if (Model.state.isAnimating) return;
-
-      if (!isCorrect) {
-          Hardware.playSound('error');
-          Hardware.vibrate(50);
-          View.playStudyFeedback('wrong');
-
-          btn.classList.remove('shake-anim', 'wrong');
-          void btn.offsetWidth;
-          btn.classList.add('shake-anim', 'wrong');
-
-          Model.state.comboCount = Math.max(
-              0,
-              Model.state.comboCount - 3
-          );
-          View.updateComboBadge();
-          Model.state.currentWordFailed = true;
-          return;
-      }
-
-      Model.state.isAnimating = true;
-      btn.classList.add('correct');
-      Hardware.playSound('success');
-      Hardware.vibrate(40);
-      View.playStudyFeedback('correct');
-
-      Model.state.comboCount++;
-      View.updateComboBadge();
-
-      const disableChoiceButtons = () => {
-          document
-              .querySelectorAll('#mt-choice-buttons .dt-choice-btn')
-              .forEach(button => {
-                  button.style.pointerEvents = 'none';
-              });
-      };
-
-      if (Model.state.mode === 'memory-test') {
-          let round = Model.state.mtRound;
-          let step = Model.state.mtStep;
-
-          if (round === 1) {
-              View.getEl('w-meaning').innerText = wObj.meaning;
-              View.getEl('w-meaning').style.display = 'block';
-              View.syncRootsDisplay();
-              View.revealStudyElement(View.getEl('w-meaning'));
-              disableChoiceButtons();
-              setTimeout(() => this.mtAdvanceNext(), 800);
-          } else if (round === 2 && step === 1) {
-              View.getEl('w-word').innerText = wObj.word;
-              View.getEl('w-word').style.display = 'block';
-              View.syncRootsDisplay();
-              View.revealStudyElement(View.getEl('w-word'));
-
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderMemoryTestUI(wObj, displayMode);
-              }, 600);
-          } else if (round === 3 && step === 1) {
-              View.getEl('w-meaning').innerText = wObj.meaning;
-              View.getEl('w-meaning').style.display = 'block';
-              View.syncRootsDisplay();
-              View.revealStudyElement(View.getEl('w-meaning'));
-
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderMemoryTestUI(wObj, displayMode);
-              }, 600);
-          } else if (round === 3 && step === 2) {
-              View.getEl('w-word').innerText = wObj.word;
-              View.getEl('w-word').style.display = 'block';
-              View.syncRootsDisplay();
-              View.revealStudyElement(View.getEl('w-word'));
-              disableChoiceButtons();
-              setTimeout(() => this.mtAdvanceNext(), 800);
-          }
-          return;
-      }
-
-      if (Model.state.mode === 'rote-learning') {
-          disableChoiceButtons();
-          View.showRoteFullCard(wObj);
-
-          if (Model.state.mtStep === 1) {
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderRoteLearningUI(wObj, displayMode);
-              }, 650);
-          } else {
-              setTimeout(() => this.mtAdvanceNext(), 850);
-          }
-      }
-  },
-
-  dtAdvanceNext() { Model.state.currentIndex++; if (Model.state.currentIndex >= Model.state.studyQueue.length) { this.finishPendulum(); } else { View.renderStudyCard('next'); } },
-  mtAdvanceNext() { 
-      if (Model.state.mode === 'memory-test') {
-          if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue.shift(); Model.state.studyQueue.push(failedIdx); } else { Model.state.studyQueue.shift(); }
-          Model.state.currentWordFailed = false; Model.state.mtStep = 1; Model.state.currentIndex = 0; 
-          if (Model.state.studyQueue.length === 0) {
-              // æ—¥è¯­ 3 è½® / è‹±è¯­ 3 è½®ï¼ˆå¬åŠ›æ æ›¿ä»£è¯»éŸ³æ ï¼‰
-              if (Model.state.mtRound < 3) { 
-                  Model.state.mtRound++; 
-                  Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); 
-                  Hardware.playSound('success'); Hardware.vibrate(200); 
-                  showToast(`ç¬¬ ${Model.state.mtRound - 1} è½®æ¸…ç©ºï¼ç¡¬æ ¸è¿›é˜¶`); 
-                  setTimeout(() => View.renderStudyCard('next'), 500); 
-              } 
-              else { 
-    Model.state.mtBaseQueue.forEach(idx => {
-        const word = Model.db[idx];
-        const clearState = Model.ensureClearState(word);
-
-        if (!clearState) {
-            return;
-        }
-
-        clearState.kanji = true;
-        clearState.kana = true;
-        clearState.meaning = true;
-    });
-    Model.saveClears(); 
-    this.finishPendulum(); 
-}
-          } else { View.renderStudyCard('next'); }
-      } else { if (Model.state.currentWordFailed) { let failedIdx = Model.state.studyQueue[Model.state.currentIndex]; Model.state.studyQueue.push(failedIdx); Model.state.currentWordFailed = false; } Model.state.currentIndex++; Model.state.mtStep = 1; if (Model.state.currentIndex >= Model.state.studyQueue.length) this.finishPendulum(); else View.renderStudyCard('next'); }
-  },
-
-    finishPendulum() {
-    Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
-
-
-    let gk = Model.state.currentGroupKey;
-    Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
-    
-    let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
-    uniqueIndices.forEach(idx => {
-        const word = Model.db[idx];
-        const clearState = Model.ensureClearState(word);
-
-        if (!clearState) {
-            return;
-        }
-
-        clearState.kanji = true;
-        clearState.kana = true;
-        clearState.meaning = true;
-    });
-    Model.saveClears();
-
-    let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
-    if(exist === -1) { Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords(); }
-    showToast("ä»»åŠ¡å®Œæˆï¼è¯¥ç»„è¯æ±‡å·²å…¨éƒ¨é€šå…³"); View.getEl('btn-exit-study').click();
-  },
-
-
-  toggleBatchMode(forceState) {
-      Hardware.playSound('click');
-      Hardware.vibrate(20);
-
-      const nextState =
-          typeof forceState === 'boolean'
-              ? forceState
-              : !Model.state.batchMode;
-
-      if (nextState === Model.state.batchMode) {
-          return;
-      }
-
-      Model.state.batchMode = nextState;
-      Model.state.manageMode = false;
-      Model.state.selectedSet.clear();
-
-      View.updateWordbankUI();
-      View.resetWordbankRenderer();
-  },
-  createFolder() { 
-    Hardware.vibrate(20); 
-    showPrompt("è¯·è¾“å…¥æ–°æ–‡ä»¶å¤¹åç§°", "", (name) => { 
-      if(Model.folders.includes(name)) return showToast("æ–‡ä»¶å¤¹å·²å­˜åœ¨"); 
-      const lang = Model.state.currentLangMode; // å¼ºç»‘å®šä¸ºå½“å‰æ‰€å¤„è¯­è¨€
-      Model.folders.push(name); 
-      Model.folderLangs[name] = lang;
-      Model.saveFolders(); 
-      Model.saveFolderLangs();
-      View.updateWordbankUI(); 
-    }); 
-  },
-  deleteFolder() {
-      Hardware.vibrate(20);
-
-      const folderFilter =
-          View.getEl('wb-folder-filter');
-
-      const filter = folderFilter.value;
-
-      const builtInEnglishFolders =
-          typeof DefaultEnglishWords !== 'undefined'
-              ? [
-                    ...new Set(
-                        DefaultEnglishWords
-                            .map(word => word.folder)
-                            .filter(Boolean)
-                    )
-                ]
-              : [];
-
-      const builtInFolders = new Set([
-          'é»˜è®¤è¯åº“',
-          ...builtInEnglishFolders
-      ]);
-
-      if (
-          filter === 'all' ||
-          builtInFolders.has(filter) ||
-          filter.startsWith('virtual_')
-      ) {
-          return showToast('å†…ç½®åˆ†ç±»ä¸å¯åˆ é™¤');
-      }
-
-      const folderWords = Model.db.filter(word => {
-          return word.folder === filter;
-      });
-
-      const folderLang =
-          Model.folderLangs[filter] ||
-          folderWords.find(word => word.lang)?.lang ||
-          Model.state.currentLangMode ||
-          'ja';
-
-      const englishFallbackFolder =
-          builtInEnglishFolders.find(folder => {
-              return Model.folders.includes(folder);
-          }) ||
-          Model.folders.find(folder => {
-              return (
-                  folder !== filter &&
-                  Model.folderLangs[folder] === 'en'
-              );
-          }) ||
-          'è‹±è¯­è¯åº“';
-
-      const mainFallbackFolder =
-          folderLang === 'en'
-              ? englishFallbackFolder
-              : 'é»˜è®¤è¯åº“';
-
-      showConfirm(
-          'åˆ é™¤æ–‡ä»¶å¤¹',
-          `ç¡®å®šè¦åˆ é™¤ã€Œ${escapeHTML(filter)}ã€å—ï¼Ÿé‡Œé¢çš„ ${folderWords.length} ä¸ªå•è¯ä¼šè‡ªåŠ¨ç§»è‡³åŒè¯­è¨€çš„é»˜è®¤è¯åº“ã€Œ${escapeHTML(mainFallbackFolder)}ã€ã€‚`,
-          () => {
-              if (Model.state.batchMode) {
-                  this.toggleBatchMode();
-              }
-
-              if (!Model.folders.includes('é»˜è®¤è¯åº“')) {
-                  Model.folders.unshift('é»˜è®¤è¯åº“');
-              }
-
-              Model.folderLangs['é»˜è®¤è¯åº“'] = 'ja';
-
-              const hasEnglishWord =
-                  folderWords.some(word => {
-                      return (
-                          word.lang === 'en' ||
-                          (
-                              !word.lang &&
-                              folderLang === 'en'
-                          )
-                      );
-                  });
-
-              if (hasEnglishWord) {
-                  if (
-                      !Model.folders.includes(
-                          englishFallbackFolder
-                      )
-                  ) {
-                      Model.folders.push(
-                          englishFallbackFolder
-                      );
-                  }
-
-                  Model.folderLangs[
-                      englishFallbackFolder
-                  ] = 'en';
-              }
-
-              Model.db.forEach(word => {
-                  if (word.folder !== filter) {
-                      return;
-                  }
-
-                  const wordLang =
-                      word.lang || folderLang;
-
-                  word.lang = wordLang;
-
-                  word.folder =
-                      wordLang === 'en'
-                          ? englishFallbackFolder
-                          : 'é»˜è®¤è¯åº“';
-              });
-
-              Model.folders =
-                  Model.folders.filter(folder => {
-                      return folder !== filter;
-                  });
-
-              delete Model.folderLangs[filter];
-
-              Model.saveFolders();
-              Model.saveFolderLangs();
-              Model.saveDB();
-
-              folderFilter.value = 'all';
-
-              localStorage.setItem(
-                  'lastSelectedFolder',
-                  'all'
-              );
-
-              folderFilter.dispatchEvent(
-                  new Event('facade-update')
-              );
-
-              View.updateWordbankUI();
-              View.resetWordbankRenderer();
-
-              showToast(
-                  'å·²åˆ é™¤ï¼Œå•è¯å·²æŒ‰è¯­è¨€å½’æ¡£'
-              );
-          }
-      );
-  },
-    openMoveModal(idx) { 
-      if (idx === -2 && Model.state.selectedSet.size === 0) return showToast("æœªé€‰è¯"); 
-      Model.state.moveTargetIdx = idx; 
-      
-      const container = View.getEl('move-folder-list');
-      container.innerHTML = '';
-      
-      Model.folders.forEach(folderName => {
-          const item = document.createElement('div');
-          item.className = 'move-folder-item';
-          item.setAttribute('tabindex', '0');
-          item.setAttribute('role', 'button');
-          item.innerHTML = `
-              <span class="material-symbols-rounded folder-icon">folder</span>
-              <span class="folder-name">${folderName}</span>
-          `;
-          
-          item.onclick = () => {
-              Hardware.playSound('success');
-              Hardware.vibrate(40);
-              this.executeMove(folderName);
-          };
-          container.appendChild(item);
-      });
-      
-      window.toggleModal('move-overlay', true); 
-  },
-
-  executeMove(destFolder) {
-      if (Model.state.moveTargetIdx === -2) { 
-          Model.state.selectedSet.forEach(idx => Model.db[idx].folder = destFolder); 
-          this.toggleBatchMode(); 
-      } else { 
-          Model.db[Model.state.moveTargetIdx].folder = destFolder; 
-      }
-      Model.saveDB(); 
-      window.toggleModal('move-overlay', false); 
-      View.resetWordbankRenderer(); 
-      showToast(`å·²ç§»è‡³ ${destFolder}`);
-  },
-
-batchDelete() { 
-    Hardware.playSound('click'); Hardware.vibrate(30); 
-    if(Model.state.selectedSet.size === 0) return showToast("è¯·å…ˆé€‰æ‹©å•è¯"); 
-showConfirm('æ‰¹é‡åˆ é™¤', 'ç¡®å®šè¦åˆ é™¤é€‰ä¸­çš„æ‰€æœ‰å•è¯å—ï¼Ÿ', () => { 
-    this.closeDetailIfOpen();
-        
-        Model.state.selectedSet.forEach(idx => {
-            const word = Model.db[idx];
-            const wordId = Model.getWordId(word);
-
-            Model.stars = Model.stars.filter(id => id !== wordId);
-            delete Model.mtWordClears[wordId];
-        });
-        Model.saveStars();
-        Model.saveClears();
-        
-        Model.db = Model.db.filter((_, i) => !Model.state.selectedSet.has(i)); 
-        Model.saveDB(); 
-        this.toggleBatchMode();
-        if (document.getElementById('tab-wordbank').classList.contains('active')) {
-            Model.state.renderedStartIndex = -1;
-            View.renderVirtualGrid();
-        }
-        showToast("å·²æ‰¹é‡åˆ é™¤"); 
-    }); 
-},
-  editWord(idx) {
-    Controller.pendingWordDraft = null;
-    Model.editingIdx = idx;
-
-    const word = Model.db[idx];
-    const isEnglish = word.lang === 'en';
-
-    const titleEl =
-        View.getEl('edit-dialog-title');
-
-    const saveBtn =
-        View.getEl('btn-save-edit');
-
-    if (titleEl) {
-        titleEl.innerHTML =
-            '<span class="material-symbols-rounded">edit_square</span> ç¼–è¾‘å•è¯';
-    }
-
-    if (saveBtn) {
-        saveBtn.textContent = 'ä¿å­˜ä¿®æ”¹';
-    }
-
-    View.getEl('edit-word').value =
-        word.word || '';
-
-    View.getEl('edit-kana').value =
-        isEnglish
-            ? (word.phonetic || '')
-            : (word.kana || '');
-
-    View.getEl('edit-type').value =
-        word.type || '';
-
-    View.getEl('edit-meaning').value =
-        word.meaning || '';
-
-    View.getEl('edit-example').value =
-        word.example || '';
-
-    const levelSelect = View.getEl('edit-level');
-    if (levelSelect) {
-        this.populateWordLevelSelect(
-            levelSelect,
-            word.lang || 'ja',
-            word.level || ''
-        );
-    }
-
-    const difficultySelect = View.getEl('edit-difficulty');
-    if (difficultySelect) {
-        difficultySelect.value = String(
-            normalizeWordDifficulty(word.difficulty)
-        );
-        difficultySelect.dispatchEvent(
-            new Event('facade-update')
-        );
-    }
-
-    const tagsInput = View.getEl('edit-tags');
-    if (tagsInput) {
-        tagsInput.value = normalizeWordTags(word.tags).join('ã€');
-    }
-
-    const rootsInput =
-        View.getEl('edit-roots');
-
-    if (rootsInput) {
-        rootsInput.value =
-            word.roots || '';
-    }
-
-    const readingLabel =
-        View.getEl('edit-reading-label');
-
-    if (readingLabel) {
-        readingLabel.textContent =
-            isEnglish
-                ? 'éŸ³æ ‡'
-                : 'å‡å';
-    }
-
-    const rootsGroup =
-        View.getEl('edit-roots-group');
-
-    if (rootsGroup) {
-        rootsGroup.style.display =
-            isEnglish
-                ? 'block'
-                : 'none';
-    }
-
-    window.toggleModal(
-        'edit-overlay',
-        true
-    );
-  },
-deleteWord(idx) { 
-    showConfirm('åˆ é™¤å•è¯', 'å½»åº•åˆ é™¤è¯¥è¯ï¼Ÿ', () => { 
-        this.closeDetailIfOpen();
-        const word = Model.db[idx];
-        const wordId = Model.getWordId(word);
-
-        Model.db.splice(idx, 1);
-        Model.saveDB();
-        Model.stars = Model.stars.filter(id => id !== wordId);
-        delete Model.mtWordClears[wordId];
-        Model.saveStars();
-        Model.saveClears();
-        if (document.getElementById('tab-wordbank').classList.contains('active')) {
-            Model.state.renderedStartIndex = -1;
-        }
-        View.resetWordbankRenderer(); 
-        showToast("å·²åˆ é™¤"); 
-    }); 
-},
-    initializeImportPanel() {
-      const langSelect = View.getEl('import-lang-select');
-      if (!langSelect) return;
-
-      langSelect.value = Model.state.currentLangMode === 'en' ? 'en' : 'ja';
-      langSelect.dispatchEvent(new Event('facade-update'));
-      this.updateImportFormatUI();
-      this.updateImportFolderOptions();
-      this.updateImportMetadataOptions();
-  },
-
-  updateImportFormatUI() {
-      const lang = View.getEl('import-lang-select')?.value || 'ja';
-      const formatText = View.getEl('import-format-text');
-      const formatNote = View.getEl('import-format-note');
-      const textarea = View.getEl('custom-input');
-
-      if (lang === 'en') {
-          if (formatText) formatText.textContent = 'å•è¯,éŸ³æ ‡,è¯æ€§,é‡Šä¹‰,ä¾‹å¥,è¯æ ¹';
-          if (formatNote) formatNote.textContent = 'å‰å››é¡¹å¿…å¡«ï¼›çº§åˆ«ã€éš¾åº¦å’Œæ ‡ç­¾ä½¿ç”¨ä¸Šæ–¹æ‰¹æ¬¡è®¾ç½®ï¼Œä¾‹å¥å«é€—å·æ—¶å»ºè®®ä½¿ç”¨ Tab åˆ†éš”ã€‚';
-          if (textarea) textarea.placeholder = 'abandon,/É™ËˆbÃ¦ndÉ™n/,åŠ¨è¯,æ”¾å¼ƒ,They abandoned the plan.,a(å»)-bandon(æ§åˆ¶)';
-      } else {
-          if (formatText) formatText.textContent = 'å•è¯,å‡å,è¯æ€§,é‡Šä¹‰,ä¾‹å¥';
-          if (formatNote) formatNote.textContent = 'å‰å››é¡¹å¿…å¡«ï¼›çº§åˆ«ã€éš¾åº¦å’Œæ ‡ç­¾ä½¿ç”¨ä¸Šæ–¹æ‰¹æ¬¡è®¾ç½®ï¼Œä¾‹å¥å«é€—å·æ—¶å»ºè®®ä½¿ç”¨ Tab åˆ†éš”ã€‚';
-          if (textarea) textarea.placeholder = 'å‹‰å¼·,ã¹ã‚“ãã‚‡ã†,åãƒ»ã‚µå˜,å­¦ä¹ ,æ¯æ—¥æ—¥æœ¬èªã‚’å‹‰å¼·ã™ã‚‹ã€‚';
-      }
-  },
-
-  populateWordLevelSelect(
-      select,
-      lang,
-      selectedValue = ''
-  ) {
-      if (!select) return;
-
-      const normalizedLang = lang === 'en' ? 'en' : 'ja';
-      const options = WORD_LEVEL_OPTIONS[normalizedLang];
-      const current = normalizeWordLevel(
-          selectedValue,
-          normalizedLang
-      );
-
-      select.innerHTML = '<option value="">æœªåˆ†çº§</option>' +
-          options.map(level => {
-              return `<option value="${level}">${level}</option>`;
-          }).join('');
-
-      select.value = current;
-      select.dispatchEvent(new Event('facade-update'));
-  },
-
-  updateImportMetadataOptions() {
-      const lang = View.getEl('import-lang-select')?.value || 'ja';
-      const levelSelect = View.getEl('import-level-select');
-
-      this.populateWordLevelSelect(
-          levelSelect,
-          lang,
-          levelSelect?.value || ''
-      );
-  },
-
-  updateImportFolderOptions() {
-      const lang = View.getEl('import-lang-select')?.value || 'ja';
-      const select = View.getEl('import-folder-select');
-      if (!select) return;
-
-      const oldValue = select.value;
-      const folders = Model.folders.filter(folder => {
-          return (Model.folderLangs[folder] || 'ja') === lang;
-      });
-
-      select.innerHTML = '';
-
-      if (folders.length === 0) {
-          const option = document.createElement('option');
-          option.value = '';
-          option.textContent = lang === 'en' ? 'æš‚æ— è‹±è¯­è¯åº“' : 'æš‚æ— æ—¥è¯­è¯åº“';
-          select.appendChild(option);
-          select.disabled = true;
-      } else {
-          select.disabled = false;
-          folders.forEach(folder => {
-              const option = document.createElement('option');
-              option.value = folder;
-              option.textContent = folder;
-              select.appendChild(option);
-          });
-          select.value = folders.includes(oldValue) ? oldValue : folders[0];
-      }
-
-      select.dispatchEvent(new Event('facade-update'));
-  },
-
-  getImportIdentity(word) {
-      const lang = word.lang || Model.folderLangs[word.folder] || 'ja';
-      const name = lang === 'en'
-          ? String(word.word || '').trim().toLowerCase()
-          : String(word.word || '').trim();
-      return `${lang}::${word.folder || ''}::${name}`;
-  },
-
-  importWords() {
-      Hardware.playSound('click');
-      Hardware.vibrate(15);
-
-      const text = View.getEl('custom-input')?.value.trim() || '';
-      const lang = View.getEl('import-lang-select')?.value || 'ja';
-      const folder = View.getEl('import-folder-select')?.value || '';
-      const duplicateMode = View.getEl('import-duplicate-mode')?.value || 'skip';
-      const batchLevel = normalizeWordLevel(
-          View.getEl('import-level-select')?.value || '',
-          lang
-      );
-      const batchDifficulty = normalizeWordDifficulty(
-          View.getEl('import-difficulty-select')?.value || 0
-      );
-      const batchTags = normalizeWordTags(
-          View.getEl('import-tags-input')?.value || ''
-      );
-
-      if (!text) return showToast('è¯·å…ˆç²˜è´´è¯æ±‡');
-      if (!folder) return showToast('å½“å‰è¯­è¨€æ²¡æœ‰å¯ç”¨è¯åº“');
-
-      const lines = text.split(/\r?\n/)
-          .map((line, index) => ({ text: line.trim(), number: index + 1 }))
-          .filter(item => item.text);
-
-      const existingSet = new Set(Model.db.map(word => this.getImportIdentity(word)));
-      const inputSet = new Set();
-      const entries = [];
-      const errors = [];
-      let duplicateCount = 0;
-
-      lines.forEach(item => {
-          const parts = (item.text.includes('\t')
-              ? item.text.split('\t')
-              : item.text.split(/[,ï¼Œ]/)
-          ).map(part => part.trim());
-
-          if (parts.length < 4) {
-              errors.push(`ç¬¬ ${item.number} è¡Œï¼šåªè¯†åˆ«åˆ° ${parts.length} é¡¹ï¼Œè‡³å°‘éœ€è¦ 4 é¡¹`);
-              return;
-          }
-
-          const [word, reading, type, meaning] = parts;
-          if (!word) return errors.push(`ç¬¬ ${item.number} è¡Œï¼šç¼ºå°‘å•è¯`);
-          if (!type) return errors.push(`ç¬¬ ${item.number} è¡Œï¼šç¼ºå°‘è¯æ€§`);
-          if (!meaning) return errors.push(`ç¬¬ ${item.number} è¡Œï¼šç¼ºå°‘é‡Šä¹‰`);
-
-          let example = '';
-          let roots = '';
-
-          if (lang === 'en') {
-              if (parts.length === 5) example = parts[4];
-              if (parts.length >= 6) {
-                  example = parts.slice(4, -1).join(',');
-                  roots = parts[parts.length - 1];
-              }
-          } else if (parts.length >= 5) {
-              example = parts.slice(4).join(',');
-          }
-
-          const wordData = normalizeWordEntry({
-              word,
-              type,
-              meaning,
-              example,
-              folder,
-              lang,
-              phonetic:
-                  lang === 'en'
-                      ? reading
-                      : '',
-              kana:
-                  lang === 'ja'
-                      ? reading
-                      : '',
-              roots:
-                  lang === 'en'
-                      ? roots
-                      : '',
-              level: batchLevel,
-              difficulty: batchDifficulty,
-              tags: batchTags,
-              builtIn: false,
-              isImported: true,
-              importedAt: new Date().toISOString(),
-              srs: {
-                  ease: 2.5,
-                  interval: 0,
-                  nextReview: Date.now()
-              }
-          });
-
-          const identity = this.getImportIdentity(wordData);
-          const isDuplicate = existingSet.has(identity) || inputSet.has(identity);
-          if (isDuplicate) duplicateCount++;
-          inputSet.add(identity);
-          entries.push({ wordData, identity, isDuplicate });
-      });
-
-      const actionableEntries = duplicateMode === 'skip'
-          ? entries.filter(entry => !entry.isDuplicate)
-          : entries;
-
-      const previewRows = entries.slice(0, 5).map(entry => {
-          const word = entry.wordData;
-          const reading = lang === 'en' ? (word.phonetic || 'æ— éŸ³æ ‡') : (word.kana || 'æ— å‡å');
-          const tag = entry.isDuplicate ? '<span style="color:#a86f31;">é‡å¤</span>' : '<span style="color:var(--tertiary);">å¯å¯¼å…¥</span>';
-          return `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--outline);"><span><strong>${escapeHTML(word.word)}</strong>ã€€${escapeHTML(reading)}</span>${tag}</div>`;
-      }).join('');
-
-      const errorRows = errors.slice(0, 6).map(error => {
-          return `<div style="margin-top:7px;color:var(--accent-red);font-size:.8rem;">${escapeHTML(error)}</div>`;
-      }).join('');
-
-      const modeText = {
-          skip: 'é‡å¤è¯ä¼šè¢«è·³è¿‡',
-          overwrite: 'é‡å¤è¯ä¼šè¦†ç›–åŸå†…å®¹',
-          keep: 'é‡å¤è¯ä¼šè¢«ä¿ç•™ï¼›æ¯ä¸ªè¯æ¡æ‹¥æœ‰ç‹¬ç«‹æ”¶è—ä¸æŒæ¡è¿›åº¦'
-      }[duplicateMode];
-
-      const summary = `
-          <div style="text-align:left;line-height:1.7;">
-              <div style="padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--outline);">
-                  <strong>å…±è¯†åˆ« ${lines.length} è¡Œ</strong><br>
-                  å¯å¤„ç† ${actionableEntries.length} è¯ Â· é‡å¤ ${duplicateCount} Â· é”™è¯¯ ${errors.length}<br>
-                  <span style="font-size:.82rem;opacity:.72;">${modeText}</span>
-              </div>
-              <div style="margin-top:12px;">${previewRows || '<span style="opacity:.65;">æ²¡æœ‰è¯†åˆ«åˆ°æœ‰æ•ˆè¯æ¡</span>'}</div>
-              ${entries.length > 5 ? `<div style="margin-top:8px;font-size:.78rem;opacity:.6;">å¦æœ‰ ${entries.length - 5} ä¸ªæœ‰æ•ˆè¯æ¡æœªå±•ç¤º</div>` : ''}
-              ${errorRows}
-              ${errors.length > 6 ? `<div style="margin-top:7px;color:var(--accent-red);font-size:.8rem;">å¦æœ‰ ${errors.length - 6} è¡Œé”™è¯¯</div>` : ''}
-          </div>
-      `;
-
-      if (actionableEntries.length === 0) {
-          showConfirm('æ²¡æœ‰å¯å¯¼å…¥çš„è¯æ±‡', summary, () => {});
-          return;
-      }
-
-      showConfirm('ç¡®è®¤å¯¼å…¥è¿™äº›è¯æ±‡ï¼Ÿ', summary, async () => {
-          let restorePoint = null;
-
-          try {
-              restorePoint = await this.storePreImportRestorePoint('pre-import-restore');
-              const liveMap = new Map();
-              Model.db.forEach((word, index) => liveMap.set(this.getImportIdentity(word), index));
-
-              let added = 0;
-              let updated = 0;
-              let skipped = 0;
-
-              entries.forEach(entry => {
-                  const existingIndex = liveMap.has(entry.identity) ? liveMap.get(entry.identity) : -1;
-
-                  if (existingIndex >= 0 && duplicateMode === 'skip') {
-                      skipped++;
-                      return;
-                  }
-
-                  if (existingIndex >= 0 && duplicateMode === 'overwrite') {
-                      const oldWord = Model.db[existingIndex];
-                      const originalId = Model.getWordId(oldWord);
-                      const originalBuiltIn = oldWord.builtIn === true;
-                      const { isImported, importedAt, ...fields } = entry.wordData;
-
-                      Object.assign(oldWord, fields, {
-                          _id: originalId,
-                          builtIn: originalBuiltIn
-                      });
-
-                      if (oldWord.isImported === true) oldWord.importedAt = importedAt;
-                      updated++;
-                      return;
-                  }
-
-                  Model.db.push({ ...entry.wordData });
-                  if (duplicateMode !== 'keep') liveMap.set(entry.identity, Model.db.length - 1);
-                  added++;
-              });
-
-              await Model.saveDB();
-              View.getEl('custom-input').value = '';
-              View.updateWordbankUI();
-              View.resetWordbankRenderer();
-              await this.updateRestorePointUI();
-
-              Hardware.playSound('success');
-              Hardware.vibrate(100);
-
-              const result = [];
-              if (added) result.push(`æ–°å¢ ${added} è¯`);
-              if (updated) result.push(`è¦†ç›– ${updated} è¯`);
-              if (skipped) result.push(`è·³è¿‡ ${skipped} è¯`);
-              showToast(result.join('ï¼Œ') || 'æ²¡æœ‰éœ€è¦å†™å…¥çš„è¯æ±‡');
-          } catch (error) {
-              console.error('[Import] å¯¼å…¥å¤±è´¥', error);
-              if (restorePoint) {
-                  try {
-                      await this.applyBackupPayload(restorePoint);
-                      showToast('å¯¼å…¥å¤±è´¥ï¼Œå·²æ¢å¤åŸæ•°æ®');
-                  } catch (restoreError) {
-                      console.error('[Import] è‡ªåŠ¨æ¢å¤å¤±è´¥', restoreError);
-                      showToast('å¯¼å…¥å¤±è´¥ï¼Œè‡ªåŠ¨æ¢å¤ä¹Ÿå¤±è´¥');
-                  }
-              } else {
-                  showToast('å¯¼å…¥å¤±è´¥ï¼Œæœªä¿®æ”¹æ•°æ®');
-              }
-              Hardware.playSound('error');
-              Hardware.vibrate(50);
-          }
-      });
-  },
-
-  getDefaultLibraryState() {
-      const db = Model.getDefaultBuiltInWords().map(word => {
-          return cloneDataValue(word);
-      });
-      const folders = [];
-      const folderLangs = {};
-
-      db.forEach(word => {
-          const folder = word.folder || (
-              word.lang === 'en'
-                  ? 'å››çº§è¯æ±‡'
-                  : 'é»˜è®¤è¯åº“'
-          );
-
-          word.folder = folder;
-
-          if (!folders.includes(folder)) {
-              folders.push(folder);
-          }
-
-          folderLangs[folder] =
-              word.lang === 'en' ? 'en' : 'ja';
-      });
-
-      if (!folders.includes('é»˜è®¤è¯åº“')) {
-          folders.unshift('é»˜è®¤è¯åº“');
-          folderLangs['é»˜è®¤è¯åº“'] = 'ja';
-      }
-
-      return { db, folders, folderLangs };
-  },
-
-  refreshAfterDataOperation() {
-      Model.state.selectedSet.clear();
-      Model.state.batchMode = false;
-      Model.state.manageMode = false;
-      Model.state.renderedStartIndex = -1;
-      const folderFilter = View.getEl('wb-folder-filter');
-      if (folderFilter) folderFilter.value = 'all';
-      View.renderDashboard();
-      View.updateWordbankUI();
-      View.resetWordbankRenderer();
-      this.updateImportFolderOptions();
-  },
-
-  async runSafeDataOperation(kind, action, successMessage, reload = false) {
-      let restorePoint = null;
-
-      try {
-          restorePoint = await this.storePreImportRestorePoint(kind);
-          await action();
-          await this.updateRestorePointUI();
-
-          Hardware.playSound('success');
-          Hardware.vibrate(120);
-          showToast(successMessage);
-
-          if (reload) {
-              window.setTimeout(() => location.reload(), 900);
-          } else {
-              this.refreshAfterDataOperation();
-          }
-      } catch (error) {
-          console.error('[Reset] æ•°æ®æ“ä½œå¤±è´¥', error);
-
-          if (restorePoint) {
-              try {
-                  await this.applyBackupPayload(restorePoint);
-                  showToast('æ“ä½œå¤±è´¥ï¼Œå·²æ¢å¤åŸæ•°æ®');
-              } catch (restoreError) {
-                  console.error('[Reset] è‡ªåŠ¨æ¢å¤å¤±è´¥', restoreError);
-                  showToast('æ“ä½œå¤±è´¥ï¼Œè‡ªåŠ¨æ¢å¤ä¹Ÿå¤±è´¥');
-              }
-          } else {
-              showToast('æ“ä½œå¤±è´¥ï¼Œæœªä¿®æ”¹æ•°æ®');
-          }
-
-          Hardware.playSound('error');
-          Hardware.vibrate(50);
-      }
-  },
-
-  clearLearningProgress() {
-      return this.runSafeDataOperation('pre-reset-progress', async () => {
-          Model.records = [];
-          Model.mtGroupClears = {};
-          Model.mtWordClears = {};
-          await Promise.all([Model.saveRecords(), Model.saveClears()]);
-      }, 'å­¦ä¹ è¿›åº¦å·²æ¸…ç©º');
-  },
-
-  restoreBuiltInLibrary() {
-      return this.runSafeDataOperation('pre-remove-imported', async () => {
-          const defaults = this.getDefaultLibraryState();
-          const wordIds = new Set(
-              defaults.db.map(word => Model.getWordId(word))
-          );
-
-          Model.db = defaults.db;
-          Model.folders = defaults.folders;
-          Model.folderLangs = defaults.folderLangs;
-          Model.stars = Model.stars.filter(wordId => {
-              return wordIds.has(wordId);
-          });
-          Model.mtWordClears = Object.fromEntries(
-              Object.entries(Model.mtWordClears).filter(([wordId]) => {
-                  return wordIds.has(wordId);
-              })
-          );
-
-          await Model.saveAllUserData();
-      }, 'å·²æ¢å¤å†…ç½®è¯åº“');
-  },
-
-  fullResetApp() {
-      return this.runSafeDataOperation('pre-full-reset', async () => {
-          const defaults = this.getDefaultLibraryState();
-
-          Model.db = defaults.db;
-          Model.folders = defaults.folders;
-          Model.folderLangs = defaults.folderLangs;
-          Model.stars = [];
-          Model.records = [];
-          Model.mtGroupClears = {};
-          Model.mtWordClears = {};
-          Model.aiConversations = [];
-
-          new Set([...BACKUP_PREFERENCE_KEYS, 'wordOrderMode']).forEach(key => {
-              localStorage.removeItem(key);
-          });
-
-          await Model.saveAllUserData();
-      }, 'åº”ç”¨å·²æ¢å¤åˆå§‹çŠ¶æ€', true);
-  },
-  
-  openDetailModal(idx) { 
-      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx).filter(id => id !== -999); 
-      Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
-      
-      if (Model.state.activeDetailIdx === -1) {
-          Model.state.detailArray = [idx];
-          Model.state.activeDetailIdx = 0;
-      }
-
-      window.toggleModal('detail-overlay', true); 
-      this.renderDetailCard('none', true); 
-  },
-  
-  navDetail(dir) { 
-      Model.state.activeDetailIdx += dir; 
-      let max = Model.state.detailArray.length; 
-      if (Model.state.activeDetailIdx < 0) Model.state.activeDetailIdx = max - 1; 
-      if (Model.state.activeDetailIdx >= max) Model.state.activeDetailIdx = 0; 
-      
-      let realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
-      let w = Model.db[realIdx];
-      if (!w) {
-          window.toggleModal('detail-overlay', false);
-          if (document.getElementById('tab-wordbank').classList.contains('active')) {
-              Model.state.renderedStartIndex = -1;
-              View.renderVirtualGrid();
-          }
-          showToast("å•è¯ä¸å­˜åœ¨ï¼Œå·²å…³é—­è¯¦æƒ…");
-          return;
-      }
-      
-      Hardware.playSound('click'); Hardware.vibrate(30); 
-      this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); 
-  },
-  
-  renderDetailCard(anim, triggerTTS = false) { 
-      let realIdx = Model.state.detailArray[Model.state.activeDetailIdx]; 
-      let w = Model.db[realIdx]; 
-      if (!w) {
-          window.toggleModal('detail-overlay', false);
-          return;
-      }
-      // åˆ‡å¡æ—¶è‡ªåŠ¨æ”¶èµ·è¯¦æƒ…å¡ AI é¢æ¿
-let dtAiPanel = View.getEl('dt-ai-inline-panel');
-if (dtAiPanel) dtAiPanel.classList.add('hidden');
-      let wrapper = View.getEl('dt-anim-wrapper'); 
-      wrapper.className = 'detail-anim-wrapper'; 
-      void wrapper.offsetWidth; 
-      
-      if(anim !== 'none') { 
-          wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); 
-          setTimeout(() => { 
-              try {
-                  this.updateDetailContent(w, triggerTTS); 
-              } catch (err) {
-                  console.error('æ›´æ–°è¯¦æƒ…å†…å®¹å¤±è´¥', err);
-                  wrapper.style.opacity = '1';
-                  wrapper.style.transform = 'none';
-              } finally {
-                  wrapper.className = 'detail-anim-wrapper'; 
-                  void wrapper.offsetWidth; 
-                  wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); 
-              }
-          }, 200); 
-      } else { 
-          this.updateDetailContent(w, triggerTTS); 
-      } 
-  },
-
-      updateDetailContent(w, triggerTTS = false) {  
-      let visuals = View.getCardVisuals(w.type, w.lang); 
-      document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
- 
-      View.getEl('dt-watermark').innerHTML = visuals.wm; 
-      
-      let dtWordEl = View.getEl('dt-word');
-      dtWordEl.innerText = w.word; 
-      let dtLen = Array.from(w.word || '').length;
-      const isEnDetail = w.lang === 'en';
-      
-      if (isEnDetail) {
-          if (dtLen >= 14) dtWordEl.style.fontSize = '1.8rem';
-          else if (dtLen >= 11) dtWordEl.style.fontSize = '2.2rem';
-          else if (dtLen >= 8) dtWordEl.style.fontSize = '2.8rem';
-          else if (dtLen >= 5) dtWordEl.style.fontSize = '3.5rem';
-          else dtWordEl.style.fontSize = '4.2rem';
-      } else {
-          if (dtLen >= 10) dtWordEl.style.fontSize = '1.8rem';
-          else if (dtLen >= 7) dtWordEl.style.fontSize = '2.2rem';
-          else if (dtLen >= 5) dtWordEl.style.fontSize = '2.6rem';
-          else dtWordEl.style.fontSize = '';
-      }
-      if (isEnDetail) {
-          let ph = w.phonetic || '';
-          View.getEl('dt-kana').innerHTML = ph ? `<span class="material-symbols-rounded phonetic-speaker" style="font-size: 1.15rem; cursor: pointer;">volume_up</span><span style="display:inline-block; transform:translateY(1px);">${escapeHTML(ph)}</span>` : '';
-          View.getEl('dt-kana').style.display = ph ? 'flex' : 'none';
-      } else {
-          const kana = escapeHTML(w.kana || '');
-          const pitch = escapeHTML(
-              formatWordPitchDisplay(w.pitch)
-          );
-          const kanaEl = View.getEl('dt-kana');
-
-          kanaEl.innerHTML = `
-              <span class="dt-kana-main">${kana}</span>
-              ${pitch ? `<span class="dt-pitch">${pitch}</span>` : ''}
-          `;
-          kanaEl.style.display = (kana || pitch)
-              ? 'flex'
-              : 'none';
-      }
-      View.getEl('dt-type').innerHTML = visuals.tagsHTML; 
-      let rootsEl = View.getEl('dt-roots');
-      let showRootsPref = localStorage.getItem('showRoots') !== 'false';
-      if (rootsEl) {
-          rootsEl.innerHTML = (w.lang === 'en' && w.roots && showRootsPref) ? View.renderRoots(w.roots) : '';
-          rootsEl.style.display = (w.lang === 'en' && w.roots && showRootsPref) ? 'flex' : 'none';
-      }
-            const detailMeaning = String(
-          w.meaning || ''
-      ).trim();
-
-      const detailMeaningEl =
-          View.getEl('dt-mean');
-
-      if (detailMeaningEl) {
-          detailMeaningEl.textContent =
-              detailMeaning;
-
-          detailMeaningEl.classList.remove(
-              'is-long'
-          );
-
-          detailMeaningEl.style.removeProperty(
-              'font-size'
-          );
-
-          detailMeaningEl.style.removeProperty(
-              'line-height'
-          );
-
-          detailMeaningEl.style.removeProperty(
-              'letter-spacing'
-          );
-
-          const detailMeaningLength =
-              Array.from(detailMeaning)
-                  .reduce((total, character) => {
-                      const weight =
-                          /[\x00-\x7F]/.test(character)
-                              ? 0.55
-                              : 1;
-
-                      return total + weight;
-                  }, 0);
-
-          let detailMeaningSize = 1.5;
-
-          if (detailMeaningLength > 46) {
-              detailMeaningSize = 0.84;
-          } else if (detailMeaningLength > 32) {
-              detailMeaningSize = 0.92;
-          } else if (detailMeaningLength > 22) {
-              detailMeaningSize = 1.02;
-          } else if (detailMeaningLength > 14) {
-              detailMeaningSize = 1.16;
-          } else if (detailMeaningLength > 8) {
-              detailMeaningSize = 1.3;
-          }
-
-          detailMeaningEl.classList.toggle(
-              'is-long',
-              detailMeaningLength > 14
-          );
-
-          detailMeaningEl.style.setProperty(
-              'font-size',
-              `${detailMeaningSize}rem`,
-              'important'
-          );
-
-          detailMeaningEl.style.setProperty(
-              'line-height',
-              detailMeaningLength > 22
-                  ? '1.28'
-                  : '1.34',
-              'important'
-          );
-
-          detailMeaningEl.style.setProperty(
-              'letter-spacing',
-              detailMeaningLength > 32
-                  ? '-0.02em'
-                  : '0',
-              'important'
-          );
-      }
-
-      View.renderExampleBox(
-          w.example,
-          'dt-example-box',
-          'normal',
-          w
-      ); 
-      let st = Model.getClearState(w);
-      if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-      let badge = View.getEl('dt-hanko-badge'); 
-      if (badge) { 
-          badge.style.display = 'flex'; 
-          badge.className = 'card-tri-bar'; 
-          badge.style.transform = 'scale(1.5)';
-          badge.style.transformOrigin = 'top left';
-          badge.innerHTML = `
-            <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
-            <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
-            <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
-          `;
-      } 
-      let isStarred = Model.isStarred(w); 
-      let starBtn = View.getEl('dt-star-btn'); let starIcon = View.getEl('dt-star-icon'); 
-      if (starBtn && starIcon) { 
-          if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } 
-          else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } 
-      } 
-      if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
-  },
-
-openAISheet(sentence, word, lang, wordIndex = -1) {
-    if (!navigator.onLine) { showToast('AI å¯¼å¸ˆéœ€è¦è”ç½‘æ‰èƒ½å·¥ä½œå“¦ï¼Œè¯·æ£€æŸ¥ç½‘ç»œ~'); return; }
-    let apiKey = localStorage.getItem('deepseekApiKey');
-    if (!apiKey) {
-        let self = this;
-        Hardware.vibrate(20);
-        const promptTitle = document.getElementById('prompt-title');
-const promptHelper = document.getElementById('prompt-helper');
-const promptIcon = document.getElementById('prompt-icon');
-const visibilityBtn = document.getElementById('prompt-visibility');
-let input = document.getElementById('prompt-input');
-
-promptTitle.textContent = 'é…ç½® DeepSeek API Key';
-
-promptHelper.textContent =
-    'å¯†é’¥ä¼šä¿å­˜åœ¨å½“å‰è®¾å¤‡ï¼Œå¹¶ä»…ç”¨äºå‘é€ AI è¯·æ±‚ã€‚';
-promptHelper.hidden = false;
-
-promptIcon.textContent = 'vpn_key';
-
-input.type = 'password';
-input.autocomplete = 'new-password';
-input.placeholder = 'ç²˜è´´ API Keyï¼ˆsk-â€¦ï¼‰';
-input.value = '';
-
-visibilityBtn.hidden = false;
-visibilityBtn.title = 'æ˜¾ç¤ºå¯†é’¥';
-visibilityBtn.setAttribute('aria-label', 'æ˜¾ç¤ºå¯†é’¥');
-
-const visibilityIcon =
-    visibilityBtn.querySelector('.material-symbols-rounded');
-
-if (visibilityIcon) {
-    visibilityIcon.textContent = 'visibility';
-}
-        window.toggleModal('prompt-overlay', true);
-        setTimeout(() => input.focus(), 100);
-        document.getElementById('prompt-confirm').onclick = () => { 
-            Hardware.vibrate(15);
-            let val = input.value.trim(); 
-            if(val) { 
-                localStorage.setItem('deepseekApiKey', val);
-                let settingInput = View.getEl('setting-ai-key');
-                if (settingInput) settingInput.value = val;
-                window.toggleModal('prompt-overlay', false);
-                showToast('API Key å·²ä¿å­˜');
-                self.openAISheet(sentence, word, lang, wordIndex);
-            }
-        };
-        document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
-        return;
-    }
-        let cacheKey =
-        `example-analysis-v3|||${lang}|||${sentence}|||${word}`;
-    let chatArea = View.getEl('ai-chat-messages');
-    let copyBtn = View.getEl('ai-sheet-copy');
-    let inputEl = View.getEl('ai-chat-input');
-    if (!chatArea) return;
-    window.toggleModal('ai-sheet-overlay', true);
-    if (copyBtn) copyBtn.style.display = 'none';
-    if (inputEl) inputEl.value = '';
-    
-    const isEnglish = lang === 'en';
-
-    let systemPrompt = isEnglish
-        ? `ä½ æ˜¯ç²¾é€šè‹±è¯­æ•™å­¦çš„ç§äººå¤–æ•™ã€‚ç”¨æˆ·æ­£åœ¨å­¦ä¹ ä»¥ä¸‹è‹±æ–‡ä¾‹å¥ã€‚
-
-ç›®æ ‡è¯æ±‡ï¼š${word}
-ä¾‹å¥ï¼š${sentence}
-
-è¯·ä¸¥æ ¼éµå®ˆä»¥ä¸‹è¯­è¨€è§„åˆ™ï¼š
-1. ä½ ç°åœ¨åªå¤„ç†è‹±è¯­å­¦ä¹ å†…å®¹ã€‚
-2. é™¤ä¸­æ–‡è®²è§£å’Œä¸­æ–‡ç¿»è¯‘å¤–ï¼Œç¦æ­¢è¾“å‡ºæ—¥è¯­ã€‚
-3. ç¦æ­¢ç”Ÿæˆæ—¥è¯­ä¾‹å¥ã€æ—¥è¯­å‡åã€æ—¥è¯­æ³¨éŸ³æˆ–æ—¥è¯­ç¿»è¯‘ã€‚
-4. ä¸¾ä¸€åä¸‰éƒ¨åˆ†åªèƒ½ç”Ÿæˆè‹±è¯­ä¾‹å¥å’Œä¸­æ–‡ç¿»è¯‘ã€‚
-
-è¯·ä¸¥æ ¼æŒ‰ä»¥ä¸‹ç»“æ„è¾“å‡ºï¼Œä¸è¦æ·»åŠ å¤šä½™çš„å®¢å¥—è¯ï¼š
-
-### ğŸ”ª éª¨æ¶æ‹†è§£
-ï¼ˆç”¨ä¸­æ–‡ç®€æ˜æ‹†è§£è‹±æ–‡å¥å­çš„ä¸»è°“å®¾ã€ä»å¥å’Œä¿®é¥°å…³ç³»ã€‚ï¼‰
-
-### ğŸ’¡ æ ¸å¿ƒäº®ç‚¹
-ï¼ˆç”¨ä¸­æ–‡è®²è§£è‹±æ–‡ä¸­çš„åœ°é“è¡¨è¾¾ã€å›ºå®šæ­é…æˆ–è¯­æ³•ç‰¹ç‚¹ã€‚ï¼‰
-
-### âœï¸ ä¸¾ä¸€åä¸‰
-ï¼ˆä½¿ç”¨ç›®æ ‡è¯æ±‡ "${word}" ç”Ÿæˆ2ä¸ªç®€çŸ­ã€è‡ªç„¶ã€å¸¸ç”¨çš„è‹±è¯­ç”Ÿæ´»ä¾‹å¥ã€‚æ¯æ¡ä¾‹å¥å¿…é¡»å•ç‹¬å ä¸€è¡Œï¼Œå¹¶ä¸¥æ ¼å†™æˆâ€œè‹±è¯­ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘â€ã€‚ä¸è¦ç¼–å·ï¼Œç¦æ­¢å‡ºç°æ—¥è¯­ã€‚ï¼‰
-
-å®Œæˆè§£æåï¼Œç”¨ä¸­æ–‡å‘Šè¯‰ç”¨æˆ·å¯ä»¥ç»§ç»­æé—®ã€‚`
-        : `ä½ æ˜¯ç²¾é€šæ—¥è¯­æ•™å­¦çš„ç§äººå¤–æ•™ã€‚ç”¨æˆ·æ­£åœ¨å­¦ä¹ ä»¥ä¸‹æ—¥è¯­ä¾‹å¥ã€‚
-
-ç›®æ ‡è¯æ±‡ï¼š${word}
-ä¾‹å¥ï¼š${sentence}
-
-è¯·ä¸¥æ ¼éµå®ˆä»¥ä¸‹è¯­è¨€è§„åˆ™ï¼š
-1. ä½ ç°åœ¨åªå¤„ç†æ—¥è¯­å­¦ä¹ å†…å®¹ã€‚
-2. è®²è§£ä¸ç¿»è¯‘ä½¿ç”¨ä¸­æ–‡ã€‚
-3. ä¸¾ä¸€åä¸‰éƒ¨åˆ†åªèƒ½ç”Ÿæˆæ—¥è¯­ä¾‹å¥å’Œä¸­æ–‡ç¿»è¯‘ã€‚
-4. æ—¥è¯­ä¸­åŒ…å«æ±‰å­—çš„è¯è¯­å¿…é¡»æŒ‰ç³»ç»Ÿè¦æ±‚æ ‡æ³¨å‡åã€‚
-
-è¯·ä¸¥æ ¼æŒ‰ä»¥ä¸‹ç»“æ„è¾“å‡ºï¼Œä¸è¦æ·»åŠ å¤šä½™çš„å®¢å¥—è¯ï¼š
-
-### ğŸ”ª éª¨æ¶æ‹†è§£
-ï¼ˆç”¨ä¸­æ–‡ç®€æ˜æ‹†è§£æ—¥è¯­å¥å­çš„è¯­æ³•ç»“æ„å’ŒåŠ©è¯ä½œç”¨ã€‚ï¼‰
-
-### ğŸ’¡ æ ¸å¿ƒäº®ç‚¹
-ï¼ˆç”¨ä¸­æ–‡è®²è§£åœ°é“è¡¨è¾¾ã€è¯æ±‡æ­é…æˆ–è¯­æ³•ç‰¹ç‚¹ã€‚ï¼‰
-
-### âœï¸ ä¸¾ä¸€åä¸‰
-ï¼ˆä½¿ç”¨ç›®æ ‡è¯æ±‡ "${word}" ç”Ÿæˆ2ä¸ªç®€çŸ­ã€è‡ªç„¶ã€å¸¸ç”¨çš„æ—¥è¯­ç”Ÿæ´»ä¾‹å¥ã€‚æ¯æ¡ä¾‹å¥å¿…é¡»å•ç‹¬å ä¸€è¡Œï¼Œå¹¶ä¸¥æ ¼å†™æˆâ€œæ—¥è¯­ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘â€ã€‚ä¸è¦ç¼–å·ã€‚ï¼‰
-
-å®Œæˆè§£æåï¼Œç”¨ä¸­æ–‡å‘Šè¯‰ç”¨æˆ·å¯ä»¥ç»§ç»­æé—®ã€‚`;
-    
-    this.currentChat = {
-    systemPrompt: systemPrompt,
-    messages: [],
-    cacheKey: cacheKey,
-    sentence: sentence,
-    word: word,
-    lang: lang,
-    wordIndex: Number.isInteger(wordIndex) ? wordIndex : -1
-};
-    
-    if (this.aiCache[cacheKey]) {
-        chatArea.innerHTML = this.aiCache[cacheKey];
-        if (copyBtn) copyBtn.style.display = 'flex';
-        this._scrollChatToBottom();
-        return;
-    }
-
-    
-    chatArea.innerHTML =
-        '<div class="ai-chat-bubble ai-chat-bubble-ai is-thinking">' +
-            '<div class="ai-chat-bubble-text">' +
-                '<div class="ai-thinking-indicator" role="status" aria-label="AI æ­£åœ¨æ€è€ƒ">' +
-                    '<span></span><span></span><span></span>' +
-                '</div>' +
-            '</div>' +
-        '</div>';
-    this._scrollChatToBottom();
-    this._startChatStream(apiKey, chatArea, copyBtn, inputEl);
-},
-
-_registerAIActionPayload(payload) {
-    const payloadId =
-        `ai_action_${Date.now()}_${this.aiActionSerial++}`;
-
-    this.aiActionPayloads[payloadId] = payload;
-
-    return payloadId;
-},
-
-_extractAIExamples(text) {
-    const source = String(text || '');
-
-    const sectionMatch = source.match(
-        /(?:###\s*)?âœï¸\s*ä¸¾ä¸€åä¸‰([\s\S]*)/i
-    );
-
-    if (!sectionMatch) {
-        return [];
-    }
-
-    return sectionMatch[1]
-        .split(/\r?\n/)
-        .map(line => {
-            return line
-                .replace(/^\s*(?:[-*â€¢]|\d+[.ã€)])\s*/, '')
-                .replace(/\*\*/g, '')
-                .trim();
-        })
-        .filter(line => {
-            return (
-                line.includes('/') &&
-                !line.startsWith('###') &&
-                !line.includes('å¯ä»¥ç»§ç»­')
-            );
-        })
-        .slice(0, 2)
-        .map(line => {
-            return line.replace(
-                /([\u3400-\u4DBF\u4E00-\u9FFFã€…ã€†ãƒ¶]+)ã€Š[^ã€‹]+ã€‹/g,
-                '$1'
-            );
-        });
-},
-
-_appendAIResponseActions(aiBubble, payload) {
-    if (!aiBubble || !payload?.responseText) {
-        return;
-    }
-
-    const oldActions =
-        aiBubble.querySelector('.ai-response-actions');
-
-    if (oldActions) {
-        oldActions.remove();
-    }
-
-    const actions = [];
-
-    actions.push({
-        action: 'quiz',
-        icon: 'quiz',
-        label: 'ç”Ÿæˆå°æµ‹'
-    });
-
-    if (
-        payload.scope === 'sheet' &&
-        this._extractAIExamples(
-            payload.responseText
-        ).length > 0
-    ) {
-        actions.unshift({
-            action: 'save-examples',
-            icon: 'bookmark_add',
-            label: 'ä¿å­˜ä¾‹å¥'
-        });
-    }
-
-    if (payload.responseText) {
-        actions.unshift({
-            action: 'extract-words',
-            icon: 'playlist_add',
-            label: 'æå–è¯æ±‡'
-        });
-    }
-
-    const payloadId =
-        this._registerAIActionPayload(payload);
-
-    const actionBar =
-        document.createElement('div');
-
-    actionBar.className = 'ai-response-actions';
-
-    actionBar.setAttribute(
-        'aria-label',
-        'AI å›ç­”æ“ä½œ'
-    );
-
-    actionBar.innerHTML = actions
-        .map(item => {
-            return (
-                `<button type="button" class="ai-response-action" ` +
-                `data-action="${item.action}" ` +
-                `data-payload-id="${payloadId}">` +
-                    `<span class="material-symbols-rounded">${item.icon}</span>` +
-                    `<span>${item.label}</span>` +
-                `</button>`
-            );
-        })
-        .join('');
-
-    aiBubble.appendChild(actionBar);
-},
-
-handleAIResponseAction(action, payloadId) {
-    const payload =
-        this.aiActionPayloads[payloadId];
-
-    if (!payload) {
-        showToast('è¿™æ¡æ“ä½œå·²ç»å¤±æ•ˆï¼Œè¯·é‡æ–°æ‰“å¼€å›ç­”');
-        return;
-    }
-
-    if (action === 'quiz') {
-        this._startAIQuiz(payload.scope);
-        return;
-    }
-
-    if (action === 'save-examples') {
-        this._saveAIExamples(payload);
-        return;
-    }
-
-    if (action === 'extract-words') {
-        this._beginAIWordExtraction(payload);
-    }
-},
-
-_startAIQuiz(scope) {
-    const quizPrompt =
-        'è¯·æ ¹æ®åˆšæ‰è®²è§£çš„å†…å®¹ç»™æˆ‘å‡º3é“å°æµ‹é¢˜ã€‚ä¸€æ¬¡åªå‡ºä¸€é“ï¼Œä¸è¦ç«‹åˆ»å…¬å¸ƒç­”æ¡ˆï¼Œç­‰æˆ‘å›ç­”åå†åˆ¤æ–­å¹¶ç»§ç»­ä¸‹ä¸€é¢˜ã€‚';
-
-    if (scope === 'sheet') {
-        const inputEl = View.getEl('ai-chat-input');
-
-        if (!inputEl) {
-            return;
-        }
-
-        inputEl.value = quizPrompt;
-        this.sendAIMessage();
-        return;
-    }
-
-    const inputEl = View.getEl('ai-tab-chat-input');
-
-    if (!inputEl) {
-        return;
-    }
-
-    inputEl.value = quizPrompt;
-    this.sendAITabMessage();
-},
-
-_saveAIExamples(payload) {
-    const examples =
-        this._extractAIExamples(
-            payload.responseText
-        );
-
-    if (examples.length === 0) {
-        showToast('æ²¡æœ‰è¯†åˆ«åˆ°å¯ä¿å­˜çš„ä¾‹å¥');
-        return;
-    }
-
-    let wordIndex = Number(payload.wordIndex);
-
-    if (
-        !Number.isInteger(wordIndex) ||
-        wordIndex < 0 ||
-        !Model.db[wordIndex]
-    ) {
-        wordIndex = Model.db.findIndex(word => {
-            return (
-                word.word === payload.word &&
-                (word.lang || 'ja') ===
-                    (payload.lang || 'ja')
-            );
-        });
-    }
-
-    if (wordIndex < 0) {
-        showToast('æ²¡æœ‰æ‰¾åˆ°å¯¹åº”è¯æ¡');
-        return;
-    }
-
-    const word = Model.db[wordIndex];
-
-    const existingExamples = String(
-        word.example || ''
-    )
-        .split('||')
-        .map(item => item.trim())
-        .filter(Boolean);
-
-    const newExamples = examples.filter(example => {
-        return !existingExamples.includes(example);
-    });
-
-    if (newExamples.length === 0) {
-        showToast('è¿™äº›ä¾‹å¥å·²ç»ä¿å­˜è¿‡äº†');
-        return;
-    }
-
-    word.example = normalizeExampleText(
-        [
-            ...existingExamples,
-            ...newExamples
-        ].join(' || '),
-        word.lang || 'ja'
-    );
-
-    Model.saveDB();
-    View.resetWordbankRenderer();
-
-    showToast(
-        `å·²ä¸ºã€Œ${word.word}ã€ä¿å­˜ ${newExamples.length} æ¡ä¾‹å¥`
-    );
-},
-
-_resetAIWordCollection() {
-    this.aiWordCollection = {
-        sourcePayload: null,
-        candidates: [],
-        drafts: []
-    };
-},
-
-_closeAIWordCollector() {
-    window.toggleModal(
-        'ai-word-collector-overlay',
-        false
-    );
-
-    this._resetAIWordCollection();
-},
-
-_showAIWordCollectorStage(stage, message = '') {
-    const selectStep =
-        View.getEl('ai-word-step-select');
-
-    const previewStep =
-        View.getEl('ai-word-step-preview');
-
-    const loadingStep =
-        View.getEl('ai-word-step-loading');
-
-    if (selectStep) {
-        selectStep.hidden = stage !== 'select';
-    }
-
-    if (previewStep) {
-        previewStep.hidden = stage !== 'preview';
-    }
-
-    if (loadingStep) {
-        loadingStep.hidden = stage !== 'loading';
-    }
-
-    const loadingText =
-        View.getEl('ai-word-loading-text');
-
-    if (loadingText && message) {
-        loadingText.textContent = message;
-    }
-},
-
-_parseAIJSONObject(content) {
-    const source = String(content || '')
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-
-    try {
-        return JSON.parse(source);
-    } catch (error) {
-        const firstBrace = source.indexOf('{');
-        const lastBrace = source.lastIndexOf('}');
-
-        if (
-            firstBrace === -1 ||
-            lastBrace <= firstBrace
-        ) {
-            throw new Error(
-                'AI æ²¡æœ‰è¿”å›å¯è¯†åˆ«çš„æ•°æ®'
-            );
-        }
-
-        return JSON.parse(
-            source.slice(
-                firstBrace,
-                lastBrace + 1
-            )
-        );
-    }
-},
-
-async _requestAIJSON(prompt) {
-    const apiKey =
-        localStorage.getItem('deepseekApiKey');
-
-    if (!apiKey) {
-        throw new Error(
-            'è¯·å…ˆåœ¨è®¾ç½®ä¸­é…ç½® DeepSeek API Key'
-        );
-    }
-
-    const response = await fetch(
-        'https://api.deepseek.com/chat/completions',
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                stream: false,
-                temperature: 0.2
-            })
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error(
-            `AI è¯·æ±‚å¤±è´¥ï¼š${response.status}`
-        );
-    }
-
-    const data = await response.json();
-
-    const content =
-        data.choices?.[0]?.message?.content || '';
-
-    return this._parseAIJSONObject(content);
-},
-
-_normalizeAIWordText(word, lang) {
-    let value = String(word || '')
-        .normalize('NFC')
-        .replace(
-            /[\u200B-\u200D\u2060\uFEFF]/g,
-            ''
-        )
-        .replace(/ã€Š[^ã€‹]*ã€‹/g, '')
-        .replace(/^[\sâ€œâ€"'â€˜â€™ã€Œã€ã€ã€ã€ã€‘()ï¼ˆï¼‰]+/, '')
-        .replace(/[\sâ€œâ€"'â€˜â€™ã€Œã€ã€ã€ã€ã€‘()ï¼ˆï¼‰.,ï¼Œã€‚!?ï¼ï¼Ÿ:ï¼š;ï¼›]+$/, '')
-        .trim();
-
-    if (lang === 'en') {
-        value = value
-            .replace(/[^A-Za-zÃ€-Ã–Ã˜-Ã¶Ã¸-Ã¿'â€™ -]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .toLowerCase();
-    }
-
-    return value;
-},
-
-_inferAIWordLang(word, fallback = 'ja') {
-    const value = String(word || '');
-
-    if (/[ã-ã‚–ã‚¡-ãƒºä¸€-é¾¯ã€…ã€†ãƒ¶]/.test(value)) {
-        return 'ja';
-    }
-
-    if (/[A-Za-z]/.test(value)) {
-        return 'en';
-    }
-
-    return fallback === 'en'
-        ? 'en'
-        : 'ja';
-},
-
-async _beginAIWordExtraction(payload) {
-    const sourceText = String(
-        payload?.responseText || ''
-    ).trim();
-
-    if (!sourceText) {
-        showToast('è¿™æ¡å›ç­”é‡Œæ²¡æœ‰å¯æå–çš„å†…å®¹');
-        return;
-    }
-
-    if (!localStorage.getItem('deepseekApiKey')) {
-        showToast('è¯·å…ˆåœ¨è®¾ç½®ä¸­é…ç½® DeepSeek API Key');
-        return;
-    }
-
-    this._resetAIWordCollection();
-
-    this.aiWordCollection.sourcePayload = payload;
-
-    window.toggleModal(
-        'ai-word-collector-overlay',
-        true
-    );
-
-    this._showAIWordCollectorStage(
-        'loading',
-        'æ­£åœ¨è¯†åˆ«å›ç­”ä¸­çš„æ—¥è¯­å’Œè‹±è¯­è¯æ±‡â€¦'
-    );
-
-    const prompt = `è¯·ä»ä¸‹é¢è¿™æ®µè¯­è¨€å­¦ä¹ å›ç­”ä¸­æå–é€‚åˆåŠ å…¥è¯åº“çš„æ—¥è¯­æˆ–è‹±è¯­è¯æ±‡ã€‚
-
-è§„åˆ™ï¼š
-1. åªæå–æœ‰å­¦ä¹ ä»·å€¼çš„å®è¯ã€å›ºå®šæ­é…æˆ–å¸¸ç”¨çŸ­è¯­ï¼Œä¸è¦æå–ä¸­æ–‡ç¿»è¯‘ã€æ ‡ç‚¹ã€åŠ©è¯ã€å† è¯å’Œæ™®é€šä»£è¯ã€‚
-2. æ—¥è¯­åŠ¨è¯å°½é‡ä½¿ç”¨è¾ä¹¦å½¢ï¼Œå½¢å®¹è¯ä½¿ç”¨åŸºæœ¬å½¢ï¼›è‹±è¯­ä½¿ç”¨è¯å…¸åŸå½¢ã€‚
-3. æœ€å¤šè¿”å›12é¡¹ï¼Œå»é™¤é‡å¤é¡¹ã€‚
-4. lang åªèƒ½æ˜¯ "ja" æˆ– "en"ã€‚
-5. åªè¾“å‡ºä¸€ä¸ª JSON å¯¹è±¡ï¼Œä¸è¦ä½¿ç”¨ Markdownï¼Œä¸è¦æ·»åŠ è§£é‡Šã€‚
-
-æ ¼å¼ï¼š
-{"words":[{"word":"é”æˆã™ã‚‹","lang":"ja"},{"word":"achieve","lang":"en"}]}
-
-å›ç­”å†…å®¹ï¼š
-${sourceText.slice(0, 9000)}`;
-
-    try {
-        const result =
-            await this._requestAIJSON(prompt);
-
-        const rawWords = Array.isArray(result.words)
-            ? result.words
-            : [];
-
-        const fallbackLang =
-            payload?.lang === 'en'
-                ? 'en'
-                : 'ja';
-
-        const seen = new Set();
-        const candidates = [];
-
-        for (const item of rawWords) {
-            const rawWord =
-                typeof item === 'string'
-                    ? item
-                    : item?.word;
-
-            const lang =
-                item?.lang === 'en' ||
-                item?.lang === 'ja'
-                    ? item.lang
-                    : this._inferAIWordLang(
-                        rawWord,
-                        fallbackLang
-                    );
-
-            const word =
-                this._normalizeAIWordText(
-                    rawWord,
-                    lang
-                );
-
-            if (!word) {
-                continue;
-            }
-
-            const key =
-                `${lang}:${lang === 'en' ? word.toLowerCase() : word}`;
-
-            if (seen.has(key)) {
-                continue;
-            }
-
-            seen.add(key);
-
-            const existingWord =
-                Model.db.find(entry => {
-                    const entryLang =
-                        entry.lang || 'ja';
-
-                    const entryWord =
-                        this._normalizeAIWordText(
-                            entry.word,
-                            entryLang
-                        );
-
-                    return (
-                        entryLang === lang &&
-                        entryWord === word
-                    );
-                });
-
-            candidates.push({
-                word,
-                lang,
-                selected: !existingWord,
-                existingFolder:
-                    existingWord?.folder || ''
-            });
-
-            if (candidates.length >= 12) {
-                break;
-            }
-        }
-
-        if (candidates.length === 0) {
-            this._closeAIWordCollector();
-            showToast('æ²¡æœ‰è¯†åˆ«åˆ°é€‚åˆåŠ å…¥è¯åº“çš„è¯æ±‡');
-            return;
-        }
-
-        this.aiWordCollection.candidates =
-            candidates;
-
-        this._renderAIWordCandidates();
-
-        this._showAIWordCollectorStage(
-            'select'
-        );
-    } catch (error) {
-        console.error('[AI Word Extract]', error);
-        this._closeAIWordCollector();
-        showToast(
-            error?.message ||
-            'è¯æ±‡è¯†åˆ«å¤±è´¥ï¼Œè¯·ç¨åé‡è¯•'
-        );
-    }
-},
-
-_renderAIWordCandidates() {
-    const list =
-        View.getEl('ai-word-candidate-list');
-
-    if (!list) {
-        return;
-    }
-
-    list.innerHTML =
-        this.aiWordCollection.candidates
-            .map((candidate, index) => {
-                const languageName =
-                    candidate.lang === 'en'
-                        ? 'è‹±è¯­'
-                        : 'æ—¥è¯­';
-
-                const existing =
-                    candidate.existingFolder
-                        ? `<span class="ai-word-existing">å·²åœ¨ã€Œ${escapeHTML(candidate.existingFolder)}ã€</span>`
-                        : '';
-
-                return `
-                    <label class="ai-word-candidate">
-                        <input
-                            type="checkbox"
-                            data-ai-word-index="${index}"
-                            ${candidate.selected ? 'checked' : ''}
-                        >
-
-                        <span class="ai-word-checkmark">
-                            <span class="material-symbols-rounded">check</span>
-                        </span>
-
-                        <span class="ai-word-candidate-copy">
-                            <strong>${escapeHTML(candidate.word)}</strong>
-                            <small>${languageName}${existing}</small>
-                        </span>
-                    </label>
-                `;
-            })
-            .join('');
-
-    this._updateAIWordCandidateCount();
-},
-
-_updateAIWordCandidateCount() {
-    const list =
-        View.getEl('ai-word-candidate-list');
-
-    const countEl =
-        View.getEl('ai-word-selected-count');
-
-    const nextBtn =
-        View.getEl('ai-word-enrich');
-
-    if (!list || !countEl) {
-        return;
-    }
-
-    const checked =
-        list.querySelectorAll(
-            'input[type="checkbox"]:checked'
-        ).length;
-
-    countEl.textContent =
-        `å·²é€‰ ${checked} / ${this.aiWordCollection.candidates.length}`;
-
-    if (nextBtn) {
-        nextBtn.disabled = checked === 0;
-    }
-},
-
-_toggleAllAIWordCandidates() {
-    const list =
-        View.getEl('ai-word-candidate-list');
-
-    if (!list) {
-        return;
-    }
-
-    const checkboxes = Array.from(
-        list.querySelectorAll(
-            'input[type="checkbox"]'
-        )
-    );
-
-    const shouldCheck =
-        checkboxes.some(checkbox => {
-            return !checkbox.checked;
-        });
-
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = shouldCheck;
-    });
-
-    this._updateAIWordCandidateCount();
-},
-
-_getSelectedAIWordCandidates() {
-    const list =
-        View.getEl('ai-word-candidate-list');
-
-    if (!list) {
-        return [];
-    }
-
-    return Array.from(
-        list.querySelectorAll(
-            'input[type="checkbox"]:checked'
-        )
-    )
-        .map(checkbox => {
-            return this.aiWordCollection.candidates[
-                Number(checkbox.dataset.aiWordIndex)
-            ];
-        })
-        .filter(Boolean);
-},
-
-async _enrichSelectedAIWords() {
-    const selected =
-        this._getSelectedAIWordCandidates();
-
-    if (selected.length === 0) {
-        showToast('è¯·è‡³å°‘é€‰æ‹©ä¸€ä¸ªè¯æ±‡');
-        return;
-    }
-
-    this._showAIWordCollectorStage(
-        'loading',
-        `æ­£åœ¨ä¸º ${selected.length} ä¸ªè¯æ±‡è¡¥å…¨è¯»éŸ³ã€é‡Šä¹‰å’Œä¾‹å¥â€¦`
-    );
-
-    const requestedWords = selected
-        .map(item => {
-            return {
-                word: item.word,
-                lang: item.lang
-            };
-        });
-
-    const prompt = `è¯·æŠŠä¸‹é¢çš„æ—¥è¯­å’Œè‹±è¯­è¯æ±‡æ•´ç†æˆé€‚åˆä¸­æ–‡å­¦ä¹ è€…ä¿å­˜åˆ°è¯åº“çš„å®Œæ•´è¯æ¡ã€‚
-
-è§„åˆ™ï¼š
-1. ä¸¥æ ¼ä¿ç•™è¾“å…¥é¡ºåºï¼Œæ¯ä¸ªè¾“å…¥è¯å¯¹åº”ä¸€ä¸ªç»“æœã€‚
-2. æ—¥è¯­å­—æ®µï¼šwordã€langã€kanaã€typeã€meaningã€exampleã€rootsã€‚
-3. è‹±è¯­å­—æ®µï¼šwordã€langã€phoneticã€typeã€meaningã€exampleã€rootsã€‚
-4. lang åªèƒ½æ˜¯ "ja" æˆ– "en"ã€‚
-5. meaning ä½¿ç”¨ç®€æ´ä¸­æ–‡ï¼›type ä½¿ç”¨ä¸­æ–‡è¯æ€§ã€‚
-6. example å¿…é¡»æ˜¯ä¸€æ¡è‡ªç„¶ã€å¸¸ç”¨çš„ç›®æ ‡è¯­è¨€ä¾‹å¥ï¼Œæ ¼å¼ä¸¥æ ¼ä¸ºâ€œç›®æ ‡è¯­è¨€ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘â€ã€‚
-7. è‹±è¯­ roots æä¾›ç®€æ´å¯é çš„è¯æ ¹è¯ç¼€æ‹†è§£ï¼›æ— æ³•å¯é æ‹†è§£æ—¶å†™ç©ºå­—ç¬¦ä¸²ï¼Œä¸è¦ç¼–é€ ã€‚
-8. æ—¥è¯­ roots ä¸€å¾‹ä¸ºç©ºå­—ç¬¦ä¸²ã€‚
-9. æ— æ³•ç¡®è®¤çš„å­—æ®µå†™ç©ºå­—ç¬¦ä¸²ã€‚
-10. åªè¾“å‡ºä¸€ä¸ª JSON å¯¹è±¡ï¼Œä¸è¦ä½¿ç”¨ Markdownï¼Œä¸è¦æ·»åŠ è§£é‡Šã€‚
-
-æ ¼å¼ï¼š
-{"items":[{"word":"é”æˆã™ã‚‹","lang":"ja","kana":"ãŸã£ã›ã„ã™ã‚‹","type":"åŠ¨è¯","meaning":"è¾¾æˆï¼›å®Œæˆ","example":"ç›®æ¨™ã‚’é”æˆã™ã‚‹ãŸã‚ã«åŠªåŠ›ã™ã‚‹ã€‚ / ä¸ºäº†å®ç°ç›®æ ‡è€ŒåŠªåŠ›ã€‚","roots":""},{"word":"achieve","lang":"en","phonetic":"/É™ËˆtÊƒiËv/","type":"åŠ¨è¯","meaning":"è¾¾åˆ°ï¼›å®ç°","example":"She worked hard to achieve her goal. / å¥¹åŠªåŠ›å®ç°è‡ªå·±çš„ç›®æ ‡ã€‚","roots":"a(å»)-chieve(å¤´)"}]}
-
-å¾…æ•´ç†è¯æ±‡ï¼š
-${JSON.stringify(requestedWords)}`;
-
-    try {
-        const result =
-            await this._requestAIJSON(prompt);
-
-        const rawItems = Array.isArray(result.items)
-            ? result.items
-            : [];
-
-        const drafts = selected.map(candidate => {
-            const matching = rawItems.find(item => {
-                const itemLang =
-                    item?.lang === 'en'
-                        ? 'en'
-                        : 'ja';
-
-                return (
-                    itemLang === candidate.lang &&
-                    this._normalizeAIWordText(
-                        item?.word,
-                        itemLang
-                    ) === candidate.word
-                );
-            }) || {};
-
-            const rawDraft = {
-                word:
-                    String(matching.word || candidate.word),
-                lang: candidate.lang,
-                kana:
-                    candidate.lang === 'ja'
-                        ? String(matching.kana || '')
-                        : '',
-                phonetic:
-                    candidate.lang === 'en'
-                        ? String(matching.phonetic || '')
-                        : '',
-                type:
-                    String(matching.type || ''),
-                meaning:
-                    String(matching.meaning || ''),
-                example:
-                    String(matching.example || ''),
-                roots:
-                    candidate.lang === 'en'
-                        ? String(matching.roots || '')
-                        : ''
-            };
-
-            return this._toAIWordDraft(
-                normalizeWordEntry(rawDraft)
-            );
-        });
-
-        this.aiWordCollection.drafts = drafts;
-
-        this._renderAIWordPreview();
-
-        this._showAIWordCollectorStage(
-            'preview'
-        );
-    } catch (error) {
-        console.error('[AI Word Enrich]', error);
-        this._showAIWordCollectorStage('select');
-        showToast(
-            error?.message ||
-            'è¯æ¡è¡¥å…¨å¤±è´¥ï¼Œè¯·ç¨åé‡è¯•'
-        );
-    }
-},
-
-_ensureLanguageFolder(lang) {
-    const fallback =
-        lang === 'en'
-            ? 'å››çº§è¯æ±‡'
-            : 'é»˜è®¤è¯åº“';
-
-    let folders = Model.folders.filter(folder => {
-        const folderLang =
-            Model.folderLangs[folder] ||
-            (
-                Model.db.some(word => {
-                    return (
-                        word.folder === folder &&
-                        word.lang === 'en'
-                    );
-                })
-                    ? 'en'
-                    : 'ja'
-            );
-
-        return folderLang === lang;
-    });
-
-    if (folders.length === 0) {
-        if (!Model.folders.includes(fallback)) {
-            Model.folders.push(fallback);
-        }
-
-        Model.folderLangs[fallback] = lang;
-        Model.saveFolders();
-        Model.saveFolderLangs();
-
-        folders = [fallback];
-    }
-
-    return folders;
-},
-
-_updateAIWordFolderSelect(selectId, lang, visible) {
-    const select = View.getEl(selectId);
-    const group = select?.closest('.ai-word-folder-group');
-
-    if (!select || !group) {
-        return;
-    }
-
-    group.hidden = !visible;
-
-    if (!visible) {
-        return;
-    }
-
-    const folders =
-        this._ensureLanguageFolder(lang);
-
-    const lastFolder =
-        localStorage.getItem('lastSelectedFolder');
-
-    const preferred =
-        folders.includes(lastFolder)
-            ? lastFolder
-            : (
-                folders.includes(
-                    lang === 'en'
-                        ? 'å››çº§è¯æ±‡'
-                        : 'é»˜è®¤è¯åº“'
-                )
-                    ? (
-                        lang === 'en'
-                            ? 'å››çº§è¯æ±‡'
-                            : 'é»˜è®¤è¯åº“'
-                    )
-                    : folders[0]
-            );
-
-    select.innerHTML = folders
-        .map(folder => {
-            return (
-                `<option value="${escapeHTML(folder)}">` +
-                    `${escapeHTML(folder)}` +
-                '</option>'
-            );
-        })
-        .join('');
-
-    select.value = preferred;
-
-    select.dispatchEvent(
-        new Event('facade-update')
-    );
-},
-
-_toAIWordDraft(entry) {
-    const normalized = normalizeWordEntry(entry);
-
-    return {
-        word: normalized.word || '',
-        lang: normalized.lang === 'en' ? 'en' : 'ja',
-        kana:
-            normalized.lang === 'ja'
-                ? (normalized.kana || '')
-                : '',
-        phonetic:
-            normalized.lang === 'en'
-                ? (normalized.phonetic || '')
-                : '',
-        type: normalized.type || '',
-        meaning: normalized.meaning || '',
-        example: normalized.example || '',
-        roots:
-            normalized.lang === 'en'
-                ? (normalized.roots || '')
-                : '',
-        level: normalized.level || '',
-        difficulty: normalizeWordDifficulty(normalized.difficulty),
-        tags: normalizeWordTags(normalized.tags),
-        builtIn: normalized.builtIn === true
-    };
-},
-
-_renderAIWordQualityHTML(report) {
-    let summaryClass = 'is-ok';
-    let summaryText = 'æ ¼å¼æ­£å¸¸';
-
-    if (report.errorCount > 0) {
-        summaryClass = 'is-error';
-        summaryText = `${report.errorCount} é¡¹å¿…é¡»è¡¥å…¨`;
-    } else if (report.warningCount > 0) {
-        summaryClass = 'is-warning';
-        summaryText = `${report.warningCount} é¡¹å»ºè®®æ ¸å¯¹`;
-    }
-
-    const iconMap = {
-        ok: 'check_circle',
-        warn: 'error',
-        error: 'cancel',
-        info: 'info'
-    };
-
-    return `
-        <div class="ai-word-quality-heading">
-            <span>
-                <span class="material-symbols-rounded">fact_check</span>
-                è´¨é‡æ£€æŸ¥
-            </span>
-
-            <strong class="ai-word-quality-summary ${summaryClass}">
-                ${summaryText}
-            </strong>
-        </div>
-
-        <div class="ai-word-quality-list">
-            ${report.items.map(item => {
-                const levelClass =
-                    item.level === 'warn'
-                        ? 'warning'
-                        : item.level;
-
-                return `
-                    <div class="ai-word-quality-item is-${levelClass}">
-                        <span class="material-symbols-rounded">
-                            ${iconMap[item.level] || 'info'}
-                        </span>
-                        <span>${escapeHTML(item.text)}</span>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
-},
-
-_updateAIWordSaveState() {
-    const saveButton =
-        View.getEl('ai-word-save');
-
-    if (!saveButton) {
-        return;
-    }
-
-    const reports =
-        this.aiWordCollection.drafts.map(draft => {
-            return getWordEntryQuality(draft);
-        });
-
-    const totalErrors = reports.reduce(
-        (sum, report) => {
-            return sum + report.errorCount;
-        },
-        0
-    );
-
-    saveButton.disabled = totalErrors > 0;
-    saveButton.title = totalErrors > 0
-        ? 'è¯·å…ˆè¡¥å…¨è´¨é‡æ£€æŸ¥ä¸­çš„çº¢è‰²é¡¹ç›®'
-        : 'ç¡®è®¤åŠ å…¥è¯åº“';
-},
-
-_refreshAIWordQualityCard(index) {
-    const qualityBox = document.querySelector(
-        `[data-ai-quality-index="${index}"]`
-    );
-
-    const draft =
-        this.aiWordCollection.drafts[index];
-
-    if (!qualityBox || !draft) {
-        return;
-    }
-
-    qualityBox.innerHTML =
-        this._renderAIWordQualityHTML(
-            getWordEntryQuality(draft)
-        );
-
-    this._updateAIWordSaveState();
-},
-
-_updateAIWordDraftField(field, shouldNormalize) {
-    const index =
-        Number(field.dataset.aiDraftIndex);
-
-    const fieldName =
-        field.dataset.aiDraftField;
-
-    const draft =
-        this.aiWordCollection.drafts[index];
-
-    if (!draft || !fieldName) {
-        return;
-    }
-
-    draft[fieldName] =
-        fieldName === 'tags'
-            ? normalizeWordTags(field.value)
-            : fieldName === 'difficulty'
-                ? normalizeWordDifficulty(field.value)
-                : field.value;
-
-    if (shouldNormalize) {
-        const normalizedDraft =
-            this._toAIWordDraft(draft);
-
-        this.aiWordCollection.drafts[index] =
-            normalizedDraft;
-
-        const card = field.closest(
-            '.ai-word-preview-card'
-        );
-
-        if (card) {
-            card.querySelectorAll(
-                '[data-ai-draft-field]'
-            ).forEach(input => {
-                const name =
-                    input.dataset.aiDraftField;
-
-                if (name in normalizedDraft) {
-                    input.value =
-                        normalizedDraft[name] || '';
-                }
-            });
-        }
-    }
-
-    this._refreshAIWordQualityCard(index);
-},
-
-_renderAIWordPreview() {
-    const list =
-        View.getEl('ai-word-preview-list');
-
-    if (!list) {
-        return;
-    }
-
-    const drafts =
-        this.aiWordCollection.drafts.map(draft => {
-            return this._toAIWordDraft(draft);
-        });
-
-    this.aiWordCollection.drafts = drafts;
-
-    const hasJapanese =
-        drafts.some(draft => draft.lang === 'ja');
-
-    const hasEnglish =
-        drafts.some(draft => draft.lang === 'en');
-
-    this._updateAIWordFolderSelect(
-        'ai-word-folder-ja',
-        'ja',
-        hasJapanese
-    );
-
-    this._updateAIWordFolderSelect(
-        'ai-word-folder-en',
-        'en',
-        hasEnglish
-    );
-
-    list.innerHTML = drafts
-        .map((draft, index) => {
-            const isEnglish =
-                draft.lang === 'en';
-
-            const qualityReport =
-                getWordEntryQuality(draft);
-
-            const readingField = isEnglish
-                ? `
-                    <label class="ai-word-field-group">
-                        <span>éŸ³æ ‡</span>
-                        <input
-                            type="text"
-                            data-ai-draft-index="${index}"
-                            data-ai-draft-field="phonetic"
-                            value="${escapeHTML(draft.phonetic)}"
-                            placeholder="å¦‚ï¼š/É™ËˆtÊƒiËv/"
-                        >
-                    </label>
-                `
-                : `
-                    <label class="ai-word-field-group">
-                        <span>å‡å</span>
-                        <input
-                            type="text"
-                            data-ai-draft-index="${index}"
-                            data-ai-draft-field="kana"
-                            value="${escapeHTML(draft.kana)}"
-                            placeholder="å¦‚ï¼šãŸã£ã›ã„ã™ã‚‹"
-                        >
-                    </label>
-                `;
-
-            const rootsField = isEnglish
-                ? `
-                    <label class="ai-word-field-group ai-word-field-wide">
-                        <span>è¯æ ¹è¯ç¼€</span>
-                        <input
-                            type="text"
-                            data-ai-draft-index="${index}"
-                            data-ai-draft-field="roots"
-                            value="${escapeHTML(draft.roots)}"
-                            placeholder="æ— æ³•å¯é æ‹†è§£æ—¶å¯ä»¥ç•™ç©º"
-                        >
-                    </label>
-                `
-                : '';
-
-            return `
-                <article
-                    class="ai-word-preview-card"
-                    data-ai-preview-index="${index}"
-                >
-                    <div class="ai-word-preview-heading">
-                        <span class="ai-word-language-tag ${isEnglish ? 'is-en' : 'is-ja'}">
-                            ${isEnglish ? 'EN' : 'æ—¥'}
-                        </span>
-                        <strong>è¯æ¡ ${index + 1}</strong>
-                    </div>
-
-                    <div
-                        class="ai-word-quality"
-                        data-ai-quality-index="${index}"
-                    >
-                        ${this._renderAIWordQualityHTML(qualityReport)}
-                    </div>
-
-                    <div class="ai-word-preview-grid">
-                        <label class="ai-word-field-group">
-                            <span>å•è¯</span>
-                            <input
-                                type="text"
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="word"
-                                value="${escapeHTML(draft.word)}"
-                            >
-                        </label>
-
-                        ${readingField}
-
-                        <label class="ai-word-field-group">
-                            <span>è¯æ€§</span>
-                            <input
-                                type="text"
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="type"
-                                value="${escapeHTML(draft.type)}"
-                                placeholder="å¦‚ï¼šåŠ¨è¯"
-                            >
-                        </label>
-
-                        <label class="ai-word-field-group">
-                            <span>çº§åˆ«</span>
-                            <select
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="level"
-                            >
-                                <option value="" ${!draft.level ? 'selected' : ''}>æœªåˆ†çº§</option>
-                                ${(WORD_LEVEL_OPTIONS[draft.lang] || []).map(level => {
-                                    return `<option value="${level}" ${draft.level === level ? 'selected' : ''}>${level}</option>`;
-                                }).join('')}
-                            </select>
-                        </label>
-
-                        <label class="ai-word-field-group">
-                            <span>éš¾åº¦</span>
-                            <select
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="difficulty"
-                            >
-                                ${Object.entries(DIFFICULTY_LABELS).map(([value, label]) => {
-                                    return `<option value="${value}" ${String(draft.difficulty) === value ? 'selected' : ''}>${value === '0' ? label : value + ' Â· ' + label}</option>`;
-                                }).join('')}
-                            </select>
-                        </label>
-
-                        <label class="ai-word-field-group ai-word-field-wide">
-                            <span>æ ‡ç­¾</span>
-                            <input
-                                type="text"
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="tags"
-                                value="${escapeHTML(normalizeWordTags(draft.tags).join('ã€'))}"
-                                placeholder="å¦‚ï¼šé«˜é¢‘ã€å£è¯­ã€å¤šä¹‰"
-                            >
-                        </label>
-
-                        <label class="ai-word-field-group ai-word-field-wide">
-                            <span>ä¸­æ–‡é‡Šä¹‰</span>
-                            <textarea
-                                rows="2"
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="meaning"
-                                placeholder="å¡«å†™ç®€æ´ä¸­æ–‡é‡Šä¹‰"
-                            >${escapeHTML(draft.meaning)}</textarea>
-                        </label>
-
-                        <label class="ai-word-field-group ai-word-field-wide">
-                            <span>ä¾‹å¥ä¸ç¿»è¯‘</span>
-                            <textarea
-                                rows="3"
-                                data-ai-draft-index="${index}"
-                                data-ai-draft-field="example"
-                                placeholder="ç›®æ ‡è¯­è¨€ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘"
-                            >${escapeHTML(draft.example)}</textarea>
-                        </label>
-
-                        ${rootsField}
-                    </div>
-                </article>
-            `;
-        })
-        .join('');
-
-    this._updateAIWordSaveState();
-},
-
-_collectAIWordDraftsFromForm() {
-    const list =
-        View.getEl('ai-word-preview-list');
-
-    if (!list) {
-        return [];
-    }
-
-    const drafts =
-        this.aiWordCollection.drafts.map(draft => {
-            return { ...draft };
-        });
-
-    list.querySelectorAll(
-        '[data-ai-draft-index][data-ai-draft-field]'
-    ).forEach(field => {
-        const index =
-            Number(field.dataset.aiDraftIndex);
-
-        const name =
-            field.dataset.aiDraftField;
-
-        if (!drafts[index] || !name) {
-            return;
-        }
-
-        drafts[index][name] =
-            name === 'tags'
-                ? normalizeWordTags(field.value)
-                : name === 'difficulty'
-                    ? normalizeWordDifficulty(field.value)
-                    : field.value;
-    });
-
-    const normalizedDrafts = drafts.map(draft => {
-        return this._toAIWordDraft(
-            normalizeWordEntry(draft)
-        );
-    });
-
-    for (
-        let index = 0;
-        index < normalizedDrafts.length;
-        index++
-    ) {
-        const report = getWordEntryQuality(
-            normalizedDrafts[index]
-        );
-
-        if (report.errorCount === 0) {
-            continue;
-        }
-
-        const firstError = report.items.find(item => {
-            return item.level === 'error';
-        });
-
-        const fieldName = firstError?.field || 'word';
-
-        const invalidField = list.querySelector(
-            `[data-ai-draft-index="${index}"][data-ai-draft-field="${fieldName}"]`
-        );
-
-        if (invalidField) {
-            invalidField.focus();
-        }
-
-        throw new Error(
-            `è¯·å…ˆå¤„ç†ç¬¬ ${index + 1} ä¸ªè¯æ¡çš„çº¢è‰²é¡¹ç›®`
-        );
-    }
-
-    this.aiWordCollection.drafts =
-        normalizedDrafts;
-
-    return normalizedDrafts;
-},
-
-_findDuplicateAIWord(draft) {
-    const target =
-        this._normalizeAIWordText(
-            draft.word,
-            draft.lang
-        );
-
-    return Model.db.find(word => {
-        const wordLang =
-            word.lang || 'ja';
-
-        return (
-            wordLang === draft.lang &&
-            this._normalizeAIWordText(
-                word.word,
-                wordLang
-            ) === target
-        );
-    });
-},
-
-async _saveAIWordDrafts() {
-    let drafts;
-
-    try {
-        drafts =
-            this._collectAIWordDraftsFromForm();
-    } catch (error) {
-        showToast(error.message);
-        return;
-    }
-
-    const japaneseFolder =
-        View.getEl('ai-word-folder-ja')?.value ||
-        'é»˜è®¤è¯åº“';
-
-    const englishFolder =
-        View.getEl('ai-word-folder-en')?.value ||
-        'å››çº§è¯æ±‡';
-
-    const duplicateMode =
-        View.getEl('ai-word-duplicate-mode')?.value ||
-        'skip';
-
-    const addToStars = Boolean(
-        View.getEl('ai-word-add-star')?.checked
-    );
-
-    let added = 0;
-    let updated = 0;
-    let skipped = 0;
-
-    for (const draft of drafts) {
-        const folder =
-            draft.lang === 'en'
-                ? englishFolder
-                : japaneseFolder;
-
-        const duplicate =
-            this._findDuplicateAIWord(draft);
-
-        if (duplicate && duplicateMode === 'skip') {
-            skipped++;
-            continue;
-        }
-
-        const normalizedWord = normalizeWordEntry({
-            word: draft.word,
-            type: draft.type,
-            meaning: draft.meaning,
-            example: draft.example || '',
-            roots:
-                draft.lang === 'en'
-                    ? (draft.roots || '')
-                    : '',
-            phonetic:
-                draft.lang === 'en'
-                    ? (draft.phonetic || '')
-                    : '',
-            kana:
-                draft.lang === 'ja'
-                    ? (draft.kana || '')
-                    : '',
-            lang: draft.lang,
-            folder,
-            level: draft.level || '',
-            difficulty: normalizeWordDifficulty(draft.difficulty),
-            tags: normalizeWordTags(draft.tags),
-            builtIn: draft.builtIn === true,
-            isImported: true,
-            importedAt: new Date().toISOString(),
-            aiGenerated: true,
-            aiConfirmedAt: new Date().toISOString(),
-            srs: {
-                ease: 2.5,
-                interval: 0,
-                nextReview: Date.now()
-            }
-        });
-
-        let savedWord = normalizedWord;
-
-        if (duplicate && duplicateMode === 'overwrite') {
-            const originalFolder = duplicate.folder;
-            const originalId = Model.getWordId(duplicate);
-            const originalBuiltIn = duplicate.builtIn === true;
-
-            Object.assign(
-                duplicate,
-                normalizedWord,
-                {
-                    _id: originalId,
-                    builtIn: originalBuiltIn,
-                    folder: originalFolder || folder
-                }
-            );
-
-            savedWord = duplicate;
-            updated++;
-        } else {
-            ensureStableWordId(normalizedWord, {
-                builtInHint: normalizedWord.builtIn === true
-            });
-            Model.db.push(normalizedWord);
-            added++;
-        }
-
-        const savedWordId = Model.getWordId(savedWord);
-
-        if (
-            addToStars &&
-            !Model.stars.includes(savedWordId)
-        ) {
-            Model.stars.push(savedWordId);
-        }
-    }
-
-    await Promise.all([
-        Model.saveDB(),
-        Model.saveStars()
-    ]);
-
-    View.renderDashboard();
-    View.updateWordbankUI();
-    View.resetWordbankRenderer();
-
-    this._closeAIWordCollector();
-
-    const resultParts = [];
-
-    if (added > 0) {
-        resultParts.push(`æ–°å¢ ${added}`);
-    }
-
-    if (updated > 0) {
-        resultParts.push(`æ›´æ–° ${updated}`);
-    }
-
-    if (skipped > 0) {
-        resultParts.push(`è·³è¿‡ ${skipped}`);
-    }
-
-    showToast(
-        resultParts.length > 0
-            ? `è¯åº“å·²å¤„ç†ï¼š${resultParts.join('ï¼Œ')}`
-            : 'æ²¡æœ‰éœ€è¦ä¿å­˜çš„è¯æ±‡'
-    );
-},
-
-_saveCurrentChat() {
-    if (!this.currentChat || this.currentChat.messages.length === 0) return;
-    let lastExisting = Model.aiConversations.findIndex(c => c.cacheKey === this.currentChat.cacheKey);
-    let conv = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString('zh-CN') + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
-        sentence: this.currentChat.sentence || '',
-        word: this.currentChat.word || '',
-        lang: this.currentChat.lang || 'ja',
-        cacheKey: this.currentChat.cacheKey,
-        systemPrompt: this.currentChat.systemPrompt,
-        messages: [...this.currentChat.messages]
-    };
-    if (lastExisting !== -1) {
-        Model.aiConversations[lastExisting] = conv;
-    } else if (conv.messages.length > 0) {
-        Model.aiConversations.unshift(conv);
-        if (Model.aiConversations.length > 50) Model.aiConversations = Model.aiConversations.slice(0, 50);
-    }
-    this._persistConversations();
-},
-
-_persistConversations() {
-    if (!Model.idbAvailable) {
-        localStorage.setItem(
-            'aiConversations',
-            JSON.stringify(
-                Model.aiConversations
-            )
-        );
-
-        return Promise.resolve();
-    }
-
-    return idbKeyval.set(
-        'aiConversations',
-        Model.aiConversations
-    );
-},
-
-openAIPresetPicker() {
-    const lang =
-        Model.state.currentLangMode === 'en'
-            ? 'en'
-            : 'ja';
-
-    const langLabel =
-        View.getEl(
-            'ai-preset-language-label'
-        );
-
-    if (langLabel) {
-        langLabel.textContent =
-            lang === 'en'
-                ? 'å½“å‰å°†ä½¿ç”¨è‹±è¯­å¯¼å¸ˆ'
-                : 'å½“å‰å°†ä½¿ç”¨æ—¥è¯­å¯¼å¸ˆ';
-    }
-
-    window.toggleModal(
-        'ai-preset-overlay',
-        true
-    );
-},
-
-startAITabPreset(presetId) {
-    const preset =
-        AI_CHAT_PRESETS[presetId] ||
-        AI_CHAT_PRESETS.free;
-
-    const lang =
-        Model.state.currentLangMode === 'en'
-            ? 'en'
-            : 'ja';
-
-    this.aiTabChat.activeIdx = -1;
-    this.aiTabChat.messages = [];
-    this.aiTabChat.presetId = presetId;
-    this.aiTabChat.lang = lang;
-
-    this.aiTabChat.systemPrompt =
-        buildAIChatSystemPrompt(
-            presetId,
-            lang
-        );
-
-    this.aiTabChat.cacheKey =
-        `free_${presetId}_${Date.now()}`;
-
-    this.aiTabChat.word =
-        preset.title;
-
-    this.aiTabChat.sentence = '';
-
-    const listView =
-        View.getEl('ai-list-view');
-
-    const chatView =
-        View.getEl('ai-chat-view');
-
-    const messagesEl =
-        View.getEl(
-            'ai-tab-chat-messages'
-        );
-
-    const titleEl =
-        View.getEl(
-            'ai-chat-view-title'
-        );
-
-    const inputEl =
-        View.getEl(
-            'ai-tab-chat-input'
-        );
-
-    if (titleEl) {
-        titleEl.textContent =
-            this.getAITabChatTitle();
-    }
-
-    if (messagesEl) {
-        messagesEl.innerHTML = '';
-    }
-
-    if (inputEl) {
-        inputEl.value = '';
-
-        inputEl.placeholder =
-            lang === 'en'
-                ? 'è¾“å…¥è‹±è¯­å­¦ä¹ é—®é¢˜â€¦'
-                : 'è¾“å…¥æ—¥è¯­å­¦ä¹ é—®é¢˜â€¦';
-    }
-
-    if (listView) {
-        listView.classList.add(
-            'hidden'
-        );
-    }
-
-    if (chatView) {
-        chatView.classList.remove(
-            'hidden'
-        );
-    }
-
-    this.renderAITabWelcome();
-
-    window.toggleModal(
-        'ai-preset-overlay',
-        false
-    );
-},
-
-getAITabChatTitle() {
-    const preset =
-        AI_CHAT_PRESETS[
-            this.aiTabChat.presetId
-        ];
-
-    if (!preset) {
-        return (
-            this.aiTabChat.word ||
-            'å¯¹è¯'
-        );
-    }
-
-    const langName =
-        this.aiTabChat.lang === 'en'
-            ? 'è‹±è¯­'
-            : 'æ—¥è¯­';
-
-    return (
-        `${preset.title} Â· ${langName}`
-    );
-},
-
-renderAITabWelcome() {
-    const welcomeEl =
-        View.getEl(
-            'ai-chat-welcome'
-        );
-
-    const modeLabel =
-        View.getEl(
-            'ai-chat-mode-label'
-        );
-
-    const welcomeText =
-        View.getEl(
-            'ai-chat-welcome-text'
-        );
-
-    const quickActions =
-        View.getEl(
-            'ai-chat-quick-actions'
-        );
-
-    const inputEl =
-        View.getEl(
-            'ai-tab-chat-input'
-        );
-
-    if (
-        !welcomeEl ||
-        !quickActions
-    ) {
-        return;
-    }
-
-    const preset =
-        AI_CHAT_PRESETS[
-            this.aiTabChat.presetId
-        ];
-
-    if (
-        !preset ||
-        this.aiTabChat.messages.length > 0
-    ) {
-        welcomeEl.classList.add(
-            'hidden'
-        );
-
-        quickActions.innerHTML = '';
-        return;
-    }
-
-    const lang =
-        this.aiTabChat.lang === 'en'
-            ? 'en'
-            : 'ja';
-
-    const langName =
-        lang === 'en'
-            ? 'è‹±è¯­'
-            : 'æ—¥è¯­';
-
-    if (modeLabel) {
-        modeLabel.textContent =
-            `${preset.title} Â· ${langName}`;
-    }
-
-    if (welcomeText) {
-        welcomeText.textContent =
-            preset.welcome[lang];
-    }
-
-    quickActions.innerHTML = '';
-
-    preset.shortcuts[lang]
-        .forEach(text => {
-            const button =
-                document.createElement(
-                    'button'
-                );
-
-            button.type = 'button';
-
-            button.className =
-                'ai-chat-quick-chip';
-
-            button.textContent = text;
-
-            button.addEventListener(
-                'click',
-                () => {
-                    Hardware.vibrate(12);
-
-                    if (!inputEl) {
-                        return;
-                    }
-
-                    inputEl.value = text;
-                    inputEl.focus();
-
-                    inputEl.dispatchEvent(
-                        new Event(
-                            'input',
-                            {
-                                bubbles: true
-                            }
-                        )
-                    );
-                }
-            );
-
-            quickActions.appendChild(
-                button
-            );
-        });
-
-    welcomeEl.classList.remove(
-        'hidden'
-    );
-},
-
-openAIChatFromTab(idx) {
-    let conv = Model.aiConversations[idx];
-    if (!conv) return;
-    let listView = View.getEl('ai-list-view');
-    let chatView = View.getEl('ai-chat-view');
-    let messagesEl = View.getEl('ai-tab-chat-messages');
-    let titleEl = View.getEl('ai-chat-view-title');
-    let inputEl = View.getEl('ai-tab-chat-input');
-    if (!messagesEl || !chatView || !listView) return;
-    
-    this.aiTabChat.activeIdx = idx;
-
-    this.aiTabChat.messages =
-        conv.messages
-            ? [...conv.messages]
-            : [];
-
-    this.aiTabChat.cacheKey =
-        conv.cacheKey || '';
-
-    this.aiTabChat.sentence =
-        conv.sentence || '';
-
-    this.aiTabChat.lang =
-        conv.lang === 'en'
-            ? 'en'
-            : 'ja';
-
-    const hasPreset =
-        !!AI_CHAT_PRESETS[
-            conv.presetId
-        ];
-
-    const isLegacyFreeChat =
-        !conv.presetId &&
-        String(
-            conv.cacheKey || ''
-        ).startsWith('free_');
-
-    this.aiTabChat.presetId =
-        hasPreset
-            ? conv.presetId
-            : (
-                isLegacyFreeChat
-                    ? 'free'
-                    : ''
-            );
-
-    const preset =
-        AI_CHAT_PRESETS[
-            this.aiTabChat.presetId
-        ];
-
-    this.aiTabChat.word =
-        conv.word ||
-        (
-            preset
-                ? preset.title
-                : ''
-        );
-
-    this.aiTabChat.systemPrompt =
-        conv.systemPrompt ||
-        (
-            preset
-                ? buildAIChatSystemPrompt(
-                    this.aiTabChat.presetId,
-                    this.aiTabChat.lang
-                )
-                : ''
-        );
-
-    if (titleEl) {
-        titleEl.textContent =
-            this.getAITabChatTitle();
-    }
-
-    if (inputEl) {
-        inputEl.value = '';
-    }
-    
-    let html = '';
-    let msgs = this.aiTabChat.messages;
-if (msgs && msgs.length > 0) {
-    msgs.forEach(msg => {
-        if (msg.role === 'assistant') {
-            let renderText = renderAIMessageHTML(msg.content, conv.word || '');
-            html += '<div class="ai-chat-bubble ai-chat-bubble-ai"><div class="ai-chat-bubble-text ai-response-box">' + renderText + '</div></div>';
-        } else if (msg.role === 'user') {
-            html += '<div class="ai-chat-bubble ai-chat-bubble-user"><div class="ai-chat-bubble-text">' + escapeHTML(msg.content) + '</div></div>';
-        }
-    });
-}
-    messagesEl.innerHTML = html;
-    this.renderAITabWelcome();
-    
-    listView.classList.add('hidden');
-    chatView.classList.remove('hidden');
-    setTimeout(() => {
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-    }, 100);
-},
-
-closeAITabChat() {
-    if (this.aiTabChat.activeIdx !== -1) {
-        this._saveTabChat();
-    }
-    this.aiTabChat.activeIdx = -1;
-    this.aiTabChat.messages = [];
-    this.aiTabChat.systemPrompt = '';
-    this.aiTabChat.cacheKey = '';
-    this.aiTabChat.sentence = '';
-    this.aiTabChat.word = '';
-    this.aiTabChat.presetId = '';
-
-    this.aiTabChat.lang =
-        Model.state.currentLangMode === 'en'
-            ? 'en'
-            : 'ja';
-
-    this.renderAIHistory();
-},
-
-_saveTabChat() {
-    if (this.aiTabChat.activeIdx === -1 || this.aiTabChat.messages.length === 0) return;
-    let idx = this.aiTabChat.activeIdx;
-    if (idx >= Model.aiConversations.length) return;
-    let conv = Model.aiConversations[idx];
-    conv.messages =
-        [...this.aiTabChat.messages];
-
-    conv.systemPrompt =
-        this.aiTabChat.systemPrompt;
-
-    conv.presetId =
-        this.aiTabChat.presetId || '';
-
-    conv.word =
-        this.aiTabChat.word ||
-        conv.word ||
-        '';
-
-    conv.lang =
-        this.aiTabChat.lang ||
-        conv.lang ||
-        'ja';
-
-    conv.sentence =
-        this.aiTabChat.sentence || '';
-
-    conv.cacheKey =
-        this.aiTabChat.cacheKey ||
-        conv.cacheKey ||
-        '';
-
-    conv.date =
-        new Date()
-            .toLocaleDateString('zh-CN') +
-        ' ' +
-        new Date()
-            .toLocaleTimeString(
-                'zh-CN',
-                {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }
-            );
-    Model.aiConversations[idx] = conv;
-    this._persistConversations();
-},
-
-sendAITabMessage() {
-    let inputEl = View.getEl('ai-tab-chat-input');
-    let messagesEl = View.getEl('ai-tab-chat-messages');
-    let sendBtn = View.getEl('ai-tab-chat-send');
-    if (!inputEl || !messagesEl) return;
-    let text = inputEl.value.trim();
-    if (!text) return;
-        let apiKey = localStorage.getItem('deepseekApiKey');
-
-    if (!apiKey) {
-        const self = this;
-
-        Hardware.vibrate(20);
-
-        const promptTitle =
-            document.getElementById('prompt-title');
-
-        const promptHelper =
-            document.getElementById('prompt-helper');
-
-        const promptIcon =
-            document.getElementById('prompt-icon');
-
-        const visibilityBtn =
-            document.getElementById('prompt-visibility');
-
-        const promptInput =
-            document.getElementById('prompt-input');
-
-        promptTitle.textContent =
-            'é…ç½® DeepSeek API Key';
-
-        promptHelper.textContent =
-            'å¯†é’¥ä¼šä¿å­˜åœ¨å½“å‰è®¾å¤‡ï¼Œå¹¶ä»…ç”¨äºå‘é€ AI è¯·æ±‚ã€‚';
-
-        promptHelper.hidden = false;
-
-        promptIcon.textContent = 'vpn_key';
-
-        promptInput.type = 'password';
-        promptInput.autocomplete = 'new-password';
-        promptInput.placeholder =
-            'ç²˜è´´ API Keyï¼ˆsk-â€¦ï¼‰';
-
-        promptInput.value = '';
-
-        visibilityBtn.hidden = false;
-        visibilityBtn.title = 'æ˜¾ç¤ºå¯†é’¥';
-
-        visibilityBtn.setAttribute(
-            'aria-label',
-            'æ˜¾ç¤ºå¯†é’¥'
-        );
-
-        const visibilityIcon =
-            visibilityBtn.querySelector(
-                '.material-symbols-rounded'
-            );
-
-        if (visibilityIcon) {
-            visibilityIcon.textContent = 'visibility';
-        }
-
-        window.toggleModal(
-            'prompt-overlay',
-            true
-        );
-
-        setTimeout(() => {
-            promptInput.focus();
-        }, 100);
-
-        document.getElementById(
-            'prompt-confirm'
-        ).onclick = () => {
-            Hardware.vibrate(15);
-
-            const value =
-                promptInput.value.trim();
-
-            if (!value) {
-                return;
-            }
-
-            localStorage.setItem(
-                'deepseekApiKey',
-                value
-            );
-
-            const settingInput =
-                View.getEl('setting-ai-key');
-
-            if (settingInput) {
-                settingInput.value = value;
-            }
-
-            window.toggleModal(
-                'prompt-overlay',
-                false
-            );
-
-            showToast('API Key å·²ä¿å­˜');
-
-            /*
-             * è¾“å…¥æ¡†é‡Œçš„æ¶ˆæ¯ä»ç„¶ä¿ç•™ï¼Œ
-             * ä¿å­˜å¯†é’¥åè‡ªåŠ¨é‡æ–°æ‰§è¡Œå‘é€ã€‚
-             */
-            self.sendAITabMessage();
-        };
-
-        document.getElementById(
-            'prompt-cancel'
-        ).onclick = () => {
-            Hardware.vibrate(10);
-
-            window.toggleModal(
-                'prompt-overlay',
-                false
-            );
-        };
-
-        return;
-    }
-
-    inputEl.value = '';
-    if (sendBtn) sendBtn.disabled = true;
-    
-    this.aiTabChat.messages.push({
-        role: 'user',
-        content: text
-    });
-
-    this.renderAITabWelcome();
-    
-    let userBubble =
-        document.createElement('div');
-    userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
-    userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
-    messagesEl.appendChild(userBubble);
-    
-    let aiBubble = document.createElement('div');
-    aiBubble.className =
-        'ai-chat-bubble ai-chat-bubble-ai is-thinking';
-
-    aiBubble.innerHTML =
-        '<div class="ai-chat-bubble-text">' +
-            '<div class="ai-thinking-indicator" role="status" aria-label="AI æ­£åœ¨æ€è€ƒ">' +
-                '<span></span><span></span><span></span>' +
-            '</div>' +
-        '</div>';
-    messagesEl.appendChild(aiBubble);
-    this._scrollTabChatToBottom();
-    
-    this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
-},
-
-async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
-    let messagesToSend = [
-    {
-        role: 'system',
-        content: this.aiTabChat.lang === 'ja'
-    ? withJapaneseRubyInstruction(
-        this.aiTabChat.systemPrompt
-    )
-    : this.aiTabChat.systemPrompt
-    },
-            ...this.aiTabChat.messages
-];
-    try {
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
-        });
-        
-        if (!response.ok) {
-            if (response.status === 401) {
-                aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">key_off</span>API Key æ— æ•ˆæˆ–ä½™é¢ä¸è¶³</div>';
-                if (sendBtn) sendBtn.disabled = false;
-                return;
-            }
-            throw new Error('ç½‘ç»œè¯·æ±‚å¤±è´¥');
-        }
-        
-        aiBubble.classList.remove(
-            'is-thinking',
-            'is-complete'
-        );
-
-        aiBubble.classList.add(
-            'is-streaming'
-        );
-
-        let fullText = '';
-
-        let textDiv =
-            document.createElement('div');
-
-        textDiv.className =
-            'ai-chat-bubble-text ai-response-box';
-
-        aiBubble.innerHTML = '';
-        aiBubble.appendChild(textDiv);
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } =
-                await reader.read();
-
-            if (done) {
-                break;
-            }
-
-            let chunkStr =
-                decoder.decode(
-                    value,
-                    { stream: true }
-                );
-
-            let lines =
-                chunkStr.split('\n');
-
-            for (let line of lines) {
-                line = line.trim();
-
-                if (
-                    line.startsWith('data: ') &&
-                    line !== 'data: [DONE]'
-                ) {
-                    try {
-                        let data =
-                            JSON.parse(
-                                line.slice(6)
-                            );
-
-                        let chunk =
-                            data.choices[0]
-                                .delta.content;
-
-                        if (chunk) {
-                            fullText += chunk;
-
-                            textDiv.innerHTML =
-                                renderAIMessageHTML(
-                                    fullText,
-                                    this.aiTabChat.word || ''
-                                );
-
-                            this._scrollTabChatToBottom();
-                        }
-                    } catch (e) {}
-                }
-            }
-        }
-
-        /*
-         * ä¸» AI å¯¹è¯ç»“æŸåï¼Œ
-         * ä½¿ç”¨å®Œæ•´æ–‡æœ¬å†æ¸²æŸ“ä¸€æ¬¡ã€‚
-         */
-        textDiv.innerHTML =
-            renderAIMessageHTML(
-                fullText,
-                this.aiTabChat.word || ''
-            );
-
-        this._scrollTabChatToBottom();
-        
-        aiBubble.classList.remove(
-            'is-streaming'
-        );
-
-        aiBubble.classList.add(
-            'is-complete'
-        );
-
-        this.aiTabChat.messages.push({
-            role: 'assistant',
-            content: fullText
-        });
-
-        this._appendAIResponseActions(
-            aiBubble,
-            {
-                scope: 'tab',
-                presetId: this.aiTabChat.presetId,
-                lang: this.aiTabChat.lang,
-                messages: [...this.aiTabChat.messages],
-                responseText: fullText
-            }
-        );
-
-        this._saveTabChat();
-
-        if (sendBtn) {
-            sendBtn.disabled = false;
-        }
-    } catch (err) {
-        aiBubble.classList.remove(
-            'is-thinking',
-            'is-streaming'
-        );
-
-        aiBubble.innerHTML =
-            '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">è¿æ¥å¤±è´¥</div>';
-
-        if (sendBtn) {
-            sendBtn.disabled = false;
-        }
-    }
-},
-
-_scrollTabChatToBottom() {
-    let chatArea = View.getEl('ai-tab-chat-messages');
-    if (chatArea) {
-        setTimeout(() => { chatArea.scrollTop = chatArea.scrollHeight; }, 50);
-    }
-},
-
-_scrollChatToBottom() {
-    let chatArea = View.getEl('ai-chat-messages');
-    if (chatArea) {
-        setTimeout(() => { chatArea.scrollTop = chatArea.scrollHeight; }, 50);
-    }
-},
-
-sendAIMessage() {
-    let inputEl = View.getEl('ai-chat-input');
-    let chatArea = View.getEl('ai-chat-messages');
-    let sendBtn = View.getEl('ai-chat-send');
-    if (!inputEl || !chatArea) return;
-    let text = inputEl.value.trim();
-    if (!text) return;
-    let apiKey = localStorage.getItem('deepseekApiKey');
-    if (!apiKey) return;
-    
-    inputEl.value = '';
-    if (sendBtn) sendBtn.disabled = true;
-    
-    this.currentChat.messages.push({ role: 'user', content: text });
-    let userBubble = document.createElement('div');
-    userBubble.className = 'ai-chat-bubble ai-chat-bubble-user';
-    userBubble.innerHTML = '<div class="ai-chat-bubble-text">' + escapeHTML(text) + '</div>';
-    chatArea.appendChild(userBubble);
-    
-    let aiBubble = document.createElement('div');
-    aiBubble.className =
-        'ai-chat-bubble ai-chat-bubble-ai is-thinking';
-
-    aiBubble.innerHTML =
-        '<div class="ai-chat-bubble-text">' +
-            '<div class="ai-thinking-indicator" role="status" aria-label="AI æ­£åœ¨æ€è€ƒ">' +
-                '<span></span><span></span><span></span>' +
-            '</div>' +
-        '</div>';
-    chatArea.appendChild(aiBubble);
-    this._scrollChatToBottom();
-    
-    this._streamChatResponse(apiKey, aiBubble, sendBtn);
-},
-
-_startChatStream(apiKey, chatArea, copyBtn, inputEl) {
-    let aiBubble = chatArea.querySelector('.ai-chat-bubble-ai');
-    if (!aiBubble) {
-        aiBubble =
-            document.createElement('div');
-
-        aiBubble.className =
-            'ai-chat-bubble ai-chat-bubble-ai is-thinking';
-
-        aiBubble.innerHTML =
-            '<div class="ai-chat-bubble-text">' +
-                '<div class="ai-thinking-indicator" role="status" aria-label="AI æ­£åœ¨æ€è€ƒ">' +
-                    '<span></span><span></span><span></span>' +
-                '</div>' +
-            '</div>';
-
-        chatArea.appendChild(aiBubble);
-    }
-    this._streamChatResponse(apiKey, aiBubble, null, copyBtn, inputEl);
-},
-
-async _streamChatResponse(
-    apiKey,
-    aiBubble,
-    sendBtn,
-    copyBtn,
-    inputEl
-) {
-    const systemPrompt =
-        this.currentChat.lang === 'ja'
-            ? withJapaneseRubyInstruction(
-                this.currentChat.systemPrompt
-            )
-            : this.currentChat.systemPrompt;
-
-    let messagesToSend = [
-        {
-            role: 'system',
-            content: systemPrompt
-        },
-        ...this.currentChat.messages
-    ];
-    try {
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
-        });
-        
-        if (!response.ok) {
-            if (response.status === 401) {
-    aiBubble.innerHTML = '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);"><span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">key_off</span>API Key æ— æ•ˆæˆ–ä½™é¢ä¸è¶³<button id="ai-rekey-btn" class="btn-outline" style="margin-top:12px; width:auto; display:inline-flex; padding:10px 20px; border-color:var(--tertiary) !important; color:var(--tertiary) !important;"><span class="material-symbols-rounded">vpn_key</span> é‡æ–°è¾“å…¥ Key</button></div>';
-    this._scrollChatToBottom();
-    setTimeout(() => {
-        let btn = document.getElementById('ai-rekey-btn');
-        if (btn) btn.onclick = () => {
-            let self = this;
-            Hardware.vibrate(15);
-            const promptTitle = document.getElementById('prompt-title');
-const promptHelper = document.getElementById('prompt-helper');
-const promptIcon = document.getElementById('prompt-icon');
-const visibilityBtn = document.getElementById('prompt-visibility');
-let pInput = document.getElementById('prompt-input');
-
-promptTitle.textContent = 'é‡æ–°è¾“å…¥ API Key';
-
-promptHelper.textContent =
-    'æ–°å¯†é’¥ä¼šæ›¿æ¢å½“å‰è®¾å¤‡ä¸­ä¿å­˜çš„æ—§å¯†é’¥ã€‚';
-promptHelper.hidden = false;
-
-promptIcon.textContent = 'vpn_key';
-
-pInput.type = 'password';
-pInput.autocomplete = 'new-password';
-pInput.placeholder = 'ç²˜è´´æ–°çš„ API Keyï¼ˆsk-â€¦ï¼‰';
-pInput.value = '';
-
-visibilityBtn.hidden = false;
-visibilityBtn.title = 'æ˜¾ç¤ºå¯†é’¥';
-visibilityBtn.setAttribute('aria-label', 'æ˜¾ç¤ºå¯†é’¥');
-
-const visibilityIcon =
-    visibilityBtn.querySelector('.material-symbols-rounded');
-
-if (visibilityIcon) {
-    visibilityIcon.textContent = 'visibility';
-}
-            window.toggleModal('prompt-overlay', true);
-            setTimeout(() => pInput.focus(), 100);
-            document.getElementById('prompt-confirm').onclick = () => { 
-                Hardware.vibrate(15);
-                let val = pInput.value.trim(); 
-                if(val) { 
-                    localStorage.setItem('deepseekApiKey', val);
-                    let sInput = View.getEl('setting-ai-key');
-                    if (sInput) sInput.value = val;
-                    window.toggleModal('prompt-overlay', false);
-                    showToast('API Key å·²æ›´æ–°ï¼Œè¯·é‡æ–°ç‚¹å‡» AI è§£æ');
-                }
-            };
-            document.getElementById('prompt-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('prompt-overlay', false); };
-        };
-    }, 100);
-    if (sendBtn) sendBtn.disabled = false;
-    return;
-}
-            throw new Error('ç½‘ç»œè¯·æ±‚å¤±è´¥: é”™è¯¯ç  ' + response.status);
-        }
-        
-        aiBubble.classList.remove(
-            'is-thinking',
-            'is-complete'
-        );
-
-        aiBubble.classList.add(
-            'is-streaming'
-        );
-
-        let fullText = '';
-
-        let textDiv =
-            document.createElement('div');
-
-        textDiv.className =
-            'ai-chat-bubble-text ai-response-box';
-
-        aiBubble.innerHTML = '';
-        aiBubble.appendChild(textDiv);
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            let chunkStr = decoder.decode(value, {stream: true});
-            let lines = chunkStr.split('\n');
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        let data = JSON.parse(line.slice(6));
-                        let chunk = data.choices[0].delta.content;
-                        if (chunk) {
-                            fullText += chunk;
-                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.currentChat.word || '');
-this._scrollChatToBottom();
-                        }
-                    } catch (e) {}
-                }
-            }
-        }
-
-        /*
-         * ä¾‹å¥ç»§ç»­è¿½é—®ç»“æŸåï¼Œ
-         * ä½¿ç”¨å®Œæ•´æ–‡æœ¬å†æ¸²æŸ“ä¸€æ¬¡ã€‚
-         */
-        textDiv.innerHTML =
-            renderAIMessageHTML(
-                fullText,
-                this.currentChat.word || ''
-            );
-
-        this._scrollChatToBottom();
-        
-        aiBubble.classList.remove(
-            'is-streaming'
-        );
-
-        aiBubble.classList.add(
-            'is-complete'
-        );
-
-        this.currentChat.messages.push({
-            role: 'assistant',
-            content: fullText
-        });
-
-        this._appendAIResponseActions(
-            aiBubble,
-            {
-                scope: 'sheet',
-                word: this.currentChat.word || '',
-                wordIndex: this.currentChat.wordIndex,
-                lang: this.currentChat.lang || 'ja',
-                messages: [...this.currentChat.messages],
-                responseText: fullText
-            }
-        );
-        
-                if (this.currentChat.cacheKey && this.currentChat.messages.length === 1) {
-            let chatArea = View.getEl('ai-chat-messages');
-            if (chatArea) {
-                Controller.aiCache[this.currentChat.cacheKey] = chatArea.innerHTML;
-            }
-        }
-        if (copyBtn) copyBtn.style.display = 'flex';
-        if (sendBtn) sendBtn.disabled = false;
-
-    } catch (err) {
-        aiBubble.classList.remove(
-            'is-thinking',
-            'is-streaming'
-        );
-
-        aiBubble.innerHTML =
-            '<div class="ai-chat-bubble-text" style="text-align:center; color:var(--accent-red);">' +
-                '<span class="material-symbols-rounded" style="font-size:2rem; opacity:0.5; display:block; margin-bottom:8px;">wifi_off</span>' +
-                'è¿æ¥å¤±è´¥ï¼š' +
-                escapeHTML(err.message) +
-            '</div>';
-
-        if (sendBtn) {
-            sendBtn.disabled = false;
-        }
-    }
-},
-
-};
-
-/* ==========================================
-   ç¬¬äºŒã€ä¸‰è½®å¢å¼ºï¼šæ™ºèƒ½é”™é¢˜ã€ç»“æ„åŒ– AI å°æµ‹ã€
-   å¯æ’¤é”€åˆ é™¤ã€ä¸ƒå¤©å›æ”¶ç«™ä¸åˆ†ç»„è®¾ç½®é¡µ
-   ========================================== */
-(() => {
-    const WRONG_BOOK_KEY = 'wrongBook_v1';
-    const AI_QUIZ_HISTORY_KEY = 'aiQuizHistory_v1';
-    const RECYCLE_BIN_KEY = 'recycleBin_v1';
-    const TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
-
-    const WRONG_DIMENSION_LABELS = Object.freeze({
-        spell: 'æ‹¼å†™',
-        listening: 'å¬åŠ›',
-        reading: 'è¯»éŸ³',
-        meaning: 'é‡Šä¹‰',
-        usage: 'ç”¨æ³•',
-        grammar: 'è¯­æ³•'
-    });
-
-    const deepClone = value => {
-        if (typeof structuredClone === 'function') {
-            try {
-                return structuredClone(value);
-            } catch (error) {}
-        }
-
-        return JSON.parse(JSON.stringify(value));
-    };
-
-    const makeId = prefix => {
-        if (
-            typeof crypto !== 'undefined' &&
-            typeof crypto.randomUUID === 'function'
-        ) {
-            return `${prefix}_${crypto.randomUUID()}`;
-        }
-
-        return (
-            `${prefix}_${Date.now().toString(36)}_` +
-            Math.random().toString(36).slice(2, 10)
-        );
-    };
-
-    const ensureWordId = word => {
-        return ensureStableWordId(word, {
-            builtInHint: word?.builtIn === true
-        });
-    };
-
-    const normalizeAnswer = value => {
-        return String(value ?? '')
-            .normalize('NFKC')
-            .trim()
-            .toLowerCase()
-            .replace(/[\s\u3000]+/g, ' ')
-            .replace(
-                /[ã€‚ï¼.!ï¼?ï¼Ÿ,ï¼Œ;ï¼›:'"â€œâ€â€˜â€™()ï¼ˆï¼‰\[\]ã€ã€‘]/g,
-                ''
-            );
-    };
-
-    const formatRelativeDate = value => {
-        const date = new Date(value);
-
-        if (Number.isNaN(date.getTime())) {
-            return 'æ—¶é—´æœªçŸ¥';
-        }
-
-        const elapsed = Date.now() - date.getTime();
-
-        if (elapsed < 60 * 1000) {
-            return 'åˆšåˆš';
-        }
-
-        if (elapsed < 60 * 60 * 1000) {
-            return `${Math.floor(elapsed / 60000)} åˆ†é’Ÿå‰`;
-        }
-
-        if (elapsed < 24 * 60 * 60 * 1000) {
-            return `${Math.floor(elapsed / 3600000)} å°æ—¶å‰`;
-        }
-
-        return `${Math.floor(elapsed / 86400000)} å¤©å‰`;
-    };
-
-    let actionToastTimer = null;
-    let actionToastCallback = null;
-
-    window.showActionToast = (
-        message,
-        actionLabel = '',
-        callback = null,
-        duration = 5500
-    ) => {
-        const toast = document.getElementById('action-toast');
-        const messageEl = document.getElementById(
-            'action-toast-message'
-        );
-        const actionBtn = document.getElementById(
-            'action-toast-action'
-        );
-
-        if (!toast || !messageEl || !actionBtn) {
-            showToast(message);
-            return;
-        }
-
-        if (actionToastTimer) {
-            window.clearTimeout(actionToastTimer);
-            actionToastTimer = null;
-        }
-
-        actionToastCallback =
-            typeof callback === 'function'
-                ? callback
-                : null;
-
-        messageEl.textContent = message;
-        actionBtn.textContent = actionLabel;
-        actionBtn.hidden = !actionLabel || !actionToastCallback;
-        toast.classList.add('show');
-
-        actionToastTimer = window.setTimeout(() => {
-            toast.classList.remove('show');
-            actionToastCallback = null;
-            actionToastTimer = null;
-        }, duration);
-    };
-
-    Model.wrongBook = Model.wrongBook || {};
-    Model.aiQuizHistory = Model.aiQuizHistory || [];
-    Model.recycleBin = Model.recycleBin || [];
-    Model.state.isWrongBookPractice = false;
-
-    Model.saveWrongBook = function() {
-        return this.writeStorageValue(
-            WRONG_BOOK_KEY,
-            this.wrongBook
-        );
-    };
-
-    Model.saveAIQuizHistory = function() {
-        return this.writeStorageValue(
-            AI_QUIZ_HISTORY_KEY,
-            this.aiQuizHistory
-        );
-    };
-
-    Model.saveRecycleBin = function() {
-        return this.writeStorageValue(
-            RECYCLE_BIN_KEY,
-            this.recycleBin
-        );
-    };
-
-    Model.cleanupRecycleBin = function() {
-        const now = Date.now();
-        const oldLength = this.recycleBin.length;
-
-        this.recycleBin = this.recycleBin.filter(item => {
-            const expiresAt = Number(item.expiresAt) || 0;
-            return !expiresAt || expiresAt > now;
-        });
-
-        if (this.recycleBin.length !== oldLength) {
-            this.saveRecycleBin();
-        }
-    };
-
-    Model.getWrongRecord = function(word, create = false) {
-        if (!word) {
-            return null;
-        }
-
-        const wordId = ensureWordId(word);
-
-        if (!this.wrongBook[wordId] && create) {
-            this.wrongBook[wordId] = {
-                wordId,
-                word: word.word || '',
-                lang: word.lang || 'ja',
-                folder: word.folder || '',
-                totalWrong: 0,
-                totalCorrect: 0,
-                dimensions: {
-                    spell: 0,
-                    listening: 0,
-                    reading: 0,
-                    meaning: 0,
-                    usage: 0,
-                    grammar: 0
-                },
-                sourceCounts: {
-                    study: 0,
-                    filter: 0,
-                    aiQuiz: 0
-                },
-                recentAnswers: [],
-                correctStreak: 0,
-                lastWrongAt: '',
-                lastCorrectAt: '',
-                status: 'new'
-            };
-        }
-
-        const record = this.wrongBook[wordId] || null;
-
-        if (!record) {
-            return null;
-        }
-
-        record.wordId = wordId;
-        record.word = word.word || record.word || '';
-        record.lang = word.lang || record.lang || 'ja';
-        record.folder = word.folder || record.folder || '';
-        record.totalWrong = Number(record.totalWrong) || 0;
-        record.totalCorrect = Number(record.totalCorrect) || 0;
-        record.correctStreak = Number(record.correctStreak) || 0;
-        record.status = record.status || 'new';
-        record.dimensions = {
-            spell: 0,
-            listening: 0,
-            reading: 0,
-            meaning: 0,
-            usage: 0,
-            grammar: 0,
-            ...(record.dimensions || {})
-        };
-        record.sourceCounts = {
-            study: 0,
-            filter: 0,
-            aiQuiz: 0,
-            ...(record.sourceCounts || {})
-        };
-        record.recentAnswers = Array.isArray(record.recentAnswers)
-            ? record.recentAnswers
-            : [];
-
-        return record;
-    };
-
-    Model.recordStudyResult = function({
-        word,
-        dimension = 'meaning',
-        correct = false,
-        userAnswer = '',
-        correctAnswer = '',
-        source = 'study',
-        question = ''
-    }) {
-        if (
-            !word ||
-            localStorage.getItem('wrongBookEnabled') === 'false'
-        ) {
-            return;
-        }
-
-        const safeDimension = Object.prototype.hasOwnProperty.call(
-            WRONG_DIMENSION_LABELS,
-            dimension
-        )
-            ? dimension
-            : 'meaning';
-
-        const existing = this.getWrongRecord(word, false);
-
-        if (correct && !existing) {
-            return;
-        }
-
-        const record = existing || this.getWrongRecord(word, true);
-        const now = new Date().toISOString();
-
-        if (correct) {
-            record.totalCorrect++;
-            record.correctStreak++;
-            record.lastCorrectAt = now;
-
-            if (record.correctStreak >= 3) {
-                record.status = 'resolved';
-            } else {
-                record.status = 'reinforcing';
-            }
-        } else {
-            record.totalWrong++;
-            record.correctStreak = 0;
-            record.lastWrongAt = now;
-            record.status =
-                record.totalWrong >= 3
-                    ? 'repeated'
-                    : 'new';
-            record.dimensions[safeDimension] =
-                (record.dimensions[safeDimension] || 0) + 1;
-            record.sourceCounts[source] =
-                (record.sourceCounts[source] || 0) + 1;
-        }
-
-        record.recentAnswers.unshift({
-            at: now,
-            correct: Boolean(correct),
-            dimension: safeDimension,
-            userAnswer: String(userAnswer || ''),
-            correctAnswer: String(correctAnswer || ''),
-            source,
-            question: String(question || '')
-        });
-
-        record.recentAnswers = record.recentAnswers.slice(0, 20);
-        this.saveWrongBook();
-    };
-
-    Model.addRecycleItem = function(kind, payload, label, batchId = '') {
-        const now = Date.now();
-        const item = {
-            id: makeId('trash'),
-            batchId,
-            kind,
-            label: String(label || 'å·²åˆ é™¤é¡¹ç›®'),
-            deletedAt: new Date(now).toISOString(),
-            expiresAt: now + TRASH_RETENTION_MS,
-            payload: deepClone(payload)
-        };
-
-        this.recycleBin.unshift(item);
-        this.recycleBin = this.recycleBin.slice(0, 300);
-        this.saveRecycleBin();
-        return item;
-    };
-
-    const originalModelInit = Model.init.bind(Model);
-    Model.init = async function() {
-        await originalModelInit();
-
-        this.wrongBook =
-            (await this.readStorageValue(WRONG_BOOK_KEY)) || {};
-        this.aiQuizHistory =
-            (await this.readStorageValue(AI_QUIZ_HISTORY_KEY)) || [];
-        this.recycleBin =
-            (await this.readStorageValue(RECYCLE_BIN_KEY)) || [];
-
-        if (!Array.isArray(this.aiQuizHistory)) {
-            this.aiQuizHistory = [];
-        }
-
-        if (!Array.isArray(this.recycleBin)) {
-            this.recycleBin = [];
-        }
-
-        if (
-            !this.wrongBook ||
-            typeof this.wrongBook !== 'object' ||
-            Array.isArray(this.wrongBook)
-        ) {
-            this.wrongBook = {};
-        }
-
-        let dbChanged = false;
-        this.db.forEach(word => {
-            if (!word._id) {
-                ensureWordId(word);
-                dbChanged = true;
-            }
-        });
-
-        const validWordIds = new Set(
-            this.db.map(word => ensureWordId(word))
-        );
-
-        Object.entries(this.wrongBook).forEach(([wordId, record]) => {
-            if (validWordIds.has(wordId)) {
-                return;
-            }
-
-            const matchedWord = this.db.find(word => {
-                if (!record || typeof record !== 'object') {
-                    return false;
-                }
-
-                return (
-                    String(word.word || '') === String(record.word || '') &&
-                    (word.lang || 'ja') === (record.lang || 'ja') &&
-                    (
-                        !record.folder ||
-                        word.folder === record.folder
-                    )
-                );
-            });
-
-            if (matchedWord) {
-                const nextId = this.getWordId(matchedWord);
-
-                if (!this.wrongBook[nextId]) {
-                    this.wrongBook[nextId] = {
-                        ...record,
-                        wordId: nextId
-                    };
-                }
-            }
-
-            delete this.wrongBook[wordId];
-        });
-
-        this.cleanupRecycleBin();
-
-        if (dbChanged) {
-            await this.saveDB();
-        }
-
-        await Promise.all([
-            this.saveWrongBook(),
-            this.saveAIQuizHistory(),
-            this.saveRecycleBin()
-        ]);
-    };
-
-    const originalSaveDB = Model.saveDB.bind(Model);
-    Model.saveDB = function() {
-        this.db.forEach(word => ensureWordId(word));
-        return originalSaveDB();
-    };
-
-    const originalSaveAllUserData =
-        Model.saveAllUserData.bind(Model);
-    Model.saveAllUserData = async function() {
-        await originalSaveAllUserData();
-        await Promise.all([
-            this.saveWrongBook(),
-            this.saveAIQuizHistory(),
-            this.saveRecycleBin()
-        ]);
-    };
-
-    const originalCheckFilter = Model.checkFilter.bind(Model);
-    Model.checkFilter = function(word, filterName) {
-        const record = this.getWrongRecord(word, false);
-        const hasActiveWrong = Boolean(
-            record &&
-            record.totalWrong > 0 &&
-            record.status !== 'resolved'
-        );
-
-        if (filterName === 'virtual_wrong_all') {
-            return hasActiveWrong;
-        }
-
-        if (filterName === 'virtual_wrong_spell') {
-            return hasActiveWrong && record.dimensions.spell > 0;
-        }
-
-        if (filterName === 'virtual_wrong_listening') {
-            return hasActiveWrong && record.dimensions.listening > 0;
-        }
-
-        if (filterName === 'virtual_wrong_reading') {
-            return hasActiveWrong && record.dimensions.reading > 0;
-        }
-
-        if (filterName === 'virtual_wrong_meaning') {
-            return hasActiveWrong && record.dimensions.meaning > 0;
-        }
-
-        if (filterName === 'virtual_wrong_ai') {
-            return hasActiveWrong && record.sourceCounts.aiQuiz > 0;
-        }
-
-        if (filterName === 'virtual_wrong_repeated') {
-            return record?.status === 'repeated';
-        }
-
-        if (filterName === 'virtual_wrong_resolved') {
-            return record?.status === 'resolved';
-        }
-
-        return originalCheckFilter(word, filterName);
-    };
-
-    const originalUpdateFilteredDb =
-        Model.updateFilteredDb.bind(Model);
-    Model.updateFilteredDb = function(searchQuery, currentFilter) {
-        originalUpdateFilteredDb(searchQuery, currentFilter);
-
-        if (!String(currentFilter).startsWith('virtual_wrong_')) {
-            return;
-        }
-
-        const hint = this.state.filteredDb.find(item => item.idx === -999);
-        const words = this.state.filteredDb.filter(item => item.idx !== -999);
-        const weight = {
-            repeated: 4,
-            new: 3,
-            reinforcing: 2,
-            resolved: 1
-        };
-
-        words.sort((a, b) => {
-            const aRecord = this.getWrongRecord(a.w, false) || {};
-            const bRecord = this.getWrongRecord(b.w, false) || {};
-            const statusDiff =
-                (weight[bRecord.status] || 0) -
-                (weight[aRecord.status] || 0);
-
-            if (statusDiff) {
-                return statusDiff;
-            }
-
-            return (
-                (bRecord.totalWrong || 0) -
-                (aRecord.totalWrong || 0)
-            );
-        });
-
-        this.state.filteredDb = hint ? [hint, ...words] : words;
-    };
-
-    const ensureWrongBookOptions = () => {
-        const select = View.getEl('wb-folder-filter');
-
-        if (!select) {
-            return;
-        }
-
-        const options = [
-            ['æ™ºèƒ½é”™é¢˜æœ¬', 'virtual_wrong_all'],
-            ['é”™é¢˜ Â· æ‹¼å†™', 'virtual_wrong_spell'],
-            ['é”™é¢˜ Â· å¬åŠ›', 'virtual_wrong_listening'],
-            ['é”™é¢˜ Â· è¯»éŸ³', 'virtual_wrong_reading'],
-            ['é”™é¢˜ Â· é‡Šä¹‰', 'virtual_wrong_meaning'],
-            ['é”™é¢˜ Â· AI å°æµ‹', 'virtual_wrong_ai'],
-            ['é”™é¢˜ Â· åå¤å‡ºé”™', 'virtual_wrong_repeated'],
-            ['é”™é¢˜ Â· å·²è§£å†³', 'virtual_wrong_resolved']
-        ];
-
-        const insertBefore = Array.from(select.options).find(option => {
-            return option.value === 'virtual_cleared';
-        });
-
-        options.forEach(([label, value]) => {
-            if (select.querySelector(`option[value="${value}"]`)) {
-                return;
-            }
-
-            const option = new Option(label, value);
-
-            if (insertBefore) {
-                select.insertBefore(option, insertBefore);
-            } else {
-                select.add(option);
-            }
-        });
-    };
-
-    const updateWrongToolbar = () => {
-        const select = View.getEl('wb-folder-filter');
-        const toolbar = View.getEl('wrongbook-toolbar');
-        const count = View.getEl('wrongbook-count');
-
-        if (!select || !toolbar || !count) {
-            return;
-        }
-
-        const isWrong = String(select.value).startsWith('virtual_wrong_');
-        toolbar.hidden = !isWrong;
-
-        if (!isWrong) {
-            return;
-        }
-
-        const amount = Model.db.filter(word => {
-            return (
-                (word.lang || 'ja') === Model.state.currentLangMode &&
-                Model.checkFilter(word, select.value)
-            );
-        }).length;
-
-        count.textContent = `${amount} è¯`;
-    };
-
-    const originalUpdateWordbankUI = View.updateWordbankUI.bind(View);
-    View.updateWordbankUI = function() {
-        const result = originalUpdateWordbankUI();
-        ensureWrongBookOptions();
-        updateWrongToolbar();
-        return result;
-    };
-
-    const renderWrongSummary = word => {
-        const container = View.getEl('dt-wrong-summary');
-
-        if (!container) {
-            return;
-        }
-
-        const record = Model.getWrongRecord(word, false);
-
-        if (!record || record.totalWrong <= 0) {
-            container.hidden = true;
-            container.innerHTML = '';
-            return;
-        }
-
-        const statusText = {
-            new: 'æ–°é”™é¢˜',
-            repeated: 'åå¤å‡ºé”™',
-            reinforcing: 'æ­£åœ¨å·©å›º',
-            resolved: 'å·²è§£å†³'
-        }[record.status] || 'å¾…å·©å›º';
-
-        const dimensionText = Object.entries(record.dimensions)
-            .filter(([, amount]) => amount > 0)
-            .map(([dimension, amount]) => {
-                return `${WRONG_DIMENSION_LABELS[dimension] || dimension} ${amount}`;
-            })
-            .join(' Â· ');
-
-        const latestWrong = record.recentAnswers.find(item => {
-            return !item.correct;
-        });
-
-        container.hidden = false;
-        container.innerHTML = `
-            <div class="dt-wrong-summary-head">
-                <span class="material-symbols-rounded">error_med</span>
-                <strong>${escapeHTML(statusText)}</strong>
-                <span>${record.totalWrong} æ¬¡é”™è¯¯</span>
-            </div>
-            <div class="dt-wrong-summary-body">
-                <div>${escapeHTML(dimensionText || 'æš‚æ— ç»´åº¦æ˜ç»†')}</div>
-                ${
-                    latestWrong?.userAnswer
-                        ? `<small>æœ€è¿‘é”™è¯¯ç­”æ¡ˆï¼š${escapeHTML(latestWrong.userAnswer)}</small>`
-                        : ''
-                }
-            </div>
-        `;
-    };
-
-    const originalUpdateDetailContent =
-        Controller.updateDetailContent.bind(Controller);
-    Controller.updateDetailContent = function(word, triggerTTS = false) {
-        const result = originalUpdateDetailContent(word, triggerTTS);
-
-        /* é‡æ–°å¸¦ä¸Šè¯æ¡å¯¹è±¡ï¼Œç¡®ä¿è‹±è¯­ AI è§£æä¸ä¼šå›é€€åˆ°æ—¥è¯­ã€‚ */
-        View.renderExampleBox(
-            word.example,
-            'dt-example-box',
-            'normal',
-            word
-        );
-
-        renderWrongSummary(word);
-        return result;
-    };
-
-    const resolveStudyDimension = (
-        word,
-        interaction,
-        displayMode = ''
-    ) => {
-        const isEnglish = word?.lang === 'en';
-
-        if (interaction === 'spell') {
-            if (
-                isEnglish &&
-                Model.state.mode === 'memory-test' &&
-                Model.state.mtRound === 2
-            ) {
-                return 'listening';
-            }
-
-            if (
-                isEnglish &&
-                Model.state.mode === 'rote-learning' &&
-                displayMode === 'kana'
-            ) {
-                return 'listening';
-            }
-
-            return isEnglish ? 'spell' : 'reading';
-        }
-
-        if (Model.state.mode === 'dual-track') {
-            return 'meaning';
-        }
-
-        if (displayMode === 'meaning') {
-            return interaction === 'choice'
-                ? isEnglish
-                    ? 'spell'
-                    : 'reading'
-                : 'meaning';
-        }
-
-        if (displayMode === 'kana') {
-            return Model.state.mtStep === 1
-                ? isEnglish
-                    ? 'listening'
-                    : 'reading'
-                : 'meaning';
-        }
-
-        return interaction === 'choice'
-            ? 'meaning'
-            : isEnglish
-                ? 'spell'
-                : 'reading';
-    };
-
-    const correctAnswerFor = (word, dimension) => {
-        if (!word) {
-            return '';
-        }
-
-        if (dimension === 'meaning') {
-            return word.meaning || '';
-        }
-
-        if (dimension === 'reading') {
-            return word.kana || '';
-        }
-
-        return word.word || '';
-    };
-
-    const originalFilterResult =
-        Controller.processFilterTestResult.bind(Controller);
-    Controller.processFilterTestResult = function(isCorrect) {
-        const word = Model.db[
-            Model.state.studyQueue[Model.state.currentIndex]
-        ];
-        let mode = View.getEl('test-display-select')?.value || 'kana';
-
-        if (word?.lang === 'en' && mode === 'kana') {
-            mode = 'word';
-        }
-
-        const dimension = {
-            word: word?.lang === 'en' ? 'spell' : 'reading',
-            kana: word?.lang === 'en' ? 'spell' : 'reading',
-            audio: 'listening',
-            meaning: 'meaning'
-        }[mode] || 'meaning';
-
-        const result = originalFilterResult(isCorrect);
-
-        Model.recordStudyResult({
-            word,
-            dimension,
-            correct: isCorrect,
-            userAnswer: isCorrect ? 'è‡ªè¯„æ­£ç¡®' : 'è‡ªè¯„é”™è¯¯',
-            correctAnswer: correctAnswerFor(word, dimension),
-            source: 'filter',
-            question: 'ç­›é€‰æ£€éªŒ'
-        });
-
-        return result;
-    };
-
-    const originalSpellConfirm =
-        Controller.handleSpellConfirm.bind(Controller);
-    Controller.handleSpellConfirm = function(inputEl, word, displayMode) {
-        if (!word || Model.state.isAnimating) {
-            return originalSpellConfirm(inputEl, word, displayMode);
-        }
-
-        const isEnglish = word.lang === 'en';
-        const target = isEnglish
-            ? String(word.word || '').toLowerCase().trim()
-            : String(word.kana || '').replace(/[ã€ã€‘\[\]()]/g, '');
-        const answer = isEnglish
-            ? String(EnglishInput.buffer || '').toLowerCase().trim()
-            : RomajiEngine.getFinalText();
-
-        const result = originalSpellConfirm(inputEl, word, displayMode);
-
-        if (answer) {
-            const dimension = resolveStudyDimension(
-                word,
-                'spell',
-                displayMode
-            );
-
-            Model.recordStudyResult({
-                word,
-                dimension,
-                correct: answer === target,
-                userAnswer: answer,
-                correctAnswer: target,
-                source: 'study',
-                question: 'é”®ç›˜æ‹¼å†™'
-            });
-        }
-
-        return result;
-    };
-
-    const originalDtChoice =
-        Controller.handleDtChoiceClick.bind(Controller);
-    Controller.handleDtChoiceClick = function(button, isCorrect) {
-        const word = Model.db[
-            Model.state.studyQueue[Model.state.currentIndex]
-        ];
-        const answer =
-            button?.querySelector('span:last-child')?.textContent ||
-            button?.textContent ||
-            '';
-        const result = originalDtChoice(button, isCorrect);
-
-        Model.recordStudyResult({
-            word,
-            dimension: 'meaning',
-            correct: isCorrect,
-            userAnswer: answer,
-            correctAnswer: word?.meaning || '',
-            source: 'study',
-            question: 'å¾€å¤æµ‹éªŒé‡Šä¹‰é€‰æ‹©'
-        });
-
-        return result;
-    };
-
-    const originalMtChoice =
-        Controller.handleMtChoiceClick.bind(Controller);
-    Controller.handleMtChoiceClick = function(
-        button,
-        isCorrect,
-        word,
-        displayMode
-    ) {
-        const dimension = resolveStudyDimension(
-            word,
-            'choice',
-            displayMode
-        );
-        const answer =
-            button?.querySelector('span:last-child')?.textContent ||
-            button?.textContent ||
-            '';
-        const result = originalMtChoice(
-            button,
-            isCorrect,
-            word,
-            displayMode
-        );
-
-        Model.recordStudyResult({
-            word,
-            dimension,
-            correct: isCorrect,
-            userAnswer: answer,
-            correctAnswer: correctAnswerFor(word, dimension),
-            source: 'study',
-            question: 'å¾ªç¯å¼ºè®°æˆ–ä¸‰è½®é€šå…³é€‰æ‹©é¢˜'
-        });
-
-        return result;
-    };
-
-    Controller.startWrongBookPractice = function() {
-        const filter =
-            View.getEl('wb-folder-filter')?.value ||
-            'virtual_wrong_all';
-        const words = Model.db
-            .map((word, index) => ({ word, index }))
-            .filter(item => {
-                return (
-                    (item.word.lang || 'ja') ===
-                        Model.state.currentLangMode &&
-                    Model.checkFilter(item.word, filter)
-                );
-            });
-
-        if (words.length === 0) {
-            showToast('å½“å‰é”™é¢˜åˆ†ç±»é‡Œæ²¡æœ‰å¯ç»ƒä¹ çš„è¯');
-            return;
-        }
-
-        words.sort((a, b) => {
-            const aRecord = Model.getWrongRecord(a.word, false) || {};
-            const bRecord = Model.getWrongRecord(b.word, false) || {};
-            return (
-                (bRecord.totalWrong || 0) -
-                (aRecord.totalWrong || 0)
-            );
-        });
-
-        const selected = words.slice(0, 20);
-        Model.state.mode = 'dual-track';
-        Model.state.isWrongBookPractice = true;
-        Model.state.currentIndex = 0;
-        Model.state.dtWordAppearanceMap = {};
-        Model.state.currentWordFailed = false;
-        Model.state.comboCount = 0;
-        Model.state.maxProgressSeen = 0;
-        Model.state.uniqueWordCount = selected.length;
-        Model.state.currentGroupKey = 'wrongbook-practice';
-        Model.state.currentGroupLabel = 'é”™é¢˜ä¸“é¡¹';
-        Model.state.studyQueue = [];
-
-        selected.forEach(item => {
-            Model.state.studyQueue.push(item.index, item.index);
-        });
-
-        Model.state.studyQueue.sort(() => Math.random() - 0.5);
-        Model.state.initialQueueLength = Model.state.studyQueue.length;
-        View.updateComboBadge();
-        View.showPage('study-area');
-
-        const matrix = View.getEl('pixel-matrix');
-        if (matrix) {
-            matrix.innerHTML = '';
-        }
-
-        View.renderStudyCard('none');
-        Hardware.vibrate(40);
-    };
-
-    const originalFinishPendulum =
-        Controller.finishPendulum.bind(Controller);
-    Controller.finishPendulum = function() {
-        if (!Model.state.isWrongBookPractice) {
-            return originalFinishPendulum();
-        }
-
-        Model.state.isWrongBookPractice = false;
-        showToast('é”™é¢˜ä¸“é¡¹å®Œæˆï¼Œè¿ç»­ç­”å¯¹ä¼šé€æ­¥ç§»å‡ºé”™é¢˜æœ¬');
-        View.getEl('btn-exit-study')?.click();
-    };
-
-    /* ---------- ç»“æ„åŒ– AI å°æµ‹ ---------- */
-    Controller.aiQuizState = {
-        sourcePayload: null,
-        title: '',
-        questions: [],
-        currentIndex: 0,
-        answers: [],
-        selectedOption: '',
-        startedAt: 0,
-        completedAt: 0
-    };
-
-    Controller._resetAIQuizState = function() {
-        this.aiQuizState = {
-            sourcePayload: null,
-            title: '',
-            questions: [],
-            currentIndex: 0,
-            answers: [],
-            selectedOption: '',
-            startedAt: 0,
-            completedAt: 0
-        };
-    };
-
-    Controller._showAIQuizStage = function(stage) {
-        const map = {
-            loading: 'ai-quiz-loading',
-            question: 'ai-quiz-question-stage',
-            result: 'ai-quiz-result-stage'
-        };
-
-        Object.entries(map).forEach(([name, id]) => {
-            const element = View.getEl(id);
-            if (element) {
-                element.hidden = name !== stage;
-            }
-        });
-    };
-
-    Controller._mapAIQuizTypeToDimension = function(question) {
-        if (question.type === 'spell') {
-            return question.lang === 'ja' ? 'reading' : 'spell';
-        }
-
-        if (question.type === 'meaning') {
-            return 'meaning';
-        }
-
-        if (question.type === 'usage') {
-            return 'usage';
-        }
-
-        return 'grammar';
-    };
-
-    Controller._findAIQuizWord = function(question) {
-        if (!question.word) {
-            return null;
-        }
-
-        const lang =
-            question.lang === 'en' || question.lang === 'ja'
-                ? question.lang
-                : /[A-Za-z]/.test(question.word)
-                    ? 'en'
-                    : 'ja';
-        const target = String(question.word).trim().toLowerCase();
-
-        return (
-            Model.db.find(word => {
-                return (
-                    (word.lang || 'ja') === lang &&
-                    String(word.word || '').trim().toLowerCase() === target
-                );
-            }) || null
-        );
-    };
-
-    Controller._startAIQuiz = async function(payload) {
-        const sourceText = String(payload?.responseText || '').trim();
-
-        if (!sourceText) {
-            showToast('è¿™æ¡å›ç­”æš‚æ—¶æ— æ³•ç”Ÿæˆå°æµ‹');
-            return;
-        }
-
-        this._resetAIQuizState();
-        this.aiQuizState.sourcePayload = payload;
-        this.aiQuizState.startedAt = Date.now();
-        window.toggleModal('ai-quiz-overlay', true);
-        this._showAIQuizStage('loading');
-
-        const languageRule =
-            payload?.lang === 'en'
-                ? 'é¢˜ç›®å¯ä»¥åŒ…å«è‹±è¯­ï¼Œè®²è§£ä½¿ç”¨ä¸­æ–‡ï¼Œç¦æ­¢å‡ºç°æ—¥è¯­ã€‚'
-                : payload?.lang === 'ja'
-                    ? 'é¢˜ç›®å¯ä»¥åŒ…å«æ—¥è¯­ï¼Œè®²è§£ä½¿ç”¨ä¸­æ–‡ã€‚'
-                    : 'æ ¹æ®åŸå›ç­”å†…å®¹é€‰æ‹©è‹±è¯­æˆ–æ—¥è¯­ï¼Œè®²è§£ä½¿ç”¨ä¸­æ–‡ã€‚';
-
-        const prompt = `
-è¯·æ ¹æ®ä¸‹é¢çš„è¯­è¨€å­¦ä¹ å†…å®¹ç”Ÿæˆ3é“ç»“æ„åŒ–å°æµ‹é¢˜ã€‚
-
-è¦æ±‚ï¼š
-1. ${languageRule}
-2. é¢˜å‹ä» spellã€meaningã€usageã€grammar ä¸­é€‰æ‹©ã€‚
-3. spell ä½¿ç”¨ textï¼›å…¶ä»–é¢˜å‹ä¼˜å…ˆä½¿ç”¨ choiceã€‚
-4. choice å¿…é¡»æä¾›4ä¸ªé€‰é¡¹ï¼Œanswer å¿…é¡»ä¸å…¶ä¸­ä¸€ä¸ªé€‰é¡¹å®Œå…¨ä¸€è‡´ã€‚
-5. word å¡«å†™é¢˜ç›®å¯¹åº”çš„è¯å…¸åŸå½¢ï¼›çº¯è¯­æ³•é¢˜å¯ä»¥ç•™ç©ºã€‚
-6. lang åªèƒ½æ˜¯ enã€ja æˆ–ç©ºå­—ç¬¦ä¸²ã€‚
-7. explanation ä½¿ç”¨ç®€çŸ­ä¸­æ–‡ã€‚
-8. åªè¾“å‡º JSONï¼Œä¸è¦ Markdownï¼Œä¸è¦é¢å¤–è¯´æ˜ã€‚
-
-æ ¼å¼ï¼š
-{"title":"æœ¬æ¬¡å°æµ‹","questions":[{"type":"meaning","word":"plan","lang":"en","prompt":"plan çš„æ­£ç¡®é‡Šä¹‰æ˜¯ï¼Ÿ","answerMode":"choice","options":["è®¡åˆ’ï¼›æ‰“ç®—","é£æœº","å¹³åŸ","ç§æ¤"],"answer":"è®¡åˆ’ï¼›æ‰“ç®—","explanation":"plan ä½œåè¯è¡¨ç¤ºè®¡åˆ’ï¼Œä½œåŠ¨è¯è¡¨ç¤ºæ‰“ç®—ã€‚"}]}
-
-å­¦ä¹ å†…å®¹ï¼š
-${sourceText.slice(0, 9000)}
-        `.trim();
-
-        try {
-            const result = await this._requestAIJSON(prompt);
-            const questions = (Array.isArray(result.questions)
-                ? result.questions
-                : [])
-                .slice(0, 3)
-                .map((item, index) => {
-                    const answerMode =
-                        item?.answerMode === 'text' ? 'text' : 'choice';
-                    let options = answerMode === 'choice'
-                        ? [...new Set(
-                              (Array.isArray(item?.options)
-                                  ? item.options
-                                  : [])
-                                  .map(option => String(option || '').trim())
-                                  .filter(Boolean)
-                          )].slice(0, 4)
-                        : [];
-                    const answer = String(item?.answer || '').trim();
-
-                    if (
-                        answerMode === 'choice' &&
-                        answer &&
-                        !options.includes(answer)
-                    ) {
-                        options.unshift(answer);
-                    }
-
-                    return {
-                        id: makeId(`quiz_${index}`),
-                        type: ['spell', 'meaning', 'usage', 'grammar'].includes(
-                            item?.type
-                        )
-                            ? item.type
-                            : 'meaning',
-                        word: String(item?.word || '').trim(),
-                        lang:
-                            item?.lang === 'en' || item?.lang === 'ja'
-                                ? item.lang
-                                : '',
-                        prompt: String(item?.prompt || '').trim(),
-                        answerMode,
-                        options: options.slice(0, 4),
-                        answer,
-                        explanation: String(item?.explanation || '').trim()
-                    };
-                })
-                .filter(question => question.prompt && question.answer);
-
-            if (questions.length === 0) {
-                throw new Error('AI æ²¡æœ‰ç”Ÿæˆæœ‰æ•ˆé¢˜ç›®');
-            }
-
-            this.aiQuizState.title = String(result.title || 'æœ¬æ¬¡å°æµ‹');
-            this.aiQuizState.questions = questions;
-            this.aiQuizState.currentIndex = 0;
-            this._renderAIQuizQuestion();
-            this._showAIQuizStage('question');
-        } catch (error) {
-            console.error('[AI Quiz]', error);
-            this._closeAIQuiz();
-            showToast(error?.message || 'å°æµ‹ç”Ÿæˆå¤±è´¥ï¼Œè¯·ç¨åé‡è¯•');
-        }
-    };
-
-    Controller._renderAIQuizQuestion = function() {
-        const state = this.aiQuizState;
-        const question = state.questions[state.currentIndex];
-
-        if (!question) {
-            this._completeAIQuiz();
-            return;
-        }
-
-        state.selectedOption = '';
-
-        const progress = View.getEl('ai-quiz-progress');
-        const title = View.getEl('ai-quiz-title');
-        const type = View.getEl('ai-quiz-type');
-        const prompt = View.getEl('ai-quiz-prompt');
-        const word = View.getEl('ai-quiz-word');
-        const options = View.getEl('ai-quiz-options');
-        const inputWrap = View.getEl('ai-quiz-input-wrap');
-        const input = View.getEl('ai-quiz-input');
-        const feedback = View.getEl('ai-quiz-feedback');
-        const submit = View.getEl('ai-quiz-submit');
-        const next = View.getEl('ai-quiz-next');
-
-        if (progress) {
-            progress.textContent = `${state.currentIndex + 1} / ${state.questions.length}`;
-        }
-        if (title) {
-            title.textContent = state.title;
-        }
-        if (type) {
-            const dimension = this._mapAIQuizTypeToDimension(question);
-            type.textContent = WRONG_DIMENSION_LABELS[dimension] || 'å°æµ‹';
-        }
-        if (prompt) {
-            prompt.textContent = question.prompt;
-        }
-        if (word) {
-            word.textContent = question.word;
-            word.hidden = !question.word;
-        }
-        if (feedback) {
-            feedback.hidden = true;
-            feedback.className = 'ai-quiz-feedback';
-            feedback.innerHTML = '';
-        }
-        if (submit) {
-            submit.hidden = false;
-            submit.disabled = false;
-        }
-        if (next) {
-            next.hidden = true;
-        }
-
-        if (question.answerMode === 'choice') {
-            if (inputWrap) {
-                inputWrap.hidden = true;
-            }
-            if (options) {
-                options.hidden = false;
-                options.innerHTML = question.options
-                    .map(option => {
-                        return `
-                            <button
-                                type="button"
-                                class="ai-quiz-option"
-                                data-quiz-option="${escapeHTML(option)}"
-                            >${escapeHTML(option)}</button>
-                        `;
-                    })
-                    .join('');
-
-                options
-                    .querySelectorAll('.ai-quiz-option')
-                    .forEach(button => {
-                        button.addEventListener('click', () => {
-                            options
-                                .querySelectorAll('.ai-quiz-option')
-                                .forEach(item => {
-                                    item.classList.toggle(
-                                        'selected',
-                                        item === button
-                                    );
-                                });
-                            state.selectedOption =
-                                button.dataset.quizOption || '';
-                        });
-                    });
-            }
-        } else {
-            if (options) {
-                options.hidden = true;
-                options.innerHTML = '';
-            }
-            if (inputWrap) {
-                inputWrap.hidden = false;
-            }
-            if (input) {
-                input.value = '';
-                input.disabled = false;
-                setTimeout(() => input.focus(), 80);
-            }
-        }
-    };
-
-    Controller._submitAIQuizAnswer = function() {
-        const state = this.aiQuizState;
-        const question = state.questions[state.currentIndex];
-
-        if (!question) {
-            return;
-        }
-
-        const input = View.getEl('ai-quiz-input');
-        const userAnswer =
-            question.answerMode === 'choice'
-                ? state.selectedOption
-                : String(input?.value || '').trim();
-
-        if (!userAnswer) {
-            showToast('è¯·å…ˆä½œç­”');
-            return;
-        }
-
-        const isCorrect =
-            normalizeAnswer(userAnswer) === normalizeAnswer(question.answer);
-        const matchedWord = this._findAIQuizWord(question);
-        const dimension = this._mapAIQuizTypeToDimension(question);
-
-        if (
-            matchedWord &&
-            localStorage.getItem('aiQuizRecord') !== 'false'
-        ) {
-            Model.recordStudyResult({
-                word: matchedWord,
-                dimension,
-                correct: isCorrect,
-                userAnswer,
-                correctAnswer: question.answer,
-                source: 'aiQuiz',
-                question: question.prompt
-            });
-        }
-
-        state.answers.push({
-            questionId: question.id,
-            type: question.type,
-            dimension,
-            word: question.word,
-            lang: question.lang,
-            prompt: question.prompt,
-            userAnswer,
-            correctAnswer: question.answer,
-            explanation: question.explanation,
-            isCorrect,
-            matchedWordId: matchedWord?._id || ''
-        });
-
-        const feedback = View.getEl('ai-quiz-feedback');
-        const submit = View.getEl('ai-quiz-submit');
-        const next = View.getEl('ai-quiz-next');
-        const options = View.getEl('ai-quiz-options');
-
-        if (feedback) {
-            feedback.hidden = false;
-            feedback.className =
-                `ai-quiz-feedback ${isCorrect ? 'is-correct' : 'is-wrong'}`;
-            feedback.innerHTML = `
-                <strong>${isCorrect ? 'å›ç­”æ­£ç¡®' : 'å›ç­”é”™è¯¯'}</strong>
-                ${
-                    isCorrect
-                        ? ''
-                        : `<div>æ­£ç¡®ç­”æ¡ˆï¼š${escapeHTML(question.answer)}</div>`
-                }
-                <p>${escapeHTML(question.explanation || '')}</p>
-            `;
-        }
-
-        if (options) {
-            options.querySelectorAll('.ai-quiz-option').forEach(button => {
-                button.disabled = true;
-                const option = button.dataset.quizOption || '';
-                button.classList.toggle(
-                    'is-answer',
-                    normalizeAnswer(option) === normalizeAnswer(question.answer)
-                );
-                button.classList.toggle(
-                    'is-wrong',
-                    !isCorrect &&
-                        normalizeAnswer(option) === normalizeAnswer(userAnswer)
-                );
-            });
-        }
-
-        if (input) {
-            input.disabled = true;
-        }
-        if (submit) {
-            submit.hidden = true;
-        }
-        if (next) {
-            next.hidden = false;
-            next.textContent =
-                state.currentIndex >= state.questions.length - 1
-                    ? 'æŸ¥çœ‹ç»“æœ'
-                    : 'ä¸‹ä¸€é¢˜';
-        }
-    };
-
-    Controller._advanceAIQuiz = function() {
-        const input = View.getEl('ai-quiz-input');
-        if (input) {
-            input.disabled = false;
-        }
-
-        this.aiQuizState.currentIndex++;
-
-        if (
-            this.aiQuizState.currentIndex >=
-            this.aiQuizState.questions.length
-        ) {
-            this._completeAIQuiz();
-            return;
-        }
-
-        this._renderAIQuizQuestion();
-    };
-
-    Controller._completeAIQuiz = function() {
-        const state = this.aiQuizState;
-        state.completedAt = Date.now();
-
-        const correctCount = state.answers.filter(answer => {
-            return answer.isCorrect;
-        }).length;
-        const wrongAnswers = state.answers.filter(answer => {
-            return !answer.isCorrect;
-        });
-        const missingWords = wrongAnswers.filter(answer => {
-            return answer.word && !answer.matchedWordId;
-        });
-
-        Model.aiQuizHistory.unshift({
-            id: makeId('ai_quiz'),
-            title: state.title,
-            createdAt: new Date().toISOString(),
-            durationMs: Math.max(0, state.completedAt - state.startedAt),
-            total: state.answers.length,
-            correct: correctCount,
-            answers: deepClone(state.answers)
-        });
-        Model.aiQuizHistory = Model.aiQuizHistory.slice(0, 100);
-        Model.saveAIQuizHistory();
-
-        const score = View.getEl('ai-quiz-result-score');
-        const weakList = View.getEl('ai-quiz-weak-list');
-        const importButton = View.getEl('ai-quiz-import-missing');
-
-        if (score) {
-            score.textContent = `${correctCount} / ${state.answers.length}`;
-        }
-
-        if (weakList) {
-            weakList.innerHTML = wrongAnswers.length
-                ? wrongAnswers
-                      .map(answer => {
-                          const label =
-                              WRONG_DIMENSION_LABELS[answer.dimension] ||
-                              answer.dimension;
-                          return `
-                            <div class="ai-quiz-weak-item">
-                                <div>
-                                    <strong>${escapeHTML(answer.word || 'è¯­æ³•é¢˜')}</strong>
-                                    <span>${escapeHTML(label)}</span>
-                                    ${
-                                        answer.word && !answer.matchedWordId
-                                            ? '<span class="ai-quiz-missing-tag">æœªå…¥è¯åº“</span>'
-                                            : ''
-                                    }
-                                </div>
-                                <small>${escapeHTML(answer.prompt)}</small>
-                            </div>
-                          `;
-                      })
-                      .join('')
-                : '<div class="ai-quiz-perfect">å…¨éƒ¨ç­”å¯¹ï¼Œè¡¨ç°å¾ˆç¨³ï¼</div>';
-        }
-
-        if (importButton) {
-            importButton.hidden = missingWords.length === 0;
-        }
-
-        this._showAIQuizStage('result');
-        updateSettingsStats();
-    };
-
-    Controller._openWrongBookFromQuiz = function() {
-        this._closeAIQuiz();
-        const navItem = document.querySelector(
-            '.nav-item[data-target="tab-wordbank"]'
-        );
-        Nav.switchTab(
-            'tab-wordbank',
-            'grid_view|å…¨æ™¯èªå½™',
-            navItem
-        );
-        const filter = View.getEl('wb-folder-filter');
-
-        if (filter) {
-            filter.value = 'virtual_wrong_all';
-            filter.dispatchEvent(new Event('facade-update'));
-            filter.dispatchEvent(new Event('change'));
-        }
-    };
-
-    Controller._importMissingAIQuizWords = function() {
-        const missing = this.aiQuizState.answers
-            .filter(answer => {
-                return !answer.isCorrect && answer.word && !answer.matchedWordId;
-            })
-            .map(answer => {
-                const lang =
-                    answer.lang === 'en' || answer.lang === 'ja'
-                        ? answer.lang
-                        : /[A-Za-z]/.test(answer.word)
-                            ? 'en'
-                            : 'ja';
-                return {
-                    word: String(answer.word).trim(),
-                    lang,
-                    selected: true,
-                    existingFolder: ''
-                };
-            })
-            .filter((item, index, list) => {
-                return (
-                    item.word &&
-                    list.findIndex(other => {
-                        return other.lang === item.lang && other.word === item.word;
-                    }) === index
-                );
-            });
-
-        if (!missing.length) {
-            showToast('æ²¡æœ‰éœ€è¦åŠ å…¥çš„è¯æ±‡');
-            return;
-        }
-
-        this._closeAIQuiz();
-        this._resetAIWordCollection();
-        this.aiWordCollection.candidates = missing;
-        this._renderAIWordCandidates();
-        window.toggleModal('ai-word-collector-overlay', true);
-        this._showAIWordCollectorStage('select');
-    };
-
-    Controller._closeAIQuiz = function() {
-        window.toggleModal('ai-quiz-overlay', false);
-    };
-
-    const originalHandleAIAction =
-        Controller.handleAIResponseAction.bind(Controller);
-    Controller.handleAIResponseAction = function(action, payloadId) {
-        const payload = this.aiActionPayloads[payloadId];
-
-        if (action === 'quiz') {
-            if (!payload) {
-                showToast('è¿™æ¡æ“ä½œå·²ç»å¤±æ•ˆï¼Œè¯·é‡æ–°æ‰“å¼€å›ç­”');
-                return;
-            }
-
-            this._startAIQuiz(payload);
-            return;
-        }
-
-        return originalHandleAIAction(action, payloadId);
-    };
-
-    /* ---------- å›æ”¶ç«™ ---------- */
-    const removeWordFromActiveData = (word, index) => {
-        const wordId = ensureWordId(word);
-        const snapshot = {
-            word: deepClone(word),
-            originalIndex: index,
-            starred: Model.stars.includes(wordId),
-            clearState: deepClone(Model.mtWordClears[wordId] || null),
-            wrongRecord: deepClone(Model.wrongBook[wordId] || null)
-        };
-
-        Model.db.splice(index, 1);
-        Model.stars = Model.stars.filter(item => item !== wordId);
-        delete Model.mtWordClears[wordId];
-        delete Model.wrongBook[wordId];
-        return snapshot;
-    };
-
-    const persistAfterWordDelete = async () => {
-        await Promise.all([
-            Model.saveDB(),
-            Model.saveStars(),
-            Model.saveClears(),
-            Model.saveWrongBook(),
-            Model.saveRecycleBin()
-        ]);
-        View.updateWordbankUI();
-        View.resetWordbankRenderer();
-        updateSettingsStats();
-        Controller.renderRecycleBin();
-    };
-
-    Controller.restoreTrashItem = async function(itemId, silent = false) {
-        const index = Model.recycleBin.findIndex(item => item.id === itemId);
-
-        if (index < 0) {
-            if (!silent) {
-                showToast('è¿™æ¡å†…å®¹å·²ç»ä¸åœ¨å›æ”¶ç«™ä¸­');
-            }
-            return false;
-        }
-
-        const item = Model.recycleBin[index];
-
-        if (item.kind === 'word') {
-            const snapshot = item.payload;
-            const word = deepClone(snapshot.word);
-
-            if (word.builtIn === true) {
-                const canonical = Model.builtInWords.find(entry => {
-                    return (
-                        Model.getWordIdentity(entry, true) ===
-                        Model.getWordIdentity(word, true)
-                    );
-                });
-
-                if (canonical) {
-                    word._id = Model.getWordId(canonical);
-                    word.builtIn = true;
-                }
-            }
-
-            ensureWordId(word);
-
-            if (Model.db.some(existing => existing._id === word._id)) {
-                Model.recycleBin.splice(index, 1);
-                await Model.saveRecycleBin();
-                return false;
-            }
-
-            const targetIndex = Math.min(
-                Math.max(Number(snapshot.originalIndex) || 0, 0),
-                Model.db.length
-            );
-            Model.db.splice(targetIndex, 0, word);
-
-            const wordId = Model.getWordId(word);
-
-            if (snapshot.starred && !Model.stars.includes(wordId)) {
-                Model.stars.push(wordId);
-            }
-
-            if (snapshot.clearState) {
-                Model.mtWordClears[wordId] = deepClone(snapshot.clearState);
-            }
-
-            if (snapshot.wrongRecord) {
-                Model.wrongBook[word._id] = deepClone(snapshot.wrongRecord);
-            }
-        } else if (item.kind === 'conversation') {
-            const targetIndex = Math.min(
-                Math.max(Number(item.payload.originalIndex) || 0, 0),
-                Model.aiConversations.length
-            );
-            Model.aiConversations.splice(
-                targetIndex,
-                0,
-                deepClone(item.payload.conversation)
-            );
-            this._persistConversations();
-        } else if (item.kind === 'example') {
-            const payload = item.payload;
-            const word =
-                Model.db.find(entry => entry._id === payload.wordId) ||
-                Model.db.find(entry => {
-                    return (
-                        entry.word === payload.word &&
-                        (entry.lang || 'ja') === (payload.lang || 'ja')
-                    );
-                });
-
-            if (word) {
-                const examples = String(word.example || '')
-                    .split('||')
-                    .map(example => example.trim())
-                    .filter(Boolean);
-                const targetIndex = Math.min(
-                    Math.max(Number(payload.originalIndex) || 0, 0),
-                    examples.length
-                );
-                examples.splice(targetIndex, 0, payload.example);
-                word.example = examples.join(' || ');
-            }
-        }
-
-        Model.recycleBin.splice(index, 1);
-        await Model.saveAllUserData();
-        View.updateWordbankUI();
-        View.resetWordbankRenderer();
-        this.renderRecycleBin();
-        this.renderAIHistory();
-        updateSettingsStats();
-
-        if (!silent) {
-            showToast('å·²æ¢å¤');
-        }
-
-        return true;
-    };
-
-    Controller.restoreTrashBatch = async function(itemIds) {
-        for (const itemId of itemIds) {
-            await this.restoreTrashItem(itemId, true);
-        }
-
-        showToast('å·²æ’¤é”€åˆ é™¤');
-    };
-
-    Controller.permanentlyDeleteTrashItem = async function(itemId) {
-        Model.recycleBin = Model.recycleBin.filter(item => item.id !== itemId);
-        await Model.saveRecycleBin();
-        this.renderRecycleBin();
-        updateSettingsStats();
-        showToast('å·²æ°¸ä¹…åˆ é™¤');
-    };
-
-    Controller.deleteWord = async function(index) {
-        const word = Model.db[index];
-
-        if (!word) {
-            return;
-        }
-
-        this.closeDetailIfOpen();
-        const snapshot = removeWordFromActiveData(word, index);
-        const trash = Model.addRecycleItem(
-            'word',
-            snapshot,
-            word.word
-        );
-        await persistAfterWordDelete();
-        showActionToast(
-            `å·²ç§»å…¥å›æ”¶ç«™ï¼š${word.word}`,
-            'æ’¤é”€',
-            () => this.restoreTrashBatch([trash.id])
-        );
-    };
-
-    Controller.batchDelete = async function() {
-        if (Model.state.selectedSet.size === 0) {
-            showToast('è¯·å…ˆé€‰æ‹©å•è¯');
-            return;
-        }
-
-        this.closeDetailIfOpen();
-        const batchId = makeId('trash_batch');
-        const selected = [...Model.state.selectedSet]
-            .sort((a, b) => b - a);
-        const trashIds = [];
-
-        selected.forEach(index => {
-            const word = Model.db[index];
-            if (!word) {
-                return;
-            }
-
-            const snapshot = removeWordFromActiveData(word, index);
-            const trash = Model.addRecycleItem(
-                'word',
-                snapshot,
-                word.word,
-                batchId
-            );
-            trashIds.push(trash.id);
-        });
-
-        Model.state.selectedSet.clear();
-        Model.state.batchMode = false;
-        Model.state.manageMode = false;
-        document
-            .querySelectorAll('.wb-manage-overlay')
-            .forEach(element => element.classList.remove('active'));
-        await persistAfterWordDelete();
-
-        showActionToast(
-            `å·²å°† ${trashIds.length} ä¸ªè¯ç§»å…¥å›æ”¶ç«™`,
-            'æ’¤é”€',
-            () => this.restoreTrashBatch([...trashIds].reverse())
-        );
-    };
-
-    Controller.deleteExample = async function(word, exampleIndex) {
-        if (!word) {
-            return;
-        }
-
-        const examples = String(word.example || '')
-            .split('||')
-            .map(example => example.trim())
-            .filter(Boolean);
-        const example = examples[exampleIndex];
-
-        if (!example) {
-            return;
-        }
-
-        examples.splice(exampleIndex, 1);
-        word.example = examples.join(' || ');
-        const trash = Model.addRecycleItem(
-            'example',
-            {
-                wordId: ensureWordId(word),
-                word: word.word,
-                lang: word.lang || 'ja',
-                example,
-                originalIndex: exampleIndex
-            },
-            `${word.word} çš„ä¾‹å¥`
-        );
-        await Model.saveDB();
-        this.updateDetailContent(word, false);
-        this.renderRecycleBin();
-        showActionToast(
-            'å·²åˆ é™¤ä¸€æ¡ä¾‹å¥',
-            'æ’¤é”€',
-            () => this.restoreTrashBatch([trash.id])
-        );
-    };
-
-    const originalRenderExampleBox =
-        View.renderExampleBox.bind(View);
-    View.renderExampleBox = function(
-        exampleString,
-        boxId,
-        mode = 'normal',
-        word = null
-    ) {
-        const result = originalRenderExampleBox(
-            exampleString,
-            boxId,
-            mode,
-            word
-        );
-
-        if (boxId !== 'dt-example-box' || !word) {
-            return result;
-        }
-
-        const box = this.getEl(boxId);
-        if (!box) {
-            return result;
-        }
-
-        box
-            .querySelectorAll('.ex-item')
-            .forEach((item, index) => {
-                if (
-                    item.querySelector(
-                        '.example-delete-btn'
-                    )
-                ) {
-                    return;
-                }
-
-                const actionRow =
-                    item.querySelector('.dt-ex-jp');
-
-                if (!actionRow) {
-                    return;
-                }
-
-                actionRow.classList.add(
-                    'has-example-actions'
-                );
-
-                const button =
-                    document.createElement('button');
-
-                button.type = 'button';
-                button.className = 'example-delete-btn';
-                button.title = 'åˆ é™¤è¿™æ¡ä¾‹å¥';
-                button.setAttribute(
-                    'aria-label',
-                    'åˆ é™¤è¿™æ¡ä¾‹å¥'
-                );
-                button.innerHTML =
-                    '<span class="material-symbols-rounded">delete_outline</span>';
-
-                button.addEventListener('click', event => {
-                    event.stopPropagation();
-                    Hardware.vibrate(15);
-                    Controller.deleteExample(word, index);
-                });
-
-                const sparkleButton =
-                    actionRow.querySelector(
-                        '.ai-sparkle-icon'
-                    );
-
-                if (sparkleButton) {
-                    sparkleButton.insertAdjacentElement(
-                        'afterend',
-                        button
-                    );
-                } else {
-                    actionRow.appendChild(button);
-                }
-            });
-
-        return result;
-    };
-
-    Controller.renderRecycleBin = function() {
-        Model.cleanupRecycleBin();
-
-        const list = View.getEl('recycle-bin-list');
-        const empty = View.getEl('recycle-bin-empty');
-        const count = View.getEl('recycle-bin-count');
-        const clearButton = View.getEl('btn-clear-recycle-bin');
-
-        if (count) {
-            count.textContent = `${Model.recycleBin.length} é¡¹`;
-        }
-
-        if (clearButton) {
-            clearButton.disabled = Model.recycleBin.length === 0;
-        }
-
-        if (!list || !empty) {
-            return;
-        }
-
-        if (Model.recycleBin.length === 0) {
-            list.innerHTML = '';
-            empty.hidden = false;
-            return;
-        }
-
-        empty.hidden = true;
-        list.innerHTML = Model.recycleBin
-            .map(item => {
-                const kindLabel = {
-                    word: 'è¯æ±‡',
-                    conversation: 'AI å¯¹è¯',
-                    example: 'ä¾‹å¥'
-                }[item.kind] || 'é¡¹ç›®';
-                const daysLeft = Math.max(
-                    1,
-                    Math.ceil((item.expiresAt - Date.now()) / 86400000)
-                );
-
-                return `
-                    <article class="recycle-item" data-trash-id="${item.id}">
-                        <div class="recycle-item-icon">
-                            <span class="material-symbols-rounded">${
-                                item.kind === 'conversation'
-                                    ? 'forum'
-                                    : item.kind === 'example'
-                                        ? 'format_quote'
-                                        : 'dictionary'
-                            }</span>
-                        </div>
-                        <div class="recycle-item-copy">
-                            <div class="recycle-item-title">${escapeHTML(item.label)}</div>
-                            <div class="recycle-item-meta">
-                                ${kindLabel} Â· ${formatRelativeDate(item.deletedAt)} Â· ${daysLeft} å¤©åæ¸…ç†
-                            </div>
-                        </div>
-                        <div class="recycle-item-actions">
-                            <button type="button" data-trash-action="restore">æ¢å¤</button>
-                            <button type="button" data-trash-action="delete" class="danger">æ°¸ä¹…åˆ é™¤</button>
-                        </div>
-                    </article>
-                `;
-            })
-            .join('');
-    };
-
-    Controller.clearRecycleBin = function() {
-        if (!Model.recycleBin.length) {
-            showToast('å›æ”¶ç«™å·²ç»æ˜¯ç©ºçš„');
-            return;
-        }
-
-        showConfirm(
-            'æ¸…ç©ºå›æ”¶ç«™ï¼Ÿ',
-            'å›æ”¶ç«™ä¸­çš„è¯æ±‡ã€ä¾‹å¥å’Œ AI å¯¹è¯å°†æ— æ³•æ¢å¤ã€‚',
-            async () => {
-                Model.recycleBin = [];
-                await Model.saveRecycleBin();
-                this.renderRecycleBin();
-                updateSettingsStats();
-                showToast('å›æ”¶ç«™å·²æ¸…ç©º');
-            }
-        );
-    };
-
-    Controller.renderAIHistory = function() {
-        const list = View.getEl('ai-history-list');
-        const empty = View.getEl('ai-history-empty');
-        const chatView = View.getEl('ai-chat-view');
-        const listView = View.getEl('ai-list-view');
-
-        if (chatView) {
-            chatView.classList.add('hidden');
-        }
-        if (listView) {
-            listView.classList.remove('hidden');
-        }
-        if (!list) {
-            return;
-        }
-
-        if (!Model.aiConversations.length) {
-            list.innerHTML = '';
-            if (empty) {
-                empty.style.display = 'block';
-            }
-            return;
-        }
-
-        if (empty) {
-            empty.style.display = 'none';
-        }
-
-        list.innerHTML = Model.aiConversations
-            .map((conversation, index) => {
-                const messages = Array.isArray(conversation.messages)
-                    ? conversation.messages
-                    : [];
-                const lastMessage = messages.at(-1)?.content || '';
-                const preview = lastMessage
-                    .replace(/###.*?\n/g, '')
-                    .replace(/\*\*/g, '')
-                    .replace(/\n/g, ' ')
-                    .slice(0, 60);
-
-                return `
-                    <div class="ai-history-card" data-idx="${index}" tabindex="0" role="button">
-                        <div class="ai-history-card-top">
-                            <span class="ai-history-lang-tag">${conversation.lang === 'en' ? 'EN' : 'æ—¥'}</span>
-                            <span class="ai-history-word">${escapeHTML(conversation.word || 'è‡ªç”±å¯¹è¯')}</span>
-                            <span class="ai-history-msgcount">${messages.length} æ¡å¯¹è¯</span>
-                            <button class="ai-history-del-btn" data-idx="${index}" title="ç§»å…¥å›æ”¶ç«™" aria-label="ç§»å…¥å›æ”¶ç«™">
-                                <span class="material-symbols-rounded">delete</span>
-                            </button>
-                        </div>
-                        <div class="ai-history-preview">${escapeHTML(preview || 'ç‚¹å‡»ç»§ç»­å¯¹è¯ã€‚')}</div>
-                        <div class="ai-history-date">${escapeHTML(conversation.date || '')}</div>
-                    </div>
-                `;
-            })
-            .join('');
-
-        list.querySelectorAll('.ai-history-card').forEach(card => {
-            card.addEventListener('click', event => {
-                if (event.target.closest('.ai-history-del-btn')) {
-                    return;
-                }
-                Hardware.vibrate(15);
-                this.openAIChatFromTab(Number(card.dataset.idx));
-            });
-        });
-
-        list.querySelectorAll('.ai-history-del-btn').forEach(button => {
-            button.addEventListener('click', async event => {
-                event.stopPropagation();
-                const index = Number(button.dataset.idx);
-                const conversation = Model.aiConversations[index];
-
-                if (!conversation) {
-                    return;
-                }
-
-                Model.aiConversations.splice(index, 1);
-                const trash = Model.addRecycleItem(
-                    'conversation',
-                    {
-                        conversation,
-                        originalIndex: index
-                    },
-                    conversation.word || 'è‡ªç”±å¯¹è¯'
-                );
-                this._persistConversations();
-                this.renderAIHistory();
-                this.renderRecycleBin();
-                updateSettingsStats();
-                showActionToast(
-                    'AI å¯¹è¯å·²ç§»å…¥å›æ”¶ç«™',
-                    'æ’¤é”€',
-                    () => this.restoreTrashBatch([trash.id])
-                );
-            });
-        });
-    };
-
-    /* ---------- å¤‡ä»½å…¼å®¹ ---------- */
-    const originalBuildBackup =
-        Controller.buildBackupPayload.bind(Controller);
-    Controller.buildBackupPayload = function(kind = 'manual') {
-        const payload = originalBuildBackup(kind);
-        payload.backupVersion = Math.max(Number(payload.backupVersion) || 0, 7);
-        payload.data.wrongBook = deepClone(Model.wrongBook);
-        payload.data.aiQuizHistory = deepClone(Model.aiQuizHistory);
-        payload.data.recycleBin = deepClone(Model.recycleBin);
-        return payload;
-    };
-
-    const originalNormalizeBackup =
-        Controller.normalizeBackupPayload.bind(Controller);
-    Controller.normalizeBackupPayload = function(rawData) {
-        const payload = originalNormalizeBackup(rawData);
-        const source = rawData?.data || rawData || {};
-        payload.data.wrongBook =
-            source.wrongBook && typeof source.wrongBook === 'object'
-                ? source.wrongBook
-                : {};
-        payload.data.aiQuizHistory = Array.isArray(source.aiQuizHistory)
-            ? source.aiQuizHistory
-            : [];
-        payload.data.recycleBin = Array.isArray(source.recycleBin)
-            ? source.recycleBin
-            : [];
-        return payload;
-    };
-
-    const originalApplyBackup =
-        Controller.applyBackupPayload.bind(Controller);
-    Controller.applyBackupPayload = async function(payload) {
-        await originalApplyBackup(payload);
-        Model.wrongBook = deepClone(payload.data.wrongBook || {});
-        Model.aiQuizHistory = deepClone(payload.data.aiQuizHistory || []);
-        Model.recycleBin = deepClone(payload.data.recycleBin || []);
-        await Promise.all([
-            Model.saveWrongBook(),
-            Model.saveAIQuizHistory(),
-            Model.saveRecycleBin()
-        ]);
-        this.renderRecycleBin();
-        updateSettingsStats();
-    };
-
-    /* ---------- è®¾ç½®é¡µåˆ†ç»„ ---------- */
-    const showSettingsSection = sectionName => {
-        const home = View.getEl('settings-home');
-        const sections = document.querySelectorAll('.settings-section');
-
-        if (home) {
-            home.hidden = Boolean(sectionName);
-        }
-
-        sections.forEach(section => {
-            section.hidden = section.dataset.settingsSection !== sectionName;
-        });
-
-        if (sectionName === 'library') {
-            Controller.renderRecycleBin();
-        }
-
-        updateSettingsStats();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const updateOnlineStatus = () => {
-        const status = View.getEl('settings-online-status');
-        const detail = View.getEl('settings-online-status-detail');
-        const text = navigator.onLine ? 'åœ¨çº¿' : 'ç¦»çº¿';
-
-        if (status) {
-            status.textContent = text;
-            status.dataset.state = navigator.onLine ? 'online' : 'offline';
-        }
-
-        if (detail) {
-            detail.textContent = text;
-        }
-    };
-
-    function updateSettingsStats() {
-        const wrongCount = View.getEl('settings-wrong-count');
-        const quizCount = View.getEl('settings-quiz-count');
-        const trashCount = View.getEl('settings-trash-count');
-
-        if (wrongCount) {
-            wrongCount.textContent = Object.values(Model.wrongBook).filter(
-                record => record.totalWrong > 0 && record.status !== 'resolved'
-            ).length;
-        }
-
-        if (quizCount) {
-            quizCount.textContent = Model.aiQuizHistory.length;
-        }
-
-        if (trashCount) {
-            trashCount.textContent = Model.recycleBin.length;
-        }
-
-        updateOnlineStatus();
-    }
-
-    const originalNavSwitch = Nav.switchTab.bind(Nav);
-    Nav.switchTab = function(targetId, titleData, navItemEl) {
-        const result = originalNavSwitch(targetId, titleData, navItemEl);
-        if (targetId === 'tab-settings') {
-            showSettingsSection('');
-        }
-        return result;
-    };
-
-    const originalControllerInit = Controller.init.bind(Controller);
-    Controller.init = async function() {
-        await originalControllerInit();
-
-        ensureWrongBookOptions();
-        updateWrongToolbar();
-        this.renderRecycleBin();
-        updateSettingsStats();
-
-        const actionButton = View.getEl('action-toast-action');
-        if (actionButton) {
-            actionButton.addEventListener('click', () => {
-                const callback = actionToastCallback;
-                actionToastCallback = null;
-                View.getEl('action-toast')?.classList.remove('show');
-                if (actionToastTimer) {
-                    window.clearTimeout(actionToastTimer);
-                    actionToastTimer = null;
-                }
-                callback?.();
-            });
-        }
-
-        View.getEl('btn-start-wrongbook')?.addEventListener('click', () => {
-            Hardware.unlockSpeech();
-            this.startWrongBookPractice();
-        });
-
-        View.getEl('wb-folder-filter')?.addEventListener('change', () => {
-            updateWrongToolbar();
-        });
-
-        const quizBindings = {
-            'ai-quiz-close': () => this._closeAIQuiz(),
-            'ai-quiz-submit': () => this._submitAIQuizAnswer(),
-            'ai-quiz-next': () => this._advanceAIQuiz(),
-            'ai-quiz-done': () => this._closeAIQuiz(),
-            'ai-quiz-retry': () =>
-                this._startAIQuiz(this.aiQuizState.sourcePayload),
-            'ai-quiz-open-wrongbook': () =>
-                this._openWrongBookFromQuiz(),
-            'ai-quiz-import-missing': () =>
-                this._importMissingAIQuizWords()
-        };
-
-        Object.entries(quizBindings).forEach(([id, handler]) => {
-            View.getEl(id)?.addEventListener('click', handler);
-        });
-
-        View.getEl('ai-quiz-input')?.addEventListener('keydown', event => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                if (!View.getEl('ai-quiz-submit')?.hidden) {
-                    this._submitAIQuizAnswer();
-                }
-            }
-        });
-
-        document
-            .querySelectorAll('[data-open-settings-section]')
-            .forEach(button => {
-                button.addEventListener('click', () => {
-                    Hardware.playSound('click');
-                    Hardware.vibrate(15);
-
-                    showSettingsSection(
-                        button.dataset.openSettingsSection
-                    );
-                });
-            });
-
-        document
-            .querySelectorAll('[data-settings-back]')
-            .forEach(button => {
-                button.addEventListener('click', () => {
-                    Hardware.playSound('click');
-                    Hardware.vibrate(10);
-
-                    showSettingsSection('');
-                });
-            });
-
-        View.getEl('recycle-bin-list')?.addEventListener('click', event => {
-            const button = event.target.closest('[data-trash-action]');
-            const item = event.target.closest('[data-trash-id]');
-
-            if (!button || !item) {
-                return;
-            }
-
-            const itemId = item.dataset.trashId;
-            if (button.dataset.trashAction === 'restore') {
-                this.restoreTrashItem(itemId);
-            } else {
-                this.permanentlyDeleteTrashItem(itemId);
-            }
-        });
-
-        View.getEl('btn-clear-recycle-bin')?.addEventListener('click', () => {
-            this.clearRecycleBin();
-        });
-
-        const clearAIButton = View.getEl('btn-settings-clear-ai-history');
-        if (clearAIButton) {
-            clearAIButton.addEventListener('click', () => {
-                if (!Model.aiConversations.length) {
-                    showToast('æš‚æ—  AI å¯¹è¯è®°å½•');
-                    return;
-                }
-
-                showConfirm(
-                    'æ¸…ç©º AI å¯¹è¯ï¼Ÿ',
-                    'æ‰€æœ‰å¯¹è¯ä¼šç§»å…¥å›æ”¶ç«™ï¼Œå¯åœ¨ 7 å¤©å†…æ¢å¤ã€‚',
-                    async () => {
-                        const batchId = makeId('conversation_batch');
-                        const ids = [];
-                        [...Model.aiConversations]
-                            .reverse()
-                            .forEach((conversation, reverseIndex) => {
-                                const originalIndex =
-                                    Model.aiConversations.length -
-                                    1 -
-                                    reverseIndex;
-                                const item = Model.addRecycleItem(
-                                    'conversation',
-                                    { conversation, originalIndex },
-                                    conversation.word || 'è‡ªç”±å¯¹è¯',
-                                    batchId
-                                );
-                                ids.push(item.id);
-                            });
-                        Model.aiConversations = [];
-                        this._persistConversations();
-                        this.renderAIHistory();
-                        this.renderRecycleBin();
-                        updateSettingsStats();
-                        showActionToast(
-                            `å·²å°† ${ids.length} æ¡å¯¹è¯ç§»å…¥å›æ”¶ç«™`,
-                            'æ’¤é”€',
-                            () => this.restoreTrashBatch(ids.reverse())
-                        );
-                    }
-                );
-            });
-        }
-
-        const wrongBookToggle = View.getEl('setting-wrongbook-enabled');
-        if (wrongBookToggle) {
-            wrongBookToggle.checked =
-                localStorage.getItem('wrongBookEnabled') !== 'false';
-            wrongBookToggle.addEventListener('change', event => {
-                localStorage.setItem(
-                    'wrongBookEnabled',
-                    event.target.checked
-                );
-                showToast(
-                    event.target.checked
-                        ? 'å·²å¼€å¯é”™é¢˜è®°å½•'
-                        : 'å·²æš‚åœè®°å½•æ–°é”™é¢˜'
-                );
-            });
-        }
-
-        const quizRecordToggle = View.getEl('setting-ai-quiz-record');
-        if (quizRecordToggle) {
-            quizRecordToggle.checked =
-                localStorage.getItem('aiQuizRecord') !== 'false';
-            quizRecordToggle.addEventListener('change', event => {
-                localStorage.setItem('aiQuizRecord', event.target.checked);
-                showToast(
-                    event.target.checked
-                        ? 'AI å°æµ‹ä¼šå†™å…¥å­¦ä¹ è®°å½•'
-                        : 'AI å°æµ‹ä»…ä¿ç•™ç»“æœï¼Œä¸å½±å“é”™é¢˜æœ¬'
-                );
-            });
-        }
-
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
-    };
-})();
-
-
-/* ==========================================
-   ç¬¬å››è½®ï¼šæ‰¹é‡å¯¼å…¥åŠ å…¥ AI æ™ºèƒ½è¡¥å…¨
-   ========================================== */
-(() => {
-    const AI_IMPORT_BATCH_SIZE = 20;
-    const AI_IMPORT_MAX_WORDS = 100;
-
-    const originalInitializeImportPanel =
-        Controller.initializeImportPanel.bind(Controller);
-
-    const originalUpdateImportFormatUI =
-        Controller.updateImportFormatUI.bind(Controller);
-
-    const originalImportWords =
-        Controller.importWords.bind(Controller);
-
-    const originalCloseAIWordCollector =
-        Controller._closeAIWordCollector.bind(Controller);
-
-    const originalSaveAIWordDrafts =
-        Controller._saveAIWordDrafts.bind(Controller);
-
-    const originalControllerInit =
-        Controller.init.bind(Controller);
-
-    Controller.importMode =
-        localStorage.getItem('importMode') === 'ai'
-            ? 'ai'
-            : 'manual';
-
-    Controller.aiImportState = {
-        lang: 'ja',
-        folder: '',
-        duplicateMode: 'skip',
-        addToStars: false,
-        level: '',
-        difficulty: 0,
-        tags: [],
-        totalInput: 0,
-        skippedExisting: 0,
-        invalidLines: [],
-        candidates: [],
-        successes: [],
-        failed: [],
-        running: false
-    };
-
-    Controller.initializeImportPanel = function() {
-        originalInitializeImportPanel();
-        this.setImportMode(this.importMode, false);
-    };
-
-    Controller.setImportMode = function(
-        mode,
-        announce = true
-    ) {
-        const nextMode =
-            mode === 'ai'
-                ? 'ai'
-                : 'manual';
-
-        this.importMode = nextMode;
-        localStorage.setItem('importMode', nextMode);
-
-        document
-            .querySelectorAll('[data-import-mode]')
-            .forEach(button => {
-                const active =
-                    button.dataset.importMode === nextMode;
-
-                button.classList.toggle('active', active);
-                button.setAttribute(
-                    'aria-pressed',
-                    String(active)
-                );
-            });
-
-        const starOption =
-            View.getEl('import-ai-star-option');
-
-        const inputNote =
-            View.getEl('ai-import-input-note');
-
-        if (starOption) {
-            starOption.hidden = nextMode !== 'ai';
-        }
-
-        if (inputNote) {
-            inputNote.hidden = nextMode !== 'ai';
-        }
-
-        this.updateImportFormatUI();
-
-        if (announce) {
-            showToast(
-                nextMode === 'ai'
-                    ? 'å·²åˆ‡æ¢åˆ° AI æ™ºèƒ½è¡¥å…¨'
-                    : 'å·²åˆ‡æ¢åˆ°æ™®é€šå¯¼å…¥'
-            );
-        }
-    };
-
-    Controller.updateImportFormatUI = function() {
-        if (this.importMode !== 'ai') {
-            originalUpdateImportFormatUI();
-
-            const description =
-                View.getEl('import-section-desc');
-
-            const duplicateLabel =
-                View.getEl('import-duplicate-label');
-
-            const buttonLabel =
-                View.getEl('btn-import-label');
-
-            const buttonIcon =
-                View.getEl('btn-import')
-                    ?.querySelector('.material-symbols-rounded');
-
-            if (description) {
-                description.textContent =
-                    'å…ˆæ£€æŸ¥å¯å¯¼å…¥è¯ã€é‡å¤è¯ä¸é”™è¯¯è¡Œï¼Œå†ç¡®è®¤å†™å…¥ã€‚';
-            }
-
-            if (duplicateLabel) {
-                duplicateLabel.textContent =
-                    'é‡åˆ°åŒè¯åº“å†…çš„é‡å¤è¯';
-            }
-
-            if (buttonLabel) {
-                buttonLabel.textContent = 'æ£€æŸ¥å¹¶å¯¼å…¥';
-            }
-
-            if (buttonIcon) {
-                buttonIcon.textContent = 'fact_check';
-            }
-
-            return;
-        }
-
-        const lang =
-            View.getEl('import-lang-select')?.value || 'ja';
-
-        const formatText =
-            View.getEl('import-format-text');
-
-        const formatNote =
-            View.getEl('import-format-note');
-
-        const textarea =
-            View.getEl('custom-input');
-
-        const description =
-            View.getEl('import-section-desc');
-
-        const duplicateLabel =
-            View.getEl('import-duplicate-label');
-
-        const buttonLabel =
-            View.getEl('btn-import-label');
-
-        const buttonIcon =
-            View.getEl('btn-import')
-                ?.querySelector('.material-symbols-rounded');
-
-        if (description) {
-            description.textContent =
-                'æ¯è¡Œåªè¾“å…¥ä¸€ä¸ªå•è¯ï¼ŒAI ä¼šè¡¥å…¨è¯»éŸ³ã€è¯æ€§ã€é‡Šä¹‰ã€ä¾‹å¥ä¸å…¶ä»–ä¿¡æ¯ã€‚';
-        }
-
-        if (duplicateLabel) {
-            duplicateLabel.textContent =
-                'é‡åˆ°è¯åº“ä¸­å·²ç»å­˜åœ¨çš„è¯';
-        }
-
-        if (formatText) {
-            formatText.textContent =
-                lang === 'en'
-                    ? 'æ¯è¡Œä¸€ä¸ªè‹±è¯­å•è¯æˆ–å¸¸ç”¨çŸ­è¯­'
-                    : 'æ¯è¡Œä¸€ä¸ªæ—¥è¯­å•è¯æˆ–å¸¸ç”¨çŸ­è¯­';
-        }
-
-        if (formatNote) {
-            formatNote.textContent =
-                lang === 'en'
-                    ? 'ä¾‹å¦‚ï¼šabandonã€abilityã€take part inã€‚è‹±è¯­ä¼šè‡ªåŠ¨ç»Ÿä¸€ä¸ºè¯å…¸å½¢å¼ã€‚'
-                    : 'ä¾‹å¦‚ï¼šè¨ˆç”»ã€åŠªåŠ›ã™ã‚‹ã€å½¹ã«ç«‹ã¤ã€‚åŠ¨è¯å’Œå½¢å®¹è¯å»ºè®®è¾“å…¥åŸºæœ¬å½¢ã€‚';
-        }
-
-        if (textarea) {
-            textarea.placeholder =
-                lang === 'en'
-                    ? 'abandon\nability\ntake part in'
-                    : 'è¨ˆç”»\nåŠªåŠ›ã™ã‚‹\nå½¹ã«ç«‹ã¤';
-        }
-
-        if (buttonLabel) {
-            buttonLabel.textContent = 'è®© AI è¡¥å…¨';
-        }
-
-        if (buttonIcon) {
-            buttonIcon.textContent = 'auto_fix_high';
-        }
-    };
-
-    Controller.importWords = function() {
-        if (this.importMode === 'ai') {
-            return this._startAIImport();
-        }
-
-        return originalImportWords();
-    };
-
-    Controller._parseAIImportInput = function(
-        text,
-        lang
-    ) {
-        const invalidLines = [];
-        const seen = new Set();
-        const words = [];
-
-        const rawLines = String(text || '')
-            .split(/\r?\n/)
-            .map((line, index) => ({
-                line,
-                number: index + 1
-            }));
-
-        for (const item of rawLines) {
-            let value = String(item.line || '')
-                .replace(
-                    /^\s*(?:[-*â€¢Â·]+|\d+[.)ã€ï¼])\s*/,
-                    ''
-                )
-                .trim();
-
-            if (!value) {
-                continue;
-            }
-
-            value = this._normalizeAIWordText(
-                value,
-                lang
-            );
-
-            const validLanguage =
-                lang === 'en'
-                    ? (
-                        /[A-Za-z]/.test(value) &&
-                        !/[ã-ã‚–ã‚¡-ãƒºä¸€-é¾¯ã€…ã€†ãƒ¶]/u.test(value)
-                    )
-                    : /[ã-ã‚–ã‚¡-ãƒºä¸€-é¾¯ã€…ã€†ãƒ¶]/u.test(value);
-
-            if (!value || !validLanguage) {
-                invalidLines.push({
-                    number: item.number,
-                    value: String(item.line || '').trim(),
-                    reason:
-                        lang === 'en'
-                            ? 'ä¸åƒæœ‰æ•ˆè‹±è¯­è¯æ±‡'
-                            : 'ä¸åƒæœ‰æ•ˆæ—¥è¯­è¯æ±‡'
-                });
-
-                continue;
-            }
-
-            if (value.length > 80) {
-                invalidLines.push({
-                    number: item.number,
-                    value,
-                    reason: 'å†…å®¹è¿‡é•¿'
-                });
-
-                continue;
-            }
-
-            const key =
-                `${lang}:` +
-                (lang === 'en'
-                    ? value.toLowerCase()
-                    : value);
-
-            if (seen.has(key)) {
-                continue;
-            }
-
-            seen.add(key);
-            words.push({
-                word: value,
-                lang
-            });
-        }
-
-        return {
-            words: words.slice(0, AI_IMPORT_MAX_WORDS),
-            invalidLines,
-            truncatedCount:
-                Math.max(0, words.length - AI_IMPORT_MAX_WORDS),
-            rawNonEmptyCount:
-                rawLines.filter(item => item.line.trim()).length
-        };
-    };
-
-    Controller._findExistingAIImportWord = function(
-        candidate
-    ) {
-        const target =
-            this._normalizeAIWordText(
-                candidate.word,
-                candidate.lang
-            );
-
-        return Model.db.find(entry => {
-            const entryLang = entry.lang || 'ja';
-
-            return (
-                entryLang === candidate.lang &&
-                this._normalizeAIWordText(
-                    entry.word,
-                    entryLang
-                ) === target
-            );
-        }) || null;
-    };
-
-    Controller._buildAIImportPrompt = function(
-        candidates,
-        lang
-    ) {
-        const batchLevel = candidates[0]?.level || '';
-        const batchDifficulty = normalizeWordDifficulty(
-            candidates[0]?.difficulty
-        );
-        const batchTags = normalizeWordTags(
-            candidates[0]?.tags
-        );
-
-        const languageRules =
-            lang === 'en'
-                ? `
-è‹±è¯­å­—æ®µè¦æ±‚ï¼š
-- wordï¼šä¸¥æ ¼ä¿ç•™è¾“å…¥è¯çš„è¯å…¸å½¢å¼ï¼Œä¸è¦ç¿»è¯‘ã€‚
-- phoneticï¼šä½¿ç”¨å¸¸è§ IPAï¼Œå¹¶ç”¨ / / åŒ…è£¹ï¼›æ— æ³•ç¡®è®¤æ—¶ç•™ç©ºã€‚
-- typeï¼šä½¿ç”¨ä¸­æ–‡è¯æ€§ï¼›å¤šè¯æ€§ä½¿ç”¨â€œãƒ»â€åˆ†éš”ã€‚
-- meaningï¼šä½¿ç”¨ç®€æ´ä¸­æ–‡ï¼Œå¤šä¹‰é¡¹ä½¿ç”¨â€œï¼›â€åˆ†éš”ã€‚
-- rootsï¼šåªå†™å¯é ã€ç®€æ´çš„è¯æ ¹è¯ç¼€ï¼›ä¸ç¡®å®šæ—¶ç•™ç©ºï¼Œç¦æ­¢ç¼–é€ ã€‚
-- exampleï¼šä¸€æ¡è‡ªç„¶å¸¸ç”¨çš„è‹±è¯­ä¾‹å¥ï¼Œä¸¥æ ¼å†™æˆâ€œè‹±è¯­ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘â€ã€‚
-- kanaï¼šå¿…é¡»ä¸ºç©ºå­—ç¬¦ä¸²ã€‚`
-                : `
-æ—¥è¯­å­—æ®µè¦æ±‚ï¼š
-- wordï¼šä¸¥æ ¼ä¿ç•™è¾“å…¥è¯çš„åŸºæœ¬å½¢ï¼Œä¸è¦ç¿»è¯‘ã€‚
-- kanaï¼šåªå†™å¯¹åº”å‡åè¯»éŸ³ï¼Œä¸è¦æ‹¬å·æˆ–æ³¨éŸ³ç¬¦å·ã€‚
-- typeï¼šä½¿ç”¨ä¸­æ–‡è¯æ€§ï¼›å¤šè¯æ€§ä½¿ç”¨â€œãƒ»â€åˆ†éš”ï¼›ã‚µå˜è¯å¯å†™â€œåè¯ãƒ»ã‚µå˜åŠ¨è¯ã™ã‚‹â€ã€‚
-- meaningï¼šä½¿ç”¨ç®€æ´ä¸­æ–‡ï¼Œå¤šä¹‰é¡¹ä½¿ç”¨â€œï¼›â€åˆ†éš”ã€‚
-- exampleï¼šä¸€æ¡è‡ªç„¶å¸¸ç”¨çš„æ—¥è¯­ä¾‹å¥ï¼Œä¸¥æ ¼å†™æˆâ€œæ—¥è¯­ä¾‹å¥ / ä¸­æ–‡ç¿»è¯‘â€ã€‚
-- phonetic å’Œ rootsï¼šå¿…é¡»ä¸ºç©ºå­—ç¬¦ä¸²ã€‚`;
-
-        return `è¯·æŠŠä¸‹é¢çš„${lang === 'en' ? 'è‹±è¯­' : 'æ—¥è¯­'}è¯æ±‡è¡¥å…¨æˆé€‚åˆä¸­æ–‡å­¦ä¹ è€…ä¿å­˜åˆ°è¯åº“çš„å®Œæ•´è¯æ¡ã€‚
-
-é€šç”¨è§„åˆ™ï¼š
-1. ä¸¥æ ¼ä¿æŒè¾“å…¥é¡ºåºï¼Œæ¯ä¸ªè¾“å…¥è¯å¿…é¡»å¯¹åº”ä¸€ä¸ªç»“æœï¼Œä¸èƒ½é—æ¼ã€åˆå¹¶æˆ–å¢åŠ è¯æ±‡ã€‚
-2. lang å¿…é¡»ç»Ÿä¸€ä¸º "${lang}"ã€‚
-3. æ‰€æœ‰å­—æ®µéƒ½å¿…é¡»å­˜åœ¨ï¼›æ— æ³•å¯é ç¡®è®¤çš„å­—æ®µå†™ç©ºå­—ç¬¦ä¸²ã€‚
-4. level å›ºå®šä¸º "${batchLevel}"ï¼Œä¸è¦è‡ªè¡Œæ”¹æˆå…¶ä»–è€ƒè¯•çº§åˆ«ã€‚
-5. difficulty ä½¿ç”¨ 1ï½5ï¼›æ‰¹æ¬¡é¢„è®¾ä¸º ${batchDifficulty || 0}ï¼Œå½“é¢„è®¾ä¸º 0 æ—¶è¯·æŒ‰å®é™…å­¦ä¹ éš¾åº¦ä¼°è®¡ã€‚
-6. tags æœ€å¤š 3 ä¸ªç®€çŸ­ä¸­æ–‡æ ‡ç­¾ï¼›ä¼˜å…ˆä¿ç•™æ‰¹æ¬¡æ ‡ç­¾ ${JSON.stringify(batchTags)}ï¼Œå¹¶å¯è¡¥å……å¿…è¦æ ‡ç­¾ã€‚
-7. åªè¾“å‡ºä¸€ä¸ª JSON å¯¹è±¡ï¼Œä¸è¦ä½¿ç”¨ Markdownï¼Œä¸è¦æ·»åŠ è§£é‡Šã€‚
-8. è¾“å‡ºæ ¼å¼å¿…é¡»æ˜¯ï¼š
-{"items":[{"word":"","lang":"${lang}","kana":"","phonetic":"","type":"","meaning":"","example":"","roots":"","level":"","difficulty":0,"tags":[]}]}
-${languageRules}
-
-å¾…è¡¥å…¨è¯æ±‡ï¼š
-${JSON.stringify(candidates.map(item => ({
-            word: item.word,
-            lang: item.lang
-        })))}`;
-    };
-
-    Controller._requestAIImportBatch = async function(
-        candidates
-    ) {
-        if (!Array.isArray(candidates) || candidates.length === 0) {
-            return {
-                successes: [],
-                failed: []
-            };
-        }
-
-        const lang = candidates[0].lang;
-        const prompt =
-            this._buildAIImportPrompt(candidates, lang);
-
-        try {
-            const result =
-                await this._requestAIJSON(prompt);
-
-            const rawItems =
-                Array.isArray(result.items)
-                    ? result.items
-                    : [];
-
-            const itemMap = new Map();
-
-            rawItems.forEach(item => {
-                const itemLang =
-                    item?.lang === 'en'
-                        ? 'en'
-                        : 'ja';
-
-                const key =
-                    `${itemLang}:` +
-                    this._normalizeAIWordText(
-                        item?.word,
-                        itemLang
-                    );
-
-                if (!itemMap.has(key)) {
-                    itemMap.set(key, item);
-                }
-            });
-
-            const successes = [];
-            const failed = [];
-
-            candidates.forEach((candidate, index) => {
-                const key =
-                    `${candidate.lang}:` +
-                    this._normalizeAIWordText(
-                        candidate.word,
-                        candidate.lang
-                    );
-
-                let matching = itemMap.get(key);
-
-                if (
-                    !matching &&
-                    rawItems.length === candidates.length
-                ) {
-                    const positional = rawItems[index];
-                    const positionalLang =
-                        positional?.lang === 'en'
-                            ? 'en'
-                            : 'ja';
-
-                    if (positionalLang === candidate.lang) {
-                        matching = positional;
-                    }
-                }
-
-                if (!matching) {
-                    failed.push({
-                        ...candidate,
-                        reason: 'AI æœªè¿”å›å¯¹åº”è¯æ¡'
-                    });
-                    return;
-                }
-
-                const rawDraft = {
-                    word: candidate.word,
-                    lang: candidate.lang,
-                    kana:
-                        candidate.lang === 'ja'
-                            ? String(matching.kana || '')
-                            : '',
-                    phonetic:
-                        candidate.lang === 'en'
-                            ? String(matching.phonetic || '')
-                            : '',
-                    type: String(matching.type || ''),
-                    meaning: String(matching.meaning || ''),
-                    example: String(matching.example || ''),
-                    roots:
-                        candidate.lang === 'en'
-                            ? String(matching.roots || '')
-                            : '',
-                    level: candidate.level || '',
-                    difficulty:
-                        candidate.difficulty > 0
-                            ? candidate.difficulty
-                            : normalizeWordDifficulty(
-                                  matching.difficulty
-                              ),
-                    tags:
-                        candidate.tags?.length
-                            ? candidate.tags
-                            : normalizeWordTags(matching.tags),
-                    builtIn: false
-                };
-
-                successes.push(
-                    this._toAIWordDraft(
-                        normalizeWordEntry(rawDraft)
-                    )
-                );
-            });
-
-            return {
-                successes,
-                failed
-            };
-        } catch (error) {
-            return {
-                successes: [],
-                failed: candidates.map(candidate => ({
-                    ...candidate,
-                    reason:
-                        error?.message || 'è¯·æ±‚å¤±è´¥'
-                }))
-            };
-        }
-    };
-
-    Controller._setAIImportCollectorContext = function() {
-        const title =
-            View.getEl('ai-word-collector-title-text');
-
-        const subtitle =
-            View.getEl('ai-word-collector-subtitle');
-
-        const icon =
-            View.getEl('ai-word-collector-icon');
-
-        const backLabel =
-            View.getEl('ai-word-back-label');
-
-        const progress =
-            View.getEl('ai-import-loading-progress');
-
-        if (title) {
-            title.textContent = 'AI æ™ºèƒ½å¯¼å…¥';
-        }
-
-        if (subtitle) {
-            subtitle.textContent =
-                `æ¯æ‰¹æœ€å¤š ${AI_IMPORT_BATCH_SIZE} ä¸ªï¼Œå®Œæˆåå…ˆé¢„è§ˆå†ä¿å­˜`;
-        }
-
-        if (icon) {
-            icon.textContent = 'auto_fix_high';
-        }
-
-        if (backLabel) {
-            backLabel.textContent = 'è¿”å›å¯¼å…¥';
-        }
-
-        if (progress) {
-            progress.hidden = false;
-        }
-    };
-
-    Controller._resetAIImportCollectorContext = function() {
-        const title =
-            View.getEl('ai-word-collector-title-text');
-
-        const subtitle =
-            View.getEl('ai-word-collector-subtitle');
-
-        const icon =
-            View.getEl('ai-word-collector-icon');
-
-        const backLabel =
-            View.getEl('ai-word-back-label');
-
-        const progress =
-            View.getEl('ai-import-loading-progress');
-
-        const failureBox =
-            View.getEl('ai-import-failure-box');
-
-        const previewNote =
-            View.getEl('ai-import-preview-note');
-
-        if (title) {
-            title.textContent = 'ä»å›ç­”åŠ å…¥è¯åº“';
-        }
-
-        if (subtitle) {
-            subtitle.textContent =
-                'å…ˆé€‰æ‹©è¯æ±‡ï¼Œå†ç”± AI è¡¥å…¨å¹¶é¢„è§ˆ';
-        }
-
-        if (icon) {
-            icon.textContent = 'playlist_add';
-        }
-
-        if (backLabel) {
-            backLabel.textContent = 'è¿”å›é€‰æ‹©';
-        }
-
-        if (progress) {
-            progress.hidden = true;
-        }
-
-        if (failureBox) {
-            failureBox.hidden = true;
-        }
-
-        if (previewNote) {
-            previewNote.hidden = true;
-        }
-    };
-
-    Controller._updateAIImportProgress = function(
-        done,
-        total,
-        label
-    ) {
-        const progressLabel =
-            View.getEl('ai-import-progress-label');
-
-        const progressCount =
-            View.getEl('ai-import-progress-count');
-
-        const progressBar =
-            View.getEl('ai-import-progress-bar');
-
-        const loadingText =
-            View.getEl('ai-word-loading-text');
-
-        const safeTotal = Math.max(1, total);
-        const percent = Math.min(
-            100,
-            Math.max(0, done / safeTotal * 100)
-        );
-
-        if (progressLabel) {
-            progressLabel.textContent =
-                label || 'æ­£åœ¨è¡¥å…¨';
-        }
-
-        if (progressCount) {
-            progressCount.textContent =
-                `${Math.min(done, total)} / ${total}`;
-        }
-
-        if (progressBar) {
-            progressBar.style.width = `${percent}%`;
-        }
-
-        if (loadingText) {
-            loadingText.textContent =
-                done >= total
-                    ? 'AI è¡¥å…¨å®Œæˆï¼Œæ­£åœ¨æ•´ç†é¢„è§ˆâ€¦'
-                    : `æ­£åœ¨è¡¥å…¨ç¬¬ ${Math.floor(done / AI_IMPORT_BATCH_SIZE) + 1} æ‰¹è¯æ±‡â€¦`;
-        }
-    };
-
-    Controller._renderAIImportFailures = function(
-        stage = 'loading'
-    ) {
-        const failed =
-            this.aiImportState.failed || [];
-
-        const failureBox =
-            View.getEl('ai-import-failure-box');
-
-        const failureTitle =
-            View.getEl('ai-import-failure-title-text');
-
-        const failureList =
-            View.getEl('ai-import-failure-list');
-
-        const previewNote =
-            View.getEl('ai-import-preview-note');
-
-        const previewTitle =
-            View.getEl('ai-import-preview-note-title');
-
-        const previewText =
-            View.getEl('ai-import-preview-note-text');
-
-        if (failureBox) {
-            failureBox.hidden =
-                stage !== 'loading' || failed.length === 0;
-        }
-
-        if (failureTitle) {
-            failureTitle.textContent =
-                `${failed.length} ä¸ªè¯æ±‡è¡¥å…¨å¤±è´¥`;
-        }
-
-        if (failureList) {
-            failureList.innerHTML = failed
-                .slice(0, 30)
-                .map(item => {
-                    return `<span title="${escapeHTML(item.reason || '')}">${escapeHTML(item.word)}</span>`;
-                })
-                .join('');
-        }
-
-        if (previewNote) {
-            previewNote.hidden =
-                stage !== 'preview' || failed.length === 0;
-        }
-
-        if (previewTitle) {
-            previewTitle.textContent =
-                `${failed.length} ä¸ªè¯æ±‡å°šæœªè¡¥å…¨`;
-        }
-
-        if (previewText) {
-            const names = failed
-                .slice(0, 6)
-                .map(item => item.word)
-                .join('ã€');
-
-            previewText.textContent =
-                names +
-                (failed.length > 6
-                    ? ` ç­‰ ${failed.length} ä¸ªè¯`
-                    : '') +
-                'ã€‚å·²å®Œæˆçš„è¯æ¡å¯ä»¥å…ˆæ£€æŸ¥ï¼Œä¹Ÿå¯ä»¥åªé‡è¯•è¿™äº›å¤±è´¥è¯ã€‚';
-        }
-    };
-
-    Controller._applyAIImportPreviewSettings = function() {
-        const state = this.aiImportState;
-        const folderSelect =
-            View.getEl(
-                state.lang === 'en'
-                    ? 'ai-word-folder-en'
-                    : 'ai-word-folder-ja'
-            );
-
-        if (folderSelect) {
-            const hasFolder = Array.from(
-                folderSelect.options
-            ).some(option => option.value === state.folder);
-
-            if (hasFolder) {
-                folderSelect.value = state.folder;
-                folderSelect.dispatchEvent(
-                    new Event('facade-update')
-                );
-            }
-        }
-
-        const duplicateSelect =
-            View.getEl('ai-word-duplicate-mode');
-
-        if (duplicateSelect) {
-            duplicateSelect.value = state.duplicateMode;
-            duplicateSelect.dispatchEvent(
-                new Event('facade-update')
-            );
-        }
-
-        const starInput =
-            View.getEl('ai-word-add-star');
-
-        if (starInput) {
-            starInput.checked = state.addToStars;
-        }
-    };
-
-    Controller._startAIImport = async function() {
-        Hardware.playSound('click');
-        Hardware.vibrate(18);
-
-        if (this.aiImportState.running) {
-            return;
-        }
-
-        if (!localStorage.getItem('deepseekApiKey')) {
-            showToast('è¯·å…ˆåœ¨è®¾ç½®ä¸­é…ç½® DeepSeek API Key');
-            return;
-        }
-
-        const text =
-            View.getEl('custom-input')?.value || '';
-
-        const lang =
-            View.getEl('import-lang-select')?.value || 'ja';
-
-        const folder =
-            View.getEl('import-folder-select')?.value || '';
-
-        const duplicateMode =
-            View.getEl('import-duplicate-mode')?.value || 'skip';
-
-        const addToStars = Boolean(
-            View.getEl('import-ai-add-star')?.checked
-        );
-
-        const level = normalizeWordLevel(
-            View.getEl('import-level-select')?.value || '',
-            lang
-        );
-
-        const difficulty = normalizeWordDifficulty(
-            View.getEl('import-difficulty-select')?.value || 0
-        );
-
-        const tags = normalizeWordTags(
-            View.getEl('import-tags-input')?.value || ''
-        );
-
-        if (!text.trim()) {
-            showToast('è¯·å…ˆè¾“å…¥è¦è¡¥å…¨çš„å•è¯');
-            return;
-        }
-
-        if (!folder) {
-            showToast('å½“å‰è¯­è¨€æ²¡æœ‰å¯ç”¨è¯åº“');
-            return;
-        }
-
-        const parsed =
-            this._parseAIImportInput(text, lang);
-
-        if (parsed.words.length === 0) {
-            showToast(
-                lang === 'en'
-                    ? 'æ²¡æœ‰è¯†åˆ«åˆ°æœ‰æ•ˆè‹±è¯­è¯æ±‡'
-                    : 'æ²¡æœ‰è¯†åˆ«åˆ°æœ‰æ•ˆæ—¥è¯­è¯æ±‡'
-            );
-            return;
-        }
-
-        let skippedExisting = 0;
-        const candidates = [];
-
-        for (const candidate of parsed.words) {
-            const existing =
-                this._findExistingAIImportWord(candidate);
-
-            if (existing && duplicateMode === 'skip') {
-                skippedExisting++;
-                continue;
-            }
-
-            candidates.push({
-                ...candidate,
-                level,
-                difficulty,
-                tags,
-                builtIn: false,
-                existingFolder: existing?.folder || ''
-            });
-        }
-
-        if (candidates.length === 0) {
-            showToast(
-                `è¯†åˆ«åˆ°çš„ ${parsed.words.length} ä¸ªè¯éƒ½å·²å­˜åœ¨ï¼Œå·²æŒ‰è®¾ç½®è·³è¿‡`
-            );
-            return;
-        }
-
-        this.aiImportState = {
-            lang,
-            folder,
-            duplicateMode,
-            addToStars,
-            level,
-            difficulty,
-            tags,
-            totalInput: parsed.rawNonEmptyCount,
-            skippedExisting,
-            invalidLines: parsed.invalidLines,
-            truncatedCount: parsed.truncatedCount,
-            candidates,
-            successes: [],
-            failed: [],
-            running: true
-        };
-
-        this._resetAIWordCollection();
-
-        this.aiWordCollection.sourcePayload = {
-            scope: 'import',
-            lang,
-            folder,
-            duplicateMode,
-            addToStars,
-            level,
-            difficulty,
-            tags
-        };
-
-        window.toggleModal(
-            'ai-word-collector-overlay',
-            true
-        );
-
-        this._setAIImportCollectorContext();
-
-        this._showAIWordCollectorStage(
-            'loading',
-            `å‡†å¤‡ä¸º ${candidates.length} ä¸ªè¯æ±‡è¡¥å…¨ä¿¡æ¯â€¦`
-        );
-
-        const loadingNote =
-            View.getEl('ai-word-loading-note');
-
-        if (loadingNote) {
-            const notes = [];
-
-            if (skippedExisting > 0) {
-                notes.push(`å·²æå‰è·³è¿‡ ${skippedExisting} ä¸ªé‡å¤è¯`);
-            }
-
-            if (parsed.invalidLines.length > 0) {
-                notes.push(`å¿½ç•¥ ${parsed.invalidLines.length} è¡Œæ— æ•ˆå†…å®¹`);
-            }
-
-            if (parsed.truncatedCount > 0) {
-                notes.push(`è¶…è¿‡ä¸Šé™çš„ ${parsed.truncatedCount} ä¸ªè¯æš‚æœªå¤„ç†`);
-            }
-
-            loadingNote.textContent =
-                notes.length > 0
-                    ? notes.join(' Â· ')
-                    : `ç³»ç»Ÿä¼šè‡ªåŠ¨åˆ†ä¸º ${Math.ceil(candidates.length / AI_IMPORT_BATCH_SIZE)} æ‰¹å¤„ç†`;
-        }
-
-        this._updateAIImportProgress(
-            0,
-            candidates.length,
-            'æ­£åœ¨å‡†å¤‡'
-        );
-
-        await this._runAIImportCandidates(
-            candidates,
-            false
-        );
-    };
-
-    Controller._runAIImportCandidates = async function(
-        candidates,
-        isRetry = false
-    ) {
-        const total = candidates.length;
-        let processed = 0;
-        const runSuccesses = [];
-        const runFailures = [];
-
-        this.aiImportState.running = true;
-
-        this._showAIWordCollectorStage(
-            'loading',
-            isRetry
-                ? `æ­£åœ¨é‡è¯• ${total} ä¸ªå¤±è´¥è¯â€¦`
-                : `æ­£åœ¨è¡¥å…¨ ${total} ä¸ªè¯æ±‡â€¦`
-        );
-
-        this._renderAIImportFailures('none');
-
-        for (
-            let start = 0;
-            start < candidates.length;
-            start += AI_IMPORT_BATCH_SIZE
-        ) {
-            const batch = candidates.slice(
-                start,
-                start + AI_IMPORT_BATCH_SIZE
-            );
-
-            const batchNumber =
-                Math.floor(start / AI_IMPORT_BATCH_SIZE) + 1;
-
-            const batchTotal =
-                Math.ceil(candidates.length / AI_IMPORT_BATCH_SIZE);
-
-            this._updateAIImportProgress(
-                processed,
-                total,
-                `ç¬¬ ${batchNumber} / ${batchTotal} æ‰¹`
-            );
-
-            const result =
-                await this._requestAIImportBatch(batch);
-
-            runSuccesses.push(...result.successes);
-            runFailures.push(...result.failed);
-
-            processed += batch.length;
-
-            this._updateAIImportProgress(
-                processed,
-                total,
-                `ç¬¬ ${batchNumber} / ${batchTotal} æ‰¹`
-            );
-        }
-
-        const successMap = new Map();
-
-        [
-            ...(isRetry
-                ? this.aiImportState.successes
-                : []),
-            ...runSuccesses
-        ].forEach(draft => {
-            const key =
-                `${draft.lang}:` +
-                this._normalizeAIWordText(
-                    draft.word,
-                    draft.lang
-                );
-
-            successMap.set(key, draft);
-        });
-
-        this.aiImportState.successes =
-            Array.from(successMap.values());
-
-        this.aiImportState.failed = runFailures;
-        this.aiImportState.running = false;
-
-        if (this.aiImportState.successes.length === 0) {
-            const loadingText =
-                View.getEl('ai-word-loading-text');
-
-            if (loadingText) {
-                loadingText.textContent =
-                    'è¿™æ¬¡æ²¡æœ‰æˆåŠŸè¡¥å…¨ä»»ä½•è¯æ±‡';
-            }
-
-            this._renderAIImportFailures('loading');
-            return;
-        }
-
-        this.aiWordCollection.drafts =
-            this.aiImportState.successes.map(draft => ({
-                ...draft
-            }));
-
-        this._renderAIWordPreview();
-        this._applyAIImportPreviewSettings();
-        this._renderAIImportFailures('preview');
-
-        this._showAIWordCollectorStage('preview');
-
-        showToast(
-            this.aiImportState.failed.length > 0
-                ? `å·²è¡¥å…¨ ${this.aiImportState.successes.length} ä¸ªï¼Œ${this.aiImportState.failed.length} ä¸ªå¾…é‡è¯•`
-                : `å·²è¡¥å…¨ ${this.aiImportState.successes.length} ä¸ªè¯æ±‡ï¼Œè¯·æ£€æŸ¥åä¿å­˜`
-        );
-    };
-
-    Controller._retryAIImportFailures = async function() {
-        if (this.aiImportState.running) {
-            return;
-        }
-
-        const failed =
-            (this.aiImportState.failed || [])
-                .map(item => ({
-                    word: item.word,
-                    lang: item.lang
-                }));
-
-        if (failed.length === 0) {
-            showToast('æ²¡æœ‰éœ€è¦é‡è¯•çš„è¯æ±‡');
-            return;
-        }
-
-        this._setAIImportCollectorContext();
-        this._updateAIImportProgress(
-            0,
-            failed.length,
-            'æ­£åœ¨å‡†å¤‡é‡è¯•'
-        );
-
-        await this._runAIImportCandidates(
-            failed,
-            true
-        );
-    };
-
-    Controller._closeAIWordCollector = function() {
-        originalCloseAIWordCollector();
-        this._resetAIImportCollectorContext();
-        this.aiImportState.running = false;
-    };
-
-    Controller._saveAIWordDrafts = async function() {
-        const wasAIImport =
-            this.aiWordCollection?.sourcePayload?.scope === 'import';
-
-        await originalSaveAIWordDrafts();
-
-        const overlay =
-            View.getEl('ai-word-collector-overlay');
-
-        if (
-            wasAIImport &&
-            overlay &&
-            !overlay.classList.contains('active')
-        ) {
-            const textarea =
-                View.getEl('custom-input');
-
-            if (textarea) {
-                textarea.value = '';
-            }
-
-            this.aiImportState = {
-                lang: 'ja',
-                folder: '',
-                duplicateMode: 'skip',
-                addToStars: false,
-                level: '',
-                difficulty: 0,
-                tags: [],
-                totalInput: 0,
-                skippedExisting: 0,
-                invalidLines: [],
-                candidates: [],
-                successes: [],
-                failed: [],
-                running: false
-            };
-        }
-    };
-
-    Controller.init = async function() {
-        await originalControllerInit();
-
-        document
-            .querySelectorAll('[data-import-mode]')
-            .forEach(button => {
-                button.addEventListener('click', () => {
-                    Hardware.playSound('click');
-                    Hardware.vibrate(12);
-                    this.setImportMode(
-                        button.dataset.importMode
-                    );
-                });
-            });
-
-        View.getEl('ai-import-retry')
-            ?.addEventListener('click', () => {
-                Hardware.vibrate(15);
-                this._retryAIImportFailures();
-            });
-
-        View.getEl('ai-import-preview-retry')
-            ?.addEventListener('click', () => {
-                Hardware.vibrate(15);
-                this._retryAIImportFailures();
-            });
-
-        View.getEl('ai-word-back')
-            ?.addEventListener(
-                'click',
-                event => {
-                    if (
-                        this.aiWordCollection
-                            ?.sourcePayload
-                            ?.scope === 'import'
-                    ) {
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        Hardware.vibrate(10);
-                        this._closeAIWordCollector();
-                    }
-                },
-                true
-            );
-
-        this.setImportMode(
-            this.importMode,
-            false
-        );
-    };
-})();
-
-
-/* ==========================================
-   ç¬¬äº”è½®ï¼šè¯åº“çº§åˆ«ã€éš¾åº¦ã€æ ‡ç­¾ä¸æ•°æ®æ£€æŸ¥
-   ========================================== */
-(() => {
-    const getFilterStorageKey = (name, lang) => {
-        return `wordbank_${name}_${lang === 'en' ? 'en' : 'ja'}`;
-    };
-
-    const syncWordbankMetadataFilters = () => {
-        const lang = Model.state.currentLangMode === 'en' ? 'en' : 'ja';
-        const levelSelect = View.getEl('wb-level-filter');
-        const difficultySelect = View.getEl('wb-difficulty-filter');
-
-        if (levelSelect) {
-            const saved = localStorage.getItem(
-                getFilterStorageKey('level', lang)
-            ) || '';
-
-            levelSelect.innerHTML =
-                '<option value="">å…¨éƒ¨çº§åˆ«</option>' +
-                (WORD_LEVEL_OPTIONS[lang] || [])
-                    .map(level => {
-                        return `<option value="${level}">${level}</option>`;
-                    })
-                    .join('') +
-                '<option value="__unassigned__">æœªåˆ†çº§</option>';
-
-            levelSelect.value = Array.from(levelSelect.options)
-                .some(option => option.value === saved)
-                    ? saved
-                    : '';
-
-            levelSelect.dispatchEvent(
-                new Event('facade-update')
-            );
-        }
-
-        if (difficultySelect) {
-            const saved = localStorage.getItem(
-                getFilterStorageKey('difficulty', lang)
-            ) || '';
-
-            difficultySelect.value = Array.from(
-                difficultySelect.options
-            ).some(option => option.value === saved)
-                ? saved
-                : '';
-
-            difficultySelect.dispatchEvent(
-                new Event('facade-update')
-            );
-        }
-    };
-
-    const originalUpdateWordbankUI =
-        View.updateWordbankUI.bind(View);
-
-    View.updateWordbankUI = function() {
-        const result = originalUpdateWordbankUI();
-        syncWordbankMetadataFilters();
-        return result;
-    };
-
-    const originalUpdateFilteredDb =
-        Model.updateFilteredDb.bind(Model);
-
-    Model.updateFilteredDb = function(
-        searchQuery,
-        currentFilter
-    ) {
-        originalUpdateFilteredDb(
-            searchQuery,
-            currentFilter
-        );
-
-        const levelFilter =
-            View.getEl('wb-level-filter')?.value || '';
-        const difficultyFilter =
-            View.getEl('wb-difficulty-filter')?.value || '';
-
-        const hint = this.state.filteredDb.find(item => {
-            return item.idx === -999;
-        });
-
-        const words = this.state.filteredDb.filter(item => {
-            if (item.idx === -999) {
-                return false;
-            }
-
-            const lang = item.w.lang === 'en' ? 'en' : 'ja';
-            const level = normalizeWordLevel(item.w.level, lang);
-            const difficulty = normalizeWordDifficulty(
-                item.w.difficulty
-            );
-
-            const levelMatches =
-                !levelFilter ||
-                (levelFilter === '__unassigned__'
-                    ? !level
-                    : level === levelFilter);
-
-            const difficultyMatches =
-                !difficultyFilter ||
-                (difficultyFilter === '__unassigned__'
-                    ? difficulty === 0
-                    : difficulty === Number(difficultyFilter));
-
-            return levelMatches && difficultyMatches;
-        });
-
-        this.state.filteredDb = hint
-            ? [hint, ...words]
-            : words;
-    };
-
-    const decorateWordbankCards = () => {
-        const grid = View.getEl('wb-grid');
-
-        const columns =
-            Number.parseInt(
-                grid?.dataset.cols || '3',
-                10
-            ) || 3;
-
-        document
-            .querySelectorAll('.wb-card[data-idx]')
-            .forEach(card => {
-                const index =
-                    Number(card.dataset.idx);
-
-                if (
-                    !Number.isInteger(index) ||
-                    index < 0
-                ) {
-                    return;
-                }
-
-                const word = Model.db[index];
-
-                const wordNode =
-                    card.querySelector(
-                        '.wb-c-word'
-                    );
-
-                if (!word || !wordNode) {
-                    return;
-                }
-
-                const isEnglish =
-                    word.lang === 'en';
-
-                const wordLength =
-                    Array.from(
-                        String(word.word || '')
-                    ).length;
-
-                const readingText =
-                    isEnglish
-                        ? word.phonetic
-                        : word.kana;
-
-                const readingLength =
-                    Array.from(
-                        String(
-                            readingText || ''
-                        )
-                    ).length;
-
-                card.classList.toggle(
-                    'is-english-word',
-                    isEnglish
-                );
-
-                card.classList.toggle(
-                    'is-word-long',
-                    wordLength >
-                        (isEnglish ? 10 : 4)
-                );
-
-                card.classList.toggle(
-                    'is-word-very-long',
-                    wordLength >
-                        (isEnglish ? 15 : 6)
-                );
-
-                card.classList.toggle(
-                    'is-reading-long',
-                    readingLength >
-                        (isEnglish ? 14 : 8)
-                );
-
-                let meta =
-                    card.querySelector(
-                        '.wb-meta-row'
-                    );
-
-                if (!meta) {
-                    meta =
-                        document.createElement(
-                            'div'
-                        );
-
-                    meta.className =
-                        'wb-meta-row';
-
-                    wordNode
-                        .insertAdjacentElement(
-                            'afterend',
-                            meta
-                        );
-                }
-
-                const html =
-                    getWordMetadataHTML(
-                        word,
-                        {
-                            compact: true,
-                            showUnassigned: false,
-                            specialTagLimit:
-                                columns === 2
-                                    ? 1
-                                    : 0
-                        }
-                    );
-
-                meta.innerHTML = html;
-                meta.hidden = !html;
-
-                const pitchNode =
-                    card.querySelector(
-                        '.wb-c-pitch'
-                    );
-
-                if (
-                    pitchNode &&
-                    !isEnglish
-                ) {
-                    pitchNode.textContent =
-                        formatWordPitchDisplay(
-                            word.pitch
-                        );
-                }
-            });
-    };
-
-    const originalRenderVirtualGrid =
-        View.renderVirtualGrid.bind(View);
-
-    View.renderVirtualGrid = function() {
-        const result = originalRenderVirtualGrid();
-        decorateWordbankCards();
-        return result;
-    };
-
-    const originalUpdateDetailContent =
-        Controller.updateDetailContent.bind(Controller);
-
-    Controller.updateDetailContent = function(
-        word,
-        triggerTTS = false
-    ) {
-        const result = originalUpdateDetailContent(
-            word,
-            triggerTTS
-        );
-
-        const meta = View.getEl('dt-meta');
-
-        if (meta) {
-            meta.innerHTML = getWordMetadataHTML(word, {
-                showUnassigned: true,
-                includeTags: true,
-                specialTagLimit: 2
-            });
-        }
-
-        return result;
-    };
-
-    Controller.renderVocabularyAudit = function(report) {
-        const resultBox = View.getEl('library-audit-result');
-        const summary = View.getEl('library-audit-summary');
-        const issueList = View.getEl('library-audit-issues');
-
-        if (!resultBox || !summary || !issueList) {
-            return;
-        }
-
-        resultBox.hidden = false;
-        resultBox.dataset.state = report.passed
-            ? (report.warnings.length ? 'warning' : 'ok')
-            : 'error';
-
-        summary.innerHTML = `
-            <div class="library-audit-score">
-                <span class="material-symbols-rounded">
-                    ${report.passed ? 'verified' : 'error_med'}
-                </span>
-                <div>
-                    <strong>
-                        ${report.passed ? 'æ²¡æœ‰é˜»æ–­é—®é¢˜' : `${report.errors.length} ä¸ªå¿…é¡»ä¿®å¤çš„é—®é¢˜`}
-                    </strong>
-                    <small>
-                        å…± ${report.total} è¯ Â· æ—¥è¯­ ${report.japanese} Â· è‹±è¯­ ${report.english} Â· å†…ç½® ${report.builtIn} Â· æé†’ ${report.warnings.length}
-                    </small>
-                </div>
-            </div>
-        `;
-
-        const visibleIssues = report.issues.slice(0, 100);
-
-        issueList.innerHTML = visibleIssues.length
-            ? visibleIssues.map(issue => {
-                return `
-                    <div class="library-audit-issue is-${issue.severity}">
-                        <span class="material-symbols-rounded">
-                            ${issue.severity === 'error' ? 'cancel' : 'error'}
-                        </span>
-                        <div>
-                            <strong>${escapeHTML(issue.word)}</strong>
-                            <small>ç¬¬ ${issue.index + 1} æ¡ Â· ${escapeHTML(issue.message)}</small>
-                        </div>
-                    </div>
-                `;
-            }).join('')
-            : `
-                <div class="library-audit-perfect">
-                    <span class="material-symbols-rounded">task_alt</span>
-                    å½“å‰è¯åº“é€šè¿‡å®Œæ•´æ£€æŸ¥ï¼Œå¯ä»¥ç»§ç»­æ‰©å……ã€‚
-                </div>
-            `;
-
-        if (report.issues.length > 100) {
-            issueList.insertAdjacentHTML(
-                'beforeend',
-                `<div class="library-audit-more">å¦æœ‰ ${report.issues.length - 100} æ¡é—®é¢˜ï¼Œè¯·åœ¨æµè§ˆå™¨æ§åˆ¶å°æŸ¥çœ‹å®Œæ•´æŠ¥å‘Šã€‚</div>`
-            );
-        }
-    };
-
-    Controller.runVocabularyAudit = function() {
-        const report = validateVocabularyData(Model.db);
-        this.renderVocabularyAudit(report);
-
-        console.groupCollapsed(
-            `[è¯åº“æ£€æŸ¥] ${report.errors.length} é”™è¯¯ / ${report.warnings.length} æé†’`
-        );
-        console.table(report.issues);
-        console.groupEnd();
-
-        showToast(
-            report.passed
-                ? (report.warnings.length
-                    ? `æ£€æŸ¥å®Œæˆï¼š${report.warnings.length} æ¡æé†’`
-                    : 'è¯åº“æ£€æŸ¥é€šè¿‡')
-                : `å‘ç° ${report.errors.length} ä¸ªå¿…é¡»ä¿®å¤çš„é—®é¢˜`
-        );
-    };
-
-    const originalControllerInit =
-        Controller.init.bind(Controller);
-
-    Controller.init = async function() {
-        await originalControllerInit();
-
-        syncWordbankMetadataFilters();
-        this.updateImportMetadataOptions();
-
-        const bindFilter = (id, name) => {
-            const select = View.getEl(id);
-
-            if (!select || select.dataset.metaFilterReady === 'true') {
-                return;
-            }
-
-            select.dataset.metaFilterReady = 'true';
-            select.addEventListener('change', () => {
-                const lang = Model.state.currentLangMode === 'en'
-                    ? 'en'
-                    : 'ja';
-
-                localStorage.setItem(
-                    getFilterStorageKey(name, lang),
-                    select.value
-                );
-
-                View.resetWordbankRenderer();
-            });
-        };
-
-        bindFilter('wb-level-filter', 'level');
-        bindFilter('wb-difficulty-filter', 'difficulty');
-
-        View.getEl('btn-run-library-audit')
-            ?.addEventListener('click', () => {
-                Hardware.vibrate(15);
-                this.runVocabularyAudit();
-            });
-
-        View.getEl('edit-level')?.addEventListener('change', event => {
-            event.target.dispatchEvent(new Event('facade-update'));
-        });
-
-        View.getEl('edit-difficulty')?.addEventListener('change', event => {
-            event.target.dispatchEvent(new Event('facade-update'));
-        });
-
-        decorateWordbankCards();
-    };
-})();
-
-
-
-window.onload = () => {
-    const visibilityBtn =
-        document.getElementById('prompt-visibility');
-
-    const input =
-        document.getElementById('prompt-input');
-
-    if (visibilityBtn && input) {
-        visibilityBtn.addEventListener('click', () => {
-            Hardware.vibrate(10);
-
-            const shouldShow =
-                input.type === 'password';
-
-            input.type =
-                shouldShow ? 'text' : 'password';
-
-            const icon =
-                visibilityBtn.querySelector(
-                    '.material-symbols-rounded'
-                );
-
-            if (icon) {
-                icon.textContent =
-                    shouldShow
-                        ? 'visibility_off'
-                        : 'visibility';
-            }
-
-            visibilityBtn.title =
-                shouldShow ? 'éšè—å¯†é’¥' : 'æ˜¾ç¤ºå¯†é’¥';
-
-            visibilityBtn.setAttribute(
-                'aria-label',
-                shouldShow ? 'éšè—å¯†é’¥' : 'æ˜¾ç¤ºå¯†é’¥'
-            );
-
-            input.focus();
-
-            try {
-                input.setSelectionRange(
-                    input.value.length,
-                    input.value.length
-                );
-            } catch (error) {}
-        });
-    }
-
-    Controller.init();
-};
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éí×ß9Ó”èµ©hºÚn¶X§zÍKÊŠ‚ˆ
+ˆ:d§ù¥éHH9¨.9oàù£©ùb-º`.ú/¤Bˆ
+‹Â‚˜ÛÛœİUWÔĞÒSPWÕ‘T”ÒSÓˆHÂ˜ÛÛœİRQÔUSÓ—ÔÓTÒÕÒÑVHH	ÛZYÜ˜][Û”ØY™]TÛ˜\ÚİİŒIÎÂ‚˜ÛÛœİPÒÕTÑ“Ô“PUÒQH	ŞšÛ™ÜšKX˜XÚİ\	ÎÂ˜ÛÛœİPÒÕTÑ“Ô“PUÕ‘T”ÒSÓˆHLÂ‚˜ÛÛœİTÑT—ÕÓÔ‘×ÔÕÔQÑWÒÑVHH	İ\Ù\•ÛÜ™×İŒIÎÂ˜ÛÛœİÓÔ‘ÓÕ‘T”’QT×ÔÕÔQÑWÒÑVHH	İÛÜ™İ™\œšY\×İŒIÎÂ˜ÛÛœİQĞPÖWÕÓÔ‘Ñ—ÔÕÔQÑWÒÑVHH	Û^UÛÜ™—İŒÉÎÂ˜ÛÛœİÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓ—ÒÑVHH	İÛÜ™İÜ˜YÙU™\œÚ[Û‰ÎÂ˜ÛÛœİÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓˆHNÂ˜ÛÛœİ‘WÒSTÔ•Ô‘TÕÔ‘WÒÑVHH	Ü™R[\Ü™\İÜ™TÚ[İŒIÎÂ‚˜ÛÛœİÓÔ‘WÕUSÈHÛØ˜[\Ë–šÛ™ÜšPÛÜ™U][ÎÂ˜ÛÛœİTPÔÈHÛØ˜[\Ë–šÛ™ÜšR\XÜÎÂ˜ÛÛœİÓÔ‘ĞS’×ÓĞQTˆHÛØ˜[\Ë–šÛ™ÜšUÛÜ™˜[šÓØY\Â˜ÛÛœİ‘SPTÑWÒS‘“ÈHÛØ˜[\Ë–šÛ™ÜšT™[X\ÙR[™›ÈØš™Xİ™œ™Y^™JÂˆ™\œÚ[Ûˆ	ù§*¹çéyâb9§+	ËˆZ[ˆ	ù§+9g,9ï$ùkf	ËˆX›\ÚY]ˆ[ŸJNÂ˜ÛÛœİ“ÕWĞÓÔ‘HHÛØ˜[\Ë”›İSX\›š[™ĞÛÜ™NÂ˜ÛÛœİPUVÔÓÕTÑHBˆ	ÚÎ‹ËØÙ‹šœÙ[]œ‹›™]ÛœKÛX]˜^ËÙ\ÍKİ^[[[XÚ[šœÉÎÂ‚›]X]˜^ØY›ÛZ\ÙHH[Â‚šYˆ
+PÓÔ‘WÕUSÊHÂˆ›İÈ™]È\œ›ÜŠ	úd§ù¥éyak9alyméyamùª(ygeùb¨:/oyi,z-)IÊNÂŸB‚šYˆ
+RTPÔÊHÂˆ›İÈ™]È\œ›ÜŠ	úd§ù¥éz)é¹¡'ùª(ygeùb¨:/oyi,z-)IÊNÂŸB‚šYˆ
+T“ÕWĞÓÔ‘JHÂˆ›İÈ™]È\œ›ÜŠ	ùoª¹ã«ùo.º+¬9¨.9oàùª(ygeùb¨:/oyi,z-)IÊNÂŸB‚˜ÛÛœİÂˆÛÛ™Q]U˜[YKˆ\ØØ\RSˆ\ØØ\T™YÑ^ˆ\ÚİX›U^ˆ›Ü›X[^™Q[U^ŸHHÓÔ‘WÕUSÎÂ‚˜ÛÛœİØYX]˜^H
+
+HOˆÂˆYˆ
+Ú[™İË“X]˜^Ë\\Ù]›ÛZ\ÙJHÂˆ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™JÚ[™İË“X]˜^
+NÂˆB‚ˆYˆ
+X]˜^ØY›ÛZ\ÙJHÂˆ™]\›ˆX]˜^ØY›ÛZ\ÙNÂˆB‚ˆX]˜^ØY›ÛZ\ÙHH™]È›ÛZ\ÙJ
+™\ÛÛ™K™Z™Xİ
+HOˆÂˆÛÛœİ^\İ[™ÔØÜš\BˆØİ[Y[™Ù][[Y[RY
+	ÓX]˜^\ØÜš\	ÊNÂˆÛÛœİØÜš\Bˆ^\İ[™ÔØÜš\Øİ[Y[˜Ü™X]Q[[Y[
+	ÜØÜš\	ÊNÂ‚ˆÛÛœİ[™SØYYH
+
+HOˆÂˆYˆ
+Ú[™İË“X]˜^Ë\\Ù]›ÛZ\ÙJHÂˆ™\ÛÛ™JÚ[™İË“X]˜^
+NÂˆ™]\›ÂˆBˆØÜš\œ™[[İ™J
+NÂˆX]˜^ØY›ÛZ\ÙHH[Âˆ™Z™Xİ
+™]È\œ›ÜŠ	ÓX]˜^9b'yiâùc%¹i,z-)IÊJNÂˆNÂ‚ˆÛÛœİ[™Q\œ›ÜˆH
+
+HOˆÂˆØÜš\œ™[[İ™J
+NÂˆX]˜^ØY›ÛZ\ÙHH[Âˆ™Z™Xİ
+™]È\œ›ÜŠ	ÓX]˜^9."ú/oyi,z-)IÊJNÂˆNÂ‚ˆØÜš\˜Y]™[\İ[™\Š	ÛØY	Ë[™SØYYÈÛ˜ÙNˆYHJNÂˆØÜš\˜Y]™[\İ[™\Š	Ù\œ›Ü‰Ë[™Q\œ›Ü‹ÈÛ˜ÙNˆYHJNÂ‚ˆYˆ
+Y^\İ[™ÔØÜš\
+HÂˆØÜš\šYH	ÓX]˜^\ØÜš\	ÎÂˆØÜš\˜\Ş[˜ÈHYNÂˆØÜš\œÜ˜ÈHPUVÔÓÕTÑNÂˆØİ[Y[šXY˜\[™Ú[
+ØÜš\
+NÂˆBˆJNÂ‚ˆ™]\›ˆX]˜^ØY›ÛZ\ÙNÂŸNÂ‚˜ÛÛœİPÒÕTÔ‘Q‘T‘SÑWÒÑVTÈHØš™Xİ™œ™Y^™JÂˆ	İ[YIËˆ	Û[™Ó[ÙIËˆ	Ø]]ÔÜXZÉËˆ	Ú\XÜÑ[˜X›Y	Ëˆ	ÜÚİÔ›ÛİÉËˆ	Ù\šĞ”İ[IËˆ	ÜÜİÛ™U\İY	Ëˆ	İÛÜ™Ü™\“[ÙIËˆ	ÜÚÚ\X\İ\™Y	Ëˆ	İ\ÙTXT™[™\‰Ëˆ	İÑ[™Ú[™IËˆ	Ù\Ü^S[ÙIËˆ	Û\İİ\İÛQÜ›İ\	Ëˆ	Û\İİ\İÛQÜ›İ\˜[	Ëˆ	Û\İÙ[XİY›Û\‰Ëˆ	Û\İ\İ\Ü^IËˆ	Û\İ\İ˜[™ÙIÂ—JNÂ˜ÛÛœİÜ™X]T˜[™ÛUÛÜ™YH
+
+HOˆÂˆYˆ
+ˆ\[ÙˆÜ\ÈOOH	İ[™Yš[™Y	È	‰‚ˆ\[ÙˆÜ\Ëœ˜[™ÛUURQOOH	Ù[˜İ[Û‰Âˆ
+HÂˆ™]\›ˆ\Ù\‹IØÜ\Ëœ˜[™ÛUURQ
+
+_XÂˆB‚ˆ™]\›ˆ
+ˆ\Ù\‹IÑ]K››İÊ
+KÔİš[™ÊÍŠ_KX
+ÂˆX]œ˜[™ÛJ
+KÔİš[™ÊÍŠKœÛXÙJ‹L
+Bˆ
+NÂŸNÂ‚˜ÛÛœİÜ™X]Q˜[˜XÚĞZ[[•ÛÜ™YH[HOˆÂˆÛÛœİ[™ÈH[OË›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİÛÜ™Hİš[™Ê[OËÛÜ™	ÉÊK››Ü›X[^™J	Ó‘’ĞÉÊKš[J
+NÂˆÛÛœİ™XY[™ÈH[™ÈOOH	Ù[‰ÂˆÈİš[™Ê[OËœÛ™]XÈ	ÉÊK››Ü›X[^™J	Ó‘’ĞÉÊKš[J
+Bˆˆİš[™Ê[OËšØ[˜H	ÉÊK››Ü›X[^™J	Ó‘’ĞÉÊKš[J
+NÂ‚ˆ™]\›ˆZ[[‹IÛ[™ßKIÚ\ÚİX›U^
+	Û[™ß_	İÛÜ™_	Ü™XY[™ßX
+_XÂŸNÂ‚˜ÛÛœİ[œİ\™TİX›UÛÜ™YH
+ˆ[KˆÈZ[[’[H˜[ÙHHHßBŠHOˆÂˆYˆ
+Y[H\[Ùˆ[HOOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆ	ÉÎÂˆB‚ˆÛÛœİ^\İ[™ÒYHİš[™Ê[K—ÚY	ÉÊKš[J
+NÂ‚ˆYˆ
+^\İ[™ÒY
+HÂˆ[K—ÚYH^\İ[™ÒYÂˆ™]\›ˆ^\İ[™ÒYÂˆB‚ˆÛÛœİ\ĞZ[[ˆBˆZ[[’[ˆ[K˜Z[[ˆOOHYNÂ‚ˆ[K—ÚYH\ĞZ[[‚ˆÈÜ™X]Q˜[˜XÚĞZ[[•ÛÜ™Y
+[JBˆˆÜ™X]T˜[™ÛUÛÜ™Y
+
+NÂ‚ˆ™]\›ˆ[K—ÚYÂŸNÂ‚˜ÛÛœİÙ]İX›UÛÜ™YH[HOˆÂˆ™]\›ˆ[œİ\™TİX›UÛÜ™Y
+[KÂˆZ[[’[ˆ[OË˜Z[[ˆOOHYBˆJNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™[X\Ù\ÈH˜[YHOˆÂˆÛÛœİÛİ\˜ÙHH\œ˜^Kš\Ğ\œ˜^J˜[YJBˆÈ˜[YBˆˆİš[™Ê˜[YHÏÈ	ÉÊKœÜ]
+Öøà K;ï#ûï&ß;ïg×JËÊNÂ‚ˆ™]\›ˆÂˆ‹‹›™]ÈÙ]
+ˆÛİ\˜ÙBˆ›X\
+][HOˆİš[™Ê][HÏÈ	ÉÊK››Ü›X[^™J	Ó‘’ĞÉÊKš[J
+JBˆ™š[\Š›ÛÛX[ŠBˆ
+BˆKœÛXÙJ
+NÂŸNÂ‚˜ÛÛœİ›Ü›X[^™T™]šY]Ôİ]\ÈH˜[YHOˆÂˆÛÛœİ›Ü›X[^™YHİš[™Ê˜[YH	ÉÊKš[J
+KÓİÙ\Ø\ÙJ
+NÂ‚ˆ™]\›ˆÉÙ˜Y	Ë	Ü™]šY]ÙY	Ë	İ™\šYšYY	×Kš[˜ÛY\Ê›Ü›X[^™Y
+BˆÈ›Ü›X[^™Yˆˆ	Ù˜Y	ÎÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™Ûİ\˜Ù\ÈH˜[YHOˆÂˆÛÛœİÛİ\˜ÙHH\œ˜^Kš\Ğ\œ˜^J˜[YJBˆÈ˜[YBˆˆİš[™Ê˜[YHÏÈ	ÉÊKœÜ]
+Ö×ûï&ß;ïgJËÊNÂ‚ˆ™]\›ˆÂˆ‹‹›™]ÈÙ]
+ˆÛİ\˜ÙBˆ›X\
+][HOˆÂˆYˆ
+\[Ùˆ][HOOH	Üİš[™ÉÊHÂˆ™]\›ˆ][Kš[J
+NÂˆB‚ˆYˆ
+][H	‰ˆ\[Ùˆ][HOOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆİš[™Êˆ][K›˜[YHˆ][KœÛİ\˜ÙHˆ][K]Hˆ	ÉÂˆ
+Kš[J
+NÂˆB‚ˆ™]\›ˆ	ÉÎÂˆJBˆ™š[\Š›ÛÛX[ŠBˆ
+BˆKœÛXÙJŒ
+NÂŸNÂ‚˜ÛÛœİ›Ü›X[^™RXYÛÜ™H
+˜[YK[™ÈH	Ú˜IÊHOˆÂˆ]^H›Ü›X[^™Q[U^
+˜[YJBˆœ™\XÙJÖø '8 'WKÙË	È‰ÊBˆœ™\XÙJÖø &8 &WKÙË‰ÈŠBˆœ™\XÙJ×ÊŠËx $8 $x $¸ $ø %JWÊ‹ÙË	ËIÊBˆš[J
+NÂ‚ˆYˆ
+[™ÈOOH	Ù[‰ÊHÂˆ^H^ˆœ™\XÙJ×Ê‰×Ê‹ÙË‰ÈŠBˆœ™\XÙJ×ÊËÙË	È	ÊNÂˆB‚ˆ™]\›ˆ^ÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™\HH
+˜[YJHOˆÂˆÛÛœİ[X\ÓX\H™]ÈX\
+ÂˆÉùd#IË	ùd#z+ãI×KˆÉùd#z+ãIË	ùd#z+ãI×KˆÉùd#z*g‰Ë	ùd#z+ãI×KˆÉÛ›İ[‰Ë	ùd#z+ãI×KˆÉÛ‰Ë	ùd#z+ãI×KˆÉùbª	Ë	ùbª:+ãI×KˆÉùbåIË	ùbª:+ãI×KˆÉùbª:+ãIË	ùbª:+ãI×KˆÉùbåz*g‰Ë	ùbª:+ãI×KˆÉİ™\˜‰Ë	ùbª:+ãI×KˆÉİ‰Ë	ùbª:+ãI×KˆÉùoh‰Ë	ùoh¹k®z+ãI×KˆÉùoh¹k®z+ãIË	ùoh¹k®z+ãI×KˆÉùoh¹k®z*g‰Ë	ùoh¹k®z+ãI×KˆÉØY™Xİ]™IË	ùoh¹k®z+ãI×KˆÉØY‰Ë	ùoh¹k®z+ãI×KˆÉùoh¹bª	Ë	ùoh¹k®ybª:+ãI×KˆÉùoh¹båIË	ùoh¹k®ybª:+ãI×KˆÉùoh¹k®ybª:+ãIË	ùoh¹k®ybª:+ãI×KˆÉùoh¹k®ybåz*g‰Ë	ùoh¹k®ybª:+ãI×KˆÉøàâ¹oh¹k®z+ãIË	ùoh¹k®ybª:+ãI×KˆÉøàâ¹oh¹k®z*g‰Ë	ùoh¹k®ybª:+ãI×KˆÉùbkÉË	ùbkú+ãI×KˆÉùbkú+ãIË	ùbkú+ãI×KˆÉùbkú*g‰Ë	ùbkú+ãI×KˆÉØY™\˜‰Ë	ùbkú+ãI×KˆÉØY‰Ë	ùbkú+ãI×KˆÉù.èÉË	ù.èú+ãI×KˆÉù.èú+ãIË	ù.èú+ãI×KˆÉù.èú*g‰Ë	ù.èú+ãI×KˆÉÜ›Û›İ[‰Ë	ù.èú+ãI×KˆÉÜ›Û‰Ë	ù.èú+ãI×KˆÉù.âú+ãIË	ù.âú+ãI×KˆÉù.âú*g‰Ë	ù.âú+ãI×KˆÉùbcyïkº+ãIË	ù.âú+ãI×KˆÉùbcyïkº*g‰Ë	ù.âú+ãI×KˆÉÜ™\ÜÚ][Û‰Ë	ù.âú+ãI×KˆÉÜ™\	Ë	ù.âú+ãI×KˆÉú/çº+ãIË	ú/çº+ãI×KˆÉú`(ú*g‰Ë	ú/çº+ãI×KˆÉù£©yîëz+ãIË	ú/çº+ãI×KˆÉù£©yí¦º*g‰Ë	ú/çº+ãI×KˆÉØÛÛš[˜İ[Û‰Ë	ú/çº+ãI×KˆÉØÛÛš‰Ë	ú/çº+ãI×KˆÉùbªz+ãIË	ùbªz+ãI×KˆÉùbªz*g‰Ë	ùbªz+ãI×KˆÉùbªybª:+ãIË	ùbªybª:+ãI×KˆÉùbªybåz*g‰Ë	ùbªybª:+ãI×KˆÉù¡'ùcîz+ãIË	ù¡'ùcîz+ãI×KˆÉù¡'ùf!º*g‰Ë	ù¡'ùcîz+ãI×KˆÉùa¨:+ãIË	ùa¨:+ãI×KˆÉùa¨:*g‰Ë	ùa¨:+ãI×KˆÉØ\XÛIË	ùa¨:+ãI×KˆÉùçëz+ëIË	ùçëz+ëI×KˆÉú+ãyîá	Ë	ùçëz+ëI×KˆÉùfî¹k¦¹¤+zacIË	ùfî¹k¦¹¤+zacI×KˆÉù ëùå*:+ëIË	ù ëùå*:+ëI×KˆÉù¡hùå*9céIË	ù ëùå*:+ëI×KˆÉùá§ú+ëIË	ùá§ú+ëI×KˆÉùá§ú*§‰Ë	ùá§ú+ëI×KˆÉù¥l:+ãIË	ù¥l:+ãI×KˆÉù¥l:*g‰Ë	ù¥l:+ãI×KˆÉúaãú+ãIË	úaãú+ãI×KˆÉúaãú*g‰Ë	úaãú+ãI×KˆÉù£©yi-:+ãIË	ù£©yi-:+ãI×KˆÉù£©zh+z/§‰Ë	ù£©yi-:+ãI×KˆÉù£©yl/º+ãIË	ù£©yl/º+ãI×KˆÉù£©yl/º/§‰Ë	ù£©yl/º+ãI×BˆJNÂ‚ˆÛÛœİÛİ\˜ÙHH›Ü›X[^™Q[U^
+˜[YJBˆœ™\XÙJÖûï#Ëøà {ï#ûï&ß;ï"ÊÉ»ï!—JËÙË	øàîÉÊBˆœ™\XÙJ×Ê¸àî×Ê‹ÙË	øàîÉÊBˆœ™\XÙJøàîŞÌ‹KÙË	øàîÉÊBˆœ™\XÙJ×¸àîß8àîÉÙË	ÉÊNÂ‚ˆÛÛœİ\ÈHÛİ\˜ÙBˆœÜ]
+	øàîÉÊBˆ›X\
+\OˆÂˆ]ÚÙ[ˆH\ˆœ™\XÙJ×ÊËÙË	ÉÊBˆœ™\XÙJÖË—IÙË	ÉÊBˆœ™\XÙJùd#z*g‹ÙË	ùd#z+ãIÊBˆœ™\XÙJùbåz*g‹ÙË	ùbª:+ãIÊBˆœ™\XÙJùoh¹k®z*g‹ÙË	ùoh¹k®z+ãIÊBˆœ™\XÙJùoh¹k®ybåz*g‹ÙË	ùoh¹k®ybª:+ãIÊBˆœ™\XÙJùbkú*g‹ÙË	ùbkú+ãIÊBˆœ™\XÙJù.èú*g‹ÙË	ù.èú+ãIÊBˆœ™\XÙJù.âú*g‹ÙË	ù.âú+ãIÊBˆœ™\XÙJù£©yí¦º*g‹ÙË	ú/çº+ãIÊBˆœ™\XÙJùbªybåz*g‹ÙË	ùbªybª:+ãIÊBˆœ™\XÙJú!ê¹båz*g‹ÙË	ú!ê¹bª:+ãIÊBˆœ™\XÙJù.å¹båz*g‹ÙË	ù.å¹bª:+ãIÊBˆœ™\XÙJøà­yi"KÙË	øà­ycæ	ÊNÂ‚ˆÛÛœİİÙ\ˆHÚÙ[‹ÓİÙ\Ø\ÙJ
+NÂ‚ˆYˆ
+[X\ÓX\š\ÊÚÙ[ŠJHÂˆ™]\›ˆ[X\ÓX\™Ù]
+ÚÙ[ŠNÂˆB‚ˆYˆ
+[X\ÓX\š\ÊİÙ\ŠJHÂˆ™]\›ˆ[X\ÓX\™Ù]
+İÙ\ŠNÂˆB‚ˆÛÛœİİ\SX]ÚHÚÙ[‹›X]Ú
+ˆ×¸à­ycæ
+Î¹bª:+ãJOÊÎ¸àfxà¢ÊOÊú!ê¹.å—OÊIÂˆ
+NÂ‚ˆYˆ
+İ\SX]Ú
+HÂˆ™]\›ˆ8à­ycæ9bª:+ãxàfxà¢ÉÜİ\SX]ÚÌWH	ÉßXÂˆB‚ˆYˆ
+×¹oh¹bª
+Îº+ãJOÉË\İ
+ÚÙ[ŠJHÂˆ™]\›ˆ	ùoh¹k®ybª:+ãIÎÂˆB‚ˆ™]\›ˆÚÙ[ÂˆJBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆ™]\›ˆË‹‹›™]ÈÙ]
+\ÊWKš›Ú[Š	øàîÉÊNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™SYX[š[™Õ^H
+˜[YJHOˆÂˆÛÛœİÛİ\˜ÙHH›Ü›X[^™Q[U^
+˜[YK˜[ÙJBˆœ™\XÙJ××ŠËÙË	ûï&ÉÊBˆœ™\XÙJÖøà K;ï#ûï&×JËÙË	ûï&ÉÊBˆœ™\XÙJ×Ê»ï&×Ê‹ÙË	ûï&ÉÊBˆœ™\XÙJûï&ŞÌ‹KÙË	ûï&ÉÊBˆœ™\XÙJ×»ï&ß;ï&ÉÙË	ÉÊNÂ‚ˆ™]\›ˆË‹‹›™]ÈÙ]
+ˆÛİ\˜ÙBˆœÜ]
+	ûï&ÉÊBˆ›X\
+\Oˆ\š[J
+JBˆ™š[\Š›ÛÛX[ŠBˆ
+WKš›Ú[Š	ûï&ÉÊNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™TÛ™]XÕ^H
+˜[YJHOˆÂˆ]^H›Ü›X[^™Q[U^
+˜[YK˜[ÙJBˆœ™\XÙJ×—Ê–××øà$
+;ï"JËË	ÉÊBˆœ™\XÙJÖ××xà$J{ï"WJ×Ê‰Ë	ÉÊBˆš[J
+NÂ‚ˆYˆ
+]^
+HÂˆ™]\›ˆ	ÉÎÂˆB‚ˆ^H^œ™\XÙJ×ÊËÙË	È	ÊNÂ‚ˆ™]\›ˆÉİ^KØÂŸNÂ‚˜ÛÛœİ›Ü›X[^™RØ[˜U^H
+˜[YJHOˆÂˆ™]\›ˆ›Ü›X[^™Q[U^
+˜[YJBˆœ™\XÙJÖøà$8à$W×J
+{ï";ï"WKÙË	ÉÊBˆœ™\XÙJ×ÊËÙË	ÉÊNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™T›ÛİÕ^H
+˜[YJHOˆÂˆÛÛœİ^H›Ü›X[^™Q[U^
+˜[YK˜[ÙJBˆœ™\XÙJÖûï"KÙË	Ê	ÊBˆœ™\XÙJÖûï"WKÙË	ÊIÊBˆœ™\XÙJÖø $8 $x $¸ $ø %8¢$—JËÙË	ËIÊBˆœ™\XÙJ×Ê‹WÊ‹ÙË	ËIÊBˆœ™\XÙJË^Ì‹KÙË	ËIÊBˆš[J
+NÂ‚ˆYˆ
+ˆ×ŠÎ¹¥è9¦ ¹¥è9.#yèk¹k¦Ÿ9¥è9¬åycëúgh9¢áº)èß›Û™_[—ØJIÚBˆ\İ
+^
+Bˆ
+HÂˆ™]\›ˆ	ÉÎÂˆB‚ˆ™]\›ˆ^ÂŸNÂ‚˜ÛÛœİÓÔ‘ÓU‘SÓÔSÓ”ÈHØš™Xİ™œ™Y^™JÂˆ˜NˆØš™Xİ™œ™Y^™JÉÓIË	Ó	Ë	ÓŒÉË	ÓŒ‰Ë	ÓŒI×JKˆ[ˆØš™Xİ™œ™Y^™JÉĞÑUM	Ë	ĞÑUM‰×JBŸJNÂ‚˜ÛÛœİQ‘’PÕSWÓP‘SÈHØš™Xİ™œ™Y^™JÂˆˆ	úf¯¹n©¹§*¹k¦‰ËˆNˆ	ùaizeê	Ëˆˆ	ú/ ù¦$ÉËˆÎˆ	ù.+yëbIËˆˆ	ú/ úf¯‰ËˆNˆ	ùfì:f¯‰ÂŸJNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™]™[H
+˜[YK[™ÈH	Ú˜IÊHOˆÂˆÛÛœİ˜]ÈH›Ü›X[^™Q[U^
+˜[YJBˆÕ\\Ø\ÙJ
+Bˆœ™\XÙJ×ÊËÙË	ÉÊBˆœ™\XÙJ×’“ËW×OËË	ÉÊBˆœ™\XÙJ×ÑUËW×OÊÍ—JIË	ĞÑUIIÊBˆœ™\XÙJ×¹i)ùkiº"ìz+ëJùfæùakWJyî©ÉËX]ÚOˆÂˆ™]\›ˆX]Úš[˜ÛY\Ê	ùfæÉÊHÈ	ĞÑUM	Èˆ	ĞÑUM‰ÎÂˆJNÂ‚ˆYˆ
+\˜]ÊHÂˆ™]\›ˆ	ÉÎÂˆB‚ˆYˆ
+[™ÈOOH	Ú˜IÊHÂˆÛÛœİ›Ü›X[^™YH×“–ÌKMWIË\İ
+˜]ÊBˆÈ˜]Âˆˆ	ÉÎÂ‚ˆ™]\›ˆ›Ü›X[^™YÂˆB‚ˆYˆ
+×ŠÎÑUOÍ9fæùî©ÊIË\İ
+˜]ÊJHÂˆ™]\›ˆ	ĞÑUM	ÎÂˆB‚ˆYˆ
+×ŠÎÑUOÍŸ9akyî©ÊIË\İ
+˜]ÊJHÂˆ™]\›ˆ	ĞÑUM‰ÎÂˆB‚ˆ™]\›ˆ	ÉÎÂŸNÂ‚˜ÛÛœİ›Ü›X[^™TÛİ\˜ÙS]™[ÈH
+˜[YK[™ÈH	Ú˜IÊHOˆÂˆÛÛœİÛİ\˜ÙHH\œ˜^Kš\Ğ\œ˜^J˜[YJHÈ˜[YHˆ×NÂ‚ˆ™]\›ˆÛİ\˜ÙBˆ›X\
+][HOˆÂˆYˆ
+\[Ùˆ][HOOH	Üİš[™ÉÊHÂˆÛÛœİ]™[H›Ü›X[^™UÛÜ™]™[
+][K[™ÊNÂˆ™]\›ˆ]™[ÈÈÛİ\˜ÙNˆ	ÉË]™[Hˆ[ÂˆB‚ˆYˆ
+Z][H\[Ùˆ][HOOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆ[ÂˆB‚ˆÛÛœİ]™[H›Ü›X[^™UÛÜ™]™[
+][K›]™[[™ÊNÂ‚ˆYˆ
+[]™[
+HÂˆ™]\›ˆ[ÂˆB‚ˆ™]\›ˆÂˆÛİ\˜ÙNˆİš[™Ê][KœÛİ\˜ÙH	ÉÊKš[J
+Kˆ]™[ˆNÂˆJBˆ™š[\Š›ÛÛX[ŠBˆœÛXÙJŒ
+NÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™Y™šXİ[HH˜[YHOˆÂˆÛÛœİ\œÙYH[X™\‹œ\œÙR[
+˜[YKL
+NÂ‚ˆYˆ
+S[X™\‹š\Ñš[š]J\œÙY
+JHÂˆ™]\›ˆÂˆB‚ˆ™]\›ˆX]›Z[ŠKX]›X^
+\œÙY
+JNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™YÜÈH˜[YHOˆÂˆÛÛœİÛİ\˜ÙHH\œ˜^Kš\Ğ\œ˜^J˜[YJBˆÈ˜[YBˆˆİš[™Ê˜[YHÏÈ	ÉÊBˆœÜ]
+Öøà K;ï#ûï&ß;ïg×JËÊNÂ‚ˆ™]\›ˆÂˆ‹‹›™]ÈÙ]
+ˆÛİ\˜ÙBˆ›X\
+YÈOˆ›Ü›X[^™Q[U^
+YÊJBˆ™š[\Š›ÛÛX[ŠBˆ
+BˆKœÛXÙJLŠNÂŸNÂ‚˜ÛÛœİÓÔ‘Ñ”‘TUQSÖWÕSQTÈHØš™Xİ™œ™Y^™JÂˆ	újæ:h¤IËˆ	ù.+zh¤IËˆ	ù/cºh¤IÂ—JNÂ‚˜ÛÛœİÓÔ‘ÔÔPÒPSÕQ×Ô’SÔ’UHHØš™Xİ™œ™Y^™JÂˆ	ùâaù`aùd#z+ãIËˆ	ù¢çùhì9¢çù  IËˆ	ùï*yåiz+ëIËˆ	ùcèú+ëIËˆ	ùl"¹¥k:+ëIËˆ	ú,)º+ªz+ëIËˆ	ùé/:,£:+ëIËˆ	ù ëùå*:(j:/¯‰Ëˆ	ù£©yi-:+ãIËˆ	ù£©yl/º+ãIËˆ	ù§¡:+ãy¢$9b!‰Ëˆ	ùo ¹/dùa¦y¬åIÂ—JNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™œ™\]Y[˜ŞHH˜[YHOˆÂˆÛÛœİ›Ü›X[^™YHİš[™Ê˜[YHÏÈ	ÉÊBˆ››Ü›X[^™J	Ó‘’ĞÉÊBˆš[J
+BˆÓİÙ\Ø\ÙJ
+NÂ‚ˆYˆ
+[›Ü›X[^™Y
+HÂˆ™]\›ˆ	ÉÎÂˆB‚ˆYˆ
+ˆ›Ü›X[^™Yš[˜ÛY\Ê	újæ:h¤IÊHˆ›Ü›X[^™YOOH	ÚYÚ	Èˆ›Ü›X[^™Yš[˜ÛY\Ê	ÚYÚYœ™\]Y[˜ŞIÊHˆ›Ü›X[^™Yš[˜ÛY\Ê	ÚYÚœ™\]Y[˜ŞIÊBˆ
+HÂˆ™]\›ˆ	újæ:h¤IÎÂˆB‚ˆYˆ
+ˆ›Ü›X[^™Yš[˜ÛY\Ê	ù.+zh¤IÊHˆ›Ü›X[^™YOOH	ÛYY][IÈˆ›Ü›X[^™YOOH	ÛZY	Èˆ›Ü›X[^™Yš[˜ÛY\Ê	ÛYY][KYœ™\]Y[˜ŞIÊHˆ›Ü›X[^™Yš[˜ÛY\Ê	ÛYY][Hœ™\]Y[˜ŞIÊBˆ
+HÂˆ™]\›ˆ	ù.+zh¤IÎÂˆB‚ˆYˆ
+ˆ›Ü›X[^™Yš[˜ÛY\Ê	ù/cºh¤IÊHˆ›Ü›X[^™YOOH	ÛİÉÈˆ›Ü›X[^™Yš[˜ÛY\Ê	ÛİËYœ™\]Y[˜ŞIÊHˆ›Ü›X[^™Yš[˜ÛY\Ê	ÛİÈœ™\]Y[˜ŞIÊBˆ
+HÂˆ™]\›ˆ	ù/cºh¤IÎÂˆB‚ˆ™]\›ˆ	ÉÎÂŸNÂ‚˜ÛÛœİ\Ô™Y[™[ÛÜ™Y]Y]UYÈH
+YË[™ÈH	Ú˜IÊHOˆÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™Q[U^
+YÊBˆ››Ü›X[^™J	Ó‘’ĞÉÊBˆš[J
+NÂˆÛÛœİÛÛ\XİYÈH›Ü›X[^™YˆÕ\\Ø\ÙJ
+Bˆœ™\XÙJÖ××ËWJËÙË	ÉÊNÂ‚ˆ™]\›ˆ›ÛÛX[Šˆ›Ü›X[^™UÛÜ™]™[
+›Ü›X[^™Y[™ÊHˆ›Ü›X[^™UÛÜ™œ™\]Y[˜ŞJ›Ü›X[^™Y
+Hˆ×’“
+Îº+ãy¬aÊOÉÚK\İ
+›Ü›X[^™Y
+Hˆ×ŠÎ¹i)ùkiº"ìz+ë_9i)ùkiº"ìz+ëz+ãy¬aß9fæùakyî©ßÑU
+IÚK\İ
+›Ü›X[^™Y
+HˆÛÛ\XİYÈOOH	úf¯¹n©¹§*¹k¦‰ÈˆØš™Xİ˜[Y\ÊQ‘’PÕSWÓP‘SÊKš[˜ÛY\Ê›Ü›X[^™Y
+Bˆ
+NÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™]ÚH˜[YHOˆÂˆ™]\›ˆ›Ü›X[^™Q[U^
+˜[YH	ÉË˜[ÙJBˆœ™\XÙJ×ÊËÙË	ÉÊBˆœÛXÙJ
+NÂŸNÂ‚˜ÛÛœİÒTÓQÔUÒÓ•SP‘T”ÈHØš™Xİ™œ™Y^™JÂˆ	ø¤ê‰Ë	ø¤h	Ë	ø¤hIË	ø¤h‰Ë	ø¤hÉË	ø¤i	Ë	ø¤iIËˆ	ø¤i‰Ë	ø¤iÉË	ø¤j	Ë	ø¤jIË	ø¤j‰Ë	ø¤jÉË	ø¤k	Ëˆ	ø¤kIË	ø¤k‰Ë	ø¤kÉË	ø¤l	Ë	ø¤lIË	ø¤l‰Ë	ø¤lÉÂ—JNÂ‚˜ÛÛœİ›Ü›X]ÛÜ™]Ú\Ü^HH˜[YHOˆÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™]Ú
+˜[YJNÂ‚ˆYˆ
+[›Ü›X[^™Y
+HÂˆ™]\›ˆ	ÉÎÂˆB‚ˆÛÛœİ[X™\“X]Ú\ÈH›Ü›X[^™Y›X]Ú
+×ÌKŸKÙÊNÂ‚ˆYˆ
+[X™\“X]Ú\ÏË›[™İ
+HÂˆ™]\›ˆ[X™\“X]Ú\Âˆ›X\
+ÚÙ[ˆOˆÂˆÛÛœİ[X™\ˆH[X™\‹œ\œÙR[
+ÚÙ[‹L
+NÂ‚ˆ™]\›ˆÒTÓQÔUÒÓ•SP‘T”ÖÛ[X™\—HÚÙ[ÂˆJBˆš›Ú[Š	È	ÊNÂˆB‚ˆÛÛœİÚ\˜ÛYX]Ú\ÈH›Ü›X[^™Y›X]Ú
+ˆÖø¤ê¸¤h8¤hx¤h¸¤hø¤i8¤ix¤i¸¤iø¤j8¤jx¤j¸¤jø¤k8¤kx¤k¸¤kø¤l8¤lx¤l¸¤l×KÙÂˆ
+NÂ‚ˆYˆ
+Ú\˜ÛYX]Ú\ÏË›[™İ
+HÂˆ™]\›ˆÚ\˜ÛYX]Ú\Ëš›Ú[Š	È	ÊNÂˆB‚ˆ™]\›ˆ›Ü›X[^™YÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™ÜXÚX[YÜÈH˜[YHOˆÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™YÜÊ˜[YJK›X\
+YÈOˆÂˆYˆ
+øàªøà¯øàªøàâŸ9âaù`aùd#KË\İ
+YÊJHÂˆ™]\›ˆ	ùâaù`aùd#z+ãIÎÂˆB‚ˆYˆ
+øàª¸àã¸àç¸àâ8àæŸ9¢çùhì9¤ë9hì9¢çù  _9¤ë9¡bËË\İ
+YÊJHÂˆ™]\›ˆ	ù¢çùhì9¢çù  IÎÂˆB‚ˆYˆ
+ùåiz*§Ÿ9ï*yåi_9î+¹åiKË\İ
+YÊJHÂˆ™]\›ˆ	ùï*yåiz+ëIÎÂˆB‚ˆYˆ
+ùcèú*§Ÿ9cèú+ë_9cèúh+z*§Ÿ9cèùi-:+ëKË\İ
+YÊJHÂˆ™]\›ˆ	ùcèú+ëIÎÂˆB‚ˆYˆ
+ùl"¹¥k:*§Ÿ9l"¹¥k:+ëKË\İ
+YÊJHÂˆ™]\›ˆ	ùl"¹¥k:+ëIÎÂˆB‚ˆYˆ
+ú+&z+lº*§Ÿ:,)º+ªz+ë_:+&z+¤ú*§‹Ë\İ
+YÊJHÂˆ™]\›ˆ	ú,)º+ªz+ëIÎÂˆB‚ˆYˆ
+ù. ykéú*§Ÿ9é/:,£:+ë_9é«º,£:*§‹Ë\İ
+YÊJHÂˆ™]\›ˆ	ùé/:,£:+ëIÎÂˆB‚ˆYˆ
+ù¡hùå*9 ëùå*9¢$9céKË\İ
+YÊJHÂˆ™]\›ˆ	ù ëùå*:(j:/¯‰ÎÂˆB‚ˆYˆ
+ù£©zh+_9£©yi-Ë\İ
+YÊJHÂˆ™]\›ˆ	ù£©yi-:+ãIÎÂˆB‚ˆYˆ
+ù£©yl/‹Ë\İ
+YÊJHÂˆ™]\›ˆ	ù£©yl/º+ãIÎÂˆB‚ˆYˆ
+ú`(:*§Ÿ9§¡:+ã_9©âú*gŸ:`(:+ã_:`(:*g‹Ë\İ
+YÊJHÂˆ™]\›ˆ	ù§¡:+ãy¢$9b!‰ÎÂˆB‚ˆYˆ
+ùål9/dß9o ¹/dß9ål:(j:*&9o ¹a¦_9ål9kêËË\İ
+YÊJHÂˆ™]\›ˆ	ùo ¹/dùa¦y¬åIÎÂˆB‚ˆ™]\›ˆYÎÂˆJNÂ‚ˆÛÛœİ[š\]YHHË‹‹›™]ÈÙ]
+›Ü›X[^™Y™š[\Š›ÛÛX[ŠJWNÂˆÛÛœİš[Üš]HH™]ÈX\
+ˆÓÔ‘ÔÔPÒPSÕQ×Ô’SÔ’UK›X\
+
+YË[™^
+HOˆİYË[™^JBˆ
+NÂ‚ˆ™]\›ˆ[š\]YBˆœÛÜ
+
+YšYÚ
+HOˆÂˆÛÛœİY[™^Hš[Üš]Kš\ÊY
+BˆÈš[Üš]K™Ù]
+Y
+Bˆˆ[X™\‹“PVÔĞQ‘WÒS•QÑTÂˆÛÛœİšYÚ[™^Hš[Üš]Kš\ÊšYÚ
+BˆÈš[Üš]K™Ù]
+šYÚ
+Bˆˆ[X™\‹“PVÔĞQ‘WÒS•QÑTÂ‚ˆYˆ
+Y[™^OOHšYÚ[™^
+HÂˆ™]\›ˆY[™^HšYÚ[™^ÂˆB‚ˆ™]\›ˆY›ØØ[PÛÛ\\™JšYÚ	ŞšPÓ‰ÊNÂˆJBˆœÛXÙJLŠNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™Ûİ\˜ÙU^H
+˜[YKX^[™İHMŒ
+HOˆÂˆ™]\›ˆ›Ü›X[^™Q[U^
+˜[YH	ÉÊKœÛXÙJX^[™İ
+NÂŸNÂ‚˜ÛÛœİÙ]Y™šXİ[SX™[H˜[YHOˆÂˆ™]\›ˆQ‘’PÕSWÓP‘SÖÂˆ›Ü›X[^™UÛÜ™Y™šXİ[J˜[YJBˆHQ‘’PÕSWÓP‘SÖÌNÂŸNÂ‚˜ÛÛœİÙ]ÛÜ™Y]Y]RSH
+ˆ[HHßKˆÂˆÛÛ\XİH˜[ÙKˆÚİÕ[˜\ÜÚYÛ™YH˜[ÙKˆ[˜ÛYUYÜÈH˜[ÙKˆÜXÚX[YÓ[Z]H[ˆHHßBŠHOˆÂˆÛÛœİ[™ÈH[K›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİ]™[H›Ü›X[^™UÛÜ™]™[
+[K›]™[[™ÊNÂˆÛÛœİœ™\]Y[˜ŞHH›Ü›X[^™UÛÜ™œ™\]Y[˜ŞJ[K™œ™\]Y[˜ŞJNÂˆÛÛœİY™šXİ[HH›Ü›X[^™UÛÜ™Y™šXİ[Jˆ[K™Y™šXİ[Bˆ
+NÂˆÛÛœİYÜÈH›Ü›X[^™UÛÜ™YÜÊ[KYÜÊBˆ™š[\ŠYÈOˆZ\Ô™Y[™[ÛÜ™Y]Y]UYÊYË[™ÊJNÂˆÛÛœİÜXÚX[YÜÈH›Ü›X[^™UÛÜ™ÜXÚX[YÜÊˆ[KœÜXÚX[YÜÂˆ
+K™š[\ŠYÈOˆZ\Ô™Y[™[ÛÜ™Y]Y]UYÊYË[™ÊJNÂˆÛÛœİX^ÜXÚX[YÜÈH[X™\‹š\Ò[YÙ\ŠÜXÚX[YÓ[Z]
+BˆÈX]›X^
+ÜXÚX[YÓ[Z]
+Bˆˆ
+ÛÛ\XİÈHˆŠNÂˆÛÛœİÚ\ÈH×NÂ‚ˆYˆ
+]™[
+HÂˆÚ\Ëœ\Ú
+ˆÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\Ë[]™[‰Ù\ØØ\RS
+]™[
+_OÜÜ[˜ˆ
+NÂˆH[ÙHYˆ
+ÚİÕ[˜\ÜÚYÛ™Y
+HÂˆÚ\Ëœ\Ú
+ˆ	ÏÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\Ë[]]Y¹§*¹b!¹î©ÏÜÜ[‰Âˆ
+NÂˆB‚ˆYˆ
+œ™\]Y[˜ŞJHÂˆÛÛœİœ™\]Y[˜ŞPÛ\ÜÈHÂˆ	újæ:h¤IÎˆ	Ùœ™\]Y[˜ŞKZYÚ	Ëˆ	ù.+zh¤IÎˆ	Ùœ™\]Y[˜ŞK[YY][IËˆ	ù/cºh¤IÎˆ	Ùœ™\]Y[˜ŞK[İÉÂˆVÙœ™\]Y[˜ŞWH	ÉÎÂ‚ˆÚ\Ëœ\Ú
+ˆÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\ËYœ™\]Y[˜ŞH	Ùœ™\]Y[˜ŞPÛ\ÜßH˜
+Âˆ	Ù\ØØ\RS
+œ™\]Y[˜ŞJ_X
+Âˆ	ÏÜÜ[‰Âˆ
+NÂˆB‚ˆYˆ
+Y™šXİ[Hˆ
+HÂˆÚ\Ëœ\Ú
+ˆÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\ËYY™šXİ[HY™šXİ[KIÙY™šXİ[_H˜
+Âˆ	ØÛÛ\XİÈY™šXİ[H
+È	ğ­ÉÈ
+È\ØØ\RS
+Ù]Y™šXİ[SX™[
+Y™šXİ[JJHˆ\ØØ\RS
+Ù]Y™šXİ[SX™[
+Y™šXİ[JJ_X
+Âˆ	ÏÜÜ[‰Âˆ
+NÂˆH[ÙHYˆ
+ÚİÕ[˜\ÜÚYÛ™Y	‰ˆXÛÛ\Xİ
+HÂˆÚ\Ëœ\Ú
+ˆ	ÏÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\Ë[]]Yºf¯¹n©¹§*¹k¦ÜÜ[‰Âˆ
+NÂˆB‚ˆÜXÚX[YÜÂˆœÛXÙJX^ÜXÚX[YÜÊBˆ™›Ü‘XXÚ
+YÈOˆÂˆÚ\Ëœ\Ú
+ˆÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\Ë\ÜXÚX[‰Ù\ØØ\RS
+YÊ_OÜÜ[˜ˆ
+NÂˆJNÂ‚ˆYˆ
+[˜ÛYUYÜÊHÂˆÛÛœİÜXÚX[YÔÙ]H™]ÈÙ]
+ÜXÚX[YÜÊNÂ‚ˆYÜÂˆ™š[\ŠYÈOˆÂˆYˆ
+›Ü›X[^™UÛÜ™œ™\]Y[˜ŞJYÊJHÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆÛÛœİ›Ü›X[^™YÜXÚX[Bˆ›Ü›X[^™UÛÜ™ÜXÚX[YÜÊİY×JVÌH	ÉÎÂ‚ˆ™]\›ˆ\ÜXÚX[YÔÙ]š\Ê›Ü›X[^™YÜXÚX[
+NÂˆJBˆœÛXÙJ
+Bˆ™›Ü‘XXÚ
+YÈOˆÂˆÚ\Ëœ\Ú
+ˆÜ[ˆÛ\ÜÏHÛÜ™[Y]KXÚ\\Ë]YÈ‰Ù\ØØ\RS
+YÊ_OÜÜ[˜ˆ
+NÂˆJNÂˆB‚ˆ™]\›ˆÚ\Ëš›Ú[Š	ÉÊNÂŸNÂ‚˜ÛÛœİ˜[Y]U›ØØX[\Q]HH
+[šY\ÈH×JHOˆÂˆÛÛœİ\ÜİY\ÈH×NÂˆÛÛœİYX\H™]ÈX\
+
+NÂˆÛÛœİY[]SX\H™]ÈX\
+
+NÂ‚ˆÛÛœİY\ÜİYHH
+ˆÙ]™\š]Kˆ[™^ˆÛÜ™ˆY\ÜØYÙKˆšY[H	ÉÂˆ
+HOˆÂˆ\ÜİY\Ëœ\Ú
+ÂˆÙ]™\š]Kˆ[™^ˆÛÜ™ˆİš[™ÊÛÜ™9ë+	Ú[™^
+È_H9§hX
+KˆY\ÜØYÙKˆšY[ˆJNÂˆNÂ‚ˆ[šY\Ë™›Ü‘XXÚ
+
+˜]Ñ[K[™^
+HOˆÂˆÛÛœİ˜]ÈH˜]Ñ[H	‰ˆ\[Ùˆ˜]Ñ[HOOH	ÛØš™Xİ	ÂˆÈ˜]Ñ[BˆˆßNÂˆÛÛœİ[™ÈH˜]Ë›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™[Jˆ˜]ËˆÈ™\Ù\™UÛÜ™ˆYHBˆ
+NÂˆÛÛœİÛÜ™X™[H›Ü›X[^™YÛÜ™9ë+	Ú[™^
+È_H9§hXÂˆÛÛœİYHİš[™Ê˜]Ë—ÚY	ÉÊKš[J
+NÂ‚ˆYˆ
+ZY
+HÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ	ùï.¹l$yê,ùk¦ˆQ;ï"ÚY;ï"IËˆ	×ÚY	Âˆ
+NÂˆH[ÙHYˆ
+YX\š\ÊY
+JHÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ9ê,ùk¦ˆQ9.#¹ë+	ÚYX\™Ù]
+Y
+H
+È_H9§hzaãyi#{ï&‰ÚYXˆ	×ÚY	Âˆ
+NÂˆH[ÙHÂˆYX\œÙ]
+Y[™^
+NÂˆB‚ˆYˆ
+[›Ü›X[^™YÛÜ™
+HÂˆY\ÜİYJ	Ù\œ›Ü‰Ë[™^ÛÜ™X™[	ùï.¹l$ycez+ãIË	İÛÜ™	ÊNÂˆB‚ˆYˆ
+[›Ü›X[^™Y\JHÂˆY\ÜİYJ	Ù\œ›Ü‰Ë[™^ÛÜ™X™[	ùï.¹l$z+ãy )ÉË	İ\IÊNÂˆB‚ˆYˆ
+[›Ü›X[^™Y›YX[š[™ÊHÂˆY\ÜİYJ	Ù\œ›Ü‰Ë[™^ÛÜ™X™[	ùï.¹l$y.+y¥¡úaâ¹.bIË	ÛYX[š[™ÉÊNÂˆB‚ˆÛÛœİY[]HBˆ	Û[™ßN‰Û›Ü›X[^™RXYÛÜ™
+›Ü›X[^™YÛÜ™[™ÊKÓİÙ\Ø\ÙJ
+_XÂ‚ˆYˆ
+›Ü›X[^™YÛÜ™
+HÂˆYˆ
+Y[]SX\š\ÊY[]JJHÂˆÛÛœİš\œİ[™^HY[]SX\™Ù]
+Y[]JNÂˆÛÛœİ›İZ[[ˆBˆ˜]Ë˜Z[[ˆOOHYH	‰‚ˆ[šY\ÖÙš\œİ[™^OË˜Z[[ˆOOHYNÂ‚ˆY\ÜİYJˆ›İZ[[ˆÈ	Ù\œ›Ü‰Èˆ	İØ\›š[™ÉËˆ[™^ˆÛÜ™X™[ˆ9.#¹ë+	Ùš\œİ[™^
+È_H9§hyd#:+ëz* 9d#:+ãzaãyi#Xˆ	İÛÜ™	Âˆ
+NÂˆH[ÙHÂˆY[]SX\œÙ]
+Y[]K[™^
+NÂˆBˆB‚ˆÛÛœİ˜]Ó]™[H›Ü›X[^™Q[U^
+˜]Ë›]™[	ÉÊNÂˆÛÛœİ›Ü›X[^™Y]™[H›Ü›X[^™UÛÜ™]™[
+˜]Ó]™[[™ÊNÂ‚ˆYˆ
+˜]Ó]™[	‰ˆ[›Ü›X[^™Y]™[
+HÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ[™ÈOOH	Ù[‰ÂˆÈ	ùî©ùb*ùcêº ïy¦+ÈÑUM9¢%ˆÑUM‰Âˆˆ	ùî©ùb*ùcêº ïy¦+Èxà S8à SŒøà SŒˆ9¢%ˆŒIËˆ	Û]™[	Âˆ
+NÂˆH[ÙHYˆ
+˜]Ë˜Z[[ˆOOHYH	‰ˆ[›Ü›X[^™Y]™[
+HÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ	ùa¡yïkº+ãyï.¹l$yî©ùb*ÉËˆ	Û]™[	Âˆ
+NÂˆB‚ˆÛÛœİ˜]ÑY™šXİ[HH˜]Ë™Y™šXİ[NÂˆÛÛœİY™šXİ[HH›Ü›X[^™UÛÜ™Y™šXİ[J˜]ÑY™šXİ[JNÂ‚ˆYˆ
+ˆ˜]ÑY™šXİ[HOOH[™Yš[™Y	‰‚ˆ˜]ÑY™šXİ[HOOH[	‰‚ˆİš[™Ê˜]ÑY™šXİ[JKš[J
+HOOH	ÉÈ	‰‚ˆ[X™\Š˜]ÑY™šXİ[JHOOH	‰‚ˆ
+ˆS[X™\‹š\Ò[YÙ\Š[X™\Š˜]ÑY™šXİ[JJHˆ[X™\Š˜]ÑY™šXİ[JHHˆ[X™\Š˜]ÑY™šXİ[JHˆBˆ
+Bˆ
+HÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ	úf¯¹n©¹oázhnù¦+È{ïgH9æ¡9¥m9¥l	Ëˆ	ÙY™šXİ[IÂˆ
+NÂˆH[ÙHYˆ
+˜]Ë˜Z[[ˆOOHYH	‰ˆY™šXİ[HOOH
+HÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ	ùa¡yïkº+ãyï.¹l$zf¯¹n©‰Ëˆ	ÙY™šXİ[IÂˆ
+NÂˆB‚ˆYˆ
+[™ÈOOH	Ú˜IÊHÂˆÛÛœİÛÛZ[œÒØ[ššHBˆÖ×LÍWM‘—MLWNQ‘‘¸à!xà!¸àí—KÂˆ\İ
+›Ü›X[^™YÛÜ™
+NÂ‚ˆYˆ
+ÛÛZ[œÒØ[ššH	‰ˆ[›Ü›X[^™YšØ[˜JHÂˆY\ÜİYJˆ	Ù\œ›Ü‰Ëˆ[™^ˆÛÜ™X™[ˆ	ù¥éz+ëy¬bykeú+ãyï.¹l$y`aùd#IËˆ	ÚØ[˜IÂˆ
+NÂˆBˆH[ÙHYˆ
+[›Ü›X[^™YœÛ™]XÊHÂˆY\ÜİYJˆ˜]Ë˜Z[[ˆOOHYHÈ	Ù\œ›Ü‰Èˆ	İØ\›š[™ÉËˆ[™^ˆÛÜ™X™[ˆ	ú"ìz+ëz+ãyï.¹l$zgìù¨!ÉËˆ	ÜÛ™]XÉÂˆ
+NÂˆB‚ˆYˆ
+[›Ü›X[^™Y™^[\JHÂˆY\ÜİYJˆ	İØ\›š[™ÉËˆ[™^ˆÛÜ™X™[ˆ	ùï.¹l$y/¢ùcéIËˆ	Ù^[\IÂˆ
+NÂˆH[ÙHÂˆÛÛœİ^[\P›ØÚÜÈH›Ü›X[^™Y™^[\BˆœÜ]
+	ß	ÊBˆ›X\
+›ØÚÈOˆ›ØÚËš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆÛÛœİZ\ÜÚ[™Õ˜[œÛ][ÛˆH^[\P›ØÚÜËœÛÛYJ›ØÚÈOˆÂˆÛÛœİ]šY\ˆHš[™^[\Q]šY\’[™^
+›ØÚÊNÂˆ™]\›ˆ]šY\ˆH]šY\ˆH›ØÚË›[™İHNÂˆJNÂ‚ˆYˆ
+Z\ÜÚ[™Õ˜[œÛ][ÛŠHÂˆY\ÜİYJˆ	İØ\›š[™ÉËˆ[™^ˆÛÜ™X™[ˆ	ú`ê9b!¹/¢ùcéyï.¹l$y.+y¥¡ùïîú+äIËˆ	Ù^[\IÂˆ
+NÂˆBˆBˆJNÂ‚ˆÛÛœİ\œ›ÜœÈH\ÜİY\Ë™š[\Š\ÜİYHOˆÂˆ™]\›ˆ\ÜİYKœÙ]™\š]HOOH	Ù\œ›Ü‰ÎÂˆJNÂˆÛÛœİØ\›š[™ÜÈH\ÜİY\Ë™š[\Š\ÜİYHOˆÂˆ™]\›ˆ\ÜİYKœÙ]™\š]HOOH	İØ\›š[™ÉÎÂˆJNÂ‚ˆ™]\›ˆÂˆİ[ˆ[šY\Ë›[™İˆ˜\[™\ÙNˆ[šY\Ë™š[\Š[HOˆÂˆ™]\›ˆ
+[OË›[™È	Ú˜IÊHOOH	Ú˜IÎÂˆJK›[™İˆ[™Û\Úˆ[šY\Ë™š[\Š[HOˆÂˆ™]\›ˆ[OË›[™ÈOOH	Ù[‰ÎÂˆJK›[™İˆZ[[ˆ[šY\Ë™š[\Š[HOˆÂˆ™]\›ˆ[OË˜Z[[ˆOOHYNÂˆJK›[™İˆ\œ›ÜœËˆØ\›š[™ÜËˆ\ÜİY\Ëˆ\ÜÙYˆ\œ›ÜœË›[™İOOHˆNÂŸNÂ‚˜ÛÛœİš[™^[\Q]šY\’[™^H
+›ØÚÊHOˆÂˆÛÛœİÜXÙY]šY\ˆH›ØÚËœÙX\˜Ú
+×××ËÊNÂ‚ˆYˆ
+ÜXÙY]šY\ˆOOHLJHÂˆ™]\›ˆÜXÙY]šY\ˆ
+ÈNÂˆB‚ˆ›Üˆ
+ˆ][™^H›ØÚË›\İ[™^ÙŠ	ËÉÊNÂˆ[™^OOHLNÂˆ[™^H›ØÚË›\İ[™^ÙŠ	ËÉË[™^HJBˆ
+HÂˆÛÛœİ˜[œÛ][ÛˆH›ØÚÂˆœÛXÙJ[™^
+ÈJBˆš[J
+NÂ‚ˆYˆ
+ˆ˜[œÛ][Ûˆ	‰‚ˆÖ×LÍWM‘—MLWNQ‘‘—KÂˆ\İ
+˜[œÛ][ÛŠBˆ
+HÂˆ™]\›ˆ[™^ÂˆBˆB‚ˆ™]\›ˆLNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™Q^[\P›ØÚÈH
+˜[YJHOˆÂˆÛÛœİ›ØÚÈH›Ü›X[^™Q[U^
+˜[YK˜[ÙJBˆœ™\XÙJ××ŠËÙË	È	ÊBˆœ™\XÙJ×ÊËÙË	È	ÊBˆš[J
+NÂ‚ˆYˆ
+X›ØÚÊHÂˆ™]\›ˆ	ÉÎÂˆB‚ˆÛÛœİ]šY\’[™^Hš[™^[\Q]šY\’[™^
+›ØÚÊNÂ‚ˆYˆ
+]šY\’[™^H]šY\’[™^H›ØÚË›[™İHJHÂˆ™]\›ˆ›ØÚÎÂˆB‚ˆÛÛœİÜšYÚ[˜[H›ØÚÂˆœÛXÙJ]šY\’[™^
+Bˆš[J
+NÂ‚ˆÛÛœİ˜[œÛ][ÛˆH›ØÚÂˆœÛXÙJ]šY\’[™^
+ÈJBˆš[J
+NÂ‚ˆYˆ
+[ÜšYÚ[˜[]˜[œÛ][ÛŠHÂˆ™]\›ˆ›ØÚÎÂˆB‚ˆ™]\›ˆ	ÛÜšYÚ[˜[HÈ	İ˜[œÛ][ÛŸXÂŸNÂ‚˜ÛÛœİ›Ü›X[^™Q^[\U^H
+˜[YK[™ÈH	ÉÊHOˆÂˆÛÛœİÛİ\˜ÙHHİš[™Ê˜[YHÏÈ	ÉÊBˆ››Ü›X[^™J	Ó‘ÉÊBˆœ™\XÙJÖ×LŒ‹WLŒLŒŒQ‘Q‘—KÙË	ÉÊBˆœ™\XÙJûï#ËÙË	ËÉÊBˆœ™\XÙJÖûïg^ÌŸKÙË	ß	ÊBˆš[J
+NÂ‚ˆYˆ
+\Ûİ\˜ÙJHÂˆ™]\›ˆ	ÉÎÂˆB‚ˆ]›ØÚÜÈHÛİ\˜ÙBˆœÜ]
+×Ê—Ê‹ÊBˆ›X\
+›ØÚÈOˆ›ØÚËš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆÛÛœİ[›ØÚÜÒ]™S›Ñ]šY\ˆH›ØÚÜË™]™\J›ØÚÈOˆÂˆ™]\›ˆš[™^[\Q]šY\’[™^
+›ØÚÊHOOHLNÂˆJNÂ‚ˆÊ‚ˆ
+ˆ9cê¹g*: ïyi'ù¦#¹èk¹b)9¥«x '9c§ù¥¡È
+È9.+y¥¡ùïîú+äx 'y¥í»ï#ˆ
+ˆ9¢cy¢¢¹æî:`®ùæ¡9.)9.*ˆ9c.¹geúacy¢$9. 9§hy/¢ùcéxà ‚ˆ
+ˆ:/æy¨-ù.#y/&¹¢¢¹.)9.*¹âë9êâùi%º+ëy/¢ùcéz+ëù¢ï9¢$9. 9îá9ïîú+äxà ‚ˆ
+‹ÂˆÛÛœİØ[”Z\\Ğš[[™İX[Bˆ›ØÚÜË›[™İHˆ	‰‚ˆ›ØÚÜË›[™İ	HˆOOH	‰‚ˆ[›ØÚÜÒ]™S›Ñ]šY\ˆ	‰‚ˆ›ØÚÜË™]™\J
+›ØÚË[™^
+HOˆÂˆYˆ
+[™^	HˆOOHJHÂˆ™]\›ˆÖ×LÍWM‘—MLWNQ‘‘—KÂˆ\İ
+›ØÚÊNÂˆB‚ˆYˆ
+[™ÈOOH	Ù[‰ÊHÂˆ™]\›ˆÖĞKV˜K^—KË\İ
+›ØÚÊNÂˆB‚ˆYˆ
+[™ÈOOH	Ú˜IÊHÂˆ™]\›ˆÖøà`Kxà¥¸à¨Kxàî¸àïKİK\İ
+›ØÚÊNÂˆB‚ˆ™]\›ˆ˜[ÙNÂˆJNÂ‚ˆYˆ
+Ø[”Z\\Ğš[[™İX[
+HÂˆÛÛœİZ\™Y›ØÚÜÈH×NÂ‚ˆ›Üˆ
+][™^HÈ[™^›ØÚÜË›[™İÈ[™^
+ÏHŠHÂˆZ\™Y›ØÚÜËœ\Ú
+ˆ	Ø›ØÚÜÖÚ[™^_HÈ	Ø›ØÚÜÖÚ[™^
+ÈW_Xˆ
+NÂˆB‚ˆ›ØÚÜÈHZ\™Y›ØÚÜÎÂˆB‚ˆÛÛœİ›Ü›X[^™Y›ØÚÜÈH›ØÚÜÂˆ›X\
+›Ü›X[^™Q^[\P›ØÚÊBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆ™]\›ˆË‹‹›™]ÈÙ]
+›Ü›X[^™Y›ØÚÜÊWKš›Ú[Š	È	ÊNÂŸNÂ‚˜ÛÛœİ›Ü›X[^™UÛÜ™[HH
+ˆ[HHßKˆÈ™\Ù\™UÛÜ™H˜[ÙHHHßBŠHOˆÂˆÛÛœİ[™ÈH[K›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİ›Ü›X[^™YYÜÈH›Ü›X[^™UÛÜ™YÜÊ[KYÜÊNÂˆÛÛœİ^XÚ]ÜXÚX[YÜÈH\œ˜^Kš\Ğ\œ˜^J[KœÜXÚX[YÜÊBˆÈ[KœÜXÚX[YÜË›[™İˆˆˆ›ÛÛX[Šİš[™Ê[KœÜXÚX[YÜÈ	ÉÊKš[J
+JNÂˆÛÛœİÜXÚX[YÔÛİ\˜ÙHH^XÚ]ÜXÚX[YÜÂˆÈ[KœÜXÚX[YÜÂˆˆ›Ü›X[^™YYÜÎÂˆÛÛœİ›Ü›X[^™YÜXÚX[YÜÈH›Ü›X[^™UÛÜ™ÜXÚX[YÜÊˆÜXÚX[YÔÛİ\˜ÙBˆ
+NÂˆÛÛœİœ™\]Y[˜ŞHBˆ›Ü›X[^™UÛÜ™œ™\]Y[˜ŞJ[K™œ™\]Y[˜ŞJHˆ›Ü›X[^™UÛÜ™œ™\]Y[˜ŞJˆ›Ü›X[^™YYÜËš›Ú[Š	È	ÊBˆ
+NÂ‚ˆÛÛœİ›Ü›X[^™YHÂˆ‹‹™[Kˆ[™ËˆÛÜ™ˆ™\Ù\™UÛÜ™ˆÈİš[™Ê[KÛÜ™ÏÈ	ÉÊBˆˆ›Ü›X[^™RXYÛÜ™
+[KÛÜ™[™ÊKˆ\Nˆ›Ü›X[^™UÛÜ™\J[K\JKˆYX[š[™Îˆ›Ü›X[^™SYX[š[™Õ^
+[K›YX[š[™ÊKˆ^[\Nˆ›Ü›X[^™Q^[\U^
+[K™^[\K[™ÊKˆ›Û\ˆ›Ü›X[^™Q[U^
+[K™›Û\ˆ	ÉÊKˆ]™[ˆ›Ü›X[^™UÛÜ™]™[
+[K›]™[[™ÊKˆY™šXİ[Nˆ›Ü›X[^™UÛÜ™Y™šXİ[J[K™Y™šXİ[JKˆYÜÎˆ›Ü›X[^™YYÜËˆœ™\]Y[˜ŞKˆ]Úˆ[™ÈOOH	Ú˜IÂˆÈ›Ü›X[^™UÛÜ™]Ú
+ˆ[Kœ]Ú[K›ØØX”]Úˆ
+Bˆˆ	ÉËˆÜXÚX[YÜÎˆ^XÚ]ÜXÚX[YÜÂˆÈ›Ü›X[^™YÜXÚX[YÜÂˆˆ›Ü›X[^™YÜXÚX[YÜË™š[\ŠYÈOˆÂˆ™]\›ˆÓÔ‘ÔÔPÒPSÕQ×Ô’SÔ’UKš[˜ÛY\ÊYÊNÂˆJKˆÛİ\˜ÙRYˆ›Ü›X[^™UÛÜ™Ûİ\˜ÙU^
+ˆ[KœÛİ\˜ÙRY[KœÛİ\˜ÙRQˆLˆ
+KˆÛİ\˜ÙS˜[YNˆ›Ü›X[^™UÛÜ™Ûİ\˜ÙU^
+ˆ[KœÛİ\˜ÙS˜[YKˆLŒˆ
+KˆÛİ\˜ÙU™\œÚ[Ûˆ›Ü›X[^™UÛÜ™Ûİ\˜ÙU^
+ˆ[KœÛİ\˜ÙU™\œÚ[Û‹ˆˆ
+Kˆ[X\Ù\Îˆ›Ü›X[^™UÛÜ™[X\Ù\Ê[K˜[X\Ù\ÊKˆÛİ\˜ÙS]™[Îˆ›Ü›X[^™TÛİ\˜ÙS]™[Ê[KœÛİ\˜ÙS]™[Ë[™ÊKˆ™]šY]Ôİ]\Îˆ›Ü›X[^™T™]šY]Ôİ]\Ê[Kœ™]šY]Ôİ]\ÊKˆÛİ\˜ÙNˆ›Ü›X[^™UÛÜ™Ûİ\˜Ù\Ê[KœÛİ\˜ÙJKˆ]U™\œÚ[ÛˆX]›X^
+ˆKˆ[X™\‹œ\œÙR[
+[K™]U™\œÚ[Û‹L
+HBˆ
+KˆZ[[ˆ[K˜Z[[ˆOOHYBˆNÂ‚ˆYˆ
+[™ÈOOH	Ù[‰ÊHÂˆ›Ü›X[^™YœÛ™]XÈH›Ü›X[^™TÛ™]XÕ^
+ˆ[KœÛ™]XÂˆ
+NÂˆ›Ü›X[^™Yœ›ÛİÈH›Ü›X[^™T›ÛİÕ^
+[Kœ›ÛİÊNÂˆH[ÙHÂˆ›Ü›X[^™YšØ[˜HH›Ü›X[^™RØ[˜U^
+[KšØ[˜JNÂˆ›Ü›X[^™Yœ›ÛİÈH	ÉÎÂˆB‚ˆ™]\›ˆ›Ü›X[^™YÂŸNÂ‚˜ÛÛœİÙ]ÛÜ™[T]X[]HH
+[HHßJHOˆÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™[J[JNÂˆÛÛœİ][\ÈH×NÂ‚ˆÛÛœİYH
+]™[^šY[H	ÉÊHOˆÂˆ][\Ëœ\Ú
+È]™[^šY[JNÂˆNÂ‚ˆÛÛœİZ\ÜÚ[™Ğ˜\ÙQšY[ÈH×NÂ‚ˆYˆ
+[›Ü›X[^™YÛÜ™
+HÂˆZ\ÜÚ[™Ğ˜\ÙQšY[Ëœ\Ú
+	ùcez+ãIÊNÂˆY
+	Ù\œ›Ü‰Ë	ùï.¹l$ycez+ãIË	İÛÜ™	ÊNÂˆB‚ˆYˆ
+[›Ü›X[^™Y\JHÂˆZ\ÜÚ[™Ğ˜\ÙQšY[Ëœ\Ú
+	ú+ãy )ÉÊNÂˆY
+	Ù\œ›Ü‰Ë	ùï.¹l$z+ãy )ÉË	İ\IÊNÂˆB‚ˆYˆ
+[›Ü›X[^™Y›YX[š[™ÊHÂˆZ\ÜÚ[™Ğ˜\ÙQšY[Ëœ\Ú
+	úaâ¹.bIÊNÂˆY
+	Ù\œ›Ü‰Ë	ùï.¹l$y.+y¥¡úaâ¹.bIË	ÛYX[š[™ÉÊNÂˆB‚ˆYˆ
+Z\ÜÚ[™Ğ˜\ÙQšY[Ë›[™İOOH
+HÂˆY
+	ÛÚÉË	ùcez+ãxà z+ãy )ùd£:aâ¹.byk£9¥m	ÊNÂˆB‚ˆÛÛœİ\T\ÈH›Ü›X[^™Y\BˆœÜ]
+	øàîÉÊBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆÛÛœİÛ›İÛ•\T]\›ˆBˆ×ŠÎ¹d#z+ã_9bª:+ã_9oh¹k®z+ã_9oh¹k®ybª:+ã_9bkú+ã_9.èú+ã_9.âú+ã_:/çº+ã_9bªz+ã_9bªybª:+ã_9¡'ùcîz+ã_9a¨:+ã_:!ê¹bª:+ã_9.å¹bª:+ã_9çëz+ë_9fî¹k¦¹¤+zac_9 ëùå*:+ë_9á§ú+ë_9¥l:+ã_:aãú+ã_9£©yi-:+ã_9£©yl/º+ã_8à­ycæ9bª:+ãxàfxà¢Öú!ê¹.å—OÊIÎÂ‚ˆYˆ
+ˆ›Ü›X[^™Y\H	‰‚ˆ\T\ËœÛÛYJ\HOˆÂˆ™]\›ˆZÛ›İÛ•\T]\›‹\İ
+\JNÂˆJBˆ
+HÂˆY
+ˆ	İØ\›‰Ëˆ	ù§"y¥è9¬åz+á¹b*ùæ¡:+ãy )ûï#:+íùèkº+©9a¦y¬åIËˆ	İ\IÂˆ
+NÂˆH[ÙHYˆ
+›Ü›X[^™Y\JHÂˆY
+	ÛÚÉË	ú+ãy )ù¨/9o#ùcëù.éz+á¹b*ÉÊNÂˆB‚ˆYˆ
+›Ü›X[^™Y›[™ÈOOH	Ù[‰ÊHÂˆYˆ
+[›Ü›X[^™YœÛ™]XÊHÂˆY
+	İØ\›‰Ë	ùï.¹l$zgìù¨!ûï#9.ãycëù/çykf	Ë	ÜÛ™]XÉÊNÂˆH[ÙHYˆ
+K×—Ö×‹×J×ÉË\İ
+›Ü›X[^™YœÛ™]XÊJHÂˆY
+	İØ\›‰Ë	úgìù¨!ù¨/9o#ùnîº+«¹¨.9kîIË	ÜÛ™]XÉÊNÂˆH[ÙHÂˆY
+	ÛÚÉË	úgìù¨!ù¨/9o#ù«hùn.	ÊNÂˆB‚ˆYˆ
+›Ü›X[^™Yœ›ÛİÊHÂˆY
+ˆ	İØ\›‰Ëˆ	ĞRH:+ãy¨.y.áy/¦ú/¡ybª{ï#9nîº+«¹.®¹méy¨.9kîIËˆ	Ü›ÛİÉÂˆ
+NÂˆH[ÙHÂˆY
+	Ú[™›ÉË	ú+ãy¨.y.#yèk¹k¦¹¥í¹åfyên¹¦+ù«hùn.9æ¡	ÊNÂˆBˆH[ÙHÂˆÛÛœİÛÛZ[œÒØ[ššHBˆÖ×LÍWM‘—MLWNQ‘‘¸à!xà!¸àí—KÂˆ\İ
+›Ü›X[^™YÛÜ™
+NÂ‚ˆYˆ
+ÛÛZ[œÒØ[ššH	‰ˆ[›Ü›X[^™YšØ[˜JHÂˆY
+	İØ\›‰Ë	ù¬bykeú+ãyï.¹l$y`aùd#IË	ÚØ[˜IÊNÂˆH[ÙHYˆ
+ˆ›Ü›X[^™YšØ[˜H	‰‚ˆK×–øà`Kxà¥¸à¨Kxàî¸àï8àî×JÉİK\İ
+›Ü›X[^™YšØ[˜JBˆ
+HÂˆY
+	İØ\›‰Ë	ù`aùd#y.+yd*ù§"yo ¹n.9keùë)‰Ë	ÚØ[˜IÊNÂˆH[ÙHYˆ
+›Ü›X[^™YšØ[˜JHÂˆY
+	ÛÚÉË	ù`aùd#y¨/9o#ù«hùn.	ÊNÂˆBˆB‚ˆYˆ
+[›Ü›X[^™Y™^[\JHÂˆY
+	İØ\›‰Ë	ùï.¹l$y/¢ùcé{ï#9.ãycëù/çykf	Ë	Ù^[\IÊNÂˆH[ÙHÂˆÛÛœİ^[\P›ØÚÜÈH›Ü›X[^™Y™^[\BˆœÜ]
+	ß	ÊBˆ›X\
+›ØÚÈOˆ›ØÚËš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆÛÛœİ[]™U˜[œÛ][ÛˆH^[\P›ØÚÜË™]™\J›ØÚÈOˆÂˆÛÛœİ[™^Hš[™^[\Q]šY\’[™^
+›ØÚÊNÂ‚ˆ™]\›ˆ
+ˆ[™^ˆ	‰‚ˆ[™^›ØÚË›[™İHBˆ
+NÂˆJNÂ‚ˆYˆ
+[]™U˜[œÛ][ÛŠHÂˆY
+	ÛÚÉË	ù/¢ùcéyc!yd*ùkîyn¥9ïîú+äIÊNÂˆH[ÙHÂˆY
+ˆ	İØ\›‰Ëˆ	ú`ê9b!¹/¢ùcéyï.¹l$y.+y¥¡ùïîú+äIËˆ	Ù^[\IÂˆ
+NÂˆBˆB‚ˆYˆ
+›Ü›X[^™Y›]™[
+HÂˆY
+	ÛÚÉË9î©ùb*ûï&‰Û›Ü›X[^™Y›]™[X
+NÂˆH[ÙHYˆ
+›Ü›X[^™Y˜Z[[ŠHÂˆY
+	İØ\›‰Ë	ùa¡yïkº+ãyï.¹l$yî©ùb*ÉË	Û]™[	ÊNÂˆH[ÙHÂˆY
+	Ú[™›ÉË	ù.*¹.®º+ãy¬aùcëù.éy.#yhjùa¦z  ú+åyî©ùb*ÉÊNÂˆB‚ˆYˆ
+›Ü›X[^™Y™Y™šXİ[Hˆ
+HÂˆY
+ˆ	ÛÚÉËˆ:f¯¹n©»ï&‰ÙÙ]Y™šXİ[SX™[
+›Ü›X[^™Y™Y™šXİ[J_Xˆ
+NÂˆH[ÙHYˆ
+›Ü›X[^™Y˜Z[[ŠHÂˆY
+	İØ\›‰Ë	ùa¡yïkº+ãyï.¹l$zf¯¹n©‰Ë	ÙY™šXİ[IÊNÂˆH[ÙHÂˆY
+	Ú[™›ÉË	ùl&¹§*º+¯¹ïkºf¯¹n©‰ÊNÂˆB‚ˆ™]\›ˆÂˆ›Ü›X[^™Yˆ][\Ëˆ\œ›ÜÛİ[ˆ][\Ë™š[\Š][HOˆÂˆ™]\›ˆ][K›]™[OOH	Ù\œ›Ü‰ÎÂˆJK›[™İˆØ\›š[™ĞÛİ[ˆ][\Ë™š[\Š][HOˆÂˆ™]\›ˆ][K›]™[OOH	İØ\›‰ÎÂˆJK›[™İˆNÂŸNÂ‚˜ÛÛœİTS‘TÑWÔ•P–WÒS”Õ•PÕSÓˆH‚¸à$9¥éz+ëy¬ê:gìù¨/9o#ú)á9b&xà$B¹aèy¦+ùfç¹ëe9.+yaî¹ã¬9¥éz+ë{ï#9¢`9§"yc!yd*ù¬bykeùæ¡9¥éz+ëz+ãz+ëz`ïyoázhnù¨!ù¬ê9`aùd#z+îúgìøà ‚‚º+íù.)y¨/9/oùå*8 '9¥éz+ëyc§ù¥¡øà"¹`aùd#z+îúgìøà"ø 'y¨/9o#ûï#9/¢ùi »ï&‚¹¥éy§+:*§¸à"¸àjøànøà¤øàe8à"Â¹bâyo-øà"¸ànxà¤øàcxà¡øàa¸à"øàfxà¢Âºhçøà"¸àgøà"øànxà¢Â¹¬%ù£ xà"¸àcxà ¸à"øàhB¹. 9.®¸à"¸àl¸àj8à¢¸à"Â‚¹oázhnù¨.y£k¹céykd:+ëyh ú`"y¢êy«hùèkº+îúgìøà ‚¹î«ùnlù`aùd#xà yî«ùâaù`aùd#yd£9.+y¥¡ù¬bykeù.#z) y¨!ù¬ê8à ‚¹.#z) yæí9£©z/¤ùaîˆS8à \XH9¨!ùëo¸à y¢ë9cíú+îúgìù¢%¹am¹.å¹¬ê:gìù¨/9o#øà ‚¹¥éz+ëy¬bykeù.#z ïz`eù¯#ù¬ê:gìøà ˜Â‚˜ÛÛœİÚ]˜\[™\ÙTXR[œİXİ[ÛˆH
+›Û\H	ÉÊHOˆÂˆÛÛœİ˜\ÙT›Û\H›Û\	ù/h9¦+ùì¯º`&¹i&º+ëz* 9æ¡9éày.®¹i%¹¥f{ï#: $9oàú)èùëe9å*9¢-ùæ¡9.îù/ez+ëz* 9ki¹.h:eëºh¦8à ‰ÎÂ‚ˆYˆ
+˜\ÙT›Û\š[˜ÛY\Ê	øà$9¥éz+ëy¬ê:gìù¨/9o#ú)á9b&xà$IÊJHÂˆ™]\›ˆ˜\ÙT›Û\ÂˆB‚ˆ™]\›ˆ˜\ÙT›Û\
+ÈTS‘TÑWÔ•P–WÒS”Õ•PÕSÓÂŸNÂ‚˜ÛÛœİ™[™\RSY\ÜØYÙRSH
+^\™Ù]ÛÜ™H	ÉÊHOˆÂˆÊ‚ˆ
+ˆRH9­`yo#ú/¤ùaî¹`m¹l%9/&¹­íùaizfí¹k¯ykeùë)»ï#ˆ
+ˆ9¢%¹/oùå*9i%º)à¹æî9//9æ¡9aj:)ä¹¢ë9cíøà ‚ˆ
+ˆ9ab9îçù. 9¨/9o#ûï#9a£yo 9iâú/k9.byd£9®,¹§äøà ‚ˆ
+‹ÂˆÛÛœİ›Ü›X[^™Y^Hİš[™Ê^	ÉÊBˆ››Ü›X[^™J	Ó‘ÉÊBˆœ™\XÙJˆÖ×LŒ‹WLŒLŒŒQ‘Q‘—KÙËˆ	ÉÂˆ
+Bˆœ™\XÙJÖøà";ï'0ª×KÙË	øà"‰ÊBˆœ™\XÙJÖøà"{ï'°®×KÙË	øà"ÉÊBˆœ™\XÙJøà"–××LLJËÙË	øà"‰ÊBˆœ™\XÙJÖ××LLJøà"ËÙË	øà"ÉÊNÂ‚ˆ][H\ØØ\RS
+›Ü›X[^™Y^
+NÂ‚ˆÛÛœİØY™U\™Ù]ÛÜ™Bˆ\ØØ\RS
+ˆİš[™Ê\™Ù]ÛÜ™	ÉÊBˆš[J
+Bˆœ™\XÙJˆÖ×LŒ‹WLŒLŒŒQ‘Q‘—KÙËˆ	ÉÂˆ
+Bˆ
+NÂ‚ˆÛÛœİXP›ØÚÜÈH×NÂ‚ˆÊ‚ˆ
+ˆ9l!¹¦ ¹kf9æ¡9¥éz+ëy¬ê:gìùîäù§¡9/çykf9¢$9ch9/cyë)»ï#ˆ
+ˆ:`oùacyd#¹îëy¨!úh¦8à yb¨9ì¥ùd£9æë¹¨!ú+ãzjæ9.«¹è-9gcÈXxà ‚ˆ
+‹ÂˆÛÛœİİÜ™TXHH
+ˆX]Úˆ˜\ÙU^ˆ™XY[™Õ^ˆ
+HOˆÂˆÛÛœİÛX[˜\ÙHBˆİš[™Ê˜\ÙU^	ÉÊBˆš[J
+NÂ‚ˆÛÛœİÛX[”™XY[™ÈBˆİš[™Ê™XY[™Õ^	ÉÊBˆš[J
+NÂ‚ˆÛÛœİÛÛZ[œÒØ[ššHBˆÖ×LÍWM‘—MLWNQ‘‘¸à!xà!¸àí—KÂˆ\İ
+ÛX[˜\ÙJNÂ‚ˆYˆ
+ˆXÛÛZ[œÒØ[ššHˆXÛX[”™XY[™Âˆ
+HÂˆ™]\›ˆX]ÚÂˆB‚ˆÛÛœİÚÙ[ˆBˆ”Ô•P–WÉÜXP›ØÚÜË›[™İPÂ‚ˆ]XRSBˆ	ÏXHÛ\ÜÏHšœ\XH‰È
+Âˆ	Ï˜‰È
+ÂˆÛX[˜\ÙH
+Âˆ	ÏÜ˜‰È
+Âˆ	Ï‰È
+ÂˆÛX[”™XY[™È
+Âˆ	ÏÜ‰È
+Âˆ	ÏÜXO‰ÎÂ‚ˆÊ‚ˆ
+ˆ9æë¹¨!ú+ãyîéùîëy/çyåfyc§ù§iyæ¡: í¹fâºjæ9.«¸à ‚ˆ
+‹ÂˆYˆ
+ˆØY™U\™Ù]ÛÜ™	‰‚ˆ
+ˆØY™U\™Ù]ÛÜ™š[˜ÛY\ÊˆÛX[˜\ÙBˆ
+HˆÛX[˜\ÙKš[˜ÛY\ÊˆØY™U\™Ù]ÛÜ™ˆ
+Bˆ
+Bˆ
+HÂˆXRSBˆ	ÏÜ[ˆÛ\ÜÏH˜ZKZÙ^KXÚ\ZKZÙ^KXÚ\\XH‰È
+ÂˆXRS
+Âˆ	ÏÜÜ[‰ÎÂˆB‚ˆXP›ØÚÜËœ\Ú
+XRS
+NÂ‚ˆ™]\›ˆÚÙ[ÂˆNÂ‚ˆÊ‚ˆ
+ˆ9cê¹c.zacyí)ú--9¬ê:gìù¢ë9cíùæ¡:+ãxà ‚ˆ
+‚ˆ
+ˆ9cëù.éy«hùèk¹i!9ä!»ï&‚ˆ
+ˆ:`døà"¸àoøàhxà"Âˆ
+ˆ:`dÈ8à"¸àoøàhxà"Âˆ
+ˆ:hçøànxà¢øà"¸àgøànxà¢øà"Âˆ
+‚ˆ
+ˆ9d#9¥íº`oùacy¢¢¸ '9i'8àkº`døà"¸àoøàhxà"ø 'Bˆ
+ˆ9¥m9/dú+ëú+©9..¹. 9.*º+ãxà ‚ˆ
+‹Âˆ[H[œ™\XÙJˆÊ×LÍWM‘—MLWNQ‘‘¸à!xà!¸àíŒN{ï${ï&WJÊÎ–øà`Kxà¥¸à¨Kxàî¸àï^ÌKŸJOÊVÈLLLÌJ¸à"Šøà`Kxà¥¸à¨Kxàî¸àï8àîÈLLLÌJÏÊxà"ËÙËˆİÜ™TXBˆ
+NÂ‚ˆ[H[ˆœ™\XÙJˆÈÈÈÈ
+ŠÊW‹ÙËˆ	Ï‰OÚ—‰Âˆ
+Bˆœ™\XÙJˆ×
+—
+ŠŠÊW
+—
+‹ÙËˆ	Ïİ›Û™Ï‰OÜİ›Û™Ï‰Âˆ
+Bˆœ™\XÙJˆ×‹ÙËˆ	Ïœ‰Âˆ
+NÂ‚ˆÊ‚ˆ
+ˆ:jæ9.«¹¬¨y§"z(ªù¬ê:gìù¨!ú+¬9c!y/cùæ¡9æë¹¨!ú+ãxà ‚ˆ
+‹ÂˆYˆ
+ØY™U\™Ù]ÛÜ™
+HÂˆÛÛœİÛÜ™]\›ˆBˆ™]È™YÑ^
+ˆ\ØØ\T™YÑ^
+ˆØY™U\™Ù]ÛÜ™ˆ
+Kˆ	ÙÉÂˆ
+NÂ‚ˆ[H[œ™\XÙJˆÛÜ™]\›‹ˆ	ÏÜ[ˆÛ\ÜÏH˜ZKZÙ^KXÚ\‰È
+ÂˆØY™U\™Ù]ÛÜ™
+Âˆ	ÏÜÜ[‰Âˆ
+NÂˆB‚ˆÊ‚ˆ
+ˆ9 h¹i#y¦ ¹kf9æ¡XH9¬ê:gìùîäù§¡8à ‚ˆ
+‹Âˆ[H[œ™\XÙJˆĞ”Ô•P–WÊ
+ÊPÙËˆ
+X]Ú[™^
+HOˆÂˆ™]\›ˆ
+ˆXP›ØÚÜÖÂˆ[X™\Š[™^
+BˆHˆ	ÉÂˆ
+NÂˆBˆ
+NÂ‚ˆ™]\›ˆ[ÂŸNÂ‚Ú[™İË˜Ü™X]Tİ\”\XÛ\ÈH
+[
+HOˆÂˆ]™XİH[™Ù]›İ[™[™ĞÛY[™Xİ
+
+NÂˆ›Üˆ
+]HHÈHNÈJÊÊHÂˆ]HØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÈˆ˜Û\ÜÓ˜[YHH	Üİ\‹\\XÛIÎÂˆœİ[K›YH
+™Xİ›Y
+È™XİÚYÈŠH
+È	Ü	ÎÈˆœİ[KÜH
+™XİÜ
+È™XİšZYÚÈŠH
+È	Ü	ÎÂˆ][™ÛHHX]œ˜[™ÛJ
+H
+ˆX]”H
+ˆÈˆ]\İHH
+ÈX]œ˜[™ÛJ
+H
+ˆNÂˆœİ[KœÙ]›Ü\J	ËK]	ËX]˜ÛÜÊ[™ÛJH
+ˆ\İ
+È	Ü	ÊNÈˆœİ[KœÙ]›Ü\J	ËK]IËX]œÚ[Š[™ÛJH
+ˆ\İ
+È	Ü	ÊNÂˆØİ[Y[˜›ÙK˜\[™Ú[
+
+NÈˆÙ][Y[İ]
+
+
+HOˆœ™[[İ™J
+K
+NÂˆBŸNÂ‚‹ËÈ9¥¬9h§»ï&¹å*9.£º+¬9oey¢dùo 9o.yê¥ùbcy§ 9d#¹¤ãy/g9æ¡ÓH9a`ùí(›]™]š[İ\Ñ›Øİ\Ñ[[Y[H[Â‚Ú[™İËÙÙÛS[Ù[H
+YÚİÊHOˆÂˆ][HØİ[Y[™Ù][[Y[RY
+Y
+NÂˆYˆ
+Y[
+H™]\›Â‚ˆYˆ
+\ÚİÈ	‰ˆYOOH	ØZK\ÚY][İ™\›^IÊHÂˆYˆ
+ˆ\[ÙˆÛÛ›Û\ˆOOH	İ[™Yš[™Y	È	‰‚ˆ\[ÙˆÛÛ›Û\‹—ÜØ]™Pİ\œ™[Ú]OOH	Ù[˜İ[Û‰Âˆ
+HÂˆÛÛ›Û\‹—ÜØ]™Pİ\œ™[Ú]
+
+NÂˆB‚ˆÛÛœİ[œ][HØİ[Y[™Ù][[Y[RY
+	ØZKXÚ]Z[œ]	ÊNÂ‚ˆYˆ
+[œ][
+HÂˆ[œ][˜[YHH	ÉÎÂˆBˆBˆˆYˆ
+ÚİÊHÂˆËÈKˆ9á)¹à®y`'ùaî»ï&¹.áyg*9odùbcy¬¨y§"y.îù/eyo.yê¥ùo 9d+ù¥íº+¬9oeyá)¹à®BˆYˆ
+Øİ[Y[œ]Y\TÙ[XİÜ[
+	Ë›[Ù[[İ™\›^K˜Xİ]™IÊK›[™İOOH
+HÂˆ™]š[İ\Ñ›Øİ\Ñ[[Y[HØİ[Y[˜Xİ]™Q[[Y[ÂˆBˆ[˜Û\ÜÓ\İ˜Y
+	ØXİ]™IÊNÂˆˆËÈ‹ˆ9á)¹à®yaiyg.»ï&¹níº/çùëbyo¡HÔÔÈ9bª9å.ùå'ù¥b9d#»ï#:!ê¹bª: f¹á)¹o.yê¥ùa¡yë+9. 9.*¹cëù.©9.¤¹a`ùí(ˆÙ][Y[İ]
+
+
+HOˆÂˆ]›Øİ\ØX›HH\œ˜^K™œ›ÛJ[œ]Y\TÙ[XİÜ[
+	Ø]Û››İ
+Ù\ØX›YJK[œ]››İ
+Ù\ØX›YJKÙ[Xİ››İ
+Ù\ØX›YJK^\™XN››İ
+Ù\ØX›YJKİXš[™^N››İ
+İXš[™^H‹LH—JIÊJBˆ™š[\Š›ÙHOˆ›ÙK›Ù™œÙ]\™[OOH[
+NÂˆˆYˆ
+›Øİ\ØX›K›[™İˆ	‰ˆY[˜ÛÛZ[œÊØİ[Y[˜Xİ]™Q[[Y[
+JHÂˆ›Øİ\ØX›VÌK™›Øİ\Ê
+NÂˆBˆKL
+NÂˆˆH[ÙHÂˆ[˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IÊNÂˆˆËÈËˆ9á)¹à®yodº/æ;ï&¹odù¢`9§"yo.yê¥ú`ïyalúeëy¥í»ï#9l!¹á)¹à®z/æ9îæz)é¹cäyo.yê¥ùæ¡9c§ùa`ùí(ˆYˆ
+Øİ[Y[œ]Y\TÙ[XİÜ[
+	Ë›[Ù[[İ™\›^K˜Xİ]™IÊK›[™İOOH	‰ˆ™]š[İ\Ñ›Øİ\Ñ[[Y[
+HÂˆ™]š[İ\Ñ›Øİ\Ñ[[Y[™›Øİ\Ê
+NÂˆ™]š[İ\Ñ›Øİ\Ñ[[Y[H[ÂˆBˆBˆˆYˆ
+Øİ[Y[œ]Y\TÙ[XİÜ[
+	Ë›[Ù[[İ™\›^K˜Xİ]™IÊK›[™İˆ
+HÂˆØİ[Y[˜›ÙK˜Û\ÜÓ\İ˜Y
+	Û[Ù[[Ü[‰ÊNÂˆH[ÙHÂˆØİ[Y[˜›ÙK˜Û\ÜÓ\İœ™[[İ™J	Û[Ù[[Ü[‰ÊNÂˆBŸNÂ‚‚Ú[™İËœÚİÕØ\İH
+\ÙÊHOˆÂˆ]HØİ[Y[™Ù][[Y[RY
+	İØ\İ	ÊNÂˆš[›™\•^H\ÙÎÈ˜Û\ÜÓ\İ˜Y
+	ÜÚİÉÊNÂˆÙ][Y[İ]
+
+
+HOˆ˜Û\ÜÓ\İœ™[[İ™J	ÜÚİÉÊKŒ
+NÂŸNÂ‚Ú[™İËœÚİĞÛÛ™š\›HH
+]K\ÙËÛÛÛ™š\›JHOˆÂˆØİ[Y[™Ù][[Y[RY
+	ÙX[ÙË]]IÊKš[›™\’SH]NÂˆØİ[Y[™Ù][[Y[RY
+	ÙX[ÙË[\ÙÉÊKš[›™\’SH\ÙÎÂˆÚ[™İËÙÙÛS[Ù[
+	ÙX[ÙË[İ™\›^IËYJNÂˆØİ[Y[™Ù][[Y[RY
+	ÙX[ÙËXÛÛ™š\›IÊK›Û˜ÛXÚÈH
+
+HOˆÈ\™Ø\™KšXœ˜]JMJNÈÚ[™İËÙÙÛS[Ù[
+	ÙX[ÙË[İ™\›^IË˜[ÙJNÈÛÛÛ™š\›J
+NÈNÂˆØİ[Y[™Ù][[Y[RY
+	ÙX[ÙËXØ[˜Ù[	ÊK›Û˜ÛXÚÈH
+
+HOˆÈ\™Ø\™KšXœ˜]JL
+NÈÚ[™İËÙÙÛS[Ù[
+	ÙX[ÙË[İ™\›^IË˜[ÙJNÈNÂŸNÂ‚Ú[™İËœÚİÔ›Û\H
+]KY˜][˜[ÛÛÛ™š\›JHOˆÂˆÛÛœİ]Q[HØİ[Y[™Ù][[Y[RY
+	Ü›Û\]]IÊNÂˆÛÛœİ[\‘[HØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[\‰ÊNÂˆÛÛœİXÛÛ‘[HØİ[Y[™Ù][[Y[RY
+	Ü›Û\ZXÛÛ‰ÊNÂˆÛÛœİš\ÚXš[]PˆHØİ[Y[™Ù][[Y[RY
+	Ü›Û\]š\ÚXš[]IÊNÂˆÛÛœİ[œ]HØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[œ]	ÊNÂ‚ˆ]Q[^ÛÛ[H]NÂˆ[\‘[šY[ˆHYNÂˆ[\‘[^ÛÛ[H	ÉÎÂ‚ˆXÛÛ‘[^ÛÛ[H	ÙY]	ÎÂ‚ˆ[œ]\HH	İ^	ÎÂˆ[œ]˜]]ØÛÛ\]HH	ÛÙ™‰ÎÂˆ[œ]œXÙZÛ\ˆH	ú+íú/¤ùaiya¡yk®IÎÂˆ[œ]˜[YHHY˜][˜[	ÉÎÂ‚ˆš\ÚXš[]P‹šY[ˆHYNÂ‚ˆÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IËYJNÂ‚ˆÙ][Y[İ]
+
+
+HOˆÂˆ[œ]™›Øİ\Ê
+NÂˆ[œ]œÙ[Xİ
+
+NÂˆKL
+NÂ‚ˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\XÛÛ™š\›IÊK›Û˜ÛXÚÈH
+
+HOˆÂˆ\™Ø\™KšXœ˜]JMJNÂ‚ˆÛÛœİ˜[H[œ]˜[YKš[J
+NÂ‚ˆYˆ
+˜[
+HÂˆÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IË˜[ÙJNÂˆÛÛÛ™š\›J˜[
+NÂˆBˆNÂ‚ˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\XØ[˜Ù[	ÊK›Û˜ÛXÚÈH
+
+HOˆÂˆ\™Ø\™KšXœ˜]JL
+NÂˆÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IË˜[ÙJNÂˆNÂŸNÂ‚˜ÛÛœİ˜]ˆHÂˆ[š]
+
+HÂˆØİ[Y[œ]Y\TÙ[XİÜ[
+	Ë›˜]‹Z][IÊK™›Ü‘XXÚ
+][HOˆÂˆËÈKˆ9dãyn¥9¢bù£!ù£"y."ûï&¹k§¹ã¬8 '9clùb.ùcãzi¢8 '{ï#9nm¹l!ºg!ùbª9¥íºeoù.ãˆL9h§º!ìÈ{ï#9èk¹/çy¢`9§"y§.¹g¢ú`ïz ïy¡'ùcåùb,9nlº!!¹æ¡:g!ù¡'Âˆ][K˜Y]™[\İ[™\Š	ÜÚ[\™İÛ‰Ë
+JHOˆÂˆYˆ
+KœÚ[\•\HOOH	Û[İ\ÙIÈ	‰ˆK˜]ÛˆOOH
+H™]\›Âˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÈ\™Ø\™KšXœ˜]JJNÂˆ]\™Ù]YHK˜İ\œ™[\™Ù]™Ù]]šX]J	Ù]K]\™Ù]	ÊNÂˆ]]Q]HHK˜İ\œ™[\™Ù]™Ù]]šX]J	Ù]K]]IÊNÂˆ\ËœİÚ]ÚXŠ\™Ù]Y]Q]KK˜İ\œ™[\™Ù]
+NÂˆJNÂˆˆËÈ‹ˆ9/çyåfHÛXÚÈ9å*9.£¹ao9k®{ï&¹¢é¹¢*¹ç'ùk§¹æ¡9âjyä!¹¢«9¢bùà®yaîÊ:f,ºaãyi#y¢iú(c
+{ï#9/a¹¥/º(c9.èùè yî©ùb*ùæ¡:&f¹¢çùà®yaîÊ9i ¹/oùå*9å-z!$ze+¹ææ9mé¹cìù¥®yd$ze+¹b!ù£hˆXŠBˆ][K˜Y]™[\İ[™\Š	ØÛXÚÉË
+JHOˆÂˆYˆ
+Kš\Õ\İY
+H™]\›Èˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÈ\™Ø\™KšXœ˜]JJNÂˆ]\™Ù]YHK˜İ\œ™[\™Ù]™Ù]]šX]J	Ù]K]\™Ù]	ÊNÂˆ]]Q]HHK˜İ\œ™[\™Ù]™Ù]]šX]J	Ù]K]]IÊNÂˆ\ËœİÚ]ÚXŠ\™Ù]Y]Q]KK˜İ\œ™[\™Ù]
+NÂˆJNÂˆJNÂ‚‚ˆ][œ]ÈHØİ[Y[œ]Y\TÙ[XİÜ[
+	Ú[œ]İ\OH^—K^\™XIÊNÂ›]˜]ˆHØİ[Y[™Ù][[Y[RY
+	Ø›İÛK[˜]‰ÊNÂš[œ]Ë™›Ü‘XXÚ
+[OˆÂˆ[˜Y]™[\İ[™\Š	Ù›Øİ\ÉË
+
+HOˆÂˆYˆ
+[˜ÛÜÙ\İ
+	ÈØZKXÚ]]šY]ÉÊH[˜ÛÜÙ\İ
+	ÈØZK\ÚY][İ™\›^IÊJH™]\›ÂˆYŠ˜]ŠH˜]‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJML	JIÎÂˆJNÂˆ[˜Y]™[\İ[™\Š	Ø›\‰Ë
+
+HOˆÂˆYˆ
+[˜ÛÜÙ\İ
+	ÈØZKXÚ]]šY]ÉÊH[˜ÛÜÙ\İ
+	ÈØZK\ÚY][İ™\›^IÊJH™]\›ÂˆYŠ˜]ŠH˜]‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJ
+IÎÂˆJNÂŸJNÂˆKˆİÚ]ÚXŠ\™Ù]Y]Q]K˜]’][Q[
+HÂˆYˆ
+[Ù[œİ]K˜˜]Ú[ÙH[Ù[œİ]K›X[˜YÙS[ÙJHÂˆ[Ù[œİ]K˜˜]Ú[ÙHH˜[ÙNÂˆ[Ù[œİ]K›X[˜YÙS[ÙHH˜[ÙNÂˆ[Ù[œİ]KœÙ[XİYÙ]˜ÛX\Š
+NÂˆˆšY]Ë\]UÛÜ™˜[šÕRJ
+NÈˆ[Ù[œİ]Kœ™[™\™Yİ\[™^HLNÈˆB‚ˆØİ[Y[œ]Y\TÙ[XİÜ[
+	Ë›˜]‹Z][IÊK™›Ü‘XXÚ
+[Oˆ[˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IÊJNÂˆYŠ˜]’][Q[
+H˜]’][Q[˜Û\ÜÓ\İ˜Y
+	ØXİ]™IÊNÂ‚‚ˆØİ[Y[œ]Y\TÙ[XİÜ[
+	ËX‹XÛÛ[	ÊK™›Ü‘XXÚ
+[OˆÂˆ[˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂˆ[˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IÊNÂˆJNÂˆˆ]\™Ù][HØİ[Y[™Ù][[Y[RY
+\™Ù]Y
+NÂˆYŠ\™Ù][
+HÂˆ\™Ù][˜Û\ÜÓ\İœ™[[İ™J	ÚY[‰ÊNÂˆ›ÚY\™Ù][›Ù™œÙ]ÚYÈˆ\™Ù][˜Û\ÜÓ\İ˜Y
+	ØXİ]™IÊNÂˆB‚ˆYˆ
+]Q]JHÂˆ]ÚXÛÛ‹^HH]Q]KœÜ]
+	ß	ÊNÂˆ]]Q[HØİ[Y[™Ù][[Y[RY
+	Ø\YÛØ˜[]]IÊNÂˆYŠ]Q[
+H]Q[š[›™\’SHÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH˜ÛÛÜ˜\ŠK]\X\JNÈ›Û\Ú^™NŒK™[NÈX\™Ú[‹\šYÚˆœÈ‰ÚXÛÛŸOÜÜ[ˆ	İ^XÂˆB‚ˆYˆ
+\™Ù]YOOH	İX‹ZÛYIÊHÂˆšY]Ëœ™[™\‘\Ú›Ø\™
+
+NÂŸH[ÙHYˆ
+\™Ù]YOOH	İX‹XZKZ\İÜIÊHÂˆÛÛ›Û\‹œ™[™\RR\İÜJ
+NÂŸH[ÙHYˆ
+\™Ù]YOOH	İX‹]ÛÜ™˜[šÉÊHÂˆYŠ[Ù[œİ]Kœ™[™\™Yİ\[™^OOHLJHÂˆšY]Ëœ™\Ù]ÛÜ™˜[šÔ™[™\™\Š
+NÂˆH[ÙHÂˆšY]Ëœ™[™\•š\X[ÜšY
+
+NÂˆBˆBˆˆÚ[™İË™\Ü]Ú]™[
+™]È]™[
+	ÜØÜ›Û	ÊJNÈˆBŸNÂ‚˜ÛÛœİ›İÛTÚY]HÂˆ[š]
+
+HÂˆØİ[Y[œ]Y\TÙ[XİÜ[
+	ÜÙ[Xİ››İ
+››ËXœÊIÊK™›Ü‘XXÚ
+Ù[OˆÂˆ]˜XØYHHØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆ˜XØYK˜Û\ÜÓ˜[YHH	ØœËY˜XØYIÎÂˆ˜XØYKœÙ]]šX]J	İXš[™^	Ë	Ì	ÊNÂˆ˜XØYKœÙ]]šX]J	Ü›ÛIË	Ø]Û‰ÊNÂ‚ˆYˆ
+Ù[œİ[K›X\™Ú[›İÛJHÂˆ˜XØYKœİ[K›X\™Ú[›İÛHHÙ[œİ[K›X\™Ú[›İÛNÂˆB‚ˆYˆ
+Ù[œİ[K™›^
+HÂˆ˜XØYKœİ[K™›^HÙ[œİ[K™›^ÂˆB‚ˆYˆ
+Ù[œİ[KÚY
+HÂˆ˜XØYKœİ[KÚYHÙ[œİ[KÚYÂˆB‚ˆYˆ
+Ù[œİ[K›X\™Ú[•Ü
+HÂˆ˜XØYKœİ[K›X\™Ú[•ÜHÙ[œİ[K›X\™Ú[•ÜÂˆB‚ˆ]^Ü[ˆHØİ[Y[˜Ü™X]Q[[Y[
+	ÜÜ[‰ÊNÂˆ^Ü[‹˜Û\ÜÓ˜[YHH	ØœËY˜XØYK]^	ÎÂˆ^Ü[‹š[›™\•^BˆÙ[›Ü[ÛœÖÜÙ[œÙ[XİY[™^OË^	ÉÎÂ‚ˆ]\œ›İÔÜ[ˆHØİ[Y[˜Ü™X]Q[[Y[
+	ÜÜ[‰ÊNÂˆ\œ›İÔÜ[‹˜Û\ÜÓ˜[YHH	ÛX]\šX[\Ş[X›ÛË\›İ[™Y	ÎÂˆ\œ›İÔÜ[‹š[›™\•^H	ÚÙ^X›Ø\™Ø\œ›İ×ÙİÛ‰ÎÂˆ\œ›İÔÜ[‹œİ[K›ÜXÚ]HH	ÌIÎÂ‚ˆ˜XØYK˜\[™Ú[
+^Ü[ŠNÂˆ˜XØYK˜\[™Ú[
+\œ›İÔÜ[ŠNÂ‚ˆÙ[œİ[K™\Ü^HH	Û›Û™IÎÂˆÙ[œ\™[›ÙKš[œÙ\™Y›Ü™J˜XØYKÙ[›™^ÚX›[™ÊNÂ‚ˆ˜XØYK˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™KšXœ˜]JL
+NÂˆ\Ë›Ü[ŠÙ[^Ü[ŠNÂˆJNÂ‚ˆÙ[˜Y]™[\İ[™\Š	Ù˜XØYK]\]IË
+
+HOˆÂˆ^Ü[‹š[›™\•^BˆÙ[›Ü[ÛœÖÜÙ[œÙ[XİY[™^OË^	ÉÎÂˆJNÂˆJNÂ‚ˆÊ‚ˆ
+ˆ9..¹¢`9§"yn¥z`ê9¢¯ylbyk¢z(áycìù."º)ä¹¥-º-mù£"zd«»ï#ˆ
+ˆ9d#9¥í¹/çyåfyc§ù§"yæ¡9¢å¹bª9alúeëz ïyb¦øà ‚ˆ
+‹Âˆ\Ëš[œİ[ÛÛ\ÙP]ÛœÊ
+NÂˆ\Ëš[š]˜YÔİ\Ü
+
+NÂˆK‚ˆ[œİ[ÛÛ\ÙP]ÛœÊ
+HÂˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	Ë›[Ù[[İ™\›^H˜›İÛK\ÚY]	ÊBˆ™›Ü‘XXÚ
+ÚY]OˆÂˆÛÛœİ[™XYR[œİ[YBˆ\œ˜^K™œ›ÛJÚY]˜Ú[™[ŠKœÛÛYJÚ[OˆÂˆ™]\›ˆÚ[˜Û\ÜÓ\İË˜ÛÛZ[œÊˆ	ÜÚY]XÛÛ\ÙKX‰Âˆ
+NÂˆJNÂ‚ˆYˆ
+[™XYR[œİ[Y
+HÂˆ™]\›ÂˆB‚ˆÛÛœİİ™\›^HBˆÚY]˜ÛÜÙ\İ
+	Ë›[Ù[[İ™\›^IÊNÂ‚ˆYˆ
+[İ™\›^OËšY
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ]ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ø]Û‰ÊNÂ‚ˆ]Û‹\HH	Ø]Û‰ÎÂˆ]Û‹˜Û\ÜÓ˜[YHH	ÜÚY]XÛÛ\ÙKX‰ÎÂˆ]Û‹]HH	ù¥-º-mù¢¯ylbIÎÂˆ]Û‹œÙ]]šX]J	Ø\šXK[X™[	Ë	ù¥-º-mù¢¯ylbIÊNÂˆ]Û‹š[›™\’SHˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆÙ^X›Ø\™Ø\œ›İ×ÙİÛ‚ˆÜÜ[‚ˆÂ‚ˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË]™[OˆÂˆ]™[œİÜ›ÜYØ][ÛŠ
+NÂˆ\™Ø\™KšXœ˜]JL
+NÂˆÚ[™İËÙÙÛS[Ù[
+İ™\›^KšY˜[ÙJNÂˆJNÂ‚ˆÚY]š[œÙ\™Y›Ü™J]Û‹ÚY]™š\œİÚ[
+NÂˆJNÂˆK‚ˆ[š]˜YÔİ\Ü
+
+HÂˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	Ë›[Ù[[İ™\›^H˜›İÛK\ÚY]	ÊBˆ™›Ü‘XXÚ
+ÚY]OˆÂˆÊ‚ˆ
+ˆ:f,¹«h¹b'yiâùc%¹aïy¥l:aãyi#y¢iú(c9¥í»ï#ˆ
+ˆ9d#9. 9.*¹¢¯ylbz(ªùîäyk¦¹i&¹«(y.¢ù.í¸à ‚ˆ
+‹ÂˆYˆ
+ÚY]™]\Ù]™˜YÔ™XYHOOH	İYIÊHÂˆ™]\›ÂˆB‚ˆÛÛœİİ™\›^HBˆÚY]˜ÛÜÙ\İ
+	Ë›[Ù[[İ™\›^IÊNÂ‚ˆÊ‚ˆ
+ˆ9cê¹kîù¢o¹¢¯ylby§ 9i%¹l`¹æ¡9ª*¹§h{ï#ˆ
+ˆ:`oùacz+ëú`"ya¡yk®yc.¹a¡yæ¡9d#9d#ya`ùí(8à ‚ˆ
+‹ÂˆÛÛœİ[™HBˆ\œ˜^K™œ›ÛJÚY]˜Ú[™[ŠK™š[™
+Ú[OˆÂˆ™]\›ˆÚ[˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ØœËZ[™IÊNÂˆJNÂ‚ˆYˆ
+[İ™\›^HZ[™JHÂˆ™]\›ÂˆB‚ˆÚY]™]\Ù]™˜YÔ™XYHH	İYIÎÂ‚ˆÊ‚ˆ
+ˆ9ª*¹§hyd#9¥í¹¥+ù£ ze+¹ææ9¤ãy/g8à ‚ˆ
+‹Âˆ[™KœÙ]]šX]J	Ü›ÛIË	Ø]Û‰ÊNÂˆ[™KœÙ]]šX]J	İXš[™^	Ë	Ì	ÊNÂˆ[™KœÙ]]šX]Jˆ	Ø\šXK[X™[	Ëˆ	ùd$y."ù¢å¹bª9alúeëy¢¯ylbIÂˆ
+NÂ‚ˆ]˜YÙÚ[™ÈH˜[ÙNÂˆ]Ú[\’YH[Âˆ]İ\HHÂˆ]İ\œ™[HHÂˆ]İ\[YHHÂˆ]š[š\Ú[Y\ˆH[Â‚ˆÛÛœİÛX\“[İ[Û”İ]HH
+
+HOˆÂˆYˆ
+š[š\Ú[Y\ŠHÂˆÚ[™İË˜ÛX\•[Y[İ]
+š[š\Ú[Y\ŠNÂˆš[š\Ú[Y\ˆH[ÂˆB‚ˆ˜YÙÚ[™ÈH˜[ÙNÂˆÚ[\’YH[Âˆİ\œ™[HHÂ‚ˆÚY]˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\ËY˜YÙÚ[™ÉËˆ	Ú\Ë\Ù][™ÉËˆ	Ú\ËY\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆ[™K˜Û\ÜÓ\İœ™[[İ™J	Ú\ËY˜YÙÚ[™ÉÊNÂˆİ™\›^K˜Û\ÜÓ\İœ™[[İ™J	ÜÚY]Y\ÛZ\ÜÚ[™ÉÊNÂ‚ˆÚY]œİ[Kœ™[[İ™T›Ü\Jˆ	ËK\ÚY]Y˜YË^IÂˆ
+NÂˆNÂ‚ˆÊ‚ˆ
+ˆ9¬¨y§"z/¯¹b,9alúeëz-çyé®ù¥í»ï#ˆ
+ˆ:+ªy¢¯ylbyo.yfç¹c§ù/cxà ‚ˆ
+‹ÂˆÛÛœİÜš[™Ğ˜XÚÈH
+
+HOˆÂˆÚY]˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\ËY˜YÙÚ[™ÉËˆ	Ú\ËY\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆ[™K˜Û\ÜÓ\İœ™[[İ™J	Ú\ËY˜YÙÚ[™ÉÊNÂˆİ™\›^K˜Û\ÜÓ\İœ™[[İ™Jˆ	ÜÚY]Y\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆÚY]˜Û\ÜÓ\İ˜Y
+	Ú\Ë\Ù][™ÉÊNÂ‚ˆÚY]œİ[KœÙ]›Ü\Jˆ	ËK\ÚY]Y˜YË^IËˆ	Ì	Âˆ
+NÂ‚ˆš[š\Ú[Y\ˆHÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆÚY]˜Û\ÜÓ\İœ™[[İ™J	Ú\Ë\Ù][™ÉÊNÂ‚ˆÚY]œİ[Kœ™[[İ™T›Ü\Jˆ	ËK\ÚY]Y˜YË^IÂˆ
+NÂ‚ˆš[š\Ú[Y\ˆH[ÂˆKÌ
+NÂˆNÂ‚ˆÊ‚ˆ
+ˆ9k£9¥m9¢iú(c9¢¯ylbz` 9aî¹bª9å.ûï#ˆ
+ˆ9á-¹d#º, ùå*9ã¬9§"yæ¡9o.yê¥ùalúeëy¥®y¬åxà ‚ˆ
+‹ÂˆÛÛœİ\ÛZ\ÜÔÚY]H
+
+HOˆÂˆÚY]˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\ËY˜YÙÚ[™ÉËˆ	Ú\Ë\Ù][™ÉÂˆ
+NÂ‚ˆ[™K˜Û\ÜÓ\İœ™[[İ™J	Ú\ËY˜YÙÚ[™ÉÊNÂ‚ˆÚY]˜Û\ÜÓ\İ˜Y
+	Ú\ËY\ÛZ\ÜÚ[™ÉÊNÂˆİ™\›^K˜Û\ÜÓ\İ˜Y
+ˆ	ÜÚY]Y\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆÛÛœİ\ÛZ\ÜÑ\İ[˜ÙHHX]›X^
+ˆÚ[™İËš[›™\’ZYÚˆÚY]›Ù™œÙ]ZYÚ
+ÈLŒˆ
+NÂ‚ˆÚY]œİ[KœÙ]›Ü\Jˆ	ËK\ÚY]Y˜YË^IËˆ	Ù\ÛZ\ÜÑ\İ[˜Ù_\ˆ
+NÂ‚ˆ\™Ø\™KšXœ˜]JLŠNÂ‚ˆš[š\Ú[Y\ˆHÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆÚ[™İËÙÙÛS[Ù[
+ˆİ™\›^KšYˆ˜[ÙBˆ
+NÂ‚ˆš[š\Ú[Y\ˆBˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆÛX\“[İ[Û”İ]J
+NÂˆKŒ
+NÂˆKŒŒ
+NÂˆNÂ‚ˆÛÛœİ[™˜YÈH]™[OˆÂˆYˆ
+ˆY˜YÙÚ[™Èˆ]™[œÚ[\’YOOHÚ[\’Yˆ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ[\ÙYHX]›X^
+ˆ\™›Ü›X[˜ÙK››İÊ
+HHİ\[YKˆBˆ
+NÂ‚ˆÛÛœİİ[\İ[˜ÙHHX]›X^
+ˆˆ]™[˜ÛY[HHİ\Bˆ
+NÂ‚ˆÛÛœİ™[ØÚ]HBˆİ[\İ[˜ÙHÈ[\ÙYÂ‚ˆÊ‚ˆ
+ˆ9¢¯ylbz-¢ºjæ;ï#9alúeëzf"9`/9/&º` ¹odùh§¹b¨;ï#ˆ
+ˆ9/a¹.#y/&º-¡z/áÈMŒ9`ãùí(8à ‚ˆ
+‹ÂˆÛÛœİÛÜÙU™\ÚÛHX]›Z[ŠˆMŒˆX]›X^
+ˆLˆÚY]›Ù™œÙ]ZYÚ
+ˆŒŒ‚ˆ
+Bˆ
+NÂ‚ˆ˜YÙÚ[™ÈH˜[ÙNÂ‚ˆHÂˆ[™Kœ™[X\ÙTÚ[\Ø\\™JˆÚ[\’Yˆ
+NÂˆHØ]Ú
+\œ›ÜŠHßB‚ˆÚ[\’YH[Â‚ˆÊ‚ˆ
+ˆ9®èz-¬ù.îù. 9§hy.í¹clùcëùalúeë{ï&‚ˆ
+‚ˆ
+ˆKˆ9."ù¢âz-çyé®ú-¬ùi'ûï&Âˆ
+ˆ‹ˆ9."ù¢âz-çyé®ú-¡z/áÈ9`ãùí(;ï#ˆ
+ˆ9nm¹.%9¢bùb¯ú`'ùn©º-¬ùi'ùoêøà ‚ˆ
+‹ÂˆÛÛœİÚİ[ÛÜÙHBˆİ\œ™[HˆÛÜÙU™\ÚÛˆ
+ˆİ\œ™[Hˆ	‰‚ˆ™[ØÚ]HˆMBˆ
+NÂ‚ˆYˆ
+Úİ[ÛÜÙJHÂˆ\ÛZ\ÜÔÚY]
+
+NÂˆH[ÙHÂˆÜš[™Ğ˜XÚÊ
+NÂˆBˆNÂ‚ˆ[™K˜Y]™[\İ[™\Šˆ	ÜÚ[\™İÛ‰Ëˆ]™[OˆÂˆYˆ
+ˆ[İ™\›^K˜Û\ÜÓ\İ˜ÛÛZ[œÊˆ	ØXİ]™IÂˆ
+Bˆ
+HÂˆ™]\›ÂˆB‚ˆYˆ
+ˆ]™[œÚ[\•\HOOH	Û[İ\ÙIÈ	‰‚ˆ]™[˜]ÛˆOOHˆ
+HÂˆ™]\›ÂˆB‚ˆYˆ
+ˆİ™\›^K˜Û\ÜÓ\İ˜ÛÛZ[œÊˆ	ÜÚY]Y\ÛZ\ÜÚ[™ÉÂˆ
+Bˆ
+HÂˆ™]\›ÂˆB‚ˆ]™[œ™]™[Y˜][
+
+NÂ‚ˆYˆ
+š[š\Ú[Y\ŠHÂˆÚ[™İË˜ÛX\•[Y[İ]
+ˆš[š\Ú[Y\‚ˆ
+NÂ‚ˆš[š\Ú[Y\ˆH[ÂˆB‚ˆ˜YÙÚ[™ÈHYNÂˆÚ[\’YH]™[œÚ[\’YÂˆİ\HH]™[˜ÛY[NÂˆİ\œ™[HHÂˆİ\[YHH\™›Ü›X[˜ÙK››İÊ
+NÂ‚ˆÚY]˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë\Ù][™ÉËˆ	Ú\ËY\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆİ™\›^K˜Û\ÜÓ\İœ™[[İ™Jˆ	ÜÚY]Y\ÛZ\ÜÚ[™ÉÂˆ
+NÂ‚ˆÚY]˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËY˜YÙÚ[™ÉÂˆ
+NÂ‚ˆ[™K˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËY˜YÙÚ[™ÉÂˆ
+NÂ‚ˆÚY]œİ[KœÙ]›Ü\Jˆ	ËK\ÚY]Y˜YË^IËˆ	Ì	Âˆ
+NÂ‚ˆHÂˆ[™KœÙ]Ú[\Ø\\™JˆÚ[\’Yˆ
+NÂˆHØ]Ú
+\œ›ÜŠHßBˆBˆ
+NÂ‚ˆ[™K˜Y]™[\İ[™\Šˆ	ÜÚ[\›[İ™IËˆ]™[OˆÂˆYˆ
+ˆY˜YÙÚ[™Èˆ]™[œÚ[\’YOOHÚ[\’Yˆ
+HÂˆ™]\›ÂˆB‚ˆ]™[œ™]™[Y˜][
+
+NÂ‚ˆÛÛœİ˜]Ñ\İ[˜ÙHBˆ]™[˜ÛY[HHİ\NÂ‚ˆÊ‚ˆ
+ˆ9d$y."ù¥í¹k£9aj:-çù¢bøà ‚ˆ
+ˆ9d$y."¹¥í¹h§¹b¨:f.ùb¦ûï#9§ 9i&¹cê¹éîùbªN9`ãùí(8à ‚ˆ
+‹Âˆİ\œ™[HH˜]Ñ\İ[˜ÙHˆÈX]›X^
+ˆLNˆ˜]Ñ\İ[˜ÙH
+ˆŒNˆ
+Bˆˆ˜]Ñ\İ[˜ÙNÂ‚ˆÚY]œİ[KœÙ]›Ü\Jˆ	ËK\ÚY]Y˜YË^IËˆ	Øİ\œ™[_\ˆ
+NÂˆBˆ
+NÂ‚ˆ[™K˜Y]™[\İ[™\Šˆ	ÜÚ[\\	Ëˆ[™˜YÂˆ
+NÂ‚ˆ[™K˜Y]™[\İ[™\Šˆ	ÜÚ[\˜Ø[˜Ù[	Ëˆ]™[OˆÂˆYˆ
+ˆY˜YÙÚ[™Èˆ]™[œÚ[\’YOOHÚ[\’Yˆ
+HÂˆ™]\›ÂˆB‚ˆ˜YÙÚ[™ÈH˜[ÙNÂˆÚ[\’YH[Â‚ˆÜš[™Ğ˜XÚÊ
+NÂˆBˆ
+NÂ‚ˆÊ‚ˆ
+ˆ9..ºe+¹ææ9d£:/¡ybªz+¯¹i!ù£ä9/¦ùalúeëy¥®yo#øà ‚ˆ
+‹Âˆ[™K˜Y]™[\İ[™\Šˆ	ÚÙ^YİÛ‰Ëˆ]™[OˆÂˆYˆ
+ˆ[İ™\›^K˜Û\ÜÓ\İ˜ÛÛZ[œÊˆ	ØXİ]™IÂˆ
+Bˆ
+HÂˆ™]\›ÂˆB‚ˆYˆ
+ˆ]™[šÙ^HOOH	Ñ[\‰Èˆ]™[šÙ^HOOH	È	Èˆ]™[šÙ^HOOH	Ğ\œ›İÑİÛ‰Âˆ
+HÂˆ]™[œ™]™[Y˜][
+
+NÂˆ\ÛZ\ÜÔÚY]
+
+NÂˆBˆBˆ
+NÂˆJNÂˆK‚ˆÜ[ŠÙ[Xİ[^Ü[ŠHÂˆÛÛœİÛÛZ[™\ˆBˆØİ[Y[™Ù][[Y[RY
+	ØœË[Ü[ÛœÉÊNÂ‚ˆÛÛœİİ™\›^HBˆØİ[Y[™Ù][[Y[RY
+	ØœË[İ™\›^IÊNÂ‚ˆÛÛœİ\ÕÛÜ™˜[šÔXÚÙ\ˆBˆÙ[Xİ[šYOOH	İØ‹Y›Û\‹Yš[\‰ÎÂ‚ˆÛÛœİ\Ô˜[™ÙTXÚÙ\ˆBˆÙ[Xİ[šYOOH	İ\İ\˜[™ÙK\Ù[Xİ	ÎÂ‚ˆÛÛœİ\Ñ\Ü^S[ÙTXÚÙ\ˆHÂˆ	Û™^Y\Ü^K[[ÙIËˆ	İ\İY\Ü^K\Ù[Xİ	ÂˆKš[˜ÛY\ÊÙ[Xİ[šY
+NÂ‚ˆÛÛZ[™\‹š[›™\’SH	ÉÎÂˆÛÛZ[™\‹˜Û\ÜÓ˜[YHH	ØœË[Ü[ÛœÉÎÂ‚ˆÂˆ	İÛÜ™˜[šË\XÚÙ\‹[Ü[‰Ëˆ	Ü˜[™ÙK\XÚÙ\‹[Ü[‰Ëˆ	Ù\Ü^K[[ÙK\XÚÙ\‹[Ü[‰Ëˆ	ØÛÛ\Xİ\XÚÙ\‹[Ü[‰ÂˆK™›Ü‘XXÚ
+Û\ÜÓ˜[YHOˆÂˆİ™\›^OË˜Û\ÜÓ\İœ™[[İ™JÛ\ÜÓ˜[YJNÂˆJNÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë]ÛÜ™˜[šË\XÚÙ\‰Ëˆ\ÕÛÜ™˜[šÔXÚÙ\‚ˆ
+NÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë\˜[™ÙK\XÚÙ\‰Ëˆ\Ô˜[™ÙTXÚÙ\‚ˆ
+NÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËY\Ü^K[[ÙK\XÚÙ\‰Ëˆ\Ñ\Ü^S[ÙTXÚÙ\‚ˆ
+NÂ‚ˆİ™\›^OË˜Û\ÜÓ\İÙÙÛJˆ	İÛÜ™˜[šË\XÚÙ\‹[Ü[‰Ëˆ\ÕÛÜ™˜[šÔXÚÙ\‚ˆ
+NÂ‚ˆİ™\›^OË˜Û\ÜÓ\İÙÙÛJˆ	Ü˜[™ÙK\XÚÙ\‹[Ü[‰Ëˆ\Ô˜[™ÙTXÚÙ\‚ˆ
+NÂ‚ˆİ™\›^OË˜Û\ÜÓ\İÙÙÛJˆ	Ù\Ü^K[[ÙK\XÚÙ\‹[Ü[‰Ëˆ\Ñ\Ü^S[ÙTXÚÙ\‚ˆ
+NÂ‚ˆÛÛœİ]SX\HÂˆ	İ\İ\˜[™ÙK\Ù[Xİ	Îˆ	ú`"y¢êy¨à:j£:# ùfí	Ëˆ	İ\İY\Ü^K\Ù[Xİ	Îˆ	únæ:+©9¦/¹é.¹ª(yo#ÉËˆ	Û™^Y\Ü^K[[ÙIÎˆ
+ˆ[Ù[œİ]K›[ÙHOOH	Ü›İK[X\›š[™ÉÈ	‰‚ˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰Âˆ
+BˆÈ	ú`"y¢êyo.¹c%¹ª(yo#ÉÂˆˆ	ú`k¹æå¹ª(yo#ÉËˆ	İØ‹Y›Û\‹Yš[\‰Îˆ	ú`"y¢êz+ãyn¤ÉËˆ	İØ‹[]™[Yš[\‰Îˆ	ú`"y¢êz  ú+åyî©ùb*ÉËˆ	İØ‹YY™šXİ[KYš[\‰Îˆ	ú`"y¢êyki¹.h:f¯¹n©‰Ëˆ	Û[İ™KY\İ\Ù[Xİ	Îˆ	ùéîùbª:!ìùæë¹¨!ù¥¡ù.í¹i.IËˆ	Ú[\Ü[[™Ë\Ù[Xİ	Îˆ	ú`"y¢êz+ãy¬aú+ëz* 	Ëˆ	Ú[\ÜY›Û\‹\Ù[Xİ	Îˆ	ú`"y¢êyæë¹¨!ú+ãyn¤ÉËˆ	Ú[\Ü[]™[\Ù[Xİ	Îˆ	ú`"y¢êy¢ny«(yî©ùb*ÉËˆ	Ú[\ÜYY™šXİ[K\Ù[Xİ	Îˆ	ú`"y¢êy¢ny«(zf¯¹n©‰Ëˆ	Ú[\ÜY\XØ]K[[ÙIÎˆ	ú`"y¢êzaãyi#z+ãyi!9ä!¹¥®yo#ÉËˆ	ÜÙ][™Ë]ÛÜ™[Ü™\‹[[ÙIÎˆ	ú`"y¢êz+ãy¬aù£¤¹b%ù¥®yo#ÉÂˆNÂ‚ˆØİ[Y[™Ù][[Y[RY
+	ØœË]]IÊKš[›™\•^Bˆ]SX\ÜÙ[Xİ[šYH	ú+íú`"y¢êIÎÂ‚ˆÛÛœİš\ÚX›SÜ[ÛœÈBˆ\œ˜^K™œ›ÛJÙ[Xİ[›Ü[ÛœÊK™š[\ŠÜ[ÛˆOˆÂˆ™]\›ˆÜ[Û‹œİ[K™\Ü^HOOH	Û›Û™IÎÂˆJNÂ‚ˆÛÛœİÛ™Ù\İÜ[Û“[™İBˆš\ÚX›SÜ[ÛœËœ™YXÙJ
+X^[™İÜ[ÛŠHOˆÂˆ™]\›ˆX]›X^
+ˆX^[™İˆ\œ˜^K™œ›ÛJÜ[Û‹^š[J
+JK›[™İˆ
+NÂˆK
+NÂ‚ˆÛÛœİØ]™TÙ[Xİ[ÛˆHÜ[ÛˆOˆÂˆ\™Ø\™KšXœ˜]JMJNÂˆÙ[Xİ[˜[YHHÜ[Û‹˜[YNÂ‚ˆYˆ
+Ù[Xİ[šYOOH	İ\İ\˜[™ÙK\Ù[Xİ	ÊHÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	Û\İ\İ˜[™ÙIËˆÜ[Û‹˜[YBˆ
+NÂˆB‚ˆYˆ
+Ù[Xİ[šYOOH	İ\İY\Ü^K\Ù[Xİ	ÊHÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	Û\İ\İ\Ü^IËˆÜ[Û‹˜[YBˆ
+NÂˆB‚ˆYˆ
+Ù[Xİ[šYOOH	İØ‹Y›Û\‹Yš[\‰ÊHÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	Û\İÙ[XİY›Û\‰ËˆÜ[Û‹˜[YBˆ
+NÂˆB‚ˆÙ[Xİ[™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂ‚ˆÙ[Xİ[™\Ü]Ú]™[
+ˆ™]È]™[
+	ØÚ[™ÙIÊBˆ
+NÂ‚ˆÚ[™İËÙÙÛS[Ù[
+	ØœË[İ™\›^IË˜[ÙJNÂˆNÂ‚ˆÛÛœİÛİ[ÛÜ™Ñ›Ü“Ü[ÛˆHÜ[ÛˆOˆÂˆYˆ
+Z\ÕÛÜ™˜[šÔXÚÙ\ˆ	‰ˆZ\Ô˜[™ÙTXÚÙ\ŠHÂˆ™]\›ˆ[ÂˆB‚ˆ™]\›ˆ[Ù[™‹™š[\ŠÛÜ™OˆÂˆYˆ
+ˆ
+ÛÜ™›[™È	Ú˜IÊHOOBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙBˆ
+HÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆ™]\›ˆÜ[Û‹˜[YHOOH	Ø[	ÂˆÈYBˆˆ[Ù[˜ÚXÚÑš[\ŠˆÛÜ™ˆÜ[Û‹˜[YBˆ
+NÂˆJK›[™İÂˆNÂ‚ˆÛÛœİ\Ü^RXÛÛ“X\HÂˆ[ˆ	İš\ÚXš[]IËˆÛÜ™ˆ	İ^ÙšY[ÉËˆØ[˜Nˆ	Ü™XÛÜ™İ›ÚXÙWÛİ™\‰ËˆYX[š[™Îˆ	İ˜[œÛ]IËˆ]Y[Îˆ	ÚXYÛ™\ÉËˆÜ[ˆ	ÜÜ[ÚXÚÉÂˆNÂ‚ˆÛÛœİÙ[™\šXÒXÛÛ“X\HÂˆ[ˆ	ÙÜšYİšY]ÉËˆ˜Nˆ	İ˜[œÛ]IËˆ[ˆ	ØX˜ÉËˆNˆ	ÛÛÚÜ×ÍIËˆˆ	ÛÛÚÜ×Í	ËˆŒÎˆ	ÛÛÚÜ×ÌÉËˆŒˆ	ÛÛÚÜ×İÛÉËˆŒNˆ	ÛÛÚÜ×ÛÛ™IËˆ	ĞÑUM	Îˆ	Ùš[\—Í	Ëˆ	ĞÑUM‰Îˆ	Ùš[\—Í‰Ëˆ	ÌIÎˆ	Ùš[\—ÌIËˆ	Ì‰Îˆ	Ùš[\—Ì‰Ëˆ	ÌÉÎˆ	Ùš[\—ÌÉËˆ	Í	Îˆ	Ùš[\—Í	Ëˆ	ÍIÎˆ	Ùš[\—ÍIËˆÚÚ\ˆ	ÜÚÚ\Û™^	Ëˆ\]Nˆ	ÜŞ[˜ÉËˆÙY\ˆ	ØÛÛ[ØÛÜIÂˆNÂ‚ˆÛÛœİXZÙP]ÛˆH
+Ü[Û‹Y]HHßJHOˆÂˆÛÛœİ]ÛˆHØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆÛÛœİÛİ[HÛİ[ÛÜ™Ñ›Ü“Ü[ÛŠÜ[ÛŠNÂ‚ˆ]Û‹˜Û\ÜÓ˜[YHH	ØœË[Ü[Û‰ÎÂˆ]Û‹˜Û\ÜÓ\İÙÙÛJ	ÜÙ[XİY	ËÜ[Û‹œÙ[XİY
+NÂˆ]Û‹˜Û\ÜÓ\İÙÙÛJ	Ú\Ë]ÚYIË›ÛÛX[ŠY]KÚYJJNÂˆ]Û‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËY™X]\™Y	Ëˆ›ÛÛX[ŠY]K™™X]\™Y
+Bˆ
+NÂ‚ˆ]Û‹œÙ]]šX]J	İXš[™^	Ë	Ì	ÊNÂˆ]Û‹œÙ]]šX]J	Ü›ÛIË	Ø]Û‰ÊNÂˆ]Û‹œÙ]]šX]Jˆ	Ø\šXK\™\ÜÙY	ËˆÜ[Û‹œÙ[XİYÈ	İYIÈˆ	Ù˜[ÙIÂˆ
+NÂ‚ˆÛÛœİXÛÛˆBˆY]KšXÛÛˆˆ
+\Ñ\Ü^S[ÙTXÚÙ\‚ˆÈ\Ü^RXÛÛ“X\ÛÜ[Û‹˜[YWBˆˆÙ[™\šXÒXÛÛ“X\ÛÜ[Û‹˜[YWJHˆ	İ[™IÎÂ‚ˆ]Û‹š[›™\’SHˆÜ[ˆÛ\ÜÏH˜œË[Ü[Û‹ZXÛÛˆX]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ	ÚXÛÛŸBˆÜÜ[‚‚ˆÜ[ˆÛ\ÜÏH˜œË[Ü[Û‹[X™[‚ˆ	Ù\ØØ\RS
+Y]K›X™[Ü[Û‹^
+_BˆÜÜ[‚‚ˆ	ÂˆÛİ[OOH[ˆÈ	ÉÂˆˆˆÜ[ˆÛ\ÜÏH˜œË[Ü[Û‹XÛİ[‚ˆ	ØÛİ[BˆÜÜ[‚ˆˆB‚ˆÜ[ˆÛ\ÜÏH˜œË[Ü[Û‹XÚXÚÈX]\šX[\Ş[X›ÛË\›İ[™Y‚ˆÚXÚÂˆÜÜ[‚ˆÂ‚ˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆØ]™TÙ[Xİ[ÛŠÜ[ÛŠNÂˆJNÂ‚ˆ]Û‹˜Y]™[\İ[™\Š	ÚÙ^YİÛ‰Ë]™[OˆÂˆYˆ
+ˆ]™[šÙ^HOOH	Ñ[\‰È	‰‚ˆ]™[šÙ^HOOH	È	Âˆ
+HÂˆ™]\›ÂˆB‚ˆ]™[œ™]™[Y˜][
+
+NÂˆØ]™TÙ[Xİ[ÛŠÜ[ÛŠNÂˆJNÂ‚ˆ™]\›ˆ]ÛÂˆNÂ‚ˆÛÛœİZ[Ü›İ\YXÚÙ\ˆH
+ˆÜ›İ\Yš[š][ÛœËˆ™\ÛÛ™SY]Bˆ
+HOˆÂˆÛÛœİÜ›İ\ÈHßNÂ‚ˆÜ›İ\Yš[š][ÛœË™›Ü‘XXÚ
+
+ÚÙ^K]WJHOˆÂˆÛÛœİÙXİ[ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+	ÜÙXİ[Û‰ÊNÂ‚ˆÛÛœİXY[™ÈBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂ‚ˆÛÛœİÜšYBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂ‚ˆÙXİ[Û‹˜Û\ÜÓ˜[YHBˆœË[Ü[Û‹YÜ›İ\œË[Ü[Û‹YÜ›İ\IÚÙ^_XÂ‚ˆÙXİ[Û‹šY[ˆHYNÂˆXY[™Ë˜Û\ÜÓ˜[YHH	ØœË[Ü[Û‹YÜ›İ\]]IÎÂˆXY[™Ë^ÛÛ[H]NÂˆÜšY˜Û\ÜÓ˜[YHH	ØœË[Ü[Û‹YÜšY	ÎÂ‚ˆÙXİ[Û‹˜\[™Ú[
+XY[™ÊNÂˆÙXİ[Û‹˜\[™Ú[
+ÜšY
+NÂˆÛÛZ[™\‹˜\[™Ú[
+ÙXİ[ÛŠNÂ‚ˆÜ›İ\ÖÚÙ^WHHÈÙXİ[Û‹ÜšYNÂˆJNÂ‚ˆš\ÚX›SÜ[ÛœË™›Ü‘XXÚ
+Ü[ÛˆOˆÂˆÛÛœİY]HH™\ÛÛ™SY]JÜ[ÛŠNÂˆÛÛœİ\™Ù]HÜ›İ\ÖÛY]K™Ü›İ\NÂ‚ˆYˆ
+]\™Ù]
+HÂˆ™]\›ÂˆB‚ˆ\™Ù]œÙXİ[Û‹šY[ˆH˜[ÙNÂˆ\™Ù]™ÜšY˜\[™Ú[
+ˆXZÙP]ÛŠÜ[Û‹Y]JBˆ
+NÂˆJNÂˆNÂ‚ˆYˆ
+\ÕÛÜ™˜[šÔXÚÙ\ŠHÂˆÛÛœİY]SX\HÂˆ[ˆÉÜ]ZXÚÉË	ù§éyç"ù¢`9§"IË	ÙÜšYİšY]É×Kˆš\X[Üİ\œ™YˆÂˆ	Ü]ZXÚÉËˆ	ù¥-º%ãú+ãy¬aÉËˆ	Üİ\‰ÂˆKˆš\X[İÜ›Û™×Ø[ˆÂˆ	İÜ›Û™ÉËˆ	ù¦nº ïze&zh¦9§+	Ëˆ	Ù\œ›Ü—ÛYY	ËˆYKˆYBˆKˆš\X[İÜ›Û™×ÜÜ[ˆÂˆ	İÜ›Û™ÉËˆ	ù¢ï9a¦IËˆ	ÜÜ[ÚXÚÉÂˆKˆš\X[İÜ›Û™×Û\İ[š[™ÎˆÂˆ	İÜ›Û™ÉËˆ	ùd+9b¦ÉËˆ	ÚXYÛ™\ÉÂˆKˆš\X[İÜ›Û™×Ü™XY[™ÎˆÂˆ	İÜ›Û™ÉËˆ	ú+îúgìÉËˆ	Ü™XÛÜ™İ›ÚXÙWÛİ™\‰ÂˆKˆš\X[İÜ›Û™×ÛYX[š[™ÎˆÂˆ	İÜ›Û™ÉËˆ	úaâ¹.bIËˆ	İ˜[œÛ]IÂˆKˆš\X[İÜ›Û™×ØZNˆÂˆ	İÜ›Û™ÉËˆ	ĞRH9l#ù­bÉËˆ	Ü]Z^‰ÂˆKˆš\X[İÜ›Û™×Ü™\X]YˆÂˆ	İÜ›Û™ÉËˆ	ùcãyi#yaîºe&IËˆ	Üš[Üš]WÚYÚ	ÂˆKˆš\X[İÜ›Û™×Ü™\ÛÛ™YˆÂˆ	İÜ›Û™ÉËˆ	ùmìº)èùa¬ÉËˆ	İ\Ú×Ø[	ËˆYBˆKˆš\X[ØÛX\™YˆÂˆ	Ü›ÙÜ™\ÜÉËˆ	ùk£9aj:`&¹alÉËˆ	İÛÜšÜÜXÙWÜ™[Z][IÂˆKˆš\X[İ[˜ÛX\™YˆÂˆ	Ü›ÙÜ™\ÜÉËˆ	ù§*º`&¹alÉËˆ	Úİ\™Û\Ü×Ù[\IÂˆKˆš\X[ÚÛ›İ×ÚØ[ššNˆÂˆ	Ü›ÙÜ™\ÜÉËˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	ù¢ï9a¦y££9£èIÂˆˆ	ù¬bykeù.¡º)èÉËˆ	İš\ÚXš[]IÂˆKˆš\X[ÚÛ›İ×ÚØ[˜NˆÂˆ	Ü›ÙÜ™\ÜÉËˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	ùd+9b¦ù££9£èIÂˆˆ	ú+îúgìù.¡º)èÉËˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	ÚX\š[™ÉÂˆˆ	Ü™XÛÜ™İ›ÚXÙWÛİ™\‰ÂˆKˆš\X[ÚÛ›İ×ÛYX[š[™ÎˆÂˆ	Ü›ÙÜ™\ÜÉËˆ	úaâ¹.by.¡º)èÉËˆ	ÜŞXÚÛÙŞWØ[	ÂˆBˆNÂ‚ˆZ[Ü›İ\YXÚÙ\ŠˆÂˆÉÜ]ZXÚÉË	ùoêù£mùaiycèÉ×KˆÉİÜ›Û™ÉË	úe&zh¦9§+	×KˆÉÜ›ÙÜ™\ÜÉË	ùki¹.h9â­¹  I×KˆÉÙ›Û\œÉË	ù¢$yæ¡:+ãyn¤É×BˆKˆÜ[ÛˆOˆÂˆÛÛœİš^YHY]SX\ÛÜ[Û‹˜[YWNÂ‚ˆYˆ
+š^Y
+HÂˆ™]\›ˆÂˆÜ›İ\ˆš^YÌKˆX™[ˆš^YÌWKˆXÛÛˆš^YÌ—KˆÚYNˆ›ÛÛX[Šš^YÌ×JKˆ™X]\™Yˆ›ÛÛX[Šš^YÍJBˆNÂˆB‚ˆÛÛœİX™[HÜ[Û‹^š[J
+NÂ‚ˆ™]\›ˆÂˆÜ›İ\ˆ	Ù›Û\œÉËˆX™[ˆXÛÛˆÜ[Û‹˜[YHOOH	ÙY˜][	ÂˆÈ	ÛXœ˜\WØ›ÛÚÜÉÂˆˆ	Ù›Û\‰ËˆÚYNˆ\œ˜^K™œ›ÛJX™[
+K›[™İHBˆNÂˆBˆ
+NÂˆH[ÙHYˆ
+\Ô˜[™ÙTXÚÙ\ŠHÂˆZ[Ü›İ\YXÚÙ\ŠˆÂˆÉÙ›Û\œÉË	ú+ãyn¤É×KˆÉÜ]ZXÚÉË	ùoêù£mú# ùfí	×KˆÉİÙXZÉË	ù.$úhny¥.ùgf‰×KˆÉÜ™]šY]ÉË	ùi#y.h9mêyfî‰×BˆKˆÜ[ÛˆOˆÂˆÛÛœİ˜[YHHÜ[Û‹˜[YNÂˆÛÛœİX™[HÜ[Û‹^ˆœ™\XÙJ×¹.$úhny¥.ùgf–Î»ï&—WÊ‹Ë	ÉÊBˆœ™\XÙJ×¹i#y.h9mêyfî–Î»ï&—WÊ‹Ë	ÉÊBˆš[J
+NÂ‚ˆYˆ
+˜[YKœİ\ÕÚ]
+	İš\X[ÛZ\Ü×ÉÊJHÂˆÛÛœİXÛÛˆH˜[YK™[™ÕÚ]
+	ÚØ[ššIÊBˆÈ	ÜÜ[ÚXÚÉÂˆˆ˜[YK™[™ÕÚ]
+	ÚØ[˜IÊBˆÈ	ÚXYÛ™\ÉÂˆˆ	İ˜[œÛ]IÎÂ‚ˆ™]\›ˆÂˆÜ›İ\ˆ	İÙXZÉËˆX™[ˆXÛÛ‚ˆNÂˆB‚ˆYˆ
+˜[YKœİ\ÕÚ]
+	İš\X[ÚÛ›İ×ÉÊJHÂˆÛÛœİXÛÛˆH˜[YK™[™ÕÚ]
+	ÚØ[ššIÊBˆÈ	İ™\šYšYY	Âˆˆ˜[YK™[™ÕÚ]
+	ÚØ[˜IÊBˆÈ	ÚX\š[™×Ù\ØX›Y	Âˆˆ	ÜŞXÚÛÙŞWØ[	ÎÂ‚ˆ™]\›ˆÂˆÜ›İ\ˆ	Ü™]šY]ÉËˆX™[ˆXÛÛ‚ˆNÂˆB‚ˆYˆ
+˜[YHOOH	İš\X[Üİ\œ™Y	ÊHÂˆ™]\›ˆÂˆÜ›İ\ˆ	Ü]ZXÚÉËˆX™[ˆ	ù¥-º%ãú+ãy¬aÉËˆXÛÛˆ	Üİ\‰ÂˆNÂˆB‚ˆYˆ
+˜[YHOOH	İš\X[ØÛX\™Y	ÊHÂˆ™]\›ˆÂˆÜ›İ\ˆ	Ü]ZXÚÉËˆX™[ˆ	ùk£9aj:`&¹alÉËˆXÛÛˆ	İÛÜšÜÜXÙWÜ™[Z][IÂˆNÂˆB‚ˆYˆ
+˜[YHOOH	İš\X[İ[˜ÛX\™Y	ÊHÂˆ™]\›ˆÂˆÜ›İ\ˆ	Ü]ZXÚÉËˆX™[ˆ	ù¢`9§"y§*º`&¹alÉËˆXÛÛˆ	Úİ\™Û\Ü×Ù[\IÂˆNÂˆB‚ˆ™]\›ˆÂˆÜ›İ\ˆ	Ù›Û\œÉËˆX™[ˆÜ[Û‹^ˆXÛÛˆ	Ù›Û\‰ËˆÚYN‚ˆ\œ˜^K™œ›ÛJÜ[Û‹^
+K›[™İHLˆNÂˆBˆ
+NÂˆH[ÙHÂˆÛÛœİ\ÙPÛÛ\XİÜšYBˆš\ÚX›SÜ[ÛœË›[™İHˆ	‰‚ˆš\ÚX›SÜ[ÛœË›[™İH	‰‚ˆÛ™Ù\İÜ[Û“[™İHNÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËXÛÛ\XİYÜšY	Ëˆ\ÙPÛÛ\XİÜšYˆ
+NÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËXÛÛ\Xİ[\İ	Ëˆ]\ÙPÛÛ\XİÜšYˆ
+NÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËY\Ü^K[[ÙK\XÚÙ\‰Ëˆ\Ñ\Ü^S[ÙTXÚÙ\‚ˆ
+NÂ‚ˆİ™\›^OË˜Û\ÜÓ\İ˜Y
+	ØÛÛ\Xİ\XÚÙ\‹[Ü[‰ÊNÂ‚ˆš\ÚX›SÜ[ÛœË™›Ü‘XXÚ
+Ü[ÛˆOˆÂˆÛÛZ[™\‹˜\[™Ú[
+ˆXZÙP]ÛŠÜ[ÛŠBˆ
+NÂˆJNÂˆB‚ˆÚ[™İËÙÙÛS[Ù[
+	ØœË[İ™\›^IËYJNÂˆBŸNÂ‚˜ÛÛœİ›ÛXZšQ[™Ú[™HHÂˆ[ÙNˆ	Ú\˜YØ[˜IËËÈ	Ú\˜YØ[˜IÈÜˆ	ÚØ]ZØ[˜IÂˆ˜]Îˆ	ÉËËÈ9mìº/k9£h¹æ¡9`aùd#BˆY™™\ˆ	ÉËËÈ9ï$ùa¬¹.+yæ¡9ïeújk9keÂˆX\ˆÂˆ˜Hˆ¸à`ˆ‹šHˆ¸àa‹Hˆ¸àaˆ‹™Hˆ¸àb‹›Èˆ¸àbˆ‹šØHˆ¸àbÈ‹šÚHˆ¸àcH‹šİHˆ¸àcÈ‹šÙHˆ¸àdH‹šÛÈˆ¸àdÈ‹™ØHˆ¸àc‹™ÚHˆ¸àcˆ‹™İHˆ¸àd‹™ÙHˆ¸àdˆ‹™ÛÈˆ¸àe‹ˆœØHˆ¸àeH‹œÚHˆ¸àeÈ‹œÚHˆ¸àeÈ‹œİHˆ¸àfH‹œÙHˆ¸àfÈ‹œÛÈˆ¸àgH‹˜Hˆ¸àeˆ‹ššHˆ¸àf‹šHˆ¸àf‹Hˆ¸àfˆ‹™Hˆ¸àg‹›Èˆ¸àgˆ‹ˆHˆ¸àgÈ‹˜ÚHˆ¸àhH‹Hˆ¸àhH‹İHˆ¸ài‹Hˆ¸ài‹Hˆ¸àiˆ‹Èˆ¸àj‹™Hˆ¸àh‹™Hˆ¸àhˆ‹™Hˆ¸àiH‹™Hˆ¸àiÈ‹™Èˆ¸àjH‹ˆ›˜Hˆ¸àjˆ‹›šHˆ¸àjÈ‹›Hˆ¸àk‹›™Hˆ¸àkH‹››Èˆ¸àkˆ‹šHˆ¸àkÈ‹šHˆ¸àlˆ‹™Hˆ¸àmH‹šHˆ¸àmH‹šHˆ¸àn‹šÈˆ¸ànÈ‹ˆ˜˜Hˆ¸àl‹˜šHˆ¸àlÈ‹˜Hˆ¸àmˆ‹˜™Hˆ¸ànH‹˜›Èˆ¸ào‹œHˆ¸àlH‹œHˆ¸àm‹œHˆ¸àmÈ‹œHˆ¸ànˆ‹œÈˆ¸àoH‹ˆ›XHˆ¸àoˆ‹›ZHˆ¸àoÈ‹›]Hˆ¸à ‹›YHˆ¸à H‹›[Èˆ¸à ˆ‹XHˆ¸à¡‹]Hˆ¸à¡ˆ‹[Èˆ¸à¢‹œ˜Hˆ¸à¢H‹œšHˆ¸à¢ˆ‹œHˆ¸à¢È‹œ™Hˆ¸à£‹œ›Èˆ¸à£H‹ˆØHˆ¸à£È‹ÛÈˆ¸à¤ˆ‹››ˆˆ¸à¤È‹›ˆˆ¸à¤È‹‹Hˆ¸àï‹ˆšŞXHˆ¸àcxà È‹šŞ]Hˆ¸àcxà¡H‹šŞ[Èˆ¸àcxà¡È‹™ŞXHˆ¸àc¸à È‹™Ş]Hˆ¸àc¸à¡H‹™Ş[Èˆ¸àc¸à¡È‹ˆœÚHˆ¸àeøà È‹œŞXHˆ¸àeøà È‹œÚHˆ¸àeøà¡H‹œŞ]Hˆ¸àeøà¡H‹œÚÈˆ¸àeøà¡È‹œŞ[Èˆ¸àeøà¡È‹ˆš˜Hˆ¸àf8à È‹XHˆ¸àf8à È‹šXHˆ¸àf8à È‹šHˆ¸àf8à¡H‹]Hˆ¸àf8à¡H‹š]Hˆ¸àf8à¡H‹š›Èˆ¸àf8à¡È‹[Èˆ¸àf8à¡È‹š[Èˆ¸àf8à¡È‹ˆ˜ÚHˆ¸àhxà È‹XHˆ¸àhxà È‹˜ŞXHˆ¸àhxà È‹˜ÚHˆ¸àhxà¡H‹]Hˆ¸àhxà¡H‹˜Ş]Hˆ¸àhxà¡H‹˜ÚÈˆ¸àhxà¡È‹[Èˆ¸àhxà¡È‹˜Ş[Èˆ¸àhxà¡È‹‚ˆ›XHˆ¸àjøà È‹›]Hˆ¸àjøà¡H‹›[Èˆ¸àjøà¡È‹šXHˆ¸àl¸à È‹š]Hˆ¸àl¸à¡H‹š[Èˆ¸àl¸à¡È‹ˆ˜XHˆ¸àløà È‹˜]Hˆ¸àløà¡H‹˜[Èˆ¸àløà¡È‹œXHˆ¸àm8à È‹œ]Hˆ¸àm8à¡H‹œ[Èˆ¸àm8à¡È‹ˆ›^XHˆ¸àoøà È‹›^]Hˆ¸àoøà¡H‹›^[Èˆ¸àoøà¡È‹œXHˆ¸à¢¸à È‹œ]Hˆ¸à¢¸à¡H‹œ[Èˆ¸à¢¸à¡È‚ˆKˆ™\Ù]
+
+HÈ\Ëœ˜]ÈH	ÉÎÈ\Ë˜Y™™\ˆH	ÉÎÈ\Ë›[ÙHH	Ú\˜YØ[˜IÎÈKˆÙÙÛS[ÙJ
+HÈ\Ë›[ÙHH\Ë›[ÙHOOH	Ú\˜YØ[˜IÈÈ	ÚØ]ZØ[˜IÈˆ	Ú\˜YØ[˜IÎÈ\™Ø\™KšXœ˜]JL
+NÈKˆÒØ]ZØ[˜J\˜JHÈ™]\›ˆ\˜Kœ™\XÙJÖ×LÌKWLÌM—KÙËHOˆİš[™Ë™œ›ÛPÚ\ÛÙJK˜Ú\ÛÙP]
+
+H
+ÈŒ
+JNÈKˆ[œ]
+Ú\ŠHÂˆYˆ
+Ú\ˆOOH	Ğ˜XÚÜÜXÙIÊHÂˆYˆ
+\Ë˜Y™™\‹›[™İˆ
+H\Ë˜Y™™\ˆH\Ë˜Y™™\‹œÛXÙJLJNÂˆ[ÙHYˆ
+\Ëœ˜]Ë›[™İˆ
+H\Ëœ˜]ÈH\Ëœ˜]ËœÛXÙJLJNÂˆ\™Ø\™KšXœ˜]JL
+NÈ™]\›ÂˆBˆ\™Ø\™KšXœ˜]JMJNÂˆ\Ë˜Y™™\ˆ
+ÏHÚ\‹ÓİÙ\Ø\ÙJ
+NÂˆˆËÈ9/àúgìú)á9b&BˆYˆ
+\Ë˜Y™™\‹›[™İHˆ	‰ˆ\Ë˜Y™™\–ÌHOOH\Ë˜Y™™\–ÌWH	‰ˆH˜YZ[İ^KH‹š[˜ÛY\Ê\Ë˜Y™™\–ÌJH	‰ˆ\Ë˜Y™™\–ÌHOOH	Û‰ÊHÂˆ\Ëœ˜]È
+ÏH\Ë›[ÙHOOH	Ú\˜YØ[˜IÈÈ¸àhÈˆˆ¸ààÈÂˆ\Ë˜Y™™\ˆH\Ë˜Y™™\‹œÛXÙJJNÂˆBˆËÈ9¢ê:gìú)á9b&BˆYˆ
+\Ë˜Y™™\‹›[™İHˆ	‰ˆ\Ë˜Y™™\–ÌHOOH	Û‰È	‰ˆ\Ë˜Y™™\–ÌWHOOH	Û‰È	‰ˆH˜YZ[İ^KH‹š[˜ÛY\Ê\Ë˜Y™™\–ÌWJJHÂˆ\Ëœ˜]È
+ÏH\Ë›[ÙHOOH	Ú\˜YØ[˜IÈÈ¸à¤Èˆˆ¸àìÈÂˆ\Ë˜Y™™\ˆH\Ë˜Y™™\‹œÛXÙJJNÂˆBˆËÈ9c.zacyd"9¢$ˆ›Üˆ
+]HHÎÈHˆÈKKJHÂˆYˆ
+\Ë˜Y™™\‹›[™İHJHÂˆ]Ú[šÈH\Ë˜Y™™\‹œÛXÙJJNÂˆYˆ
+\Ë›X\ØÚ[š×JHÂˆ]Ø[˜HH\Ë›X\ØÚ[š×NÂˆ\Ëœ˜]È
+ÏH\Ë›[ÙHOOH	Ú\˜YØ[˜IÈÈØ[˜Hˆ\ËÒØ]ZØ[˜JØ[˜JNÂˆ\Ë˜Y™™\ˆH\Ë˜Y™™\‹œÛXÙJJNÂˆœ™XZÎÂˆBˆBˆBˆKˆÙ]\Ü^U^
+
+HÈ™]\›ˆ\Ëœ˜]È
+È
+\Ë˜Y™™\ˆÈÜ[ˆÛ\ÜÏHœ[™[™Ë\›ÛXZšH‰İ\Ë˜Y™™\ŸOÜÜ[˜ˆ	ÉÊNÈKˆÙ]š[˜[^
+
+HÈˆ]š[˜[YˆH\Ë˜Y™™\ÂˆYˆ
+š[˜[YˆOOH	Û‰ÊHš[˜[YˆH\Ë›[ÙHOOH	Ú\˜YØ[˜IÈÈ	øà¤ÉÈˆ	øàìÉÎÂˆ™]\›ˆ\Ëœ˜]È
+Èš[˜[YÈˆBŸNÂ‚‹ËÈÚ[\H[™Û\ÚÛÜ™[œ]Y™™\ˆ›ÜˆÜ[[™È[ÙB˜ÛÛœİ[™Û\Ú[œ]HÂˆY™™\ˆ	ÉËˆ™\Ù]
+
+HÈ\Ë˜Y™™\ˆH	ÉÎÈKˆ[œ]
+Ú\ŠHÂˆYˆ
+Ú\ˆOOH	Ğ˜XÚÜÜXÙIÊHÂˆ\Ë˜Y™™\ˆH\Ë˜Y™™\‹œÛXÙJLJNÂˆ™]\›ÂˆBˆYˆ
+Ú\‹›[™İOOHH	‰ˆÖØK^KV‹WKË\İ
+Ú\ŠJHÂˆ\Ë˜Y™™\ˆ
+ÏHÚ\‹ÓİÙ\Ø\ÙJ
+NÂˆBˆKˆÙ]\Ü^U^
+
+HÈ™]\›ˆ\Ë˜Y™™\ˆ	ÉÎÈKˆÙ]š[˜[^
+
+HÈ™]\›ˆ\Ë˜Y™™\ÈBŸNÂ‚˜ÛÛœİ[Ù[HÂˆˆ×KˆZ[[•ÛÜ™Îˆ×KˆZ[[“ØYÜ™\ˆ×Kˆ\Ù\•ÛÜ™Îˆ×KˆÛÜ™İ™\œšY\ÎˆßKˆZ[[’YÙ]ˆ™]ÈÙ]
+
+Kˆ›Û\œÎˆÈºnæ:+©:+ãyn¤È—Kˆ›Û\“[™ÜÎˆÈºnæ:+©:+ãyn¤Èˆš˜HˆKˆİ\œÎˆ×Kˆ™XÛÜ™Îˆ×KˆZPÛÛ™\œØ][ÛœÎˆ×KˆY][™ÒYˆLKˆ]Ü›İ\ÛX\œÎˆßKˆ]ÛÜ™ÛX\œÎˆßKˆÙ]›Û\“[™Ê›Û\“˜[YJHÂˆ™]\›ˆ\Ë™›Û\“[™ÜÖÙ›Û\“˜[YWHš˜HÂˆKˆÙ]İ\œ™[[™Ê
+HÂˆ™]\›ˆ\Ëœİ]K˜İ\œ™[[™Ó[ÙHš˜HÂˆK‚ˆİ]NˆÂˆ[ÙNˆ	Û›Û™IËİYT]Y]YNˆ×Kİ\œ™[[™^ˆİ\œ™[Ü›İ\X™[ˆ	ÉËİ\œ™[Ü›İ\Ù^Nˆ	ÉËˆÛÜ™\X\˜[˜ÙSX\ˆßKİX“[ÙNˆ	ÉËÜ[\™Ù]ˆ×KÜ[İ\œ™[Yˆˆ]›İ[™ˆK]İ\ˆKİ\œ™[ÛÜ™˜Z[Yˆ˜[ÙKİ[\İÛÜ™Îˆ]˜\ÙT]Y]YNˆ×Kˆİ]Nˆ	ĞIË[ˆ[ÚİÒØ[˜R[ˆ˜[ÙKˆÛÛX›ĞÛİ[ˆˆX^›ÙÜ™\ÜÔÙY[ˆ[š\]YUÛÜ™Ûİ[ˆ[š]X[]Y]YS[™İˆˆ˜]Ú[ÙNˆ˜[ÙKX[˜YÙS[ÙNˆ˜[ÙKÙ[XİYÙ]ˆ™]ÈÙ]
+
+KXİ]™Q]Z[Yˆ]Z[\œ˜^Nˆ×K[İ™U\™Ù]YˆLKˆ\Ğ[š[X][™Îˆ˜[ÙKš[\™Yˆ×K™[™\™Yİ\[™^ˆLK™[™\™Y[™[™^ˆLKİ\œ™[[™Ó[ÙNˆ	Ú˜IÂˆK‚‚ˆÙ]ÛÜ™Y
+ÛÜ™
+HÂˆ™]\›ˆÙ]İX›UÛÜ™Y
+ÛÜ™
+NÂˆK‚ˆÙ]ÛÜ™RY
+ÛÜ™Y
+HÂˆÛÛœİ\™Ù]Hİš[™ÊÛÜ™Y	ÉÊKš[J
+NÂ‚ˆYˆ
+]\™Ù]
+HÂˆ™]\›ˆ[ÂˆB‚ˆ™]\›ˆ\Ë™‹™š[™
+ÛÜ™OˆÂˆ™]\›ˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+HOOH\™Ù]ÂˆJH[ÂˆK‚ˆ\Ôİ\œ™Y
+ÛÜ™
+HÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂˆ™]\›ˆ›ÛÛX[ŠÛÜ™Y	‰ˆ\Ëœİ\œËš[˜ÛY\ÊÛÜ™Y
+JNÂˆK‚ˆÙ]ÛX\”İ]JÛÜ™
+HÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂˆÛÛœİİÜ™YHÛÜ™YˆÈ\Ë›]ÛÜ™ÛX\œÖİÛÜ™YBˆˆ[Â‚ˆYˆ
+\İÜ™Y\[ÙˆİÜ™YOOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆÂˆØ[ššNˆ˜[ÙKˆØ[˜Nˆ˜[ÙKˆYX[š[™Îˆ˜[ÙBˆNÂˆB‚ˆYˆ
+ˆÛÜ™Ë›[™ÈOOH	Ù[‰È	‰‚ˆİÜ™YÛÜ™OOH[™Yš[™Yˆ
+HÂˆ™]\›ˆÂˆ‹‹œİÜ™YˆØ[ššNˆ›ÛÛX[ŠİÜ™YÛÜ™
+KˆØ[˜Nˆ›ÛÛX[ŠİÜ™YšØ[˜JKˆYX[š[™Îˆ›ÛÛX[ŠİÜ™Y›YX[š[™ÊBˆNÂˆB‚ˆ™]\›ˆİÜ™YÂˆK‚ˆ[œİ\™PÛX\”İ]JÛÜ™
+HÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂ‚ˆYˆ
+]ÛÜ™Y
+HÂˆ™]\›ˆ[ÂˆB‚ˆYˆ
+ˆ]\Ë›]ÛÜ™ÛX\œÖİÛÜ™YHˆ\[Ùˆ\Ë›]ÛÜ™ÛX\œÖİÛÜ™YHOOH	ÛØš™Xİ	Âˆ
+HÂˆ\Ë›]ÛÜ™ÛX\œÖİÛÜ™YHHÂˆØ[ššNˆ˜[ÙKˆØ[˜Nˆ˜[ÙKˆYX[š[™Îˆ˜[ÙBˆNÂˆB‚ˆ™]\›ˆ\Ë›]ÛÜ™ÛX\œÖİÛÜ™YNÂˆK‚ˆÙ]Y˜][Z[[•ÛÜ™Ê
+HÂˆÛÛœİÛÜ™ÈH×NÂˆÛÛœİÛİ\˜Ù\ÈHÂˆ˜Nˆ\[ÙˆY˜][ÛÜ™ÈOOH	İ[™Yš[™Y	ÂˆÈY˜][ÛÜ™Âˆˆ×Kˆ[ˆ\[ÙˆY˜][[™Û\ÚÛÜ™ÈOOH	İ[™Yš[™Y	ÂˆÈY˜][[™Û\ÚÛÜ™Âˆˆ×BˆNÂˆÛÛœİ[™İXYÙ\ÈH\Ë˜Z[[“ØYÜ™\‹›[™İˆÈ\Ë˜Z[[“ØYÜ™\‚ˆˆÉÚ˜IË	Ù[‰×K™š[\Š[™İXYÙHOˆÛİ\˜Ù\ÖÛ[™İXYÙWK›[™İ
+NÂ‚ˆ[™İXYÙ\Ë™›Ü‘XXÚ
+[™İXYÙHOˆÂˆÛÛœİÛİ\˜ÙUÛÜ™ÈHÛİ\˜Ù\ÖÛ[™İXYÙWH×NÂˆÛÛœİ\Ñ[™Û\ÚH[™İXYÙHOOH	Ù[‰ÎÂ‚ˆÛİ\˜ÙUÛÜ™Ë™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİ[HH›Ü›X[^™UÛÜ™[JÂˆ‹‹˜ÛÛ™Q]U˜[YJÛÜ™
+Kˆ[™Îˆ[™İXYÙKˆ›Û\ˆÛÜ™™›Û\ˆ
+ˆ\Ñ[™Û\ÚÈ	ùfæùî©ú+ãy¬aÉÈˆ	únæ:+©:+ãyn¤ÉÂˆ
+KˆZ[[ˆYBˆJNÂ‚ˆ[œİ\™TİX›UÛÜ™Y
+[KÂˆZ[[’[ˆYBˆJNÂ‚ˆÛÜ™Ëœ\Ú
+[JNÂˆJNÂˆJNÂ‚ˆ™]\›ˆÛÜ™ÎÂˆK‚ˆ™Yœ™\ÚZ[[•ÛÜ™Ê
+HÂˆ\Ë˜Z[[•ÛÜ™ÈH\Ë™Ù]Y˜][Z[[•ÛÜ™Ê
+NÂˆ\Ë˜Z[[’YÙ]H™]ÈÙ]
+ˆ\Ë˜Z[[•ÛÜ™Ë›X\
+ÛÜ™Oˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+JBˆ
+NÂˆK‚ˆ\Ş[˜È[œİ\™PZ[[“[™İXYÙJ[™İXYÙKÈ™XZ[HYHHHßJHÂˆÛÛœİ›Ü›X[^™Y[™İXYÙHH[™İXYÙHOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂ‚ˆYˆ
+UÓÔ‘ĞS’×ÓĞQTŠHÂˆ›İÈ™]È\œ›ÜŠ	ú+ãyn¤ùb¨:/oyfj9b'yiâùc%¹i,z-)IÊNÂˆB‚ˆ]ØZ]ÓÔ‘ĞS’×ÓĞQT‹›ØY[™İXYÙJ›Ü›X[^™Y[™İXYÙJNÂ‚ˆYˆ
+]\Ë˜Z[[“ØYÜ™\‹š[˜ÛY\Ê›Ü›X[^™Y[™İXYÙJJHÂˆ\Ë˜Z[[“ØYÜ™\‹œ\Ú
+›Ü›X[^™Y[™İXYÙJNÂˆB‚ˆ\Ëœ™Yœ™\ÚZ[[•ÛÜ™Ê
+NÂˆYˆ
+™XZ[
+HÂˆ\Ëœ™XZ[ÛÛXš[™YŠ
+NÂˆBˆK‚ˆ\Ş[˜È[œİ\™P[Z[[“[™İXYÙ\Ê
+HÂˆ›Üˆ
+ÛÛœİ[™İXYÙHÙˆÉÚ˜IË	Ù[‰×JHÂˆ]ØZ]\Ë™[œİ\™PZ[[“[™İXYÙJ[™İXYÙJNÂˆBˆK‚ˆÙ]ÛÜ™Y[]JÛÜ™[˜ÛYQ›Û\ˆHYJHÂˆÛÛœİ[™ÈHÛÜ™Ë›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİXYÛÜ™H›Ü›X[^™RXYÛÜ™
+ˆÛÜ™ËÛÜ™	ÉËˆ[™Âˆ
+KÓİÙ\Ø\ÙJ
+NÂˆÛÛœİ›Û\ˆH[˜ÛYQ›Û\‚ˆÈ›Ü›X[^™Q[U^
+ÛÜ™Ë™›Û\ˆ	ÉÊBˆˆ	ÉÎÂ‚ˆ™]\›ˆ[˜ÛYQ›Û\‚ˆÈ	Û[™ßN‰Ù›Û\ŸN‰ÚXYÛÜ™Xˆˆ	Û[™ßN‰ÚXYÛÜ™XÂˆK‚ˆZ[ÛÜ™İ™\œšYJØ[›ÛšXØ[İ\œ™[
+HÂˆÛÛœİY]X›QšY[ÈHÂˆ	İÛÜ™	Ëˆ	ÚØ[˜IËˆ	ÜÛ™]XÉËˆ	İ\IËˆ	ÛYX[š[™ÉËˆ	Ù^[\IËˆ	Ü›ÛİÉËˆ	Ù›Û\‰Ëˆ	Û]™[	Ëˆ	ÙY™šXİ[IËˆ	İYÜÉËˆ	Ùœ™\]Y[˜ŞIËˆ	Ü]Ú	Ëˆ	ÜÜXÚX[YÜÉËˆ	ÜÛİ\˜ÙRY	Ëˆ	ÜÛİ\˜ÙS˜[YIËˆ	ÜÛİ\˜ÙU™\œÚ[Û‰Ëˆ	Ø[X\Ù\ÉËˆ	ÜÛİ\˜ÙS]™[ÉËˆ	Ü™]šY]Ôİ]\ÉËˆ	ÜÛİ\˜ÙIËˆ	Ù]U™\œÚ[Û‰ÂˆNÂˆÛÛœİİ™\œšYHHßNÂ‚ˆY]X›QšY[Ë™›Ü‘XXÚ
+šY[OˆÂˆÛÛœİ˜\ÙU˜[YHHØ[›ÛšXØ[ÙšY[NÂˆÛÛœİİ\œ™[˜[YHHİ\œ™[ÙšY[NÂ‚ˆYˆ
+ˆ”ÓÓ‹œİš[™ÚYJ˜\ÙU˜[YHÏÈ[
+HOOBˆ”ÓÓ‹œİš[™ÚYJİ\œ™[˜[YHÏÈ[
+Bˆ
+HÂˆİ™\œšYVÙšY[HHÛÛ™Q]U˜[YJİ\œ™[˜[YJNÂˆBˆJNÂ‚ˆYˆ
+Øš™XİšÙ^\Êİ™\œšYJK›[™İˆ
+HÂˆİ™\œšYK\]Y]H™]È]J
+KÒTÓÔİš[™Ê
+NÂˆB‚ˆ™]\›ˆİ™\œšYNÂˆK‚ˆ™XZ[ÛÛXš[™YŠ
+HÂˆÛÛœİY\™ÙYH×NÂˆÛÛœİÙY[’YÈH™]ÈÙ]
+
+NÂˆÛÛœİİ™\œšY\ÈBˆ\ËÛÜ™İ™\œšY\È	‰‚ˆ\[Ùˆ\ËÛÜ™İ™\œšY\ÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^J\ËÛÜ™İ™\œšY\ÊBˆÈ\ËÛÜ™İ™\œšY\ÂˆˆßNÂ‚ˆ\Ë˜Z[[•ÛÜ™Ë™›Ü‘XXÚ
+Ø[›ÛšXØ[OˆÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+Ø[›ÛšXØ[
+NÂˆÛÛœİİ™\œšYHHİ™\œšY\ÖİÛÜ™YNÂ‚ˆYˆ
+İ™\œšYOË—Ù[]YOOHYJHÂˆ™]\›ÂˆB‚ˆÛÛœİÛÛXš[™YH›Ü›X[^™UÛÜ™[JÂˆ‹‹˜ÛÛ™Q]U˜[YJØ[›ÛšXØ[
+Kˆ‹‹Šİ™\œšYHßJKˆÚYˆÛÜ™Yˆ[™ÎˆØ[›ÛšXØ[›[™ËˆZ[[ˆYBˆJNÂ‚ˆ[œİ\™TİX›UÛÜ™Y
+ÛÛXš[™YÂˆZ[[’[ˆYBˆJNÂ‚ˆY\™ÙYœ\Ú
+ÛÛXš[™Y
+NÂˆÙY[’YË˜Y
+ÛÜ™Y
+NÂˆJNÂ‚ˆÛÛœİ›Ü›X[^™Y\Ù\œÈH×NÂ‚ˆ
+\œ˜^Kš\Ğ\œ˜^J\Ë\Ù\•ÛÜ™ÊBˆÈ\Ë\Ù\•ÛÜ™Âˆˆ×Bˆ
+K™›Ü‘XXÚ
+˜]ÕÛÜ™OˆÂˆÛÛœİÛÜ™H›Ü›X[^™UÛÜ™[JÂˆ‹‹˜ÛÛ™Q]U˜[YJ˜]ÕÛÜ™
+KˆZ[[ˆ˜[ÙBˆJNÂ‚ˆ[œİ\™TİX›UÛÜ™Y
+ÛÜ™ÂˆZ[[’[ˆ˜[ÙBˆJNÂ‚ˆYˆ
+ÙY[’YËš\ÊÛÜ™—ÚY
+JHÂˆÛÜ™—ÚYHÜ™X]T˜[™ÛUÛÜ™Y
+
+NÂˆB‚ˆÙY[’YË˜Y
+ÛÜ™—ÚY
+NÂˆ›Ü›X[^™Y\Ù\œËœ\Ú
+ÛÜ™
+NÂˆY\™ÙYœ\Ú
+ÛÜ™
+NÂˆJNÂ‚ˆ\Ë\Ù\•ÛÜ™ÈH›Ü›X[^™Y\Ù\œÎÂˆ\Ë™ˆHY\™ÙYÂˆ\Ë˜Z[[’YÙ]H™]ÈÙ]
+ˆ\Ë˜Z[[•ÛÜ™Ë›X\
+ÛÜ™Oˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+JBˆ
+NÂˆK‚ˆZYÜ˜]SYØXŞUÛÜ™İÜ˜YÙJˆYØXŞUÛÜ™ËˆÈX\šÓZ\ÜÚ[™ĞZ[[œĞ\Ñ[]YHYHHHßBˆ
+HÂˆÛÛœİØ[›ÛšXØ[RYH™]ÈX\
+
+NÂˆÛÛœİØ[›ÛšXØ[RY[]HH™]ÈX\
+
+NÂˆÛÛœİØ[›ÛšXØ[SÛÜÙRY[]HH™]ÈX\
+
+NÂ‚ˆ\Ë˜Z[[•ÛÜ™Ë™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂˆØ[›ÛšXØ[RYœÙ]
+ÛÜ™YÛÜ™
+NÂˆØ[›ÛšXØ[RY[]KœÙ]
+ˆ\Ë™Ù]ÛÜ™Y[]JÛÜ™YJKˆÛÜ™ˆ
+NÂ‚ˆÛÛœİÛÜÙRY[]HH\Ë™Ù]ÛÜ™Y[]JˆÛÜ™ˆ˜[ÙBˆ
+NÂ‚ˆYˆ
+XØ[›ÛšXØ[SÛÜÙRY[]Kš\ÊÛÜÙRY[]JJHÂˆØ[›ÛšXØ[SÛÜÙRY[]KœÙ]
+ˆÛÜÙRY[]Kˆ×Bˆ
+NÂˆB‚ˆØ[›ÛšXØ[SÛÜÙRY[]K™Ù]
+ÛÜÙRY[]JKœ\Ú
+ÛÜ™
+NÂˆJNÂ‚ˆÛÛœİ\Ù\•ÛÜ™ÈH×NÂˆÛÛœİİ™\œšY\ÈHßNÂˆÛÛœİ›İ[™Z[[’YÈH™]ÈÙ]
+
+NÂ‚ˆ
+\œ˜^Kš\Ğ\œ˜^JYØXŞUÛÜ™ÊBˆÈYØXŞUÛÜ™Âˆˆ×Bˆ
+K™›Ü‘XXÚ
+˜]ÕÛÜ™OˆÂˆYˆ
+\˜]ÕÛÜ™\[Ùˆ˜]ÕÛÜ™OOH	ÛØš™Xİ	ÊHÂˆ™]\›ÂˆB‚ˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™[JÂˆ‹‹˜ÛÛ™Q]U˜[YJ˜]ÕÛÜ™
+Kˆ[™Îˆ˜]ÕÛÜ™›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÂˆJNÂˆÛÛœİ˜]ÒYHİš[™Ê˜]ÕÛÜ™—ÚY	ÉÊKš[J
+NÂˆ]Ø[›ÛšXØ[H˜]ÒYˆÈØ[›ÛšXØ[RY™Ù]
+˜]ÒY
+Bˆˆ[Â‚ˆYˆ
+XØ[›ÛšXØ[
+HÂˆØ[›ÛšXØ[HØ[›ÛšXØ[RY[]K™Ù]
+ˆ\Ë™Ù]ÛÜ™Y[]J›Ü›X[^™YYJBˆ
+H[ÂˆB‚ˆYˆ
+XØ[›ÛšXØ[
+HÂˆÛÛœİØ[™Y]\ÈHØ[›ÛšXØ[SÛÜÙRY[]K™Ù]
+ˆ\Ë™Ù]ÛÜ™Y[]J›Ü›X[^™Y˜[ÙJBˆ
+H×NÂ‚ˆYˆ
+Ø[™Y]\Ë›[™İOOHJHÂˆÛÛœİØ[™Y]HHØ[™Y]\ÖÌNÂˆÛÛœİ˜]Ñ›Û\ˆH›Ü›X[^™Q[U^
+ˆ›Ü›X[^™Y™›Û\ˆ	ÉÂˆ
+NÂˆÛÛœİØ[›ÛšXØ[›Û\ˆH›Ü›X[^™Q[U^
+ˆØ[™Y]K™›Û\ˆ	ÉÂˆ
+NÂˆÛÛœİÛÛ\\˜X›QšY[ÈH›Ü›X[^™Y›[™ÈOOH	Ù[‰ÂˆÈÂˆ	ÜÛ™]XÉËˆ	İ\IËˆ	ÛYX[š[™ÉËˆ	Ù^[\IËˆ	Ü›ÛİÉÂˆBˆˆÂˆ	ÚØ[˜IËˆ	İ\IËˆ	ÛYX[š[™ÉËˆ	Ù^[\IÂˆNÂˆÛÛœİÛÛ\\˜X›U˜[Y\ÈHÛÛ\\˜X›QšY[Ë™š[\ŠšY[OˆÂˆ™]\›ˆ›ÛÛX[Šˆ›Ü›X[^™Q[U^
+Ø[™Y]VÙšY[H	ÉÊBˆ
+NÂˆJNÂˆÛÛœİX]Ú[™Õ˜[Y\ÈHÛÛ\\˜X›U˜[Y\Ë™š[\ŠšY[OˆÂˆ™]\›ˆ
+ˆ›Ü›X[^™Q[U^
+›Ü›X[^™YÙšY[H	ÉÊHOOBˆ›Ü›X[^™Q[U^
+Ø[™Y]VÙšY[H	ÉÊBˆ
+NÂˆJNÂˆÛÛœİÛÛ[ÛÚÜĞZ[[ˆBˆÛÛ\\˜X›U˜[Y\Ë›[™İˆ	‰‚ˆX]Ú[™Õ˜[Y\Ë›[™İHX]›Z[ŠˆËˆÛÛ\\˜X›U˜[Y\Ë›[™İˆ
+NÂˆÛÛœİZÙ[SYØXŞPZ[[ˆBˆ˜]ÕÛÜ™˜Z[[ˆOOHYHˆ\˜]Ñ›Û\ˆˆ˜]Ñ›Û\ˆOOHØ[›ÛšXØ[›Û\ˆˆÛÛ[ÛÚÜĞZ[[Â‚ˆYˆ
+ZÙ[SYØXŞPZ[[ŠHÂˆØ[›ÛšXØ[HØ[™Y]NÂˆBˆBˆB‚ˆYˆ
+Ø[›ÛšXØ[
+HÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+Ø[›ÛšXØ[
+NÂˆÛÛœİİ\œ™[H›Ü›X[^™UÛÜ™[JÂˆ‹‹››Ü›X[^™YˆÚYˆÛÜ™YˆZ[[ˆYKˆ[™ÎˆØ[›ÛšXØ[›[™ÂˆJNÂˆÛÛœİİ™\œšYHH\Ë˜Z[ÛÜ™İ™\œšYJˆØ[›ÛšXØ[ˆİ\œ™[ˆ
+NÂ‚ˆ›İ[™Z[[’YË˜Y
+ÛÜ™Y
+NÂ‚ˆYˆ
+Øš™XİšÙ^\Êİ™\œšYJK›[™İˆ
+HÂˆİ™\œšY\ÖİÛÜ™YHHİ™\œšYNÂˆB‚ˆ™]\›ÂˆB‚ˆ›Ü›X[^™Y˜Z[[ˆH˜[ÙNÂˆ[œİ\™TİX›UÛÜ™Y
+›Ü›X[^™YÂˆZ[[’[ˆ˜[ÙBˆJNÂˆ\Ù\•ÛÜ™Ëœ\Ú
+›Ü›X[^™Y
+NÂˆJNÂ‚ˆYˆ
+X\šÓZ\ÜÚ[™ĞZ[[œĞ\Ñ[]Y
+HÂˆ\Ë˜Z[[•ÛÜ™Ë™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂ‚ˆYˆ
+Y›İ[™Z[[’YËš\ÊÛÜ™Y
+JHÂˆİ™\œšY\ÖİÛÜ™YHHÂˆÙ[]YˆYKˆ\]Y]ˆ™]È]J
+KÒTÓÔİš[™Ê
+BˆNÂˆBˆJNÂˆB‚ˆ\Ë\Ù\•ÛÜ™ÈH\Ù\•ÛÜ™ÎÂˆ\ËÛÜ™İ™\œšY\ÈHİ™\œšY\ÎÂˆ\Ëœ™XZ[ÛÛXš[™YŠ
+NÂˆK‚ˆ\Ş[˜È\œÚ\İÙ\\˜]YÛÜ™]J
+HÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ\ËÜš]TİÜ˜YÙU˜[YJˆTÑT—ÕÓÔ‘×ÔÕÔQÑWÒÑVKˆ\Ë\Ù\•ÛÜ™Âˆ
+Kˆ\ËÜš]TİÜ˜YÙU˜[YJˆÓÔ‘ÓÕ‘T”’QT×ÔÕÔQÑWÒÑVKˆ\ËÛÜ™İ™\œšY\Âˆ
+BˆJNÂ‚ˆØØ[İÜ˜YÙKœÙ]][JˆÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓ—ÒÑVKˆİš[™ÊÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓŠBˆ
+NÂˆK‚ˆ\Ş[˜È[š]
+
+HÂˆÛÛœİ[š]X[[™İXYÙHBˆØØ[İÜ˜YÙK™Ù]][J	Û[™Ó[ÙIÊHOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆ\Ëœİ]K˜İ\œ™[[™Ó[ÙHH[š]X[[™İXYÙNÂˆ]ØZ]\Ë™[œİ\™PZ[[“[™İXYÙJ[š]X[[™İXYÙKÂˆ™XZ[ˆ˜[ÙBˆJNÂˆ]ØZ]\Ë›ØY]J
+NÂˆK‚ˆY]˜Z[X›NˆYK‚ˆ\Ş[˜È™XYİÜ˜YÙU˜[YJÙ^JHÂˆYˆ
+ˆ\ËšY]˜Z[X›H	‰‚ˆ\[ÙˆY’Ù^]˜[OOH	İ[™Yš[™Y	Âˆ
+HÂˆHÂˆÛÛœİİÜ™Y˜[YHH]ØZ]Y’Ù^]˜[™Ù]
+Ù^JNÂ‚ˆYˆ
+İÜ™Y˜[YHOOH[™Yš[™Y
+HÂˆ™]\›ˆİÜ™Y˜[YNÂˆBˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛKØ\›ŠˆÔİÜ˜YÙWH:+îùcåˆ	ÚÙ^_H9i,z-){ï#9l'z+åy§+9g,9i!ùå*9kf9`ªˆ\œ›Ü‚ˆ
+NÂˆBˆB‚ˆÛÛœİ˜]Õ˜[YHHØØ[İÜ˜YÙK™Ù]][JÙ^JNÂ‚ˆYˆ
+˜]Õ˜[YHOOH[
+HÂˆ™]\›ˆ[ÂˆB‚ˆHÂˆ™]\›ˆ”ÓÓ‹œ\œÙJ˜]Õ˜[YJNÂˆHØ]Ú
+\œ›ÜŠHÂˆ™]\›ˆ˜]Õ˜[YNÂˆBˆK‚ˆ\Ş[˜ÈÜš]TİÜ˜YÙU˜[YJÙ^K˜[YJHÂˆYˆ
+ˆ\ËšY]˜Z[X›H	‰‚ˆ\[ÙˆY’Ù^]˜[OOH	İ[™Yš[™Y	Âˆ
+HÂˆHÂˆ]ØZ]Y’Ù^]˜[œÙ]
+Ù^K˜[YJNÂˆ™]\›ÂˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛKØ\›ŠˆÔİÜ˜YÙWH9a¦yaiH	ÚÙ^_H9i,z-){ï#9l'z+åy§+9g,9i!ùå*9kf9`ªˆ\œ›Ü‚ˆ
+NÂˆBˆB‚ˆØØ[İÜ˜YÙKœÙ]][JˆÙ^Kˆ”ÓÓ‹œİš[™ÚYJ˜[YJBˆ
+NÂˆK‚ˆ\Ş[˜ÈÜ™X]SZYÜ˜][Û”Û˜\Úİ
+œ›ÛU™\œÚ[ÛŠHÂˆÛÛœİÛ˜\ÚİHÂˆ\Nˆ	ÛZYÜ˜][Û‹\Û˜\Úİ	ËˆÜ™X]Y]ˆ™]È]J
+KÒTÓÔİš[™Ê
+Kˆœ›ÛU™\œÚ[Û‹ˆÕ™\œÚ[ÛˆUWÔĞÒSPWÕ‘T”ÒSÓ‹‚ˆˆİXİ\™YÛÛ™J\Ë™ŠKˆ›Û\œÎˆİXİ\™YÛÛ™J\Ë™›Û\œÊKˆ›Û\“[™ÜÎˆİXİ\™YÛÛ™J\Ë™›Û\“[™ÜÊKˆİ\œÎˆİXİ\™YÛÛ™J\Ëœİ\œÊKˆ™XÛÜ™ÎˆİXİ\™YÛÛ™J\Ëœ™XÛÜ™ÊKˆ]Ü›İ\ÛX\œÎˆİXİ\™YÛÛ™Jˆ\Ë›]Ü›İ\ÛX\œÂˆ
+Kˆ]ÛÜ™ÛX\œÎˆİXİ\™YÛÛ™Jˆ\Ë›]ÛÜ™ÛX\œÂˆ
+KˆZPÛÛ™\œØ][ÛœÎˆİXİ\™YÛÛ™Jˆ\Ë˜ZPÛÛ™\œØ][ÛœÂˆ
+BˆNÂ‚ˆHÂˆ]ØZ]\ËÜš]TİÜ˜YÙU˜[YJˆRQÔUSÓ—ÔÓTÒÕÒÑVKˆÛ˜\Úİˆ
+NÂ‚ˆÛÛœÛÛK›ÙÊˆ	ÖÓZYÜ˜][Û—H9¦í9¥¬9bcyk¢yaj9oêùáiùmì¹/çykf	Âˆ
+NÂˆHØ]Ú
+\œ›ÜŠHÂˆÊ‚ˆ
+ˆ9oêùáiù/çykf9i,z-)y¥í¹`g9«hº/àyéîøà ‚ˆ
+ˆ9k ycëù¦ ¹¥í¹.#y¦í9¥¬;ï#9.gù.#z ïya¤ºfjy¥.ygcùå*9¢-ù¥l9£k¸à ‚ˆ
+‹ÂˆÛÛœÛÛK™\œ›ÜŠˆ	ÖÓZYÜ˜][Û—H9¥è9¬åynî¹êâùk¢yaj9oêùáiÉËˆ\œ›Ü‚ˆ
+NÂ‚ˆ›İÈ™]È\œ›ÜŠˆ	ù¥è9¬åynî¹êâù¥l9£k¹k¢yaj9oêùáiûï#9mì¹`g9«h¹¦í9¥¬	Âˆ
+NÂˆB‚ˆ™]\›ˆÛ˜\ÚİÂˆK‚ˆ\Ş[˜ÈØ]™P[\Ù\‘]J
+HÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ\ËœØ]™QŠ
+Kˆ\ËœØ]™Q›Û\œÊ
+Kˆ\ËœØ]™Q›Û\“[™ÜÊ
+Kˆ\ËœØ]™Tİ\œÊ
+Kˆ\ËœØ]™T™XÛÜ™Ê
+Kˆ\ËœØ]™PÛX\œÊ
+K‚ˆ\ËÜš]TİÜ˜YÙU˜[YJˆ	ØZPÛÛ™\œØ][ÛœÉËˆ\Ë˜ZPÛÛ™\œØ][ÛœÂˆ
+BˆJNÂˆK‚ˆ\Ş[˜È™\İÜ™SZYÜ˜][Û”Û˜\Úİ
+Û˜\Úİ
+HÂˆYˆ
+\Û˜\Úİ
+HÂˆ›İÈ™]È\œ›ÜŠ	ù¬¨y§"ycëù h¹i#yæ¡9¥l9£k¹oêùáiÉÊNÂˆB‚ˆ\Ë™ˆH\œ˜^Kš\Ğ\œ˜^JÛ˜\Úİ™ŠBˆÈİXİ\™YÛÛ™JÛ˜\Úİ™ŠBˆˆ×NÂ‚ˆ\Ë™›Û\œÈH\œ˜^Kš\Ğ\œ˜^JÛ˜\Úİ™›Û\œÊBˆÈİXİ\™YÛÛ™JÛ˜\Úİ™›Û\œÊBˆˆÉúnæ:+©:+ãyn¤É×NÂ‚ˆ\Ë™›Û\“[™ÜÈBˆÛ˜\Úİ™›Û\“[™ÜÈ	‰‚ˆ\[ÙˆÛ˜\Úİ™›Û\“[™ÜÈOOH	ÛØš™Xİ	ÂˆÈİXİ\™YÛÛ™JÛ˜\Úİ™›Û\“[™ÜÊBˆˆÈ	únæ:+©:+ãyn¤ÉÎˆ	Ú˜IÈNÂ‚ˆ\Ëœİ\œÈH\œ˜^Kš\Ğ\œ˜^JÛ˜\Úİœİ\œÊBˆÈİXİ\™YÛÛ™JÛ˜\Úİœİ\œÊBˆˆ×NÂ‚ˆ\Ëœ™XÛÜ™ÈH\œ˜^Kš\Ğ\œ˜^JÛ˜\Úİœ™XÛÜ™ÊBˆÈİXİ\™YÛÛ™JÛ˜\Úİœ™XÛÜ™ÊBˆˆ×NÂ‚ˆ\Ë›]Ü›İ\ÛX\œÈBˆÛ˜\Úİ›]Ü›İ\ÛX\œÈ	‰‚ˆ\[ÙˆÛ˜\Úİ›]Ü›İ\ÛX\œÈOOH	ÛØš™Xİ	ÂˆÈİXİ\™YÛÛ™JÛ˜\Úİ›]Ü›İ\ÛX\œÊBˆˆßNÂ‚ˆ\Ë›]ÛÜ™ÛX\œÈBˆÛ˜\Úİ›]ÛÜ™ÛX\œÈ	‰‚ˆ\[ÙˆÛ˜\Úİ›]ÛÜ™ÛX\œÈOOH	ÛØš™Xİ	ÂˆÈİXİ\™YÛÛ™JÛ˜\Úİ›]ÛÜ™ÛX\œÊBˆˆßNÂ‚ˆ\Ë˜ZPÛÛ™\œØ][ÛœÈBˆ\œ˜^Kš\Ğ\œ˜^JÛ˜\Úİ˜ZPÛÛ™\œØ][ÛœÊBˆÈİXİ\™YÛÛ™JˆÛ˜\Úİ˜ZPÛÛ™\œØ][ÛœÂˆ
+Bˆˆ×NÂ‚ˆ]ØZ]\ËœØ]™P[\Ù\‘]J
+NÂ‚ˆÛÛœÛÛKØ\›Šˆ	ÖÓZYÜ˜][Û—H9mì¹ h¹i#y¦í9¥¬9bcyæ¡9¥l9£k¹oêùáiÉÂˆ
+NÂˆK‚ˆ\Ş[˜È[‘]SZYÜ˜][ÛœÊ
+HÂˆ]Ú[™ÙYH˜[ÙNÂˆ]›Û\œĞÚ[™ÙYH˜[ÙNÂˆ]İ\œĞÚ[™ÙYH˜[ÙNÂˆ]ÛX\œĞÚ[™ÙYH˜[ÙNÂ‚ˆ›Üˆ
+ÛÛœİÛÜ™Ùˆ\Ë™ŠHÂˆYˆ
+]ÛÜ™›[™ÊHÂˆÛÜ™›[™ÈH	Ú˜IÎÂˆÚ[™ÙYHYNÂˆB‚ˆÛÛœİÚİ[™PZ[[ˆBˆ\Ë˜Z[[’YÙ]š\Êİš[™ÊÛÜ™—ÚY	ÉÊJHˆÛÜ™˜Z[[ˆOOHYNÂ‚ˆYˆ
+ÛÜ™˜Z[[ˆOOHÚİ[™PZ[[ŠHÂˆÛÜ™˜Z[[ˆHÚİ[™PZ[[ÂˆÚ[™ÙYHYNÂˆB‚ˆÛÛœİ™]š[İ\ÒYHİš[™ÊÛÜ™—ÚY	ÉÊNÂˆ[œİ\™TİX›UÛÜ™Y
+ÛÜ™ÂˆZ[[’[ˆÚİ[™PZ[[‚ˆJNÂ‚ˆYˆ
+™]š[İ\ÒYOOHÛÜ™—ÚY
+HÂˆÚ[™ÙYHYNÂˆB‚ˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™[JˆÛÜ™ˆÈ™\Ù\™UÛÜ™ˆYHBˆ
+NÂ‚ˆYˆ
+ˆ›Ü›X[^™Y˜Z[[ˆOOHYH	‰‚ˆ›Ü›X[^™Y›[™ÈOOH	Ù[‰È	‰‚ˆ›Ü›X[^™Y™›Û\ˆOOH	ùfæùî©ú+ãy¬aÉÈ	‰‚ˆ[›Ü›X[^™Y›]™[ˆ
+HÂˆ›Ü›X[^™Y›]™[H	ĞÑUM	ÎÂˆB‚ˆÛÛœİ˜XÚÙYšY[ÈHÂˆ	×ÚY	Ëˆ	Û[™ÉËˆ	İ\IËˆ	ÛYX[š[™ÉËˆ	Ù^[\IËˆ	Ù›Û\‰Ëˆ	ÜÛ™]XÉËˆ	ÚØ[˜IËˆ	Ü›ÛİÉËˆ	Û]™[	Ëˆ	ÙY™šXİ[IËˆ	İYÜÉËˆ	Ùœ™\]Y[˜ŞIËˆ	Ü]Ú	Ëˆ	ÜÜXÚX[YÜÉËˆ	ÜÛİ\˜ÙRY	Ëˆ	ÜÛİ\˜ÙS˜[YIËˆ	ÜÛİ\˜ÙU™\œÚ[Û‰Ëˆ	Ø[X\Ù\ÉËˆ	ÜÛİ\˜ÙS]™[ÉËˆ	Ü™]šY]Ôİ]\ÉËˆ	ÜÛİ\˜ÙIËˆ	Ù]U™\œÚ[Û‰Ëˆ	ØZ[[‰ÂˆNÂ‚ˆÛÛœİ\ĞÚ[™ÙHH˜XÚÙYšY[ËœÛÛYJšY[OˆÂˆ™]\›ˆ
+ˆ”ÓÓ‹œİš[™ÚYJÛÜ™ÙšY[HÏÈ[
+HOOBˆ”ÓÓ‹œİš[™ÚYJ›Ü›X[^™YÙšY[HÏÈ[
+Bˆ
+NÂˆJNÂ‚ˆYˆ
+\ĞÚ[™ÙJHÂˆØš™Xİ˜\ÜÚYÛŠÛÜ™›Ü›X[^™Y
+NÂˆÚ[™ÙYHYNÂˆB‚ˆÛÛœİ›Û\ˆHÛÜ™™›Û\ˆ
+ˆÛÜ™›[™ÈOOH	Ù[‰ÂˆÈ	ùfæùî©ú+ãy¬aÉÂˆˆ	únæ:+©:+ãyn¤ÉÂˆ
+NÂ‚ˆYˆ
+]ÛÜ™™›Û\ŠHÂˆÛÜ™™›Û\ˆH›Û\ÂˆÚ[™ÙYHYNÂˆB‚ˆYˆ
+]\Ë™›Û\œËš[˜ÛY\Ê›Û\ŠJHÂˆ\Ë™›Û\œËœ\Ú
+›Û\ŠNÂˆ›Û\œĞÚ[™ÙYHYNÂˆB‚ˆÛÛœİ›Û\“[™ÈHÛÜ™›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂ‚ˆYˆ
+\Ë™›Û\“[™ÜÖÙ›Û\—HOOH›Û\“[™ÊHÂˆ\Ë™›Û\“[™ÜÖÙ›Û\—HH›Û\“[™ÎÂˆ›Û\œĞÚ[™ÙYHYNÂˆBˆB‚ˆÛÛœİ˜[YYÈH™]ÈÙ]
+ˆ\Ë™‹›X\
+ÛÜ™Oˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+JBˆ
+NÂˆÛÛœİÛÜ™ĞSYØXŞRÙ^HH™]ÈX\
+
+NÂ‚ˆÛÛœİYYØXŞRÙ^HH
+Ù^KÛÜ™Y
+HOˆÂˆÛÛœİ›Ü›X[^™YÙ^HHİš[™ÊÙ^H	ÉÊKš[J
+NÂ‚ˆYˆ
+[›Ü›X[^™YÙ^JHÂˆ™]\›ÂˆB‚ˆYˆ
+]ÛÜ™ĞSYØXŞRÙ^Kš\Ê›Ü›X[^™YÙ^JJHÂˆÛÜ™ĞSYØXŞRÙ^KœÙ]
+›Ü›X[^™YÙ^K™]ÈÙ]
+
+JNÂˆB‚ˆÛÜ™ĞSYØXŞRÙ^K™Ù]
+›Ü›X[^™YÙ^JK˜Y
+ÛÜ™Y
+NÂˆNÂ‚ˆ\Ë™‹™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+ÛÜ™
+NÂˆÛÛœİ[™ÈHÛÜ™›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİXYÛÜ™Hİš[™ÊÛÜ™ÛÜ™	ÉÊKš[J
+NÂ‚ˆYYØXŞRÙ^JXYÛÜ™ÛÜ™Y
+NÂˆYYØXŞRÙ^Jˆ›Ü›X[^™RXYÛÜ™
+XYÛÜ™[™ÊKÓİÙ\Ø\ÙJ
+KˆÛÜ™Yˆ
+NÂˆJNÂ‚ˆÛÛœİZYÜ˜]Yİ\œÈH×NÂˆÛÛœİZYÜ˜]Yİ\”Ù]H™]ÈÙ]
+
+NÂ‚ˆ
+\œ˜^Kš\Ğ\œ˜^J\Ëœİ\œÊHÈ\Ëœİ\œÈˆ×JK™›Ü‘XXÚ
+İÜ™YÙ^HOˆÂˆÛÛœİÙ^HHİš[™ÊİÜ™YÙ^H	ÉÊKš[J
+NÂˆ]\™Ù]YÈH×NÂ‚ˆYˆ
+˜[YYËš\ÊÙ^JJHÂˆ\™Ù]YÈHÚÙ^WNÂˆH[ÙHÂˆÛÛœİ\™XİHÛÜ™ĞSYØXŞRÙ^K™Ù]
+Ù^JNÂˆÛÛœİ›Ü›X[^™YHÛÜ™ĞSYØXŞRÙ^K™Ù]
+ˆÙ^KÓİÙ\Ø\ÙJ
+Bˆ
+NÂ‚ˆ\™Ù]YÈHÂˆ‹‹Š\™Xİ×JKˆ‹‹Š›Ü›X[^™Y×JBˆNÂˆB‚ˆ\™Ù]YË™›Ü‘XXÚ
+ÛÜ™YOˆÂˆYˆ
+[ZYÜ˜]Yİ\”Ù]š\ÊÛÜ™Y
+JHÂˆZYÜ˜]Yİ\”Ù]˜Y
+ÛÜ™Y
+NÂˆZYÜ˜]Yİ\œËœ\Ú
+ÛÜ™Y
+NÂˆBˆJNÂˆJNÂ‚ˆYˆ
+ˆ”ÓÓ‹œİš[™ÚYJZYÜ˜]Yİ\œÊHOOBˆ”ÓÓ‹œİš[™ÚYJ\Ëœİ\œÊBˆ
+HÂˆ\Ëœİ\œÈHZYÜ˜]Yİ\œÎÂˆİ\œĞÚ[™ÙYHYNÂˆB‚ˆÛÛœİ›Ü›X[^™PÛX\”İ]HH˜[YHOˆÂˆYˆ
+]˜[YH\[Ùˆ˜[YHOOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆÂˆØ[ššNˆ˜[ÙKˆØ[˜Nˆ˜[ÙKˆYX[š[™Îˆ˜[ÙBˆNÂˆB‚ˆ™]\›ˆÂˆ‹‹˜ÛÛ™Q]U˜[YJ˜[YJKˆØ[ššNˆ›ÛÛX[Šˆ˜[YKšØ[ššHÏÈ˜[YKÛÜ™ÏÈ˜[ÙBˆ
+KˆØ[˜Nˆ›ÛÛX[Š˜[YKšØ[˜HÏÈ˜[ÙJKˆYX[š[™Îˆ›ÛÛX[Š˜[YK›YX[š[™ÈÏÈ˜[ÙJKˆ™YYÔ™]šY]Îˆ›ÛÛX[Š˜[YK›™YYÔ™]šY]ÊBˆNÂˆNÂ‚ˆÛÛœİY\™ÙPÛX\”İ]HH
+˜\ÙK[˜ÛÛZ[™ÊHOˆÂˆYˆ
+X˜\ÙJHÂˆ™]\›ˆ›Ü›X[^™PÛX\”İ]J[˜ÛÛZ[™ÊNÂˆB‚ˆÛÛœİ™^H›Ü›X[^™PÛX\”İ]J˜\ÙJNÂˆÛÛœİY][ÛˆH›Ü›X[^™PÛX\”İ]J[˜ÛÛZ[™ÊNÂ‚ˆ™^šØ[ššHH™^šØ[ššHY][Û‹šØ[ššNÂˆ™^šØ[˜HH™^šØ[˜HY][Û‹šØ[˜NÂˆ™^›YX[š[™ÈH™^›YX[š[™ÈY][Û‹›YX[š[™ÎÂˆ™^›™YYÔ™]šY]ÈBˆ™^›™YYÔ™]šY]ÈY][Û‹›™YYÔ™]šY]ÎÂ‚ˆ™]\›ˆ™^ÂˆNÂ‚ˆÛÛœİZYÜ˜]YÛX\œÈHßNÂ‚ˆØš™Xİ™[šY\Êˆ\Ë›]ÛÜ™ÛX\œÈ	‰‚ˆ\[Ùˆ\Ë›]ÛÜ™ÛX\œÈOOH	ÛØš™Xİ	ÂˆÈ\Ë›]ÛÜ™ÛX\œÂˆˆßBˆ
+K™›Ü‘XXÚ
+
+ÜİÜ™YÙ^KİÜ™Yİ]WJHOˆÂˆÛÛœİÙ^HHİš[™ÊİÜ™YÙ^H	ÉÊKš[J
+NÂˆ]\™Ù]YÈH×NÂ‚ˆYˆ
+˜[YYËš\ÊÙ^JJHÂˆ\™Ù]YÈHÚÙ^WNÂˆH[ÙHÂˆÛÛœİ\™XİHÛÜ™ĞSYØXŞRÙ^K™Ù]
+Ù^JNÂˆÛÛœİ›Ü›X[^™YHÛÜ™ĞSYØXŞRÙ^K™Ù]
+ˆÙ^KÓİÙ\Ø\ÙJ
+Bˆ
+NÂ‚ˆ\™Ù]YÈHÂˆ‹‹Š\™Xİ×JKˆ‹‹Š›Ü›X[^™Y×JBˆNÂˆB‚ˆYˆ
+\™Ù]YË›[™İOOH
+HÂˆZYÜ˜]YÛX\œÖÚÙ^WHH›Ü›X[^™PÛX\”İ]JİÜ™Yİ]JNÂˆ™]\›ÂˆB‚ˆË‹‹›™]ÈÙ]
+\™Ù]YÊWK™›Ü‘XXÚ
+ÛÜ™YOˆÂˆZYÜ˜]YÛX\œÖİÛÜ™YHHY\™ÙPÛX\”İ]JˆZYÜ˜]YÛX\œÖİÛÜ™YKˆİÜ™Yİ]Bˆ
+NÂˆJNÂˆJNÂ‚ˆYˆ
+ˆ”ÓÓ‹œİš[™ÚYJZYÜ˜]YÛX\œÊHOOBˆ”ÓÓ‹œİš[™ÚYJ\Ë›]ÛÜ™ÛX\œÊBˆ
+HÂˆ\Ë›]ÛÜ™ÛX\œÈHZYÜ˜]YÛX\œÎÂˆÛX\œĞÚ[™ÙYHYNÂˆB‚ˆYˆ
+Ú[™ÙY
+HÂˆ]ØZ]\ËœØ]™QŠ
+NÂˆB‚ˆYˆ
+›Û\œĞÚ[™ÙY
+HÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ\ËœØ]™Q›Û\œÊ
+Kˆ\ËœØ]™Q›Û\“[™ÜÊ
+BˆJNÂˆB‚ˆYˆ
+İ\œĞÚ[™ÙY
+HÂˆ]ØZ]\ËœØ]™Tİ\œÊ
+NÂˆB‚ˆYˆ
+ÛX\œĞÚ[™ÙY
+HÂˆ]ØZ]\ËœØ]™PÛX\œÊ
+NÂˆBˆK‚ˆ\Ş[˜ÈØY]J
+HÂˆÛÛœİİÜ™YØÚ[XU™\œÚ[ÛˆH[X™\‹œ\œÙR[
+ˆØØ[İÜ˜YÙK™Ù]][J	Ù]TØÚ[XU™\œÚ[Û‰ÊH	Ì	ËˆLˆ
+NÂˆÛÛœİ™YYÓZYÜ˜][ÛˆBˆİÜ™YØÚ[XU™\œÚ[ÛˆUWÔĞÒSPWÕ‘T”ÒSÓÂ‚ˆHÂˆYˆ
+\[ÙˆY’Ù^]˜[OOH	İ[™Yš[™Y	ÊHÂˆ\ËšY]˜Z[X›HH˜[ÙNÂˆH[ÙHÂˆ]ØZ]Y’Ù^]˜[™Ù]
+	××ŞšÛ™ÜšWÜİÜ˜YÙWÜ›Ø™W×ÉÊNÂˆBˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛKØ\›Šˆ	ÖÑ—HY‹ZÙ^]˜[9.#ycëùå*;ï#:fcyî©ú!ìÈØØ[İÜ˜YÙIËˆ\œ›Ü‚ˆ
+NÂˆ\ËšY]˜Z[X›HH˜[ÙNÂˆB‚ˆ\Ë˜Z[[•ÛÜ™ÈH\Ë™Ù]Y˜][Z[[•ÛÜ™Ê
+NÂˆ\Ë˜Z[[’YÙ]H™]ÈÙ]
+ˆ\Ë˜Z[[•ÛÜ™Ë›X\
+ÛÜ™Oˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+JBˆ
+NÂ‚ˆÛÛœİÂˆİÜ™Y\Ù\•ÛÜ™ËˆİÜ™Yİ™\œšY\ËˆYØXŞQ‹ˆİÜ™Y›Û\œËˆİÜ™Y›Û\“[™ÜËˆİÜ™Yİ\œËˆİÜ™Y™XÛÜ™ËˆİÜ™YÜ›İ\ÛX\œËˆİÜ™YÛÜ™ÛX\œËˆİÜ™YÛÛ™\œØ][ÛœÂˆHH]ØZ]›ÛZ\ÙK˜[
+Âˆ\Ëœ™XYİÜ˜YÙU˜[YJTÑT—ÕÓÔ‘×ÔÕÔQÑWÒÑVJKˆ\Ëœ™XYİÜ˜YÙU˜[YJÓÔ‘ÓÕ‘T”’QT×ÔÕÔQÑWÒÑVJKˆ\Ëœ™XYİÜ˜YÙU˜[YJQĞPÖWÕÓÔ‘Ñ—ÔÕÔQÑWÒÑVJKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	Û^Q›Û\œ×İŒÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	Û^Q›Û\“[™ÜÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	Üİ\œ™YÛÜ™ÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	ÜİYT™XÛÜ™ÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	Û]Ü›İ\ÛX\œ×İŒÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	Û]ÛÜ™ÛX\œ×İŒÉÊKˆ\Ëœ™XYİÜ˜YÙU˜[YJ	ØZPÛÛ™\œØ][ÛœÉÊBˆJNÂ‚ˆÛÛœİ\ÔÙ\\˜]YİÜ˜YÙHBˆ\œ˜^Kš\Ğ\œ˜^JİÜ™Y\Ù\•ÛÜ™ÊHˆ
+ˆİÜ™Yİ™\œšY\È	‰‚ˆ\[ÙˆİÜ™Yİ™\œšY\ÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^JİÜ™Yİ™\œšY\ÊBˆ
+Hˆ[X™\‹œ\œÙR[
+ˆØØ[İÜ˜YÙK™Ù]][JÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓ—ÒÑVJH	Ì	ËˆLˆ
+HHÓÔ‘ÔÕÔQÑWÕ‘T”ÒSÓÂ‚ˆYˆ
+\ÔÙ\\˜]YİÜ˜YÙJHÂˆ\Ë\Ù\•ÛÜ™ÈH\œ˜^Kš\Ğ\œ˜^JİÜ™Y\Ù\•ÛÜ™ÊBˆÈÛÛ™Q]U˜[YJİÜ™Y\Ù\•ÛÜ™ÊBˆˆ×NÂˆ\ËÛÜ™İ™\œšY\ÈBˆİÜ™Yİ™\œšY\È	‰‚ˆ\[ÙˆİÜ™Yİ™\œšY\ÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^JİÜ™Yİ™\œšY\ÊBˆÈÛÛ™Q]U˜[YJİÜ™Yİ™\œšY\ÊBˆˆßNÂˆ\Ëœ™XZ[ÛÛXš[™YŠ
+NÂˆH[ÙHYˆ
+\œ˜^Kš\Ğ\œ˜^JYØXŞQŠJHÂˆËÈ9¥éùâb9¢¢¹aj:`ê9a¡yïkº+ãyæí9£©ya¦yaiyd#9. 9¥l9£k¹n¤øà º/àyéîùbczhnú(izod9.)9éãz+ëz* ;ï#ˆËÈ9d)¹b&y§*¹b¨:/oz+ëz* 9æ¡9a¡yïkº+ãy/&º(ªúe&z+ëùg,9odù/g:!ê¹k¦¹.bz+ãxà ‚ˆ]ØZ]\Ë™[œİ\™P[Z[[“[™İXYÙ\Ê
+NÂˆ\Ë›ZYÜ˜]SYØXŞUÛÜ™İÜ˜YÙJYØXŞQ‹ÂˆX\šÓZ\ÜÚ[™ĞZ[[œĞ\Ñ[]YˆYBˆJNÂˆH[ÙHÂˆ\Ë\Ù\•ÛÜ™ÈH×NÂˆ\ËÛÜ™İ™\œšY\ÈHßNÂˆ\Ëœ™XZ[ÛÛXš[™YŠ
+NÂˆB‚ˆ\Ë™›Û\œÈH\œ˜^Kš\Ğ\œ˜^JİÜ™Y›Û\œÊBˆÈÛÛ™Q]U˜[YJİÜ™Y›Û\œÊBˆˆÉúnæ:+©:+ãyn¤É×NÂˆ\Ë™›Û\“[™ÜÈBˆİÜ™Y›Û\“[™ÜÈ	‰‚ˆ\[ÙˆİÜ™Y›Û\“[™ÜÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^JİÜ™Y›Û\“[™ÜÊBˆÈÛÛ™Q]U˜[YJİÜ™Y›Û\“[™ÜÊBˆˆÈ	únæ:+©:+ãyn¤ÉÎˆ	Ú˜IÈNÂˆ\Ëœİ\œÈH\œ˜^Kš\Ğ\œ˜^JİÜ™Yİ\œÊBˆÈÛÛ™Q]U˜[YJİÜ™Yİ\œÊBˆˆ×NÂˆ\Ëœ™XÛÜ™ÈH\œ˜^Kš\Ğ\œ˜^JİÜ™Y™XÛÜ™ÊBˆÈÛÛ™Q]U˜[YJİÜ™Y™XÛÜ™ÊBˆˆ×NÂˆ\Ë›]Ü›İ\ÛX\œÈBˆİÜ™YÜ›İ\ÛX\œÈ	‰‚ˆ\[ÙˆİÜ™YÜ›İ\ÛX\œÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^JİÜ™YÜ›İ\ÛX\œÊBˆÈÛÛ™Q]U˜[YJİÜ™YÜ›İ\ÛX\œÊBˆˆßNÂˆ\Ë›]ÛÜ™ÛX\œÈBˆİÜ™YÛÜ™ÛX\œÈ	‰‚ˆ\[ÙˆİÜ™YÛÜ™ÛX\œÈOOH	ÛØš™Xİ	È	‰‚ˆP\œ˜^Kš\Ğ\œ˜^JİÜ™YÛÜ™ÛX\œÊBˆÈÛÛ™Q]U˜[YJİÜ™YÛÜ™ÛX\œÊBˆˆßNÂˆ\Ë˜ZPÛÛ™\œØ][ÛœÈH\œ˜^Kš\Ğ\œ˜^JİÜ™YÛÛ™\œØ][ÛœÊBˆÈÛÛ™Q]U˜[YJİÜ™YÛÛ™\œØ][ÛœÊBˆˆ×NÂ‚ˆ\Ë˜Z[[•ÛÜ™Ë™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİ›Û\ˆHÛÜ™™›Û\ˆ
+ˆÛÜ™›[™ÈOOH	Ù[‰ÂˆÈ	ùfæùî©ú+ãy¬aÉÂˆˆ	únæ:+©:+ãyn¤ÉÂˆ
+NÂ‚ˆYˆ
+]\Ë™›Û\œËš[˜ÛY\Ê›Û\ŠJHÂˆ\Ë™›Û\œËœ\Ú
+›Û\ŠNÂˆB‚ˆ\Ë™›Û\“[™ÜÖÙ›Û\—HBˆÛÜ™›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆJNÂ‚ˆ]ZYÜ˜][Û”Û˜\ÚİH[Â‚ˆYˆ
+™YYÓZYÜ˜][ÛŠHÂˆZYÜ˜][Û”Û˜\ÚİBˆ]ØZ]\Ë˜Ü™X]SZYÜ˜][Û”Û˜\Úİ
+ˆİÜ™YØÚ[XU™\œÚ[Û‚ˆ
+NÂˆB‚ˆHÂˆ]ØZ]\Ëœ[‘]SZYÜ˜][ÛœÊ
+NÂˆ]ØZ]\Ëœ\œÚ\İÙ\\˜]YÛÜ™]J
+NÂ‚ˆYˆ
+™YYÓZYÜ˜][ÛŠHÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	Ù]TØÚ[XU™\œÚ[Û‰Ëˆİš[™ÊUWÔĞÒSPWÕ‘T”ÒSÓŠBˆ
+NÂ‚ˆÛÛœÛÛK›ÙÊˆÓZYÜ˜][Û—H9¥l9£k¹¨/9o#ùmì¹.ãˆ	ÜİÜ™YØÚ[XU™\œÚ[ÛŸH9caùî©ùb,	ÑUWÔĞÒSPWÕ‘T”ÒSÓŸXˆ
+NÂˆBˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠ	ÖÓZYÜ˜][Û—H9¥l9£kº/àyéîùi,z-)IË\œ›ÜŠNÂ‚ˆYˆ
+ZYÜ˜][Û”Û˜\Úİ
+HÂˆHÂˆ]ØZ]\Ëœ™\İÜ™SZYÜ˜][Û”Û˜\Úİ
+ˆZYÜ˜][Û”Û˜\Úİˆ
+NÂ‚ˆØØ[İÜ˜YÙKœÙ]][Jˆ	Ù]TØÚ[XU™\œÚ[Û‰Ëˆİš[™ÊİÜ™YØÚ[XU™\œÚ[ÛŠBˆ
+NÂˆHØ]Ú
+™\İÜ™Q\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠˆ	ÖÓZYÜ˜][Û—H:!ê¹bª9 h¹i#y.gùi,z-)IËˆ™\İÜ™Q\œ›Ü‚ˆ
+NÂˆBˆB‚ˆ›İÈ\œ›ÜÂˆBˆK‚ˆØ]™QŠ
+HÂˆÛÛœİØ[›ÛšXØ[X\H™]ÈX\
+ˆ\Ë˜Z[[•ÛÜ™Ë›X\
+ÛÜ™OˆÂˆ\Ë™Ù]ÛÜ™Y
+ÛÜ™
+KˆÛÜ™ˆJBˆ
+NÂˆÛÛœİİ\œ™[RYH™]ÈX\
+
+NÂˆÛÛœİ\Ù\•ÛÜ™ÈH×NÂˆÛÛœİİ™\œšY\ÈHßNÂ‚ˆ\Ë™‹™›Ü‘XXÚ
+˜]ÕÛÜ™OˆÂˆØš™Xİ˜\ÜÚYÛŠˆ˜]ÕÛÜ™ˆ›Ü›X[^™UÛÜ™[Jˆ˜]ÕÛÜ™ˆÈ™\Ù\™UÛÜ™ˆYHBˆ
+Bˆ
+NÂ‚ˆ[œİ\™TİX›UÛÜ™Y
+˜]ÕÛÜ™ÂˆZ[[’[ˆ˜]ÕÛÜ™˜Z[[ˆOOHYBˆJNÂ‚ˆYˆ
+İ\œ™[RYš\Ê˜]ÕÛÜ™—ÚY
+JHÂˆ˜]ÕÛÜ™—ÚYHÜ™X]T˜[™ÛUÛÜ™Y
+
+NÂˆ˜]ÕÛÜ™˜Z[[ˆH˜[ÙNÂˆB‚ˆİ\œ™[RYœÙ]
+˜]ÕÛÜ™—ÚY˜]ÕÛÜ™
+NÂˆJNÂ‚ˆ\Ë™‹™›Ü‘XXÚ
+ÛÜ™OˆÂˆÛÛœİØ[›ÛšXØ[HØ[›ÛšXØ[X\™Ù]
+ÛÜ™—ÚY
+NÂ‚ˆYˆ
+Ø[›ÛšXØ[
+HÂˆÛÜ™˜Z[[ˆHYNÂˆÛÜ™›[™ÈHØ[›ÛšXØ[›[™ÎÂ‚ˆÛÛœİİ™\œšYHH\Ë˜Z[ÛÜ™İ™\œšYJˆØ[›ÛšXØ[ˆÛÜ™ˆ
+NÂ‚ˆYˆ
+Øš™XİšÙ^\Êİ™\œšYJK›[™İˆ
+HÂˆİ™\œšY\ÖİÛÜ™—ÚYHHİ™\œšYNÂˆB‚ˆ™]\›ÂˆB‚ˆÛÜ™˜Z[[ˆH˜[ÙNÂˆ\Ù\•ÛÜ™Ëœ\Ú
+ÛÛ™Q]U˜[YJÛÜ™
+JNÂˆJNÂ‚ˆ\Ë˜Z[[•ÛÜ™Ë™›Ü‘XXÚ
+Ø[›ÛšXØ[OˆÂˆÛÛœİÛÜ™YH\Ë™Ù]ÛÜ™Y
+Ø[›ÛšXØ[
+NÂ‚ˆYˆ
+Xİ\œ™[RYš\ÊÛÜ™Y
+JHÂˆİ™\œšY\ÖİÛÜ™YHHÂˆÙ[]YˆYKˆ\]Y]ˆ™]È]J
+KÒTÓÔİš[™Ê
+BˆNÂˆBˆJNÂ‚ˆ\Ë\Ù\•ÛÜ™ÈH\Ù\•ÛÜ™ÎÂˆ\ËÛÜ™İ™\œšY\ÈHİ™\œšY\ÎÂ‚ˆ™]\›ˆ\Ëœ\œÚ\İÙ\\˜]YÛÜ™]J
+NÂˆKˆØ]™Q›Û\œÊ
+HÂˆYˆ
+]\ËšY]˜Z[X›JHÈØØ[İÜ˜YÙKœÙ]][J	Û^Q›Û\œ×İŒÉË”ÓÓ‹œİš[™ÚYJ\Ë™›Û\œÊJNÈ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÈBˆ™]\›ˆY’Ù^]˜[œÙ]
+	Û^Q›Û\œ×İŒÉË\Ë™›Û\œÊNÂˆKˆØ]™Q›Û\“[™ÜÊ
+HÂˆYˆ
+]\ËšY]˜Z[X›JHÈØØ[İÜ˜YÙKœÙ]][J	Û^Q›Û\“[™ÜÉË”ÓÓ‹œİš[™ÚYJ\Ë™›Û\“[™ÜÊJNÈ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÈBˆ™]\›ˆY’Ù^]˜[œÙ]
+	Û^Q›Û\“[™ÜÉË\Ë™›Û\“[™ÜÊNÂˆKˆØ]™Tİ\œÊ
+HÂˆYˆ
+]\ËšY]˜Z[X›JHÈØØ[İÜ˜YÙKœÙ]][J	Üİ\œ™YÛÜ™ÉË”ÓÓ‹œİš[™ÚYJ\Ëœİ\œÊJNÈ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÈBˆ™]\›ˆY’Ù^]˜[œÙ]
+	Üİ\œ™YÛÜ™ÉË\Ëœİ\œÊNÂˆKˆØ]™T™XÛÜ™Ê
+HÂˆYˆ
+]\ËšY]˜Z[X›JHÈØØ[İÜ˜YÙKœÙ]][J	ÜİYT™XÛÜ™ÉË”ÓÓ‹œİš[™ÚYJ\Ëœ™XÛÜ™ÊJNÈ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÈBˆ™]\›ˆY’Ù^]˜[œÙ]
+	ÜİYT™XÛÜ™ÉË\Ëœ™XÛÜ™ÊNÂˆKˆˆÚXÚÑš[\ŠËš[\“˜[YJHÂˆÛÛœİİH\Ë™Ù]ÛX\”İ]JÊNÂ‚ˆYˆ
+š[\“˜[YHOOH	İš\X[Üİ\œ™Y	ÊH™]\›ˆ\Ëš\Ôİ\œ™Y
+ÊNÂˆËÈ9îçù. 9."y§h9b)9¥«{ï&¹¥éz+ëyd£:"ìz+ëygaùå*Ø[ššH
+ÈØ[˜H
+ÈYX[š[™ÂˆYˆ
+š[\“˜[YHOOH	İš\X[ØÛX\™Y	ÊHÂˆ™]\›ˆİšØ[ššH	‰ˆİšØ[˜H	‰ˆİ›YX[š[™ÎÈˆBˆYˆ
+š[\“˜[YHOOH	İš\X[İ[˜ÛX\™Y	ÊHÂˆ™]\›ˆJİšØ[ššH	‰ˆİšØ[˜H	‰ˆİ›YX[š[™ÊNÈˆBˆYˆ
+š[\“˜[YHOOH	İš\X[ÚÛ›İ×ÚØ[ššIÊH™]\›ˆİšØ[ššNÂˆYˆ
+š[\“˜[YHOOH	İš\X[ÚÛ›İ×ÚØ[˜IÊH™]\›ˆİšØ[˜NÂˆYˆ
+š[\“˜[YHOOH	İš\X[ÚÛ›İ×ÛYX[š[™ÉÊH™]\›ˆİ›YX[š[™ÎÂˆYˆ
+š[\“˜[YHOOH	İš\X[ÛZ\Ü×ÚØ[ššIÊH™]\›ˆ\İšØ[ššNÂˆYˆ
+š[\“˜[YHOOH	İš\X[ÛZ\Ü×ÚØ[˜IÊH™]\›ˆ\İšØ[˜NÂˆYˆ
+š[\“˜[YHOOH	İš\X[ÛZ\Ü×ÛYX[š[™ÉÊH™]\›ˆ\İ›YX[š[™ÎÂˆˆ™]\›ˆË™›Û\ˆOOH
+š[\“˜[YHOOH	ÙY˜][	ÈÈ	únæ:+©:+ãyn¤ÉÈˆš[\“˜[YJNÂˆK‚ˆØ]™PÛX\œÊ
+HÂˆYˆ
+]\ËšY]˜Z[X›JHÂˆØØ[İÜ˜YÙKœÙ]][J	Û]Ü›İ\ÛX\œ×İŒÉË”ÓÓ‹œİš[™ÚYJ\Ë›]Ü›İ\ÛX\œÊJNÂˆØØ[İÜ˜YÙKœÙ]][J	Û]ÛÜ™ÛX\œ×İŒÉË”ÓÓ‹œİš[™ÚYJ\Ë›]ÛÜ™ÛX\œÊJNÂˆ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÂˆBˆ™]\›ˆ›ÛZ\ÙK˜[
+ÂˆY’Ù^]˜[œÙ]
+	Û]Ü›İ\ÛX\œ×İŒÉË\Ë›]Ü›İ\ÛX\œÊKˆY’Ù^]˜[œÙ]
+	Û]ÛÜ™ÛX\œ×İŒÉË\Ë›]ÛÜ™ÛX\œÊBˆJNÂˆKˆˆ\]Qš[\™YŠÙX\˜Ú]Y\Kİ\œ™[š[\ŠHÂˆ\Ëœİ]K™š[\™YˆH\Ë™‹›X\
+
+ËY
+HOˆ
+İËYJJK™š[\Š][HOˆÂˆYˆ
+
+][KË›[™È	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJH™]\›ˆ˜[ÙNÂˆ]X]Ú›Û\ˆHİ\œ™[š[\ˆOOH	Ø[	ÈÈYHˆ\Ë˜ÚXÚÑš[\Š][KËİ\œ™[š[\ŠNÂˆ]X]ÚÙX\˜ÚH\ÙX\˜Ú]Y\Hˆ][KËÛÜ™ÓİÙ\Ø\ÙJ
+Kš[˜ÛY\ÊÙX\˜Ú]Y\JHˆ
+][KËšØ[˜H	ÉÊKÓİÙ\Ø\ÙJ
+Kš[˜ÛY\ÊÙX\˜Ú]Y\JHˆ][KË›YX[š[™ËÓİÙ\Ø\ÙJ
+Kš[˜ÛY\ÊÙX\˜Ú]Y\JNÂˆ™]\›ˆX]Ú›Û\ˆ	‰ˆX]ÚÙX\˜ÚÂˆJNÂˆ\Ëœİ]K™š[\™Y‹[œÚY
+ÈÎˆÈÛÜ™ˆ	ÒS•ĞĞT‘	Ë\Nˆ	Ú[	ÈKYˆNNNHJNÂˆK‚‚ˆÜ]Ø[˜PS[Ü˜JØ[˜TİŠHÂˆ]ÚÙ[œÈHØ[˜Tİ‹œ™\XÙJÖøà$8à$W×J
+WKÙË	ÉÊK›X]Ú
+Êøà`Kxà¤øà¨Kxàì×Vøà øà¡xà¡øàèøàéxàéøà`xà`øàaxàaøàbxà¨xà¨øà©xà©øàªWOßøàhøààøà¤øàìøàïJKÙÊNÂˆ™]\›ˆÚÙ[œÈØ[˜Tİ‹œÜ]
+	ÉÊNÂˆKˆˆØ[İ[]Tİ]Ê
+HÂˆ]Z[T™XÛÜ™ÈH\Ëœ™XÛÜ™Ë™š[\ŠˆOˆ‹\HOOH	ÙZ[WÜ[˜Ú	ÊK›X\
+ˆOˆ‹™]JNÂˆ][š\]YQ]\ÈHË‹‹›™]ÈÙ]
+Z[T™XÛÜ™ÊWKœÛÜ
+
+KŠHOˆ™]È]JŠHH™]È]JJJNÂˆ]İ[^\ÈH[š\]YQ]\Ë›[™İÈ]İ™XZÈHÂˆ]Ù^HH™]È]J
+NÈÙ^KœÙ]İ\œÊ
+NÂˆ›Üˆ
+]HHÈH[š\]YQ]\Ë›[™İÈJÊÊHÂˆ]H™]È]J[š\]YQ]\ÖÚWJNÈœÙ]İ\œÊ
+NÂˆ]Y™ˆH
+Ù^HH
+HÈÂˆYˆ
+HOOH	‰ˆY™ˆˆJHœ™XZÎÈˆYˆ
+Hˆ
+HÂˆ]™]‘H™]È]J[š\]YQ]\ÖÚKLWJNÈ™]‘œÙ]İ\œÊ
+NÂˆYˆ
+
+™]‘H
+HÈˆJHœ™XZÎÈˆBˆİ™XZÊÊÎÂˆBˆ™]\›ˆÈİ[^\Ëİ™XZÈNÂˆBŸNÂ‚˜ÛÛœİ\™Ø\™HHÂˆ]Y[Ğİˆ[˜U›ÚXÙPØXÚNˆ[[•›ÚXÙPØXÚNˆ[Ú\™ÙSÜØÎˆ[Ú\™ÙQØZ[ˆ[Øİ\œ™[]Y[Îˆ[ˆ[š]
+
+HÂˆTPÔËš[œİ[
+
+NÂˆHÂˆYˆ
+Ú[™İËœÜYXÚŞ[\Ú\ÊHÂˆ]ØY›ÚXÙHH
+
+HOˆÈ\Ëš˜U›ÚXÙPØXÚHHÚ[™İËœÜYXÚŞ[\Ú\Ë™Ù]›ÚXÙ\Ê
+K™š[™
+ˆOˆ‹›[™Ëš[˜ÛY\Ê	Ú˜IÊH‹›[™Ëš[˜ÛY\Ê	Ò”	ÊJNÈNÂˆØY›ÚXÙJ
+NÂˆYˆ
+ÜYXÚŞ[\Ú\Ë›Û›ÚXÙ\ØÚ[™ÙYOOH[™Yš[™Y
+HÜYXÚŞ[\Ú\Ë›Û›ÚXÙ\ØÚ[™ÙYHØY›ÚXÙNÂˆBˆHØ]Ú
+JHßBˆKˆ\XÊ\KÜ[ÛœÊHÂˆ™]\›ˆTPÔËšYÙÙ\Š\KÜ[ÛœÊNÂˆKˆšXœ˜]J]\›‹Ü[ÛœÊHÂˆ™]\›ˆTPÔËšYÙÙ\“YØXŞJ]\›‹Ü[ÛœÊNÂˆKˆ^TÛİ[™
+\KÈ\XÈHYHHHßJHÂˆYˆ
+\XÊHÂˆ\Ëš\XÊˆ\HOOH	ÜİXØÙ\ÜÉÈ\HOOH	Ù\œ›Ü‰ÂˆÈ\Bˆˆ	İ\	Âˆ
+NÂˆBˆHÂˆÛÛœİ]Y[ĞÛÛ^HÚ[™İË]Y[ĞÛÛ^Ú[™İËÙXšÚ]]Y[ĞÛÛ^ÂˆYˆ
+P]Y[ĞÛÛ^
+H™]\›ÂˆYˆ
+]\Ë˜]Y[Ğİ
+H\Ë˜]Y[ĞİH™]È]Y[ĞÛÛ^
+
+NÂˆYˆ
+\Ë˜]Y[Ğİœİ]HOOH	Üİ\Ü[™Y	ÊH\Ë˜]Y[Ğİœ™\İ[YJ
+NÂˆÛÛœİÜØÈH\Ë˜]Y[Ğİ˜Ü™X]SÜØÚ[]ÜŠ
+NÈÛÛœİØZ[ˆH\Ë˜]Y[Ğİ˜Ü™X]QØZ[Š
+NÂˆÜØË˜ÛÛ›™Xİ
+ØZ[ŠNÈØZ[‹˜ÛÛ›™Xİ
+\Ë˜]Y[Ğİ™\İ[˜][ÛŠNÂˆÛÛœİ›İÈH\Ë˜]Y[Ğİ˜İ\œ™[[YNÂˆYˆ
+\HOOH	ØÛXÚÉÊHÂˆÜØË\HH	ÜÚ[™IÎÈÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJ›İÊNÈÜØË™œ™\]Y[˜ŞK™^Û™[X[˜[\Õ˜[YP][YJL›İÈ
+ÈŒJNÂˆØZ[‹™ØZ[‹œÙ]˜[YP][YJŒË›İÊNÈØZ[‹™ØZ[‹™^Û™[X[˜[\Õ˜[YP][YJŒK›İÈ
+ÈŒJNÂˆÜØËœİ\
+›İÊNÈÜØËœİÜ
+›İÈ
+ÈŒJNÂˆH[ÙHYˆ
+\HOOH	ÜİXØÙ\ÜÉÊHÂˆÜØË\HH	İšX[™ÛIÎÈÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJLŒËŒK›İÊNÈÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJÎËNK›İÈ
+ÈŒŠNÈÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJL‹L›İÈ
+ÈŒÊNÂˆØZ[‹™ØZ[‹œÙ]˜[YP][YJ›İÊNÈØZ[‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJŒ‹›İÈ
+ÈŒJNÈØZ[‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJ›İÈ
+ÈŠNÈˆÜØËœİ\
+›İÊNÈÜØËœİÜ
+›İÈ
+ÈŠNÂˆH[ÙHYˆ
+\HOOH	Ù\œ›Ü‰ÊHÂˆÜØË\HH	ÜØ]İÛİ	ÎÈÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJML›İÊNÈÜØË™œ™\]Y[˜ŞK™^Û™[X[˜[\Õ˜[YP][YJ›İÈ
+ÈŒMJNÂˆØZ[‹™ØZ[‹œÙ]˜[YP][YJŒË›İÊNÈØZ[‹™ØZ[‹™^Û™[X[˜[\Õ˜[YP][YJŒK›İÈ
+ÈŒMJNÂˆÜØËœİ\
+›İÊNÈÜØËœİÜ
+›İÈ
+ÈŒMJNÂˆBˆHØ]Ú
+JHßBˆKˆ^PÚ\™ÙTÛİ[™
+
+HÂˆHÂˆÛÛœİ]Y[ĞÛÛ^HÚ[™İË]Y[ĞÛÛ^Ú[™İËÙXšÚ]]Y[ĞÛÛ^ÂˆYˆ
+]\Ë˜]Y[Ğİ
+H\Ë˜]Y[ĞİH™]È]Y[ĞÛÛ^
+
+NÂˆYˆ
+\Ë˜]Y[Ğİœİ]HOOH	Üİ\Ü[™Y	ÊH\Ë˜]Y[Ğİœ™\İ[YJ
+NÂˆ\Ë˜Ú\™ÙSÜØÈH\Ë˜]Y[Ğİ˜Ü™X]SÜØÚ[]ÜŠ
+NÂˆ\Ë˜Ú\™ÙQØZ[ˆH\Ë˜]Y[Ğİ˜Ü™X]QØZ[Š
+NÂˆ\Ë˜Ú\™ÙSÜØË˜ÛÛ›™Xİ
+\Ë˜Ú\™ÙQØZ[ŠNÂˆ\Ë˜Ú\™ÙQØZ[‹˜ÛÛ›™Xİ
+\Ë˜]Y[Ğİ™\İ[˜][ÛŠNÂˆ]›İÈH\Ë˜]Y[Ğİ˜İ\œ™[[YNÂˆ\Ë˜Ú\™ÙSÜØË\HH	ÜÚ[™IÎÂˆ\Ë˜Ú\™ÙSÜØË™œ™\]Y[˜ŞKœÙ]˜[YP][YJL›İÊNÂˆ\Ë˜Ú\™ÙSÜØË™œ™\]Y[˜ŞK™^Û™[X[˜[\Õ˜[YP][YJ›İÈ
+ÈKJNÈˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹œÙ]˜[YP][YJ›İÊNÂˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJŒ‹›İÈ
+ÈŒŠNÈˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJK›İÈ
+ÈKJNÈˆ\Ë˜Ú\™ÙSÜØËœİ\
+›İÊNÂˆHØ]Ú
+JHßBˆKˆİÜÚ\™ÙTÛİ[™
+
+HÂˆHÂˆYŠ\Ë˜Ú\™ÙSÜØÈ	‰ˆ\Ë˜Ú\™ÙQØZ[ŠHÂˆ]›İÈH\Ë˜]Y[Ğİ˜İ\œ™[[YNÂˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹˜Ø[˜Ù[ØÚY[Y˜[Y\Ê›İÊNÂˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹œÙ]˜[YP][YJ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹˜[YK›İÊNÂˆ\Ë˜Ú\™ÙQØZ[‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJ›İÈ
+ÈŒJNÂˆ\Ë˜Ú\™ÙSÜØËœİÜ
+›İÈ
+ÈŒJNÂˆ\Ë˜Ú\™ÙSÜØÈH[ÂˆBˆHØ]Ú
+JHßBˆKˆ^Q[™ÑÛ™Ê
+HÂˆHÂˆÛÛœİ]Y[ĞÛÛ^HÚ[™İË]Y[ĞÛÛ^Ú[™İËÙXšÚ]]Y[ĞÛÛ^ÂˆYˆ
+]\Ë˜]Y[Ğİ
+H\Ë˜]Y[ĞİH™]È]Y[ĞÛÛ^
+
+NÂˆYˆ
+\Ë˜]Y[Ğİœİ]HOOH	Üİ\Ü[™Y	ÊH\Ë˜]Y[Ğİœ™\İ[YJ
+NÂˆ]ÜØÌHH\Ë˜]Y[Ğİ˜Ü™X]SÜØÚ[]ÜŠ
+NÈ]ØZ[ŒHH\Ë˜]Y[Ğİ˜Ü™X]QØZ[Š
+NÂˆ]ÜØÌˆH\Ë˜]Y[Ğİ˜Ü™X]SÜØÚ[]ÜŠ
+NÈ]ØZ[ŒˆH\Ë˜]Y[Ğİ˜Ü™X]QØZ[Š
+NÂˆÜØÌK˜ÛÛ›™Xİ
+ØZ[ŒJNÈØZ[ŒK˜ÛÛ›™Xİ
+\Ë˜]Y[Ğİ™\İ[˜][ÛŠNÂˆÜØÌ‹˜ÛÛ›™Xİ
+ØZ[ŒŠNÈØZ[Œ‹˜ÛÛ›™Xİ
+\Ë˜]Y[Ğİ™\İ[˜][ÛŠNÂˆˆ]›İÈH\Ë˜]Y[Ğİ˜İ\œ™[[YNÂˆÜØÌK\HH	ÜÚ[™IÎÈÜØÌK™œ™\]Y[˜ŞKœÙ]˜[YP][YJ›İÊNÈˆØZ[ŒK™ØZ[‹œÙ]˜[YP][YJ›İÊNÈØZ[ŒK™ØZ[‹›[™X\”˜[\Õ˜[YP][YJŒË›İÈ
+ÈŒŠNÈØZ[ŒK™ØZ[‹™^Û™[X[˜[\Õ˜[YP][YJŒK›İÈ
+ÈŒÊNÂˆÜØÌKœİ\
+›İÊNÈÜØÌKœİÜ
+›İÈ
+ÈŒÊNÂˆˆÜØÌ‹\HH	ÜÚ[™IÎÈÜØÌ‹™œ™\]Y[˜ŞKœÙ]˜[YP][YJNKŒK›İÈ
+ÈŒMJNÈˆØZ[Œ‹™ØZ[‹œÙ]˜[YP][YJ›İÈ
+ÈŒMJNÈØZ[Œ‹™ØZ[‹›[™X\”˜[\Õ˜[YP][YJŒË›İÈ
+ÈŒMÊNÈØZ[Œ‹™ØZ[‹™^Û™[X[˜[\Õ˜[YP][YJŒK›İÈ
+ÈŠNÂˆÜØÌ‹œİ\
+›İÈ
+ÈŒMJNÈÜØÌ‹œİÜ
+›İÈ
+ÈŠNÂˆHØ]Ú
+JHßBˆKœİÜ[]Y[Ê
+HÂˆYˆ
+Ú[™İËœÜYXÚŞ[\Ú\ÊHÚ[™İËœÜYXÚŞ[\Ú\Ë˜Ø[˜Ù[
+
+NÂˆYˆ
+\Ë—Øİ\œ™[]Y[ÊHÂˆ\Ë—Øİ\œ™[]Y[Ëœ]\ÙJ
+NÂˆ\Ë—Øİ\œ™[]Y[ËœÜ˜ÈH	ÉÎÂˆ\Ë—Øİ\œ™[]Y[ÈH[ÂˆBˆKš\ÔÜYXÚ[›ØÚÙYˆ˜[ÙKˆ[›ØÚÔÜYXÚ
+
+HÂ‚ˆHÈˆYˆ
+]Ú[™İËœÜYXÚŞ[\Ú\ÊH™]\›ÂˆYˆ
+]\Ëš˜U›ÚXÙPØXÚJHÂˆ]›ÚXÙ\ÈHÚ[™İËœÜYXÚŞ[\Ú\Ë™Ù]›ÚXÙ\Ê
+NÂˆ\Ëš˜U›ÚXÙPØXÚHH›ÚXÙ\Ë™š[™
+ˆOˆ‹›[™Ëš[˜ÛY\Ê	Ú˜IÊH‹›[™Ëš[˜ÛY\Ê	Ò”	ÊJNÂˆBˆYˆ
+\Ëš\ÔÜYXÚ[›ØÚÙY
+H™]\›Âˆ][›ØÚÈH™]ÈÜYXÚŞ[\Ú\Õ]\˜[˜ÙJ	ÉÊNÈˆ[›ØÚË›Û[YHHÈˆÚ[™İËœÜYXÚŞ[\Ú\ËœÜXZÊ[›ØÚÊNÈˆ\Ëš\ÔÜYXÚ[›ØÚÙYHYNÈˆHØ]Ú
+JHßBŸK™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙHH˜[ÙKÛÛÛ\]HH[[™ÈH	Ú˜KR”	ÊHÂˆYˆ
+]Ú[™İËœÜYXÚŞ[\Ú\ÊHÂˆYˆ
+ÛÛÛ\]JHÛÛÛ\]J
+NÂˆ™]\›ÂˆBˆˆÙ][Y[İ]
+
+
+HOˆÂˆ]\ÙÈH™]ÈÜYXÚŞ[\Ú\Õ]\˜[˜ÙJ^
+NÂˆ\ÙË›[™ÈH[™ÎÂˆ\ÙËœ˜]HH\ÔÙ[[˜ÙHÈÍHˆÂˆˆ]›ÚXÙ\ÈHÚ[™İËœÜYXÚŞ[\Ú\Ë™Ù]›ÚXÙ\Ê
+NÂˆYˆ
+[™ÈOOH	Ù[‹UTÉÊHÂˆYˆ
+]\Ë™[•›ÚXÙPØXÚJH\Ë™[•›ÚXÙPØXÚHH›ÚXÙ\Ë™š[™
+ˆOˆ‹›[™Ëš[˜ÛY\Ê	Ù[‰ÊH	‰ˆ
+‹›[™Ëš[˜ÛY\Ê	ÕTÉÊH‹›[™Ëš[˜ÛY\Ê	ÑĞ‰ÊJJNÂˆYˆ
+\Ë™[•›ÚXÙPØXÚJH\ÙË›ÚXÙHH\Ë™[•›ÚXÙPØXÚNÂˆH[ÙHYˆ
+[™ÈOOH	ŞšPÓ‰ÊHÂˆYˆ
+]\Ëš›ÚXÙPØXÚJH\Ëš›ÚXÙPØXÚHH›ÚXÙ\Ë™š[™
+ˆOˆ‹›[™Ëš[˜ÛY\Ê	Şš	ÊH‹›[™Ëš[˜ÛY\Ê	ĞÓ‰ÊJNÂˆYˆ
+\Ëš›ÚXÙPØXÚJH\ÙË›ÚXÙHH\Ëš›ÚXÙPØXÚNÂˆH[ÙHÂˆYˆ
+]\Ëš˜U›ÚXÙPØXÚJH\Ëš˜U›ÚXÙPØXÚHH›ÚXÙ\Ë™š[™
+ˆOˆ‹›[™Ëš[˜ÛY\Ê	Ú˜IÊH‹›[™Ëš[˜ÛY\Ê	Ò”	ÊJNÂˆYˆ
+\Ëš˜U›ÚXÙPØXÚJH\ÙË›ÚXÙHH\Ëš˜U›ÚXÙPØXÚNÂˆBˆˆYˆ
+ÛÛÛ\]JHÂˆ\ÙË›Û™[™HÛÛÛ\]NÂˆ\ÙË›Û™\œ›ÜˆHÛÛÛ\]NÂˆBˆˆYˆ
+Ú[™İËœÜYXÚŞ[\Ú\Ëœ]\ÙY
+HÚ[™İËœÜYXÚŞ[\Ú\Ëœ™\İ[YJ
+NÂˆÚ[™İËœÜYXÚŞ[\Ú\ËœÜXZÊ\ÙÊNÂˆKL
+NÂŸK‚‚‹ËÈ[\ˆÜXZÈH\›ÜšX]H^›ÜˆHÛÜ™˜\ÙYÛˆ]È[™İXYÙBœÜXZÕÛÜ™
+Ë‘[
+HÂˆYˆ
+]ÊH™]\›ÂˆÛÛœİ\Ñ[™Û\ÚHË›[™ÈOOH	Ù[‰ÎÂˆÛÛœİ^H\Ñ[™Û\ÚˆÈ
+ËÛÜ™	ÉÊHˆˆ
+
+ËšØ[˜H	ÉÊKœ™\XÙJÖøà$8à$W×J
+WKÙË	ÉÊJNÂˆ\ËœÜXZÕ^
+^‘[\Ñ[™Û\ÚÈ	Ù[‰Èˆ	Ú˜IÊNÂŸK‚˜\Ş[˜ÈÜXZÕ^
+^‘[H[[™ÈH	Ú˜IÊHÂˆHÂˆYˆ
+\[Ùˆ^OOH	Üİš[™ÉÈ^š[J
+HOOH	ÉÊH™]\›ÂˆYˆ
+Ú[™İËœÜYXÚŞ[\Ú\ÊHÚ[™İËœÜYXÚŞ[\Ú\Ë˜Ø[˜Ù[
+
+NÂˆYˆ
+\Ë—Øİ\œ™[]Y[ÊHÂˆ\Ë—Øİ\œ™[]Y[Ëœ]\ÙJ
+NÂˆ\Ë—Øİ\œ™[]Y[ÈH[ÂˆBˆˆ]XÛÛ‘[H[È]ÜšYÚ[˜[XÛÛˆH	ÉÎÂˆYˆ
+‘[
+HÂˆ‘[˜Û\ÜÓ\İ˜Y
+	ÜÜXZÙ\‹[ØY[™ÉÊNÂˆXÛÛ‘[H‘[˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ÛX]\šX[\Ş[X›ÛË\›İ[™Y	ÊHÈ‘[ˆ‘[œ]Y\TÙ[XİÜŠ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	ÊNÂˆYˆ
+XÛÛ‘[
+HÈÜšYÚ[˜[XÛÛˆHXÛÛ‘[š[›™\•^ÈXÛÛ‘[š[›™\•^H	ÜÜIÎÈBˆB‚ˆÛÛœİ™]™\ˆH
+
+HOˆÈYˆ
+‘[
+HÈ‘[˜Û\ÜÓ\İœ™[[İ™J	ÜÜXZÙ\‹[ØY[™ÉÊNÈYˆ
+XÛÛ‘[
+HXÛÛ‘[š[›™\•^HÜšYÚ[˜[XÛÛˆ	İ›Û[YWİ\	ÎÈHNÂ‚ˆ]\ÔÙ[[˜ÙHH^›[™İˆLˆÖøà »ï'ûï {ï#8à WKË\İ
+^
+NÂˆ][™Ú[™HHØØ[İÜ˜YÙK™Ù]][J	İÑ[™Ú[™IÊH	Ø^\™IÎÂˆÛÛœİÓ[™ÈH[™ÈOOH	Ù[‰ÈÈ	Ù[‹UTÉÈˆ
+[™ÈOOH	Şš	ÈÈ	ŞšPÓ‰Èˆ	Ú˜KR”	ÊNÂ‚‚ˆYˆ
+[™Ú[™HOOH	ÛØØ[	È
+[™Ú[™HOOH	Ş[İY[ÉÈ	‰ˆ\ÔÙ[[˜ÙJJHÂˆ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙK™]™\‹Ó[™ÊNÂˆ™]\›ÂŸB‚šYˆ
+[™Ú[™HOOH	Ş[İY[ÉÊHÂˆÛÛœİ[™Ô\˜[HH[™ÈOOH	Ù[‰ÈÈ	Ù[™ÉÈˆ
+[™ÈOOH	Şš	ÈÈ	Şš	Èˆ	Ú˜\	ÊNÂˆÛÛœİ\›HÎ‹ËÙXİ[İY[Ë˜ÛÛKÙXİ›ÚXÙOØ]Y[ÏIÙ[˜ÛÙUT’PÛÛ\Û™[
+^
+_I›OIÛ[™Ô\˜[_XÂˆYˆ
+\Ë—Øİ\œ™[]Y[ÊHÂˆ\Ë—Øİ\œ™[]Y[Ëœ]\ÙJ
+NÂˆ\Ë—Øİ\œ™[]Y[ËœÜ˜ÈH	ÉÎÂˆ\Ë—Øİ\œ™[]Y[Ë›ØY
+
+NÂˆ\Ë—Øİ\œ™[]Y[ÈH[ÂˆBˆÛÛœİ]Y[ÈH™]È]Y[Ê\›
+NÂˆ]Y[Ëœ^X˜XÚÔ˜]HHNÂˆ]Y[Ë›Û˜Ø[œ^]›İYÚH™]™\Èˆ]Y[Ë›Û™\œ›ÜˆH
+
+HOˆÈ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙK™]™\‹Ó[™ÊNÈNÂˆ\Ë—Øİ\œ™[]Y[ÈH]Y[ÎÂˆ]Y[Ëœ^J
+K˜Ø]Ú
+
+
+HOˆÈ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙK™]™\‹Ó[™ÊNÈJNÂˆ™]\›ÂŸBšYˆ
+[™Ú[™HOOH	Ø^\™IÊHÂˆÛÛœİÛÜšÙ\•\›HšÎ‹ËÚXšØK›[Ş]MMÌËÛÜšÙ\œË™]‹İŒKØ]Y[ËÜÜYXÚÂˆ]›ÚXÙHH	Ú˜KR”S˜[˜[ZS™]\˜[	ÎÂˆYˆ
+[™ÈOOH	Ù[‰ÊH›ÚXÙHH	Ù[‹UTËP\šXS™]\˜[	ÎÂˆYˆ
+[™ÈOOH	Şš	ÊH›ÚXÙHH	ŞšPÓ‹VX[ŞX[Ó™]\˜[	ÎÂˆˆÛÛœİ™\ÜÛœÙHH]ØZ]™]Ú
+ÛÜšÙ\•\›ÈY]Ùˆ”ÔÕ‹ˆXY\œÎˆÈÛÛ[U\Hˆ˜\XØ][Û‹ÚœÛÛˆˆKˆ›ÙNˆ”ÓÓ‹œİš[™ÚYJÈ[Ù[ˆËLH‹[œ]ˆ^›ÚXÙNˆ›ÚXÙHJBˆJNÂ‚ˆYˆ
+\™\ÜÛœÙK›ÚÊH›İÈ™]È\œ›ÜŠ^\™HTH:+íù¬`¹i,z-)HŠNÂˆÛÛœİ›ØˆH]ØZ]™\ÜÛœÙK˜›ØŠ
+NÂˆˆYˆ
+\Ë—Øİ\œ™[]Y[ÊHÂˆ\Ë—Øİ\œ™[]Y[Ëœ]\ÙJ
+NÂˆYˆ
+\Ë—Øİ\œ™[]Y[ËœÜ˜ÊHT“œ™]›ÚÙSØš™XİT“
+\Ë—Øİ\œ™[]Y[ËœÜ˜ÊNÂˆ\Ë—Øİ\œ™[]Y[ÈH[ÂˆB‚ˆÛÛœİ]Y[ÈH™]È]Y[ÊT“˜Ü™X]SØš™XİT“
+›ØŠJNÂˆ]Y[Ëœ^X˜XÚÔ˜]HH\ÔÙ[[˜ÙHÈÍHˆNÂˆ]Y[Ë›Û˜Ø[œ^]›İYÚH™]™\Èˆ]Y[Ë›Û™\œ›ÜˆH
+
+HOˆÈ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙK™]™\‹Ó[™ÊNÈNÂˆ\Ë—Øİ\œ™[]Y[ÈH]Y[ÎÂˆ]Y[Ëœ^J
+K˜Ø]Ú
+
+
+HOˆÈ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙK™]™\‹Ó[™ÊNÈJNÂŸBˆHØ]Ú
+JHÂˆÛÛœÛÛKØ\›Š–Õ×H9g*9î¯ùo%y¤ã¹i,y¥b;ï#:fcyî©ù..¹§+9g,9cäzgìÈ‹JNÂˆYˆ
+‘[
+HÈ‘[˜Û\ÜÓ\İœ™[[İ™J	ÜÜXZÙ\‹[ØY[™ÉÊNÈ]HH‘[œ]Y\TÙ[XİÜŠ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	ÊNÈYŠJHKš[›™\•^H	İ›Û[YWİ\	ÎÈBˆ\Ë™˜[˜XÚÓØØ[Ê^\ÔÙ[[˜ÙJNÂˆBˆBŸNÂ‚˜ÛÛœİšY]ÈHÂˆÙ][ˆ
+Y
+HOˆØİ[Y[™Ù][[Y[RY
+Y
+K‚ˆ^TİYQ™YY˜XÚÊ\JHÂˆÛÛœİØ\™H\Ë™Ù][
+	Ù›\ÚXØ\™	ÊNÂˆYˆ
+XØ\™
+H™]\›Â‚ˆÛÛœİÛÜœ™XİÛ\ÜÈH	ÜİYKY™YY˜XÚËXÛÜœ™Xİ	ÎÂˆÛÛœİÜ›Û™ĞÛ\ÜÈH	ÜİYKY™YY˜XÚË]Ü›Û™ÉÎÂˆÛÛœİXİ]™PÛ\ÜÈH\HOOH	ØÛÜœ™Xİ	ÈÈÛÜœ™XİÛ\ÜÈˆÜ›Û™ĞÛ\ÜÎÂ‚ˆØ\™˜Û\ÜÓ\İœ™[[İ™JÛÜœ™XİÛ\ÜËÜ›Û™ĞÛ\ÜÊNÂˆ›ÚYØ\™›Ù™œÙ]ÚYÂˆØ\™˜Û\ÜÓ\İ˜Y
+Xİ]™PÛ\ÜÊNÂ‚ˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆØ\™˜Û\ÜÓ\İœ™[[İ™JXİ]™PÛ\ÜÊNÂˆK\HOOH	ØÛÜœ™Xİ	ÈÈÍŒˆÌ
+NÂˆK‚ˆ™]™X[İYQ[[Y[
+[
+HÂˆYˆ
+Y[
+H™]\›Â‚ˆ[˜Û\ÜÓ\İœ™[[İ™J	Ø›\‹]^	Ë	Ø[œİÙ\‹\™]™X[	ÊNÂˆ[œ™[[İ™P]šX]J	Ø\šXKZY[‰ÊNÂ‚ˆ›ÚY[›Ù™œÙ]ÚYÂˆ[˜Û\ÜÓ\İ˜Y
+	Ø[œİÙ\‹\™]™X[	ÊNÂ‚ˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆ[˜Û\ÜÓ\İœ™[[İ™J	Ø[œİÙ\‹\™]™X[	ÊNÂˆKŒ
+NÂˆK‚ˆ™]™X[İYP[œİÙ\Š
+HÂˆÛÛœİ[[Y[ÈHÂˆ\Ë™Ù][
+	İË]ÛÜ™	ÊKˆ\Ë™Ù][
+	İËZØ[˜IÊKˆ\Ë™Ù][
+	İË]\IÊKˆ\Ë™Ù][
+	İË[YX[š[™ÉÊKˆ\Ë™Ù][
+	İË\›ÛİÉÊKˆ\Ë™Ù][
+	İËY^[\KX›Ş	ÊBˆK™š[\Š[OˆÂˆ™]\›ˆ[	‰ˆ[œİ[K™\Ü^HOOH	Û›Û™IÈ	‰ˆY[˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ÚY[‰ÊNÂˆJNÂ‚ˆ[[Y[Ë™›Ü‘XXÚ
+
+[[™^
+HOˆÂˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆ\Ëœ™]™X[İYQ[[Y[
+[
+NÂˆK[™^
+ˆ
+NÂˆJNÂˆKˆˆÚİÔYÙJYÙRY
+HÂˆ]İYP\™XHH\Ë™Ù][
+	ÜİYKX\™XIÊNÂˆ]›İÛS˜]ˆH\Ë™Ù][
+	Ø›İÛK[˜]‰ÊNÂˆ]ÛØ˜[XY\ˆH\Ë™Ù][
+	ÙÛØ˜[ZXY\‰ÊNÂ‚ˆYˆ
+YÙRYOOH	ÜİYKX\™XIÊHÂˆİYP\™XK˜Û\ÜÓ\İœ™[[İ™J	ÚY[‰ÊNÂˆYŠ›İÛS˜]ŠH›İÛS˜]‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJML	JIÎÂˆYŠÛØ˜[XY\ŠHÛØ˜[XY\‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJLML	JIÎÂˆH[ÙHÂˆİYP\™XK˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂˆYŠ›İÛS˜]ŠH›İÛS˜]‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJ
+IÎÂˆYŠÛØ˜[XY\ŠHÛØ˜[XY\‹œİ[K˜[œÙ›Ü›HH	İ˜[œÛ]VJ
+IÎÂˆBˆKˆˆÙÙÛU[YJJHÂˆ]\Ñ\šÈHØİ[Y[˜›ÙK™Ù]]šX]J	Ù]K][YIÊHOOH	Ù\šÉÎÂˆ]ÙÙÛPXİ[ÛˆH
+
+HOˆÂˆYˆ
+\Ñ\šÊHÈØİ[Y[˜›ÙKœ™[[İ™P]šX]J	Ù]K][YIÊNÈØØ[İÜ˜YÙKœÙ]][J	İ[YIË	ÛYÚ	ÊNÈØİ[Y[œ]Y\TÙ[XİÜ[
+	Ë[YKZXÛÛ‰ÊK™›Ü‘XXÚ
+XÛÛˆOˆXÛÛ‹š[›™\•^H	ÛYÚÛ[ÙIÊNÈHˆ[ÙHÈØİ[Y[˜›ÙKœÙ]]šX]J	Ù]K][YIË	Ù\šÉÊNÈØØ[İÜ˜YÙKœÙ]][J	İ[YIË	Ù\šÉÊNÈØİ[Y[œ]Y\TÙ[XİÜ[
+	Ë[YKZXÛÛ‰ÊK™›Ü‘XXÚ
+XÛÛˆOˆXÛÛ‹š[›™\•^H	Ù\š×Û[ÙIÊNÈBˆNÂˆYˆ
+YØİ[Y[œİ\šY]Õ˜[œÚ][ÛŠHÈÙÙÛPXİ[ÛŠ
+NÈ™]\›ÈBˆÛÛœİHHÈ
+K˜ÛY[
+KİXÚ\È	‰ˆKİXÚ\ÖÌK˜ÛY[
+JHˆÚ[™İËš[›™\•ÚYÈÂˆÛÛœİHHHÈ
+K˜ÛY[H
+KİXÚ\È	‰ˆKİXÚ\ÖÌK˜ÛY[JJHˆÚ[™İËš[›™\’ZYÚÈÂˆÛÛœİ[™˜Y]\ÈHX]š\İ
+X]›X^
+Ú[™İËš[›™\•ÚYH
+KX]›X^
+KÚ[™İËš[›™\’ZYÚHJJNÂˆØİ[Y[™Øİ[Y[[[Y[˜Û\ÜÓ\İ˜Y
+	İ[YK\İÚ]Ú[™ÉÊNÂˆÛÛœİ˜[œÚ][ÛˆHØİ[Y[œİ\šY]Õ˜[œÚ][ÛŠÙÙÛPXİ[ÛŠNÂˆ˜[œÚ][Û‹œ™XYK[Š
+
+HOˆÂˆØİ[Y[™Øİ[Y[[[Y[˜[š[X]JÈÛ\]ˆØÚ\˜ÛJ]	Ş\	Ş_\
+XÚ\˜ÛJ	Ù[™˜Y]\ß\]	Ş\	Ş_\
+XKÜXÚ]NˆÌKWHKÈ\˜][ÛˆX\Ú[™Îˆ	ØİXšXËX™^šY\ŠŒ‹ŒKŒ
+IËÙ]YÑ[[Y[ˆ	ÎšY]Ë]˜[œÚ][Û‹[™]Ê›Ûİ
+IÈJNÂˆØİ[Y[™Øİ[Y[[[Y[˜[š[X]JÈš[\ˆÉØœšYÚ™\ÜÊJH›\Š
+IË	ØœšYÚ™\ÜÊŠH›\Š
+I×HKÈ\˜][ÛˆX\Ú[™Îˆ	ØİXšXËX™^šY\ŠŒ‹ŒKŒ
+IËÙ]YÑ[[Y[ˆ	ÎšY]Ë]˜[œÚ][Û‹[Û
+›Ûİ
+IÈJNÂˆJNÂˆ˜[œÚ][Û‹™š[š\ÚY[Š
+
+HOˆÈØİ[Y[™Øİ[Y[[[Y[˜Û\ÜÓ\İœ™[[İ™J	İ[YK\İÚ]Ú[™ÉÊNÈJNÂˆKˆˆ™[™\”›ÛİÊ›ÛİÔİ‹X\ÚÕ^H˜[ÙKX\ÚÓYX[ˆH˜[ÙJHÂˆYˆ
+\›ÛİÔİŠH™]\›ˆ	ÉÎÂˆ]X\ÚÑš^YH¸¥¨8¥¨8¥¨Èˆ™]\›ˆ›ÛİÔİ‹œÜ]
+	ËIÊK›X\
+
+\[™^
+HOˆÂˆ]X]ÚH\›X]Ú
+ÊŠÏÊW
+
+ŠÏÊW
+KÊNÂˆYˆ
+X]Ú
+HÂˆ]™X[H\ØØ\RS
+X]ÚÌWJNÂˆ]T™X[H\ØØ\RS
+X]ÚÌ—JNÂˆ]HX\ÚÕ^ÈX\ÚÑš^Yˆ™X[Âˆ]HHX\ÚÓYX[ˆÈX\ÚÑš^YˆT™X[Âˆ™]\›ˆ]ˆÛ\ÜÏHœ›ÛİXØ\İ[HØ\İ[KIÚ[™^	HßHÜ[ˆÛ\ÜÏHœ‹]^›\‹]\™Ù]ˆ]K\™X[H‰İ™X[H‰İOÜÜ[Ü[ˆÛ\ÜÏHœ‹[YX[ˆ›\‹]\™Ù]ˆ]K\™X[H‰ÛT™X[H‰Û_OÜÜ[Ù]˜ÂˆBˆ]™X[H\ØØ\RS
+\
+NÂˆ]HX\ÚÕ^ÈX\ÚÑš^Yˆ™X[Âˆ™]\›ˆ]ˆÛ\ÜÏHœ›ÛİXØ\İ[HØ\İ[KIÚ[™^	HßHÜ[ˆÛ\ÜÏHœ‹]^›\‹]\™Ù]ˆ]K\™X[H‰İ™X[H‰İOÜÜ[Ù]˜ÂˆJKš›Ú[Š	ÏÜ[ˆÛ\ÜÏHœ›Ûİ\\ÈŠÏÜÜ[‰ÊNÂˆK‚ˆŞ[˜Ô›ÛİÑ\Ü^J
+HÂˆ]›ÛİÑ[H\Ë™Ù][
+	İË\›ÛİÉÊNÂˆYˆ
+\›ÛİÑ[›ÛİÑ[œİ[K™\Ü^HOOH	Û›Û™IÊH™]\›Âˆˆ]ÕÛÜ™H\Ë™Ù][
+	İË]ÛÜ™	ÊNÂˆ]ÓYX[ˆH\Ë™Ù][
+	İË[YX[š[™ÉÊNÂˆˆ]ÛÜ™š\ÈHÕÛÜ™	‰ˆÕÛÜ™œİ[K™\Ü^HOOH	Û›Û™IÈ	‰ˆ]ÕÛÜ™š[›™\•^š[˜ÛY\Ê	ø¥¨	ÊNÂˆ]YX[•š\ÈHÓYX[ˆ	‰ˆÓYX[‹œİ[K™\Ü^HOOH	Û›Û™IÈ	‰ˆ]ÓYX[‹š[›™\•^š[˜ÛY\Ê	ø¥¨	ÊNÂ‚ˆ›ÛİÑ[œ]Y\TÙ[XİÜ[
+	Ëœ‹]^	ÊK™›Ü‘XXÚ
+ˆOˆÂˆ‹š[›™\’SHÛÜ™š\ÈÈ
+‹™]\Ù]œ™X[	ø¥¨8¥¨8¥¨	ÊHˆ	ø¥¨8¥¨8¥¨	ÎÂˆJNÂˆ›ÛİÑ[œ]Y\TÙ[XİÜ[
+	Ëœ‹[YX[‰ÊK™›Ü‘XXÚ
+ˆOˆÂˆ‹š[›™\’SHYX[•š\ÈÈ
+‹™]\Ù]œ™X[	ø¥¨8¥¨8¥¨	ÊHˆ	ø¥¨8¥¨8¥¨	ÎÂˆJNÂˆK‚‚‚ˆÙ]Ø\™š\İX[Ê\Tİ‹[™ÊHÂˆYˆ
+]\TİŠH™]\›ˆÈ™Îˆ	İ˜\ŠK\İ\™˜XÙKXÛÛZ[™\ŠIËÛNˆ	ÉËYÜÒSˆ	ÉÈNÂˆˆËÈ[™Û\ÚÛÜ™Îˆ\ÙHÚ[\HÔÈX˜œ™]šX][ÛœÈ\ÈØ]\›X\šÂˆYˆ
+[™ÈOOH	Ù[‰ÊHÂˆÊ‚ˆ
+ˆ9¦/¹é.¹l`¹îéùîëyao9k®yi&¹éãz+ãy )ùb!ºf¥9ë)»ï#ˆ
+ˆ9clù/où¥éù¥l9£k¹l&¹§*¹îãú/áú/àyéîûï#9.gú ïy«hùèk¹¦/¹é.¹cã:"l¹chyâaøà ‚ˆ
+‹Âˆ]YÜÈHİš[™Ê\TİŠBˆœÜ]
+ÖøàîËûï#øà K;ï#ûï&ßJËÊBˆ›X\
+\HOˆ\Kš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂ‚ˆYˆ
+YÜË›[™İOOH
+HÂˆYÜÈHÔİš[™Ê\TİŠKš[J
+WNÂˆB‚ˆÛÛœİÙ][™Û\ÚØ]\›X\šÈH\HOˆÂˆYˆ
+\Kš[˜ÛY\Ê	ùd#z+ãIÊH\HOOH	ùd#IÊHÂˆ™]\›ˆ	Û‹‰ÎÂˆB‚ˆYˆ
+\Kš[˜ÛY\Ê	ùbª:+ãIÊH\HOOH	ùbª	ÊHÂˆ™]\›ˆ	İ‹‰ÎÂˆB‚ˆYˆ
+ˆ\Kš[˜ÛY\Ê	ùoh¹k®z+ãIÊH	‰‚ˆ]\Kš[˜ÛY\Ê	ùoh¹k®ybª:+ãIÊBˆ
+HÂˆ™]\›ˆ	ØY‹‰ÎÂˆB‚ˆYˆ
+\Kš[˜ÛY\Ê	ùbkú+ãIÊJHÂˆ™]\›ˆ	ØY‹‰ÎÂˆB‚ˆYˆ
+\Kš[˜ÛY\Ê	ù.âú+ãIÊJHÂˆ™]\›ˆ	Ü™\‰ÎÂˆB‚ˆYˆ
+ˆ\Kš[˜ÛY\Ê	ú/çº+ãIÊHˆ\Kš[˜ÛY\Ê	ú/ç¹£©IÊBˆ
+HÂˆ™]\›ˆ	ØÛÛš‹‰ÎÂˆB‚ˆYˆ
+\Kš[˜ÛY\Ê	ù.èú+ãIÊJHÂˆ™]\›ˆ	Ü›Û‹‰ÎÂˆB‚ˆ™]\›ˆ\K˜Ú\]
+
+NÂˆNÂ‚ˆÛÛœİØ]\›X\šÒ][\ÈHÂˆ‹‹›™]ÈÙ]
+ˆYÜÂˆ›X\
+Ù][™Û\ÚØ]\›X\šÊBˆ™š[\Š›ÛÛX[ŠBˆ
+BˆKœÛXÙJŠNÂ‚ˆÛÛœİ[•ÛHBˆØ]\›X\šÒ][\Ë›[™İˆBˆÈÜ[ˆÛ\ÜÏHÛK[][H‰İØ]\›X\šÒ][\Ëš›Ú[Š	øàîÉÊ_OÜÜ[˜ˆˆ
+Ø]\›X\šÒ][\ÖÌH	ÉÊNÂ‚ˆÛÛœİÙ]Ø]H\HOˆÂˆYˆ
+ˆ\Kš[˜ÛY\Ê	ùoh¹k®ybª:+ãIÊHˆ\Kš[˜ÛY\Ê	ùoh¹bª	ÊHˆ\Kš[˜ÛY\Ê	ùoh¹k®z+ãIÊBˆ
+HÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™ËXYŠIÈNÂˆB‚ˆYˆ
+ˆ\Kš[˜ÛY\Ê	ùbª:+ãIÊHˆ\HOOH	ùbª	Âˆ
+HÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë]™\˜ŠIÈNÂˆB‚ˆYˆ
+ˆ\Kš[˜ÛY\Ê	ùd#z+ãIÊHˆ\HOOH	ùd#IÂˆ
+HÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë[›İ[ŠIÈNÂˆB‚ˆYˆ
+ˆ\Kš[˜ÛY\Ê	ùbkú+ãIÊHˆ\Kš[˜ÛY\Ê	ù£©IÊBˆ
+HÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™ËXYŠIÈNÂˆB‚ˆYˆ
+\Kš[˜ÛY\Ê	ù.èú+ãIÊJHÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë\›Û›İ[ŠIÈNÂˆB‚ˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë[İ\ŠIÈNÂˆNÂ‚ˆÛÛœİXZ[ÛÛÜœÈH×NÂ‚ˆÛÛœİYÜÒSHYÜÂˆ›X\
+\HOˆÂˆÛÛœİØ][™›ÈHÙ]Ø]
+\JNÂˆXZ[ÛÛÜœËœ\Ú
+Ø][™›Ë˜ÛÛÜŠNÂ‚ˆ™]\›ˆ
+ˆÜ[ˆÛ\ÜÏH\KXØ\İ[Hˆ
+Âˆİ[OH˜˜XÚÙÜ›İ[™ˆ	ØØ][™›Ë˜ÛÛÜŸNÈ˜
+Âˆ	Ù\ØØ\RS
+\J_X
+ÂˆÜÜ[˜ˆ
+NÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆÛÛœİ[š\]YPÛÛÜœÈHÂˆ‹‹›™]ÈÙ]
+XZ[ÛÛÜœÊBˆNÂ‚ˆ]™ÈBˆ[š\]YPÛÛÜœÖÌHˆ	İ˜\ŠK\İ\™˜XÙKXÛÛZ[™\ŠIÎÂ‚ˆYˆ
+[š\]YPÛÛÜœË›[™İHŠHÂˆ™ÈBˆ[™X\‹YÜ˜YY[
+
+ÂˆLÍYYË
+Âˆ	İ[š\]YPÛÛÜœÖÌ_HL	K
+Âˆ	İ[š\]YPÛÛÜœÖÌW_HL	X
+Âˆ
+XÂˆB‚ˆYˆ
+ˆ™ÈOOH	İ˜\ŠK\İ\™˜XÙKXÛÛZ[™\ŠIÈ	‰‚ˆYÜÒSˆ
+HÂˆ™ÈH	İ˜\ŠKX™Ë[İ\ŠIÎÂˆB‚ˆ™]\›ˆÂˆ™ËˆÛNˆ[•ÛKˆYÜÒSˆNÂˆBˆˆËÈ˜\[™\ÙHÛÜ™ÎˆÙY\ÜšYÚ[˜[Ü˜[[X\ˆÚ\˜Xİ\ˆØ]\›X\šÂˆ]ÛTÙ]H™]ÈÙ]
+
+NÂˆYˆ
+\Tİ‹š[˜ÛY\Ê	ú!ê¹.å‰ÊJHÈÛTÙ]˜Y
+	øàc	ÊNÈÛTÙ]˜Y
+	øà¤‰ÊNÈBˆ[ÙHÂˆYˆ
+\Tİ‹š[˜ÛY\Ê	ú!ê‰ÊJHÛTÙ]˜Y
+	øàc	ÊNÂˆYˆ
+\Tİ‹š[˜ÛY\Ê	ù.å‰ÊJHÛTÙ]˜Y
+	øà¤‰ÊNÂˆBˆYˆ
+\Tİ‹š[˜ÛY\Ê	ùoh¹bª	ÊH\Tİ‹š[˜ÛY\Ê	ùoh¹k®ybª:+ãIÊJHÛTÙ]˜Y
+	øàj‰ÊNÂˆYˆ
+\Tİ‹š[˜ÛY\Ê	ùd#IÊJHÛTÙ]˜Y
+	øàk‰ÊNÂ‚ˆ]ÛP\œ˜^HH\œ˜^K™œ›ÛJÛTÙ]
+KœÛXÙJŠNÂˆ]ÛHHÛP\œ˜^K›[™İˆHÈÜ[ˆÛ\ÜÏHÛK[][H‰İÛP\œ˜^Kš›Ú[Š	øàîÉÊ_OÜÜ[˜ˆÛP\œ˜^Kš›Ú[Š	ÉÊNÂ‚ˆÛÛœİÙ]Ø]H
+
+HOˆÂˆYˆ
+š[˜ÛY\Ê	ùoh¹k®ybª:+ãIÊHš[˜ÛY\Ê	ùoh¹bª	ÊJH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™ËXY‹[˜JIÈNÂˆYˆ
+š[˜ÛY\Ê	ùoh‰ÊJH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™ËXYŠIÈNÂˆYˆ
+Öù«­yi"ycæ9båz!ê¹.å¸à­WKË\İ
+
+JH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë]™\˜ŠIÈNÂˆYˆ
+š[˜ÛY\Ê	ù.èÉÊJH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë\›Û›İ[ŠIÈNÂˆYˆ
+š[˜ÛY\Ê	ùd#IÊJH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë[›İ[ŠIÈNÂˆYˆ
+š[˜ÛY\Ê	ùbkÉÊHš[˜ÛY\Ê	ù£©IÊJH™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™ËXYŠIÈNÂˆ™]\›ˆÈÛÛÜˆ	İ˜\ŠKX™Ë[İ\ŠIÈNÈˆNÂˆ]YÜÈH\Tİ‹œÜ]
+	øàîÉÊK›X\
+Oˆš[J
+JK™š[\ŠOˆ
+NÂˆYˆ
+YÜË›[™İOOH
+HYÜÈHİ\Tİ—NÈˆ]XZ[ÛÛÜœÈH×NÂˆ]YÜÒSHYÜË›X\
+OˆÂˆ]Ø][™›ÈHÙ]Ø]
+
+NÈXZ[ÛÛÜœËœ\Ú
+Ø][™›Ë˜ÛÛÜŠNÂˆ™]\›ˆÜ[ˆÛ\ÜÏH\KXØ\İ[Hˆİ[OH˜˜XÚÙÜ›İ[™ˆ	ØØ][™›Ë˜ÛÛÜŸNÈ‰İOÜÜ[˜ÂˆJKš›Ú[Š	ÉÊNÂˆ][š\]YPÛÛÜœÈHË‹‹›™]ÈÙ]
+XZ[ÛÛÜœÊWNÂˆ]™ÈH[š\]YPÛÛÜœÖÌH	İ˜\ŠK\İ\™˜XÙKXÛÛZ[™\ŠIÎÂˆYˆ
+[š\]YPÛÛÜœË›[™İHŠHÈ™ÈH[™X\‹YÜ˜YY[
+LÍYYË	İ[š\]YPÛÛÜœÖÌ_HL	K	İ[š\]YPÛÛÜœÖÌW_HL	JXÈBˆYˆ
+™ÈOOH	İ˜\ŠK\İ\™˜XÙKXÛÛZ[™\ŠIÈ	‰ˆYÜÒS
+HÂˆ™ÈH	İ˜\ŠKX™Ë[İ\ŠIÎÂˆBˆ™]\›ˆÈ™ËÛKYÜÒSNÂˆK‚ˆ\]PÛÛX›Ğ˜YÙJ
+HÂˆ]˜YÙHH\Ë™Ù][
+	ØÛÛX›ËX˜YÙIÊNÂˆYˆ
+X˜YÙJH™]\›Â‚ˆYˆ
+[Ù[œİ]K›[ÙHOOH	Ü›İK[X\›š[™ÉÈ	‰ˆ[Ù[œİ]K›[ÙHOOH	ÙX[]˜XÚÉÈ	‰ˆ[Ù[œİ]K›[ÙHOOH	ÛY[[ÜK]\İ	ÊHÂˆ˜YÙK˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IË	İY\‹L‰Ë	İY\‹LÉÊNÂˆ™]\›ÂˆBˆˆ]Ûİ[H[Ù[œİ]K˜ÛÛX›ĞÛİ[ÂˆYˆ
+Ûİ[ˆ
+HÂˆ˜YÙKš[›™\•^HÛÛX›È	ØÛİ[XÂˆ˜YÙK˜Û\ÜÓ˜[YHH	ØÛÛX›ËX˜YÙHXİ]™IÎÂˆ›ÚY˜YÙK›Ù™œÙ]ÚYÈˆ˜YÙK˜Û\ÜÓ\İ˜Y
+	ØÛÛX›Ë\Ü	ÊNÂ‚ˆYˆ
+Ûİ[HL
+H˜YÙK˜Û\ÜÓ\İ˜Y
+	İY\‹LÉÊNÂˆ[ÙHYˆ
+Ûİ[HJH˜YÙK˜Û\ÜÓ\İ˜Y
+	İY\‹L‰ÊNÂˆH[ÙHÂˆ˜YÙK˜Û\ÜÓ˜[YHH	ØÛÛX›ËX˜YÙIÎÂˆBˆKˆˆ\]T^[X]š^
+
+HÂˆ]ÈH\Ë™Ù][
+	Ü^[[X]š^	ÊNÂˆ][ÙHH[Ù[œİ]K›[ÙNÂˆˆ]İ[^[ÈHLÂˆ]\Ü^Pİ\œ™[HÂˆˆYˆ
+[ÙHOOH	ÛY[[ÜK]\İ	ÊHÂˆ]İ[H[Ù[œİ]K›]˜\ÙT]Y]YK›[™İÂˆİ[^[ÈHİ[Âˆ\Ü^Pİ\œ™[Hİ[H[Ù[œİ]KœİYT]Y]YK›[™İÂˆH[ÙHYˆ
+[ÙHOOH	Ùš[\‹]\İ	ÊHÂˆ]İ[ÛÜ™ÈH[Ù[œİ]KœİYT]Y]YK›[™İÂˆYˆ
+İ[ÛÜ™ÈHL
+HÂˆİ[^[ÈHİ[ÛÜ™ÎÂˆ\Ü^Pİ\œ™[H[Ù[œİ]K˜İ\œ™[[™^ÂˆH[ÙHÂˆİ[^[ÈHLÂˆ\Ü^Pİ\œ™[HX]™›ÛÜŠ
+[Ù[œİ]K˜İ\œ™[[™^Èİ[ÛÜ™ÊH
+ˆL
+NÂˆBˆH[ÙHYˆ
+[ÙHOOH	Ü›İK[X\›š[™ÉÊHÂˆİ[^[ÈHLÂˆ]˜][ÈH[Ù[œİ]Kš[š]X[]Y]YS[™İÈ
+[Ù[œİ]K˜İ\œ™[[™^È[Ù[œİ]Kš[š]X[]Y]YS[™İ
+HˆÂˆ]İ\œ™[›ÙÜ™\ÜÈHX]™›ÛÜŠ˜][È
+ˆL
+NÂˆˆYˆ
+İ\œ™[›ÙÜ™\ÜÈˆ[Ù[œİ]K›X^›ÙÜ™\ÜÔÙY[ŠHÂˆ[Ù[œİ]K›X^›ÙÜ™\ÜÔÙY[ˆHİ\œ™[›ÙÜ™\ÜÎÂˆBˆ\Ü^Pİ\œ™[H[Ù[œİ]K›X^›ÙÜ™\ÜÔÙY[ÂˆH[ÙHYˆ
+[ÙHOOH	Ü[™[[IÈ[ÙHOOH	ÙX[]˜XÚÉÊHÂˆİ[^[ÈH[Ù[œİ]KœİYT]Y]YK›[™İÂˆ\Ü^Pİ\œ™[H[Ù[œİ]K˜İ\œ™[[™^ÂˆBˆˆYˆ
+\Ü^Pİ\œ™[ˆİ[^[ÊH\Ü^Pİ\œ™[Hİ[^[ÎÂ‚ˆ]˜\ÙPÛİ[H[Ù[œİ]KœİYT]Y]YK›[™İÂˆYˆ
+[ÙHOOH	ÛY[[ÜK]\İ	ÊHÂˆ˜\ÙPÛİ[H[Ù[œİ]K›]˜\ÙT]Y]YK›[™İÂˆH[ÙHYˆ
+[ÙHOOH	Ü›İK[X\›š[™ÉÈ[ÙHOOH	Ü[™[[IÈ[ÙHOOH	ÙX[]˜XÚÉÊHÂˆ˜\ÙPÛİ[H[Ù[œİ]K[š\]YUÛÜ™Ûİ[ÂˆBˆˆYˆ
+˜\ÙPÛİ[ˆL[ÙHOOH	Ü›İK[X\›š[™ÉÈ[ÙHOOH	ÛY[[ÜK]\İ	ÊHÂˆË˜Û\ÜÓ\İ˜Y
+	ÛX]š^[YØXŞIÊNÂˆH[ÙHÂˆË˜Û\ÜÓ\İœ™[[İ™J	ÛX]š^[YØXŞIÊNÂˆB‚ˆYˆ
+İ[^[ÈHL
+HÂˆË˜Û\ÜÓ\İ˜Y
+	ØÛÛ\Xİ[[ÙIÊNÂˆH[ÙHÂˆË˜Û\ÜÓ\İœ™[[İ™J	ØÛÛ\Xİ[[ÙIÊNÂˆB‚ˆÚ[H
+Ë˜Ú[™[‹›[™İİ[^[ÊHÈ]HØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÈ˜Û\ÜÓ˜[YHH	Ü^[	ÎÈË˜\[™Ú[
+
+NÈB‚ˆÚ[H
+Ë˜Ú[™[‹›[™İˆİ[^[ÊHÈËœ™[[İ™PÚ[
+Ë›\İÚ[
+NÈBˆˆ\œ˜^K™œ›ÛJË˜Ú[™[ŠK™›Ü‘XXÚ
+
+JHOˆÂˆ˜Û\ÜÓ˜[YHH
+H\Ü^Pİ\œ™[
+HÈ	Ü^[š[Y	Èˆ
+HOOH\Ü^Pİ\œ™[È	Ü^[İ\œ™[	Èˆ	Ü^[	ÊNÂˆœİ[KœÙ]›Ü\J	ËKYš[XÛÛÜ‰ËÉÈÙLØÙ	Ë	ÈÙXÍX	Ë	ÈØÌ˜LÉË	ÈØŒ˜LN	Ë	ÈØLÎ	Ë	ÈÎLMÙMŒ‰Ë	ÈÎM™	Ë	ÈÍÌXŒÎ	Ë	ÈÍYLŒÉË	ÈÍLÍÌI×VÓX]›Z[ŠKX]™›ÛÜŠ
+Kİİ[^[ÊJŒL
+JWJNÂˆJNÂˆK‚‚‚ˆ™[™\‘Ü›İ\˜[™ÙTXÚÙ\Š
+HÂˆÛÛœİÛÛZ[™\ˆBˆ\Ë™Ù][
+	ÙÜ›İ\[\İXÛÛZ[™\‰ÊNÂ‚ˆYˆ
+XÛÛZ[™\ŠHÂˆ™]\›ÂˆB‚ˆÛÛZ[™\‹š[›™\’SH	ÉÎÂˆÛÛZ[™\‹˜Û\ÜÓ˜[YHBˆ	ØœË\ØÜ›ÛX›KXÛÛ[Ü›İ\\˜[™ÙK\ÙXİ[ÛœÉÎÂˆÛÛZ[™\‹˜Û\ÜÓ\İœ™[[İ™J	Ú\ËY[\IÊNÂ‚ˆHÂˆÛÛœİİ\œ™[[™ÈBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙNÂ‚ˆÛÛœİ\Ñ[™Û\ÚBˆİ\œ™[[™ÈOOH	Ù[‰ÎÂ‚ˆÛÛœİ[šY\ÈH×NÂ‚ˆÊ‚ˆ
+ˆ9odùbcz+ëz* 9."ùæ¡9ç'ùk§º+ãyn¤ùæí9£©yb!¹îá9leyé.¸à ‚ˆ
+ˆ9.#ya£yab9b!ù£h¹¨!ùëo»ï#9a£z/æú(c9ë+9.£9«(z`"y¢êxà ‚ˆ
+‹Âˆ[Ù[™›Û\œË™›Ü‘XXÚ
+›Û\ˆOˆÂˆYˆ
+ˆ
+ˆ[Ù[™›Û\“[™ÜÖÙ›Û\—Hˆ	Ú˜IÂˆ
+HOOHİ\œ™[[™Âˆ
+HÂˆ™]\›ÂˆB‚ˆ[šY\Ëœ\Ú
+ÂˆØ]‚ˆ›Û\ˆOOH	únæ:+©:+ãyn¤ÉÂˆÈ	ÙY˜][	Âˆˆ›Û\‹ˆ^ˆ›Û\‹ˆXÛÛ‚ˆ›Û\ˆOOH	únæ:+©:+ãyn¤ÉÂˆÈ	ÛXœ˜\WØ›ÛÚÜÉÂˆˆ	Ù›Û\‰ËˆÛ™Nˆ	ÛXœ˜\IÂˆJNÂˆJNÂ‚ˆÊ‚ˆ
+ˆ9ki¹.h9â­¹  y.#º%¡9o,zhny.gù¥/¹g*9d#9. :hmy.+{ï#ˆ
+ˆ9oh¹¢$9.#¸ ':`"y¢êz+ãyn¤ø 'y. :!í9æ¡9b!¹¨#ùo#ùîäù§¡8à ‚ˆ
+‹Âˆ[šY\Ëœ\Ú
+ˆÂˆØ]ˆ	İš\X[Üİ\œ™Y	Ëˆ^ˆ	ù¥-º%ãú+ãy¬aÉËˆXÛÛˆ	Üİ\‰ËˆÛ™Nˆ	Ù˜]›Üš]IÂˆKˆÂˆØ]ˆ	İš\X[ØÛX\™Y	Ëˆ^ˆ	ùk£9aj:`&¹alÉËˆXÛÛˆ	İÛÜšÜÜXÙWÜ™[Z][IËˆÛ™Nˆ	Ü™]šY]ÉÂˆKˆÂˆØ]ˆ	İš\X[İ[˜ÛX\™Y	Ëˆ^ˆ	ù¢`9§"y§*º`&¹alÉËˆXÛÛˆ	Úİ\™Û\Ü×Ù[\IËˆÛ™Nˆ	Ü™]šY]ÉÂˆKˆÂˆØ]ˆ	İš\X[ÛZ\Ü×ÚØ[ššIËˆ^ˆ\Ñ[™Û\ÚˆÈ	ù§*¹££9£èy¢ï9a¦IÂˆˆ	ù§*¹.¡º)èù¬bykeÉËˆXÛÛˆ	ÜÜ[ÚXÚÉËˆÛ™Nˆ	İÙXZÉÂˆKˆÂˆØ]ˆ	İš\X[ÛZ\Ü×ÚØ[˜IËˆ^ˆ\Ñ[™Û\ÚˆÈ	ù§*¹££9£èyd+9b¦ÉÂˆˆ	ù§*¹.¡º)èú+îúgìÉËˆXÛÛˆ\Ñ[™Û\ÚˆÈ	ÚXYÛ™\ÉÂˆˆ	Ü™XÛÜ™İ›ÚXÙWÛİ™\‰ËˆÛ™Nˆ	İÙXZÉÂˆKˆÂˆØ]ˆ	İš\X[ÛZ\Ü×ÛYX[š[™ÉËˆ^ˆ	ù§*¹.¡º)èúaâ¹.bIËˆXÛÛˆ	İ˜[œÛ]IËˆÛ™Nˆ	İÙXZÉÂˆBˆ
+NÂ‚ˆÛÛœİÙ[XİYÜ›İ\Bˆ[Ù[œİ]K˜İ\œ™[Ü›İ\Ù^HˆØØ[İÜ˜YÙK™Ù]][Jˆ	Û\İİ\İÛQÜ›İ\˜[	Âˆ
+Hˆ	ÉÎÂ‚ˆÛÛœİÔ“ÕTÔÒV‘HH“ÕWĞÓÔ‘K‘Ô“ÕTÔÒV‘NÂˆÛÛœİÔ“ÕTÔÕTH“ÕWĞÓÔ‘K‘Ô“ÕTÔÕTÂˆÛÛœİœ˜YÛY[BˆØİ[Y[˜Ü™X]QØİ[Y[œ˜YÛY[
+
+NÂ‚ˆ]š\ÚX›TÙXİ[ÛÛİ[HÂ‚ˆ[šY\Ë™›Ü‘XXÚ
+[HOˆÂˆÛÛœİÛÜ™ÈBˆ[Ù[™‹™š[\ŠÛÜ™OˆÂˆ™]\›ˆ
+ˆ
+ˆÛÜ™›[™Èˆ	Ú˜IÂˆ
+HOOHİ\œ™[[™È	‰‚ˆ[Ù[˜ÚXÚÑš[\ŠˆÛÜ™ˆ[K˜Ø]ˆ
+Bˆ
+NÂˆJNÂ‚ˆÊˆ9ên¹b!¹ìnù.#ych9£k¹¢¯ylbyênºeí8à ˆ
+‹ÂˆYˆ
+ÛÜ™Ë›[™İOOH
+HÂˆ™]\›ÂˆB‚ˆš\ÚX›TÙXİ[ÛÛİ[
+ÊÎÂ‚ˆÛÛœİÙXİ[ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	ÜÙXİ[Û‰Âˆ
+NÂ‚ˆÙXİ[Û‹˜Û\ÜÓ˜[YHBˆÜ›İ\\˜[™ÙK\ÙXİ[Ûˆ
+Âˆ\ËIÙ[KÛ™_XÂ‚ˆÛÛœİXY[™ÈBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	Ù]‰Âˆ
+NÂ‚ˆXY[™Ë˜Û\ÜÓ˜[YHBˆ	ÙÜ›İ\\˜[™ÙK\ÙXİ[Û‹ZXY	ÎÂ‚ˆXY[™Ëš[›™\’SHˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙK\ÙXİ[Û‹ZXÛÛˆX]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ\šXKZY[HYH‚ˆ‚ˆ	Ù[KšXÛÛŸBˆÜÜ[‚‚ˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙK\ÙXİ[Û‹]]H‚ˆ‚ˆ	Ù\ØØ\RS
+[K^
+_BˆÜÜ[‚‚ˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙK\ÙXİ[Û‹XÛİ[‚ˆ‚ˆ	İÛÜ™Ë›[™İH:+ãBˆÜÜ[‚ˆÂ‚ˆÛÛœİÜšYBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	Ù]‰Âˆ
+NÂ‚ˆÜšY˜Û\ÜÓ˜[YHBˆ	ÙÜ›İ\\˜[™ÙK\ÙXİ[Û‹YÜšY	ÎÂ‚ˆ]Ü›İ\[™^HÂ‚ˆÚ[H
+ˆÜ›İ\[™^
+ˆÔ“ÕTÔÕTˆÛÜ™Ë›[™İˆ
+HÂˆÛÛœİ˜[™ÙHH“ÕWĞÓÔ‘K™Ù]Ü›İ\˜[™ÙJˆÜ›İ\[™^ˆÛÜ™Ë›[™İˆ
+NÂˆÛÛœİİ\[™^H˜[™ÙKœİ\ÂˆÛÛœİ[™[™^H˜[™ÙK™[™Â‚ˆÛÛœİÜ›İ\˜[YHBˆÜ›İ\	Ù[K˜Ø]_	ÙÜ›İ\[™^XÂ‚ˆÛÛœİÙ[XİYBˆÙ[XİYÜ›İ\OOHÜ›İ\˜[YNÂ‚ˆÛÛœİÛX\Ûİ[Bˆ[Ù[›]Ü›İ\ÛX\œÖÂˆÜ›İ\˜[YBˆHÂ‚ˆÛÛœİ]ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	Ù]‰Âˆ
+NÂ‚ˆ]Û‹˜Û\ÜÓ˜[YHBˆœË[Ü[ÛˆÜ›İ\\˜[™ÙK[Ü[Ûˆ
+Âˆ	ÜÙ[XİYÈ	ÜÙ[XİY	Èˆ	ÉßXÂ‚ˆ]Û‹œÙ]]šX]Jˆ	İXš[™^	Ëˆ	Ì	Âˆ
+NÂ‚ˆ]Û‹œÙ]]šX]Jˆ	Ü›ÛIËˆ	Ø]Û‰Âˆ
+NÂ‚ˆ]Û‹œÙ]]šX]Jˆ	Ø\šXK\™\ÜÙY	ËˆÙ[XİYÈ	İYIÈˆ	Ù˜[ÙIÂˆ
+NÂ‚ˆ]˜YÙRSH	ÉÎÂ‚ˆYˆ
+ˆ[K˜Ø]OOBˆ	İš\X[İ[˜ÛX\™Y	È	‰‚ˆ
+ˆÛX\Ûİ[ˆˆ[K˜Ø]OOBˆ	İš\X[ØÛX\™Y	Âˆ
+Bˆ
+HÂˆ]˜YÙPÛ\ÜÈBˆ	Ú[šÛËXœ›Û™IÎÂ‚ˆYˆ
+ˆÛX\Ûİ[HLˆ[K˜Ø]OOBˆ	İš\X[ØÛX\™Y	Âˆ
+HÂˆ˜YÙPÛ\ÜÈBˆ	Ú[šÛËYX[[Û™	ÎÂˆH[ÙHYˆ
+ˆÛX\Ûİ[HBˆ
+HÂˆ˜YÙPÛ\ÜÈBˆ	Ú[šÛËYÛÛ	ÎÂˆH[ÙHYˆ
+ˆÛX\Ûİ[HÂˆ
+HÂˆ˜YÙPÛ\ÜÈBˆ	Ú[šÛË\Ú[™\‰ÎÂˆB‚ˆ˜YÙRSHˆÜ[‚ˆÛ\ÜÏHš[šÛËX˜YÙH	Ø˜YÙPÛ\ÜßH‚ˆ\šXKZY[HYH‚ˆÜÜ[‚ˆÂˆB‚ˆÛÛœİ˜[™ÙU]HBˆÛÜ™Ë›[™İHÔ“ÕTÔÒV‘BˆÈ9aj:`ê	İÛÜ™Ë›[™İH:+ãXˆˆ
+ˆ9ë+	Üİ\[™^
+È_X
+Âˆ8 $ÉÙ[™[™^H:+ãXˆ
+NÂ‚ˆ]Û‹š[›™\’SHˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙKZXÛÛˆX]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ\šXKZY[HYH‚ˆ‚ˆšY]×Û[Ù[BˆÜÜ[‚‚ˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙKXÛÜH‚ˆ‚ˆİ›Û™Ï‚ˆ	Ü˜[™ÙU]_BˆÜİ›Û™Ï‚‚ˆÛX[‚ˆ	Ù[™[™^Hİ\[™^Bˆ9.*º+ãBˆÜÛX[‚ˆÜÜ[‚‚ˆ	Ø˜YÙRSB‚ˆÜ[‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙKXÚXÚÈX]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ\šXKZY[HYH‚ˆ‚ˆÚXÚÂˆÜÜ[‚ˆÂ‚ˆÛÛœİ\Ü^U^Bˆ	Ù[K^H
+Âˆ
+9ë+	Üİ\[™^
+È_X
+ÂˆIÙ[™[™^H:+ãJXÂ‚ˆÛÛœİÚÛÜÙHH
+
+HOˆÂˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÂˆ\™Ø\™KšXœ˜]JMJNÂ‚ˆ[Ù[œİ]K˜İ\œ™[Ü›İ\Ù^HBˆÜ›İ\˜[YNÂ‚ˆ[Ù[œİ]K˜İ\œ™[Ü›İ\X™[Bˆ\Ü^U^Â‚ˆÛÛœİ^[[Y[Bˆ\Ë™Ù][
+ˆ	Øİ\İÛKYÜ›İ\]^	Âˆ
+NÂ‚ˆYˆ
+^[[Y[
+HÂˆ^[[Y[š[›™\•^Bˆ\Ü^U^ÂˆB‚ˆØØ[İÜ˜YÙKœÙ]][Jˆ	Û\İİ\İÛQÜ›İ\˜[	ËˆÜ›İ\˜[YBˆ
+NÂ‚ˆØØ[İÜ˜YÙKœÙ]][Jˆ	Û\İİ\İÛQÜ›İ\	Ëˆ\Ü^U^ˆ
+NÂ‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	ÙÜ›İ\\Ù[Xİ[İ™\›^IËˆ˜[ÙBˆ
+NÂˆNÂ‚ˆ]Û‹˜Y]™[\İ[™\Šˆ	ØÛXÚÉËˆÚÛÜÙBˆ
+NÂ‚ˆ]Û‹˜Y]™[\İ[™\Šˆ	ÚÙ^YİÛ‰Ëˆ]™[OˆÂˆYˆ
+ˆ]™[šÙ^HOOH	Ñ[\‰È	‰‚ˆ]™[šÙ^HOOH	È	Âˆ
+HÂˆ™]\›ÂˆB‚ˆ]™[œ™]™[Y˜][
+
+NÂˆÚÛÜÙJ
+NÂˆBˆ
+NÂ‚ˆÜšY˜\[™Ú[
+]ÛŠNÂˆÜ›İ\[™^
+ÊÎÂ‚ˆYˆ
+Ü›İ\[™^ˆL
+HÂˆœ™XZÎÂˆBˆB‚ˆÙXİ[Û‹˜\[™Ú[
+XY[™ÊNÂˆÙXİ[Û‹˜\[™Ú[
+ÜšY
+NÂˆœ˜YÛY[˜\[™Ú[
+ÙXİ[ÛŠNÂˆJNÂ‚ˆYˆ
+š\ÚX›TÙXİ[ÛÛİ[OOH
+HÂˆÛÛZ[™\‹˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËY[\IÂˆ
+NÂ‚ˆÛÛZ[™\‹š[›™\’SHˆ]ˆÛ\ÜÏH™Ü›İ\\˜[™ÙKY[\H‚ˆÜ[‚ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ\šXKZY[HYH‚ˆ‚ˆÜBˆÜÜ[‚‚ˆİ›Û™Ï‚ˆ9odùbcy¬¨y§"ycëú`"y¢êyæ¡9ki¹.h:# ùfíˆÜİ›Û™Ï‚ˆÙ]‚ˆÂ‚ˆ™]\›ÂˆB‚ˆÛÛZ[™\‹˜\[™Ú[
+œ˜YÛY[
+NÂˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠˆ	ÖÑÜ›İ\˜[™ÙHXÚÙ\—IËˆ\œ›Ü‚ˆ
+NÂ‚ˆÛÛZ[™\‹˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËY[\IÂˆ
+NÂ‚ˆÛÛZ[™\‹š[›™\’SHˆ]‚ˆÛ\ÜÏH™Ü›İ\\˜[™ÙKY[\H\ËY\œ›Üˆ‚ˆ‚ˆÜ[‚ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ\šXKZY[HYH‚ˆ‚ˆ\œ›Ü‚ˆÜÜ[‚‚ˆİ›Û™Ï‚ˆ9b¨:/oyaîºe&{ï#:+íúaãz+åBˆÜİ›Û™Ï‚ˆÙ]‚ˆÂˆBˆK‚ˆ\]UÛÜ™˜[šÓX[˜YÙ[Y[RJ
+HÂˆÛÛœİ\ÓX[˜YÚ[™ÈH[Ù[œİ]K˜˜]Ú[ÙNÂˆÛÛœİÙ[XİYÛİ[H[Ù[œİ]KœÙ[XİYÙ]œÚ^™NÂ‚ˆÛÛœİ˜]Ú˜\ˆH\Ë™Ù][
+	Ø˜]ÚX˜\‰ÊNÂˆÛÛœİÛİ[[HH\Ë™Ù][
+	Ø˜]ÚXÛİ[[[IÊNÂˆÛÛœİX[˜YÙPˆH\Ë™Ù][
+	İØ‹[X[˜YÙK]ÙÙÛIÊNÂˆÛÛœİX[˜YÙRXÛÛˆH\Ë™Ù][
+	ÛX[˜YÙKZXÛÛ‰ÊNÂˆÛÛœİX[˜YÙSX™[H\Ë™Ù][
+	ÛX[˜YÙK[X™[	ÊNÂˆÛÛœİ[İ™PˆH\Ë™Ù][
+	Ø‹X˜]Ú[[İ™IÊNÂˆÛÛœİY]ˆH\Ë™Ù][
+	Ø‹X˜]ÚYY]	ÊNÂˆÛÛœİ[]PˆH\Ë™Ù][
+	Ø‹X˜]ÚY[	ÊNÂˆÛÛœİÜšYH\Ë™Ù][
+	İØ‹YÜšY	ÊNÂ‚ˆYˆ
+˜]Ú˜\ŠHÂˆ˜]Ú˜\‹œİ[K™\Ü^HH\ÓX[˜YÚ[™ÈÈ	Ù›^	Èˆ	Û›Û™IÎÂˆB‚ˆYˆ
+Ûİ[[JHÂˆÛİ[[Kš[›™\•^HÙ[XİYÛİ[ÂˆB‚ˆYˆ
+X[˜YÙPŠHÂˆX[˜YÙP‹˜Û\ÜÓ\İÙÙÛJ	ØXİ]™IË\ÓX[˜YÚ[™ÊNÂˆX[˜YÙP‹œÙ]]šX]Jˆ	Ø\šXK\™\ÜÙY	Ëˆİš[™Ê\ÓX[˜YÚ[™ÊBˆ
+NÂˆX[˜YÙP‹]HH\ÓX[˜YÚ[™ÂˆÈ	ùk£9¢$9ë¨yä!‰Âˆˆ	ùë¨yä!º+ãy¬aÉÎÂˆB‚ˆYˆ
+X[˜YÙRXÛÛŠHÂˆX[˜YÙRXÛÛ‹š[›™\•^H\ÓX[˜YÚ[™ÂˆÈ	ÙÛ™IÂˆˆ	ÙY]Û›İIÎÂˆB‚ˆYˆ
+X[˜YÙSX™[
+HÂˆX[˜YÙSX™[š[›™\•^H\ÓX[˜YÚ[™ÂˆÈ	ùk£9¢$	Âˆˆ	ùë¨yä!‰ÎÂˆB‚ˆYˆ
+ÜšY
+HÂˆÜšY˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë[X[˜YÚ[™ÉËˆ\ÓX[˜YÚ[™Âˆ
+NÂˆB‚ˆÛÛœİ\ÔÙ[Xİ[ÛˆHÙ[XİYÛİ[ˆÂ‚ˆYˆ
+[İ™PŠHÂˆ[İ™P‹™\ØX›YHZ\ÔÙ[Xİ[ÛÂˆB‚ˆYˆ
+[]PŠHÂˆ[]P‹™\ØX›YHZ\ÔÙ[Xİ[ÛÂˆB‚ˆYˆ
+Y]ŠHÂˆY]‹šY[ˆHÙ[XİYÛİ[OOHNÂˆBˆK‚ˆ\]UÛÜ™˜[šÕRJ
+HÂˆ]ÙX\˜Ú[œ]H\Ë™Ù][
+	İØ‹\ÙX\˜ÚZ[œ]	ÊNÂˆYˆ
+ÙX\˜Ú[œ]
+HÙX\˜Ú[œ]œXÙZÛ\ˆH[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ù¤'9í(º"ìy¥¡øà zgìù¨!ù¢%ºaâ¹.bK‹‹‰Èˆ	ù¤'9í(¹¬bykeøà y`aùd#y¢%ºaâ¹.bK‹‹‰ÎÂˆˆ][ÙTÙ[H\Ë™Ù][
+	Û™^Y\Ü^K[[ÙIÊNÂˆYˆ
+[ÙTÙ[
+HÂˆÛÛœİ\Ñ[™Û\Ú›ÛÚÈH[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÎÂˆ[ÙTÙ[›Ü[ÛœÖÌK^H	ùaj9¦/‰ÎÂˆ[ÙTÙ[›Ü[ÛœÖÌWK^H\Ñ[™Û\Ú›ÛÚÈÈ	ú"ìy¥¡ÉÈˆ	ù¬bykeÉÎÂˆ[ÙTÙ[›Ü[ÛœÖÌ—K^H\Ñ[™Û\Ú›ÛÚÈÈ	úgìù¨!ÉÈˆ	ù`aùd#IÎÂˆ[ÙTÙ[›Ü[ÛœÖÌ×K^H	úaâ¹.bIÎÂˆ[ÙTÙ[›Ü[ÛœÖÌKœİ[K™\Ü^HH	ÉÎÂˆB‚ˆ\Ë\]UÛÜ™˜[šÓX[˜YÙ[Y[RJ
+NÂ‚ˆ]Ù[š[\ˆH\Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊNÈˆ]İ\œ™[˜[HÙ[š[\‹˜[YNÂˆÙ[š[\‹š[›™\’SH	ÉÎÈˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ	ù§éyç"ù¢`9§"z+ãy¬aÉË	Ø[	ÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ	ù¥-º%ãú+ãy¬aÉË	İš\X[Üİ\œ™Y	ÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ	ùk£9aj:`&¹alú+ãy¬aÉË	İš\X[ØÛX\™Y	ÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ	ù¢`9§"y§*º`&¹alÉË	İš\X[İ[˜ÛX\™Y	ÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ù.$úhnyfïºbmˆ9¢ï9a¦y££9£èJ:ná
+IÈˆ	ù.$úhnyfïºbmˆ9¬bykeù.¡º)èÊ:ná
+IË	İš\X[ÚÛ›İ×ÚØ[ššIÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ù.$úhnyfïºbmˆ9d+9b¦ù££9£èJ9î¨ŠIÈˆ	ù.$úhnyfïºbmˆ:+îúgìù.¡º)èÊ9î¨ŠIË	İš\X[ÚÛ›İ×ÚØ[˜IÊJNÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ	ù.$úhnyfïºbmˆ:aâ¹.by.¡º)èÊ9æoJIË	İš\X[ÚÛ›İ×ÛYX[š[™ÉÊJNÂ‚ˆˆ[Ù[™›Û\œË™›Ü‘XXÚ
+ˆOˆÈˆYˆ
+
+[Ù[™›Û\“[™ÜÖÙ—H	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJH™]\›ÂˆÙ[š[\‹˜Y
+™]ÈÜ[ÛŠ‹ŠJNÈˆJNÂˆˆ]\İ›Û\ˆHØØ[İÜ˜YÙK™Ù]][J	Û\İÙ[XİY›Û\‰ÊHİ\œ™[˜[ÂˆYŠ\œ˜^K™œ›ÛJÙ[š[\‹›Ü[ÛœÊKœÛÛYJÜOˆÜ˜[YHOOH\İ›Û\ŠJHÂˆÙ[š[\‹˜[YHH\İ›Û\ÂˆH[ÙHÂˆÙ[š[\‹˜[YHH	Ø[	ÎÂˆBˆÙ[š[\‹™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÂ‚ˆËÈ9.éyodùbcz+ãy.iº+ëyéãy/g9..¹b)9¥«ygî¹aá»ï#: #:gg¹ëfú`"yfj9`/ˆÛÛœİÙ[[™ÈH[Ù[œİ]K˜İ\œ™[[™Ó[ÙNÂˆØİ[Y[œ]Y\TÙ[XİÜ[
+	Ëšœ[Û›IÊK™›Ü‘XXÚ
+[OˆÂˆ[œİ[K™\Ü^HHÙ[[™ÈOOH	Ù[‰ÈÈ	Û›Û™IÈˆ	ÉÎÂˆJNÂˆØİ[Y[œ]Y\TÙ[XİÜ[
+	Ë™[‹[Û›IÊK™›Ü‘XXÚ
+[OˆÂˆ[œİ[K™\Ü^HHÙ[[™ÈOOH	Ù[‰ÈÈ	Ù›^	Èˆ	Û›Û™IÎÂˆYŠ[˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ÙY]Z[œ]YÜ›İ\	ÊJH[œİ[K™\Ü^HHÙ[[™ÈOOH	Ù[‰ÈÈ	Ø›ØÚÉÈˆ	Û›Û™IÎÂˆJNÂ‚‚ˆËÈ9bª9  y¦í9¥¬:+ãyn¤ú)á¹fïº+¯¹ïk¹æ¡9£"zd«¹¥¡ù§+;ï#:-bù.¢9amº"ìz+ëyª(yo#ù."ùæ¡9¥¬9b§ú ïBˆ]›\•ÛÜ™ˆHØİ[Y[œ]Y\TÙ[XİÜŠ	ËœËX›\‹X–Ù]K]˜[HÛÜ™—IÊNÂˆYˆ
+›\•ÛÜ™ŠH›\•ÛÜ™‹š[›™\•^HÙ[[™ÈOOH	Ù[‰ÈÈ	ù.áy¦/º"ìy¥¡ÉÈˆ	ù.áy¦/¹cez+ãIÎÂ‚ˆ]›\’Ø[˜PˆHØİ[Y[œ]Y\TÙ[XİÜŠ	ËœËX›\‹X–Ù]K]˜[HšØ[˜H—IÊNÂˆYˆ
+›\’Ø[˜PŠHÂˆ›\’Ø[˜P‹š[›™\•^HÙ[[™ÈOOH	Ù[‰ÈÈ	ù.áy¦/ºgìù¨!ÉÈˆ	ù.áy¦/¹`aùd#IÎÂˆ›\’Ø[˜P‹˜Û\ÜÓ\İœ™[[İ™J	Úœ[Û›IÊNÈËÈ9£(ú!,y¥éz+ëy.$ùlg¹§gùï&»ï#9a`z+®9g*:"ìz+ëyª(yo#ù."ù¦/¹é.‚ˆB‚‚ˆÛÛœİÜ›İ\İ™\›^HBˆ\Ë™Ù][
+	ÙÜ›İ\\Ù[Xİ[İ™\›^IÊNÂ‚ˆYˆ
+ˆÜ›İ\İ™\›^OË˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ØXİ]™IÊBˆ
+HÂˆ\Ëœ™[™\‘Ü›İ\˜[™ÙTXÚÙ\Š
+NÂˆBˆK‚ˆ™[™\‘\Ú›Ø\™
+
+HÂˆËÈ:"ìz+ëyª(yo#ù."ù¦/¹é.¹."y§h;ï"9d+9b¦ù§h9¦ïù.èú+îúgìù§h;ï"{ï#9¨!ùëo¹¥¡ùkeùbª9  yb!ù£h‚ˆÛÛœİİ\œ™[[™ÈH[Ù[™Ù]İ\œ™[[™Ê
+NÂˆÛÛœİØ[˜T›İÈH\Ë™Ù][
+	Ü›ÙË\›İËZØ[˜IÊNÂˆYˆ
+Ø[˜T›İÊHØ[˜T›İËœİ[K™\Ü^HH	Ù›^	ÎÂˆÛÛœİØ[˜P˜\“X™[HØİ[Y[™Ù][[Y[RY
+	ÚØ[˜KX˜\‹[X™[	ÊNÂˆYˆ
+Ø[˜P˜\“X™[
+HØ[˜P˜\“X™[š[›™\•^Hİ\œ™[[™ÈOOH	Ù[‰ÈÈ	ùd+9b¦ÉÈˆ	ú+îúgìÉÎÂ‚›]•İ[[H\Ë™Ù][
+	Ù‹]İ[XÛİ[	ÊNÂˆYˆ
+•İ[[
+H•İ[[š[›™\•^H[Ù[™‹™š[\ŠÈOˆ
+Ë›[™È	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJK›[™İÈˆ]İ]ÈH[Ù[˜Ø[İ[]Tİ]Ê
+NÂˆ\Ë™Ù][
+	İİ[Y^\ÉÊKš[›™\•^Hİ]Ëİ[^\ÎÂˆ\Ë™Ù][
+	Üİ™XZËY^\ÉÊKš[›™\•^Hİ]Ëœİ™XZÎÂ‚ˆ]ÛX\™YÛÜ™ĞÛİ[HØ[ššPÛİ[HØ[˜PÛİ[HYX[š[™ĞÛİ[HÂˆˆËÈZ[ÛÜ™8¡¤ˆ[™ÈÛÚİ\›ÜˆXØİ\˜]HÛİ[[™ÂˆÛÛœİÛÜ™[™ÓX\HßNÂˆ[Ù[™‹™›Ü‘XXÚ
+ÈOˆÈÛÜ™[™ÓX\Ó[Ù[™Ù]ÛÜ™Y
+ÊWHHË›[™È	Ú˜IÎÈJNÂˆ“Øš™Xİ™[šY\Ê[Ù[›]ÛÜ™ÛX\œÊK™›Ü‘XXÚ
+
+İÛÜ™Ù^KİJHOˆÂˆYˆ
+\[ÙˆİOOH	ÛØš™Xİ	ÊHÂˆÛÛœİ[™ÈHÛÜ™[™ÓX\İÛÜ™Ù^WH	Ú˜IÎÂˆYˆ
+[™ÈOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJH™]\›ÂˆËÈ9ao9k®y¥éú"ìz+ëy¨/9o#ÈİÛÜ™YX[š[™ßH8¡¤ˆ9¦(9l!9..¹."y§hˆYˆ
+[™ÈOOH	Ù[‰È	‰ˆİÛÜ™OOH[™Yš[™Y
+HÂˆİHÈØ[ššNˆİÛÜ™˜[ÙKØ[˜Nˆ˜[ÙKYX[š[™Îˆİ›YX[š[™È˜[ÙHNÂˆBˆËÈ9îçù. 9."y§h9b)9¥«BˆYˆ
+İšØ[ššH	‰ˆİšØ[˜H	‰ˆİ›YX[š[™ÊHÛX\™YÛÜ™ĞÛİ[
+ÊÎÂˆYˆ
+İšØ[ššJHØ[ššPÛİ[
+ÊÎÂˆYˆ
+İšØ[˜JHØ[˜PÛİ[
+ÊÎÂˆYˆ
+İ›YX[š[™ÊHYX[š[™ĞÛİ[
+ÊÎÂˆBˆJNÂ‚ˆ]İ[ÛÜ™ĞÛİ[H[Ù[™‹™š[\ŠÈOˆ
+Ë›[™È	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJK›[™İÂˆ]X\İ\T\˜Ù[Hİ[ÛÜ™ĞÛİ[OOHÈˆ
+
+ÛX\™YÛÜ™ĞÛİ[Èİ[ÛÜ™ĞÛİ[
+H
+ˆL
+KÑš^Y
+JNÂˆ]Ø[ššHHİ[ÛÜ™ĞÛİ[OOHÈˆ
+
+Ø[ššPÛİ[Èİ[ÛÜ™ĞÛİ[
+H
+ˆL
+KÑš^Y
+JNÂˆ]Ø[˜HHİ[ÛÜ™ĞÛİ[OOHÈˆ
+
+Ø[˜PÛİ[Èİ[ÛÜ™ĞÛİ[
+H
+ˆL
+KÑš^Y
+JNÂˆ]YX[š[™ÈHİ[ÛÜ™ĞÛİ[OOHÈˆ
+
+YX[š[™ĞÛİ[Èİ[ÛÜ™ĞÛİ[
+H
+ˆL
+KÑš^Y
+JNÂ‚ˆYˆ
+\Ë™Ù][
+	ÛX\İ\KXÛİ[	ÊJH\Ë™Ù][
+	ÛX\İ\KXÛİ[	ÊKš[›™\•^HÛX\™YÛÜ™ĞÛİ[ÂˆYˆ
+\Ë™Ù][
+	ÛX\İ\K]İ[	ÊJH\Ë™Ù][
+	ÛX\İ\K]İ[	ÊKš[›™\•^Hİ[ÛÜ™ĞÛİ[ÂˆYˆ
+\Ë™Ù][
+	ÛX\İ\K\\˜Ù[	ÊJH\Ë™Ù][
+	ÛX\İ\K\\˜Ù[	ÊKš[›™\•^H
+	ÛX\İ\T\˜Ù[IJXÂˆˆÙ][Y[İ]
+
+
+HOˆÂˆYˆ
+\Ë™Ù][
+	ÛX\İ\KX˜\‰ÊJH\Ë™Ù][
+	ÛX\İ\KX˜\‰ÊKœİ[KÚYH	ÛX\İ\T\˜Ù[IXÂˆˆYˆ
+\Ë™Ù][
+	Ü›ÙËX˜\‹ZØ[ššIÊJH\Ë™Ù][
+	Ü›ÙËX˜\‹ZØ[ššIÊKœİ[KÚYH	ÜØ[šš_IXÂˆYˆ
+\Ë™Ù][
+	Ü›ÙËX˜\‹ZØ[˜IÊJH\Ë™Ù][
+	Ü›ÙËX˜\‹ZØ[˜IÊKœİ[KÚYH	ÜØ[˜_IXÂˆYˆ
+\Ë™Ù][
+	Ü›ÙËX˜\‹[YX[š[™ÉÊJH\Ë™Ù][
+	Ü›ÙËX˜\‹[YX[š[™ÉÊKœİ[KÚYH	ÜYX[š[™ßIXÂˆˆYˆ
+\Ë™Ù][
+	Ü›ÙË]ZØ[ššIÊJH\Ë™Ù][
+	Ü›ÙË]ZØ[ššIÊKš[›™\’SH	ÚØ[ššPÛİ[HÜ[ˆİ[OH™›Û\Ú^™NŒY[NÈÜXÚ]NŒÈŠ	ÜØ[šš_IJOÜÜ[˜ÂˆYˆ
+\Ë™Ù][
+	Ü›ÙË]ZØ[˜IÊJH\Ë™Ù][
+	Ü›ÙË]ZØ[˜IÊKš[›™\’SH	ÚØ[˜PÛİ[HÜ[ˆİ[OH™›Û\Ú^™NŒY[NÈÜXÚ]NŒÈŠ	ÜØ[˜_IJOÜÜ[˜ÂˆYˆ
+\Ë™Ù][
+	Ü›ÙË][YX[š[™ÉÊJH\Ë™Ù][
+	Ü›ÙË][YX[š[™ÉÊKš[›™\’SH	ÛYX[š[™ĞÛİ[HÜ[ˆİ[OH™›Û\Ú^™NŒY[NÈÜXÚ]NŒÈŠ	ÜYX[š[™ßIJOÜÜ[˜ÂˆKL
+NÂ‚ˆ]\İHØØ[İÜ˜YÙK™Ù]][J	Û\İİ\İÛQÜ›İ\	ÊNÂˆYˆ
+[\İ
+HÂˆ]Y‘›Û\ˆH[Ù[™›Û\œË™š[™
+ˆOˆ
+[Ù[™›Û\“[™ÜÖÙ—H	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJH	únæ:+©:+ãyn¤ÉÎÂˆ\İH	ÙY‘›Û\ŸH
+9ë+KLL:+ãJXÂˆBˆ\Ë™Ù][
+	Øİ\İÛKYÜ›İ\]^	ÊKš[›™\•^H\İÂ‚ˆ\Ë\]U\İÙ[XİÊ
+NÂ‚ˆ]\Ü^TÙ[H\Ë™Ù][
+	İ\İY\Ü^K\Ù[Xİ	ÊNÂˆYˆ
+\Ü^TÙ[
+HÂˆ]\Ñ[ˆH[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÎÂˆ\Ü^TÙ[›Ü[ÛœÖÌK^H\Ñ[ˆÈ	ù.$ù¥.ú"ìy¥¡ù¢ï9a¦H
+9à®y.«ºná9§h
+IÈˆ	ù.$ù¥.ù¬bykeú/ª:+©
+9à®y.«ºná9§h
+IÎÂˆ\Ü^TÙ[›Ü[ÛœÖÌWK^H\Ñ[ˆÈ	ù.$ù¥.ù`aùd#z/ª:+©	Èˆ	ù.$ù¥.ù`aùd#z/ª:+©
+9à®y.«¹î¨¹§h
+IÎÂˆ\Ü^TÙ[›Ü[ÛœÖÌ—K^H\Ñ[ˆÈ	ù.$ù¥.ùd+9b¦ú/ª:gìÈ
+9à®y.«¹î¨¹§h
+IÈˆ	ù.$ù¥.ùd+9b¦ú/ª:gìÈ
+9à®y.«¹î¨¹§h
+IÎÂˆˆËÈ:"ìz+ëyª(yo#ù."ùæí9£©zf¤:%ãùå*9.#yb,9æ¡8 '9.$ù¥.ù`aùd#x 'z`"zhnBˆ\Ü^TÙ[›Ü[ÛœÖÌWKœİ[K™\Ü^HH\Ñ[ˆÈ	Û›Û™IÈˆ	ÉÎÂˆB‚ˆ]\İ\İ\Ü^HHØØ[İÜ˜YÙK™Ù]][J	Û\İ\İ\Ü^IÊH	ÚØ[˜IÎÂˆYˆ
+\Ü^TÙ[	‰ˆ\œ˜^K™œ›ÛJ\Ü^TÙ[›Ü[ÛœÊKœÛÛYJÈOˆË˜[YHOOH\İ\İ\Ü^JJHÂ‚ˆ\Ü^TÙ[˜[YHH\İ\İ\Ü^NÂˆ\Ü^TÙ[™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÂˆBˆˆ]H™]È]J
+KÓØØ[Q]Tİš[™Ê	ŞšPÓ‰ÊNÈ]ˆH\Ë™Ù][
+	Ø‹[Û™Ë\™\ÜÉÊNÂˆYˆ
+ŠHÂˆ]\Ô[˜ÚYH[Ù[œ™XÛÜ™ËœÛÛYJˆOˆ‹™]HOOH	‰ˆ‹\HOOH	ÙZ[WÜ[˜Ú	ÊNÂˆYŠ\Ô[˜ÚY
+HÂˆ‹˜Û\ÜÓ˜[YHH	Ø‹[Û™Ë\™\ÜÈÛ™IÎÂˆ‹š[›™\’SHÜ[ˆÛ\ÜÏH›]^Ü[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH™›Û\Ú^™NŒKœ™[NÈ\Ú×Ø[ÜÜ[ˆ9.â¹¥éymì¹k£9¢$ÜÜ[˜ÂˆH[ÙHÂˆ‹˜Û\ÜÓ˜[YHH	Ø‹[Û™Ë\™\ÜÉÎÂˆ‹š[›™\’SH]ˆÛ\ÜÏH›X™ÈÙ]Ü[ˆÛ\ÜÏH›]^Ü[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH™›Û\Ú^™NŒKœ™[NÈ™š[™Ù\œš[ÜÜ[ˆ:eoù£"y¢dùchOÜÜ[˜ÂˆBˆBˆK‚ˆ\]U\İÙ[XİÊ
+HÂˆ]\İÙ[H\Ë™Ù][
+	İ\İ\˜[™ÙK\Ù[Xİ	ÊNÂˆ]Y‘›Û\ˆH[Ù[™›Û\œË™š[™
+ˆOˆ
+[Ù[™›Û\“[™ÜÖÙ—H	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJH	únæ:+©:+ãyn¤ÉÎÂˆ]İ\œ™[\İH\İÙ[˜[YHØØ[İÜ˜YÙK™Ù]][J	Û\İ\İ˜[™ÙIÊHY‘›Û\Â‚ˆ\İÙ[š[›™\’SH	ÉÎÂˆˆ]Ü[ÛœÈH×NÂˆ[Ù[™›Û\œË™›Ü‘XXÚ
+ˆOˆÂˆYˆ
+
+[Ù[™›Û\“[™ÜÖÙ—H	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙJHÂˆÜ[ÛœËœ\Ú
+È^ˆ‹˜[ˆˆJNÂˆBˆJNÂˆÜ[ÛœËœ\Ú
+ˆÈ^ˆ	ù¥-º%ãú+ãy¬aÉË˜[ˆ	İš\X[Üİ\œ™Y	ÈKˆÈ^ˆ	ùk£9aj:`&¹alú+ãy¬aÉË˜[ˆ	İš\X[ØÛX\™Y	ÈKˆÈ^ˆ	ù¢`9§"y§*º`&¹alÉË˜[ˆ	İš\X[İ[˜ÛX\™Y	ÈKˆÈ^ˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ù.$úhny¥.ùgfˆ9§*¹££9£èy¢ï9a¦J:ná
+IÈˆ	ù.$úhny¥.ùgfˆ9§*¹.¡º)èù¬bykeÊ:ná
+IË˜[ˆ	İš\X[ÛZ\Ü×ÚØ[ššIÈKˆÈ^ˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ù.$úhny¥.ùgfˆ9§*¹££9£èyd+9b¦Ê9î¨ŠIÈˆ	ù.$úhny¥.ùgfˆ9§*¹.¡º)èú+îúgìÊ9î¨ŠIË˜[ˆ	İš\X[ÛZ\Ü×ÚØ[˜IÈKˆÈ^ˆ	ù.$úhny¥.ùgfˆ9§*¹.¡º)èúaâ¹.bJ9æoJIË˜[ˆ	İš\X[ÛZ\Ü×ÛYX[š[™ÉÈKˆÈ^ˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ùi#y.h9mêyfîˆ9mì¹££9£èy¢ï9a¦J:ná
+IÈˆ	ùi#y.h9mêyfîˆ9mì¹.¡º)èù¬bykeÊ:ná
+IË˜[ˆ	İš\X[ÚÛ›İ×ÚØ[ššIÈKˆÈ^ˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	ùi#y.h9mêyfîˆ9mì¹££9£èyd+9b¦Ê9î¨ŠIÈˆ	ùi#y.h9mêyfîˆ9mì¹.¡º)èú+îúgìÊ9î¨ŠIË˜[ˆ	İš\X[ÚÛ›İ×ÚØ[˜IÈKˆÈ^ˆ	ùi#y.h9mêyfîˆ9mì¹.¡º)èúaâ¹.bJ9æoJIË˜[ˆ	İš\X[ÚÛ›İ×ÛYX[š[™ÉÈB‚ˆ
+NÂ‚ˆÜ[ÛœË™›Ü‘XXÚ
+ÜOˆÈ\İÙ[˜Y
+™]ÈÜ[ÛŠÜ^Ü˜[
+JNÈJNÂ‚šYˆ
+\œ˜^K™œ›ÛJ\İÙ[›Ü[ÛœÊKœÛÛYJÈOˆË˜[YHOOHİ\œ™[\İ
+JH\İÙ[˜[YHHİ\œ™[\İÂˆ[ÙHYˆ
+\İÙ[›Ü[ÛœË›[™İˆ
+H\İÙ[˜[YHH\İÙ[›Ü[ÛœÖÌK˜[YNÂˆ\İÙ[™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÈK‚ˆ™[™\”İYPØ\™
+[š[HH	Û›Û™IÊHÂˆ]YH[Ù[œİ]KœİYT]Y]YVÓ[Ù[œİ]K˜İ\œ™[[™^NÂˆ]ÈH[Ù[™–ÚYNÂ‚ˆYˆ
+S[X™\‹š\Ò[YÙ\ŠY
+H]ÊHÂˆ[Ù[œİ]Kš\Ğ[š[X][™ÈH˜[ÙNÂˆÚİÕØ\İ
+	ùodùbcyki¹.h:+ãy§hy¥è9¬åz+îùcå»ï#:+íúaãy¥¬:`"y¢êz+ãyîá	ÊNÂˆ\Ë™Ù][
+	Ø‹Y^]\İYIÊOË˜ÛXÚÊ
+NÂˆ™]\›ÂˆB‚ˆ][ÙHH\Ë™Ù][
+	Û™^Y\Ü^K[[ÙIÊK˜[YNÂˆˆ]\ÓY[U\İH
+[Ù[œİ]K›[ÙHOOH	ÛY[[ÜK]\İ	ÊNÂˆ]\Ô›İHH
+[Ù[œİ]K›[ÙHOOH	Ü›İK[X\›š[™ÉÊNÂˆ]\Ñš[\•\İH
+[Ù[œİ]K›[ÙHOOH	Ùš[\‹]\İ	ÊNÂˆËÈ9b!ùchy¥íº!ê¹bª9¥-º-mÈRH:)èù§¤:gh¹§oÂ›]ZT[™[HšY]Ë™Ù][
+	ØZKZ[›[™K\[™[	ÊNÂšYˆ
+ZT[™[
+HZT[™[˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂˆ]›Ü˜ÙT›İQ[H˜[ÙNÂˆYˆ
+\Ô›İJHÂˆ]\Ñš\œİ\X\˜[˜ÙHH“ÕWĞÓÔ‘Kš\Ñš\œİ\X\˜[˜ÙJˆ[Ù[œİ]KœİYT]Y]YKˆ[Ù[œİ]K˜İ\œ™[[™^ˆ
+NÂˆYˆ
+\Ñš\œİ\X\˜[˜ÙJHÈˆ›Ü˜ÙT›İQ[HYNÈˆ[ÙHH	Ø[	ÎÈˆ[Ù[œİ]K›]İ\HNÈˆBŸB‚ˆYˆ
+[Ù[œİ]K›[ÙHOOH	ÙX[]˜XÚÉÊHÂˆ[Ù[œİ]K™ÛÜ™\X\˜[˜ÙSX\ÚYHH
+[Ù[œİ]K™ÛÜ™\X\˜[˜ÙSX\ÚYH
+H
+ÈNÂˆ]Ûİ[H[Ù[œİ]K™ÛÜ™\X\˜[˜ÙSX\ÚYNÂˆ[Ù[œİ]K™İX“[ÙHH
+
+Ûİ[HJH	HHÊHÈ	ØÚÚXÙIÈˆ	ÜÜ[	ÎÂˆ[ÙHH	Ø[	ÎÂˆB‚ˆYˆ
+\ÓY[U\İ
+HÂˆ]™[XZ[ˆH[Ù[œİ]KœİYT]Y]YK›[™İÂˆ]İ[H[Ù[œİ]K›]˜\ÙT]Y]YK›[™İÂˆ\Ë™Ù][
+	Ü›ÙÜ™\ÜË]^	ÊKš[›™\•^H›İ[™	Ó[Ù[œİ]K›]›İ[™Hˆ	İİ[H™[XZ[ˆ
+È_HÈ	İİ[XÂˆH[ÙHÂˆ\Ë™Ù][
+	Ü›ÙÜ™\ÜË]^	ÊKš[›™\•^H	Ó[Ù[œİ]K˜İ\œ™[[™^
+È_HÈ	Ó[Ù[œİ]KœİYT]Y]YK›[™İXÂˆBˆˆYˆ
+[Ù[œİ]K›[ÙHOOH	Ü[™[[IÈ[Ù[œİ]K›[ÙHOOH	ÙX[]˜XÚÉÈ\ÓY[U\İ\Ô›İH\Ñš[\•\İ
+HÂˆ\Ë\]T^[X]š^
+
+NÈˆB‚ˆ]Ø\™H\Ë™Ù][
+	Ù›\ÚXØ\™	ÊNÂˆ]š\İX[ÈH\Ë™Ù]Ø\™š\İX[ÊË\KË›[™ÊNÂˆØ\™œ]Y\TÙ[XİÜŠ	ËØ]\›X\šË[^Y\‰ÊKœİ[K˜˜XÚÙÜ›İ[™Hš\İX[Ë˜™ÎÂˆ\Ë™Ù][
+	Ù›\Ú]Ø]\›X\šÉÊKš[›™\’SHš\İX[ËÛNÈˆˆØ\™˜Û\ÜÓ\İœ™[[İ™Jˆ	Ø[š[K\ÛYK[™^	Ëˆ	Ø[š[K\ÛYK\™]‰Ëˆ	Ø[š[K\ÛYK[İ][Y	Ëˆ	Ø[š[K\ÛYK[İ]\šYÚ	Ëˆ	Ø[š[K\ÛYKZ[‹\šYÚ	Ëˆ	Ø[š[K\ÛYKZ[‹[Y	Ëˆ	ÜİYKXØ\™Y^][™^	Ëˆ	ÜİYKXØ\™Y^]\™]‰Ëˆ	ÜİYKXØ\™Y[\‹[™^	Ëˆ	ÜİYKXØ\™Y[\‹\™]‰Ëˆ	ÜİYKY™YY˜XÚËXÛÜœ™Xİ	Ëˆ	ÜİYKY™YY˜XÚË]Ü›Û™ÉËˆ	ÜÚ[[Y\š[™ÉÂŠNÂ›ÚYØ\™›Ù™œÙ]ÚYÂˆˆËÈ9£ä9cå¹ak9aly¥è:f§9è£y¤«y¢©z`.ú/¤{ï#:!ê¹bª:/áù®é9£¢zgg¹î«ù¥¡ù§+9æ¡9`aùd#y/ëºil9ë)‚ˆÛÛœİšYÙÙ\”Ô[››İ[˜Ù[Y[H
+
+HOˆÂˆ][››İ[˜Ù\ˆHØİ[Y[™Ù][[Y[RY
+	ÜÜ‹X[››İ[˜Ù\‰ÊNÂˆYˆ
+[››İ[˜Ù\ˆ	‰ˆÈ	‰ˆËÛÜ™	‰ˆËÛÜ™OOH	ÒS•ĞĞT‘	ÊHÂˆÛÛœİ\Ñ[ˆHË›[™ÈOOH	Ù[‰ÎÂˆYˆ
+\Ñ[ŠHÂˆ[››İ[˜Ù\‹š[›™\•^Hİ\œ™[ÛÜ™ˆ	İËÛÜ™KˆYX[š[™Îˆ	İË›YX[š[™ßK˜ÂˆH[ÙHÂˆ]ÛX[’Ø[˜HH
+ËšØ[˜H	ÉÊKœ™\XÙJÖøà$8à$W×J
+WKÙË	ÉÊNÂˆ[››İ[˜Ù\‹š[›™\•^H9odùbcycez+ã{ï&‰İËÛÜ™xà ¹`aùd#{ï&‰ØÛX[’Ø[˜_xà ˜ÂˆBˆBˆNÂ‚ˆYˆ
+[š[HOOH	Û›Û™IÊHÂˆ[Ù[œİ]Kš\Ğ[š[X][™ÈHYNÂ‚ˆÛÛœİ^]Û\ÜÈH[š[HOOH	Û™^	ÂˆÈ	ÜİYKXØ\™Y^][™^	Âˆˆ	ÜİYKXØ\™Y^]\™]‰ÎÂ‚ˆÛÛœİ[\Û\ÜÈH[š[HOOH	Û™^	ÂˆÈ	ÜİYKXØ\™Y[\‹[™^	Âˆˆ	ÜİYKXØ\™Y[\‹\™]‰ÎÂ‚ˆØ\™˜Û\ÜÓ\İ˜Y
+^]Û\ÜÊNÂ‚ˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆ\Ë\]PØ\™ÛÛ[
+ˆËˆš\İX[Ëˆ[ÙKˆ›Ü˜ÙT›İQ[ˆ\ÓY[U\İˆ\Ô›İKˆ\Ñš[\•\İˆ
+NÂ‚ˆšYÙÙ\”Ô[››İ[˜Ù[Y[
+
+NÂ‚ˆØ\™˜Û\ÜÓ\İœ™[[İ™J^]Û\ÜÊNÂˆ›ÚYØ\™›Ù™œÙ]ÚYÂˆØ\™˜Û\ÜÓ\İ˜Y
+[\Û\ÜÊNÂ‚ˆÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆØ\™˜Û\ÜÓ\İœ™[[İ™J[\Û\ÜÊNÂˆ[Ù[œİ]Kš\Ğ[š[X][™ÈH˜[ÙNÂˆKÌÌ
+NÂˆKN
+NÂˆH[ÙHÂˆ\Ë\]PØ\™ÛÛ[
+ˆËˆš\İX[Ëˆ[ÙKˆ›Ü˜ÙT›İQ[ˆ\ÓY[U\İˆ\Ô›İKˆ\Ñš[\•\İˆ
+NÂ‚ˆšYÙÙ\”Ô[››İ[˜Ù[Y[
+
+NÂˆ[Ù[œİ]Kš\Ğ[š[X][™ÈH˜[ÙNÂˆBˆK‚‚ˆ\]PØ\™ÛÛ[
+Ëš\İX[Ë[ÙK›Ü˜ÙT›İQ[\ÓY[U\İ\Ô›İK\Ñš[\•\İ
+HÂˆÛÛœİ\Ñ[™Û\ÚHË›[™ÈOOH	Ù[‰ÎÂˆˆËÈ9bª9  y/ë¹¥.y£ä9é.¹£"zd«¹æ¡9¥¡ù¨bˆ][ˆH\Ë™Ù][
+	Ø‹[]\ÚİËZ[	ÊNÂˆYˆ
+[ŠHÂˆ[‹š[›™\•^H\Ñ[™Û\ÚÈ	ùd+9.#y®!{ï'ùà®yaîù§%ú+îù/¢ùcéIÈˆ	ùd+9.#y®!{ï'ù¦/¹é.¹`aùd#IÎÂˆB‚ˆ\Ë™Ù][
+	Û]X›[™X]Y[Ë]ZIÊK˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂ‚ˆ\Ë™Ù][
+	İË]ÛÜ™	ÊKœİ[K™\Ü^HH	Ø›ØÚÉÎÂˆ\Ë™Ù][
+	İËZØ[˜IÊKœİ[K™\Ü^HH\Ñ[™Û\ÚÈ	Ø›ØÚÉÈˆ	Ø›ØÚÉÎÂˆ\Ë™Ù][
+	İË[YX[š[™ÉÊKœİ[K™\Ü^HH	Ø›ØÚÉÎÂˆ\Ë™Ù][
+	İË]\IÊKœİ[K™\Ü^HH	Ù›^	ÎÂˆ\Ë™Ù][
+	İËY^[\KX›Ş	ÊKœİ[K™\Ü^HH	Ø›ØÚÉÎÂ‚‚ˆ]X\ÚÈH
+İŠHOˆ	ø¥¨	Ëœ™\X]
+\œ˜^K™œ›ÛJİˆ	ÉÊK›[™İ
+NÂˆ]X\ÚÑš^YH¸¥¨8¥¨8¥¨È‚ˆYˆ
+\Ñš[\•\İ
+HÂˆ]\Ü^S[ÙHH\Ë™Ù][
+	İ\İY\Ü^K\Ù[Xİ	ÊK˜[YH	ÚØ[˜IÎÈˆËÈ:"ìz+ëyª(yo#ûï&šØ[˜H9îí9n©¹.#ykf9g*;ï#9¦(9l!9..ˆÛÜ™;ï&Ø]Y[È9îí9n©¹/çyåfy..¹d+9b¦ú/ª:gìÂˆYˆ
+\Ñ[™Û\Ú	‰ˆ\Ü^S[ÙHOOH	ÚØ[˜IÊHÂˆ\Ü^S[ÙHH	İÛÜ™	ÎÂˆBˆ]İH[Ù[œİ]{ó9¶‰ËkºwµçB‚¹fç¹ëe9a¡yk®{ï&‚‰ÜÛİ\˜ÙU^œÛXÙJL
+_XÂ‚ˆHÂˆÛÛœİ™\İ[Bˆ]ØZ]\Ë—Ü™\]Y\İRR”ÓÓŠ›Û\
+NÂ‚ˆÛÛœİ˜]ÕÛÜ™ÈH\œ˜^Kš\Ğ\œ˜^J™\İ[ÛÜ™ÊBˆÈ™\İ[ÛÜ™Âˆˆ×NÂ‚ˆÛÛœİ˜[˜XÚÓ[™ÈBˆ^[ØYË›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆÛÛœİÙY[ˆH™]ÈÙ]
+
+NÂˆÛÛœİØ[™Y]\ÈH×NÂ‚ˆ›Üˆ
+ÛÛœİ][HÙˆ˜]ÕÛÜ™ÊHÂˆÛÛœİ˜]ÕÛÜ™Bˆ\[Ùˆ][HOOH	Üİš[™ÉÂˆÈ][Bˆˆ][OËÛÜ™Â‚ˆÛÛœİ[™ÈBˆ][OË›[™ÈOOH	Ù[‰Èˆ][OË›[™ÈOOH	Ú˜IÂˆÈ][K›[™Âˆˆ\Ë—Ú[™™\RUÛÜ™[™Êˆ˜]ÕÛÜ™ˆ˜[˜XÚÓ[™Âˆ
+NÂ‚ˆÛÛœİÛÜ™Bˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ˜]ÕÛÜ™ˆ[™Âˆ
+NÂ‚ˆYˆ
+]ÛÜ™
+HÂˆÛÛ[YNÂˆB‚ˆÛÛœİÙ^HBˆ	Û[™ßN‰Û[™ÈOOH	Ù[‰ÈÈÛÜ™ÓİÙ\Ø\ÙJ
+HˆÛÜ™XÂ‚ˆYˆ
+ÙY[‹š\ÊÙ^JJHÂˆÛÛ[YNÂˆB‚ˆÙY[‹˜Y
+Ù^JNÂ‚ˆÛÛœİ^\İ[™ÕÛÜ™Bˆ[Ù[™‹™š[™
+[HOˆÂˆÛÛœİ[S[™ÈBˆ[K›[™È	Ú˜IÎÂ‚ˆÛÛœİ[UÛÜ™Bˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ[KÛÜ™ˆ[S[™Âˆ
+NÂ‚ˆ™]\›ˆ
+ˆ[S[™ÈOOH[™È	‰‚ˆ[UÛÜ™OOHÛÜ™ˆ
+NÂˆJNÂ‚ˆØ[™Y]\Ëœ\Ú
+ÂˆÛÜ™ˆ[™ËˆÙ[XİYˆY^\İ[™ÕÛÜ™ˆ^\İ[™Ñ›Û\‚ˆ^\İ[™ÕÛÜ™Ë™›Û\ˆ	ÉÂˆJNÂ‚ˆYˆ
+Ø[™Y]\Ë›[™İHLŠHÂˆœ™XZÎÂˆBˆB‚ˆYˆ
+Ø[™Y]\Ë›[™İOOH
+HÂˆ\Ë—ØÛÜÙPRUÛÜ™ÛÛXİÜŠ
+NÂˆÚİÕØ\İ
+	ù¬¨y§"z+á¹b*ùb,:` ¹d"9b¨9aiz+ãyn¤ùæ¡:+ãy¬aÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹˜Ø[™Y]\ÈBˆØ[™Y]\ÎÂ‚ˆ\Ë—Ü™[™\RUÛÜ™Ø[™Y]\Ê
+NÂ‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJˆ	ÜÙ[Xİ	Âˆ
+NÂˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠ	ÖĞRHÛÜ™^˜XİIË\œ›ÜŠNÂˆ\Ë—ØÛÜÙPRUÛÜ™ÛÛXİÜŠ
+NÂˆÚİÕØ\İ
+ˆ\œ›ÜË›Y\ÜØYÙHˆ	ú+ãy¬aú+á¹b*ùi,z-){ï#:+íùê#yd#ºaãz+åIÂˆ
+NÂˆBŸK‚—Ü™[™\RUÛÜ™Ø[™Y]\Ê
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XØ[™Y]K[\İ	ÊNÂ‚ˆYˆ
+[\İ
+HÂˆ™]\›ÂˆB‚ˆ\İš[›™\’SBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹˜Ø[™Y]\Âˆ›X\
+
+Ø[™Y]K[™^
+HOˆÂˆÛÛœİ[™İXYÙS˜[YHBˆØ[™Y]K›[™ÈOOH	Ù[‰ÂˆÈ	ú"ìz+ëIÂˆˆ	ù¥éz+ëIÎÂ‚ˆÛÛœİ^\İ[™ÈBˆØ[™Y]K™^\İ[™Ñ›Û\‚ˆÈÜ[ˆÛ\ÜÏH˜ZK]ÛÜ™Y^\İ[™È¹mì¹g*8à#	Ù\ØØ\RS
+Ø[™Y]K™^\İ[™Ñ›Û\Š_xà#OÜÜ[˜ˆˆ	ÉÎÂ‚ˆ™]\›ˆˆX™[Û\ÜÏH˜ZK]ÛÜ™XØ[™Y]H‚ˆ[œ]ˆ\OH˜ÚXÚØ›Ş‚ˆ]KXZK]ÛÜ™Z[™^H‰Ú[™^H‚ˆ	ØØ[™Y]KœÙ[XİYÈ	ØÚXÚÙY	Èˆ	ÉßBˆ‚‚ˆÜ[ˆÛ\ÜÏH˜ZK]ÛÜ™XÚXÚÛX\šÈ‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y˜ÚXÚÏÜÜ[‚ˆÜÜ[‚‚ˆÜ[ˆÛ\ÜÏH˜ZK]ÛÜ™XØ[™Y]KXÛÜH‚ˆİ›Û™Ï‰Ù\ØØ\RS
+Ø[™Y]KÛÜ™
+_OÜİ›Û™Ï‚ˆÛX[‰Û[™İXYÙS˜[Y_IÙ^\İ[™ßOÜÛX[‚ˆÜÜ[‚ˆÛX™[‚ˆÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆ\Ë—İ\]PRUÛÜ™Ø[™Y]PÛİ[
+
+NÂŸK‚—İ\]PRUÛÜ™Ø[™Y]PÛİ[
+
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XØ[™Y]K[\İ	ÊNÂ‚ˆÛÛœİÛİ[[BˆšY]Ë™Ù][
+	ØZK]ÛÜ™\Ù[XİYXÛİ[	ÊNÂ‚ˆÛÛœİ™^ˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™Y[œšXÚ	ÊNÂ‚ˆYˆ
+[\İXÛİ[[
+HÂˆ™]\›ÂˆB‚ˆÛÛœİÚXÚÙYBˆ\İœ]Y\TÙ[XİÜ[
+ˆ	Ú[œ]İ\OH˜ÚXÚØ›Ş—N˜ÚXÚÙY	Âˆ
+K›[™İÂ‚ˆÛİ[[^ÛÛ[Bˆ9mìº`"H	ØÚXÚÙYHÈ	İ\Ë˜ZUÛÜ™ÛÛXİ[Û‹˜Ø[™Y]\Ë›[™İXÂ‚ˆYˆ
+™^ŠHÂˆ™^‹™\ØX›YHÚXÚÙYOOHÂˆBŸK‚—İÙÙÛP[RUÛÜ™Ø[™Y]\Ê
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XØ[™Y]K[\İ	ÊNÂ‚ˆYˆ
+[\İ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİÚXÚØ›Ş\ÈH\œ˜^K™œ›ÛJˆ\İœ]Y\TÙ[XİÜ[
+ˆ	Ú[œ]İ\OH˜ÚXÚØ›Ş—IÂˆ
+Bˆ
+NÂ‚ˆÛÛœİÚİ[ÚXÚÈBˆÚXÚØ›Ş\ËœÛÛYJÚXÚØ›ŞOˆÂˆ™]\›ˆXÚXÚØ›Ş˜ÚXÚÙYÂˆJNÂ‚ˆÚXÚØ›Ş\Ë™›Ü‘XXÚ
+ÚXÚØ›ŞOˆÂˆÚXÚØ›Ş˜ÚXÚÙYHÚİ[ÚXÚÎÂˆJNÂ‚ˆ\Ë—İ\]PRUÛÜ™Ø[™Y]PÛİ[
+
+NÂŸK‚—ÙÙ]Ù[XİYRUÛÜ™Ø[™Y]\Ê
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XØ[™Y]K[\İ	ÊNÂ‚ˆYˆ
+[\İ
+HÂˆ™]\›ˆ×NÂˆB‚ˆ™]\›ˆ\œ˜^K™œ›ÛJˆ\İœ]Y\TÙ[XİÜ[
+ˆ	Ú[œ]İ\OH˜ÚXÚØ›Ş—N˜ÚXÚÙY	Âˆ
+Bˆ
+Bˆ›X\
+ÚXÚØ›ŞOˆÂˆ™]\›ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹˜Ø[™Y]\ÖÂˆ[X™\ŠÚXÚØ›Ş™]\Ù]˜ZUÛÜ™[™^
+BˆNÂˆJBˆ™š[\Š›ÛÛX[ŠNÂŸK‚˜\Ş[˜ÈÙ[œšXÚÙ[XİYRUÛÜ™Ê
+HÂˆÛÛœİÙ[XİYBˆ\Ë—ÙÙ]Ù[XİYRUÛÜ™Ø[™Y]\Ê
+NÂ‚ˆYˆ
+Ù[XİY›[™İOOH
+HÂˆÚİÕØ\İ
+	ú+íú!ìùl$z`"y¢êy. 9.*º+ãy¬aÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJˆ	ÛØY[™ÉËˆ9«hùg*9..ˆ	ÜÙ[XİY›[™İH9.*º+ãy¬aú(iyaj:+îúgìøà zaâ¹.byd£9/¢ùcéx )˜ˆ
+NÂ‚ˆÛÛœİ™\]Y\İYÛÜ™ÈHÙ[XİYˆ›X\
+][HOˆÂˆ™]\›ˆÂˆÛÜ™ˆ][KÛÜ™ˆ[™Îˆ][K›[™ÂˆNÂˆJNÂ‚ˆÛÛœİ›Û\H:+íù¢¢¹."úgh¹æ¡9¥éz+ëyd£:"ìz+ëz+ãy¬aù¥m9ä!¹¢$:` ¹d"9.+y¥¡ùki¹.h: !y/çykf9b,:+ãyn¤ùæ¡9k£9¥m:+ãy§hxà ‚‚º)á9b&{ï&‚ŒKˆ9.)y¨/9/çyåfz/¤ùaizhn¹n£ûï#9«ãù.*º/¤ùaiz+ãykîyn¥9. 9.*¹îäù§§8à ‚Œ‹ˆ9¥éz+ëykeù«­{ï&ÛÜ™8à [[™øà ZØ[˜xà ]\xà [YX[š[™øà Y^[\xà \›Ûİøà ‚ŒËˆ:"ìz+ëykeù«­{ï&ÛÜ™8à [[™øà \Û™]Xøà ]\xà [YX[š[™øà Y^[\xà \›Ûİøà ‚ˆ[™È9cêº ïy¦+Èš˜Hˆ9¢%ˆ™[ˆ¸à ‚KˆYX[š[™È9/oùå*9ë 9­ y.+y¥¡ûï&İ\H9/oùå*9.+y¥¡ú+ãy )øà ‚‹ˆ^[\H9oázhnù¦+ù. 9§hz!ê¹á-¸à yn.9å*9æ¡9æë¹¨!ú+ëz* 9/¢ùcé{ï#9¨/9o#ù.)y¨/9..¸ '9æë¹¨!ú+ëz* 9/¢ùcéHÈ9.+y¥¡ùïîú+äx 'xà ‚Ëˆ:"ìz+ëH›ÛİÈ9£ä9/¦ùë 9­ ycëúgh9æ¡:+ãy¨.z+ãyï 9¢áº)èûï&ù¥è9¬åycëúgh9¢áº)èù¥í¹a¦yên¹keùë)¹.,»ï#9.#z) yï%º`(8à ‚ˆ9¥éz+ëH›ÛİÈ9. 9o¢ù..¹ên¹keùë)¹.,¸à ‚Kˆ9¥è9¬åyèkº+©9æ¡9keù«­ya¦yên¹keùë)¹.,¸à ‚ŒLˆ9cêº/¤ùaî¹. 9.*ˆ”ÓÓˆ9kîz,h{ï#9.#z) y/oùå*X\šÙİÛ»ï#9.#z) y­îùb¨:)èúaâ¸à ‚‚¹¨/9o#ûï&‚Èš][\È–ŞÈÛÜ™ˆº`e9¢$8àfxà¢È‹›[™Èˆš˜H‹šØ[˜Hˆ¸àgøàhøàføàa8àfxà¢È‹\Hˆ¹bª:+ãH‹›YX[š[™Èˆº/¯¹¢$;ï&ùk£9¢$‹™^[\Hˆ¹æë¹ª&xà¤º`e9¢$8àfxà¢øàgøà xàjùbª¹b¦øàfxà¢øà ˆÈ9..¹.¡¹k§¹ã¬9æë¹¨!ú #9bª¹b¦øà ˆ‹œ›ÛİÈˆˆŸKÈÛÜ™ˆ˜XÚY]™H‹›[™Èˆ™[ˆ‹œÛ™]XÈˆ‹òfrâ2 Úrä‹È‹\Hˆ¹bª:+ãH‹›YX[š[™Èˆº/¯¹b,;ï&ùk§¹ã¬‹™^[\Hˆ”ÚHÛÜšÙY\™ÈXÚY]™H\ˆÛØ[ˆÈ9inybª¹b¦ùk§¹ã¬:!ê¹mìyæ¡9æë¹¨!øà ˆ‹œ›ÛİÈˆ˜J9c®ÊKXÚY]™J9i-
+HŸW_B‚¹o¡y¥m9ä!º+ãy¬aûï&‚‰Ò”ÓÓ‹œİš[™ÚYJ™\]Y\İYÛÜ™Ê_XÂ‚ˆHÂˆÛÛœİ™\İ[Bˆ]ØZ]\Ë—Ü™\]Y\İRR”ÓÓŠ›Û\
+NÂ‚ˆÛÛœİ˜]Ò][\ÈH\œ˜^Kš\Ğ\œ˜^J™\İ[š][\ÊBˆÈ™\İ[š][\Âˆˆ×NÂ‚ˆÛÛœİ˜YÈHÙ[XİY›X\
+Ø[™Y]HOˆÂˆÛÛœİX]Ú[™ÈH˜]Ò][\Ë™š[™
+][HOˆÂˆÛÛœİ][S[™ÈBˆ][OË›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆ™]\›ˆ
+ˆ][S[™ÈOOHØ[™Y]K›[™È	‰‚ˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ][OËÛÜ™ˆ][S[™Âˆ
+HOOHØ[™Y]KÛÜ™ˆ
+NÂˆJHßNÂ‚ˆÛÛœİ˜]Ñ˜YHÂˆÛÜ™‚ˆİš[™ÊX]Ú[™ËÛÜ™Ø[™Y]KÛÜ™
+Kˆ[™ÎˆØ[™Y]K›[™ËˆØ[˜N‚ˆØ[™Y]K›[™ÈOOH	Ú˜IÂˆÈİš[™ÊX]Ú[™ËšØ[˜H	ÉÊBˆˆ	ÉËˆÛ™]XÎ‚ˆØ[™Y]K›[™ÈOOH	Ù[‰ÂˆÈİš[™ÊX]Ú[™ËœÛ™]XÈ	ÉÊBˆˆ	ÉËˆ\N‚ˆİš[™ÊX]Ú[™Ë\H	ÉÊKˆYX[š[™Î‚ˆİš[™ÊX]Ú[™Ë›YX[š[™È	ÉÊKˆ^[\N‚ˆİš[™ÊX]Ú[™Ë™^[\H	ÉÊKˆ›ÛİÎ‚ˆØ[™Y]K›[™ÈOOH	Ù[‰ÂˆÈİš[™ÊX]Ú[™Ëœ›ÛİÈ	ÉÊBˆˆ	ÉÂˆNÂ‚ˆ™]\›ˆ\Ë—İĞRUÛÜ™˜Y
+ˆ›Ü›X[^™UÛÜ™[J˜]Ñ˜Y
+Bˆ
+NÂˆJNÂ‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÈH˜YÎÂ‚ˆ\Ë—Ü™[™\RUÛÜ™™]šY]Ê
+NÂ‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJˆ	Ü™]šY]ÉÂˆ
+NÂˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠ	ÖĞRHÛÜ™[œšXÚIË\œ›ÜŠNÂˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJ	ÜÙ[Xİ	ÊNÂˆÚİÕØ\İ
+ˆ\œ›ÜË›Y\ÜØYÙHˆ	ú+ãy§hz(iyaj9i,z-){ï#:+íùê#yd#ºaãz+åIÂˆ
+NÂˆBŸK‚—Ù[œİ\™S[™İXYÙQ›Û\Š[™ÊHÂˆÛÛœİ˜[˜XÚÈBˆ[™ÈOOH	Ù[‰ÂˆÈ	ùfæùî©ú+ãy¬aÉÂˆˆ	únæ:+©:+ãyn¤ÉÎÂ‚ˆ]›Û\œÈH[Ù[™›Û\œË™š[\Š›Û\ˆOˆÂˆÛÛœİ›Û\“[™ÈBˆ[Ù[™›Û\“[™ÜÖÙ›Û\—Hˆ
+ˆ[Ù[™‹œÛÛYJÛÜ™OˆÂˆ™]\›ˆ
+ˆÛÜ™™›Û\ˆOOH›Û\ˆ	‰‚ˆÛÜ™›[™ÈOOH	Ù[‰Âˆ
+NÂˆJBˆÈ	Ù[‰Âˆˆ	Ú˜IÂˆ
+NÂ‚ˆ™]\›ˆ›Û\“[™ÈOOH[™ÎÂˆJNÂ‚ˆYˆ
+›Û\œË›[™İOOH
+HÂˆYˆ
+S[Ù[™›Û\œËš[˜ÛY\Ê˜[˜XÚÊJHÂˆ[Ù[™›Û\œËœ\Ú
+˜[˜XÚÊNÂˆB‚ˆ[Ù[™›Û\“[™ÜÖÙ˜[˜XÚ×HH[™ÎÂˆ[Ù[œØ]™Q›Û\œÊ
+NÂˆ[Ù[œØ]™Q›Û\“[™ÜÊ
+NÂ‚ˆ›Û\œÈHÙ˜[˜XÚ×NÂˆB‚ˆ™]\›ˆ›Û\œÎÂŸK‚—İ\]PRUÛÜ™›Û\”Ù[Xİ
+Ù[XİY[™Ëš\ÚX›JHÂˆÛÛœİÙ[XİHšY]Ë™Ù][
+Ù[XİY
+NÂˆÛÛœİÜ›İ\HÙ[XİË˜ÛÜÙ\İ
+	Ë˜ZK]ÛÜ™Y›Û\‹YÜ›İ\	ÊNÂ‚ˆYˆ
+\Ù[XİYÜ›İ\
+HÂˆ™]\›ÂˆB‚ˆÜ›İ\šY[ˆH]š\ÚX›NÂ‚ˆYˆ
+]š\ÚX›JHÂˆ™]\›ÂˆB‚ˆÛÛœİ›Û\œÈBˆ\Ë—Ù[œİ\™S[™İXYÙQ›Û\Š[™ÊNÂ‚ˆÛÛœİ\İ›Û\ˆBˆØØ[İÜ˜YÙK™Ù]][J	Û\İÙ[XİY›Û\‰ÊNÂ‚ˆÛÛœİ™Y™\œ™YBˆ›Û\œËš[˜ÛY\Ê\İ›Û\ŠBˆÈ\İ›Û\‚ˆˆ
+ˆ›Û\œËš[˜ÛY\Êˆ[™ÈOOH	Ù[‰ÂˆÈ	ùfæùî©ú+ãy¬aÉÂˆˆ	únæ:+©:+ãyn¤ÉÂˆ
+BˆÈ
+ˆ[™ÈOOH	Ù[‰ÂˆÈ	ùfæùî©ú+ãy¬aÉÂˆˆ	únæ:+©:+ãyn¤ÉÂˆ
+Bˆˆ›Û\œÖÌBˆ
+NÂ‚ˆÙ[Xİš[›™\’SH›Û\œÂˆ›X\
+›Û\ˆOˆÂˆ™]\›ˆ
+ˆÜ[Ûˆ˜[YOH‰Ù\ØØ\RS
+›Û\Š_H˜
+Âˆ	Ù\ØØ\RS
+›Û\Š_X
+Âˆ	ÏÛÜ[Û‰Âˆ
+NÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆÙ[Xİ˜[YHH™Y™\œ™YÂ‚ˆÙ[Xİ™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂŸK‚—İĞRUÛÜ™˜Y
+[JHÂˆÛÛœİ›Ü›X[^™YH›Ü›X[^™UÛÜ™[J[JNÂ‚ˆ™]\›ˆÂˆÛÜ™ˆ›Ü›X[^™YÛÜ™	ÉËˆ[™Îˆ›Ü›X[^™Y›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IËˆØ[˜N‚ˆ›Ü›X[^™Y›[™ÈOOH	Ú˜IÂˆÈ
+›Ü›X[^™YšØ[˜H	ÉÊBˆˆ	ÉËˆÛ™]XÎ‚ˆ›Ü›X[^™Y›[™ÈOOH	Ù[‰ÂˆÈ
+›Ü›X[^™YœÛ™]XÈ	ÉÊBˆˆ	ÉËˆ\Nˆ›Ü›X[^™Y\H	ÉËˆYX[š[™Îˆ›Ü›X[^™Y›YX[š[™È	ÉËˆ^[\Nˆ›Ü›X[^™Y™^[\H	ÉËˆ›ÛİÎ‚ˆ›Ü›X[^™Y›[™ÈOOH	Ù[‰ÂˆÈ
+›Ü›X[^™Yœ›ÛİÈ	ÉÊBˆˆ	ÉËˆ]™[ˆ›Ü›X[^™Y›]™[	ÉËˆY™šXİ[Nˆ›Ü›X[^™UÛÜ™Y™šXİ[J›Ü›X[^™Y™Y™šXİ[JKˆYÜÎˆ›Ü›X[^™UÛÜ™YÜÊ›Ü›X[^™YYÜÊKˆZ[[ˆ›Ü›X[^™Y˜Z[[ˆOOHYBˆNÂŸK‚—Ü™[™\RUÛÜ™]X[]RS
+™\Ü
+HÂˆ]İ[[X\PÛ\ÜÈH	Ú\Ë[ÚÉÎÂˆ]İ[[X\U^H	ù¨/9o#ù«hùn.	ÎÂ‚ˆYˆ
+™\Ü™\œ›ÜÛİ[ˆ
+HÂˆİ[[X\PÛ\ÜÈH	Ú\ËY\œ›Ü‰ÎÂˆİ[[X\U^H	Ü™\Ü™\œ›ÜÛİ[H:hnyoázhnú(iyajÂˆH[ÙHYˆ
+™\ÜØ\›š[™ĞÛİ[ˆ
+HÂˆİ[[X\PÛ\ÜÈH	Ú\Ë]Ø\›š[™ÉÎÂˆİ[[X\U^H	Ü™\ÜØ\›š[™ĞÛİ[H:hnynîº+«¹¨.9kîXÂˆB‚ˆÛÛœİXÛÛ“X\HÂˆÚÎˆ	ØÚXÚ×ØÚ\˜ÛIËˆØ\›ˆ	Ù\œ›Ü‰Ëˆ\œ›Üˆ	ØØ[˜Ù[	Ëˆ[™›Îˆ	Ú[™›ÉÂˆNÂ‚ˆ™]\›ˆˆ]ˆÛ\ÜÏH˜ZK]ÛÜ™\]X[]KZXY[™È‚ˆÜ[‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y™˜XİØÚXÚÏÜÜ[‚ˆ:-*:aãù¨à9§éBˆÜÜ[‚‚ˆİ›Û™ÈÛ\ÜÏH˜ZK]ÛÜ™\]X[]K\İ[[X\H	Üİ[[X\PÛ\ÜßH‚ˆ	Üİ[[X\U^BˆÜİ›Û™Ï‚ˆÙ]‚‚ˆ]ˆÛ\ÜÏH˜ZK]ÛÜ™\]X[]K[\İ‚ˆ	Ü™\Üš][\Ë›X\
+][HOˆÂˆÛÛœİ]™[Û\ÜÈBˆ][K›]™[OOH	İØ\›‰ÂˆÈ	İØ\›š[™ÉÂˆˆ][K›]™[Â‚ˆ™]\›ˆˆ]ˆÛ\ÜÏH˜ZK]ÛÜ™\]X[]KZ][H\ËIÛ]™[Û\ÜßH‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ	ÚXÛÛ“X\Ú][K›]™[H	Ú[™›ÉßBˆÜÜ[‚ˆÜ[‰Ù\ØØ\RS
+][K^
+_OÜÜ[‚ˆÙ]‚ˆÂˆJKš›Ú[Š	ÉÊ_BˆÙ]‚ˆÂŸK‚—İ\]PRUÛÜ™Ø]™Tİ]J
+HÂˆÛÛœİØ]™P]ÛˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™\Ø]™IÊNÂ‚ˆYˆ
+\Ø]™P]ÛŠHÂˆ™]\›ÂˆB‚ˆÛÛœİ™\ÜÈBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YË›X\
+˜YOˆÂˆ™]\›ˆÙ]ÛÜ™[T]X[]J˜Y
+NÂˆJNÂ‚ˆÛÛœİİ[\œ›ÜœÈH™\ÜËœ™YXÙJˆ
+İ[K™\Ü
+HOˆÂˆ™]\›ˆİ[H
+È™\Ü™\œ›ÜÛİ[ÂˆKˆˆ
+NÂ‚ˆØ]™P]Û‹™\ØX›YHİ[\œ›ÜœÈˆÂˆØ]™P]Û‹]HHİ[\œ›ÜœÈˆˆÈ	ú+íùab:(iyaj:-*:aãù¨à9§éy.+yæ¡9î¨º"lºhnyæë‰Âˆˆ	ùèkº+©9b¨9aiz+ãyn¤ÉÎÂŸK‚—Ü™Yœ™\ÚRUÛÜ™]X[]PØ\™
+[™^
+HÂˆÛÛœİ]X[]P›ŞHØİ[Y[œ]Y\TÙ[XİÜŠˆÙ]KXZK\]X[]KZ[™^H‰Ú[™^H—Xˆ
+NÂ‚ˆÛÛœİ˜YBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÖÚ[™^NÂ‚ˆYˆ
+\]X[]P›ŞY˜Y
+HÂˆ™]\›ÂˆB‚ˆ]X[]P›Şš[›™\’SBˆ\Ë—Ü™[™\RUÛÜ™]X[]RS
+ˆÙ]ÛÜ™[T]X[]J˜Y
+Bˆ
+NÂ‚ˆ\Ë—İ\]PRUÛÜ™Ø]™Tİ]J
+NÂŸK‚—İ\]PRUÛÜ™˜YšY[
+šY[Úİ[›Ü›X[^™JHÂˆÛÛœİ[™^Bˆ[X™\ŠšY[™]\Ù]˜ZQ˜Y[™^
+NÂ‚ˆÛÛœİšY[˜[YHBˆšY[™]\Ù]˜ZQ˜YšY[Â‚ˆÛÛœİ˜YBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÖÚ[™^NÂ‚ˆYˆ
+Y˜YYšY[˜[YJHÂˆ™]\›ÂˆB‚ˆ˜YÙšY[˜[YWHBˆšY[˜[YHOOH	İYÜÉÂˆÈ›Ü›X[^™UÛÜ™YÜÊšY[˜[YJBˆˆšY[˜[YHOOH	ÙY™šXİ[IÂˆÈ›Ü›X[^™UÛÜ™Y™šXİ[JšY[˜[YJBˆˆšY[˜[YNÂ‚ˆYˆ
+Úİ[›Ü›X[^™JHÂˆÛÛœİ›Ü›X[^™Y˜YBˆ\Ë—İĞRUÛÜ™˜Y
+˜Y
+NÂ‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÖÚ[™^HBˆ›Ü›X[^™Y˜YÂ‚ˆÛÛœİØ\™HšY[˜ÛÜÙ\İ
+ˆ	Ë˜ZK]ÛÜ™\™]šY]ËXØ\™	Âˆ
+NÂ‚ˆYˆ
+Ø\™
+HÂˆØ\™œ]Y\TÙ[XİÜ[
+ˆ	ÖÙ]KXZKY˜YYšY[IÂˆ
+K™›Ü‘XXÚ
+[œ]OˆÂˆÛÛœİ˜[YHBˆ[œ]™]\Ù]˜ZQ˜YšY[Â‚ˆYˆ
+˜[YH[ˆ›Ü›X[^™Y˜Y
+HÂˆ[œ]˜[YHBˆ›Ü›X[^™Y˜YÛ˜[YWH	ÉÎÂˆBˆJNÂˆBˆB‚ˆ\Ë—Ü™Yœ™\ÚRUÛÜ™]X[]PØ\™
+[™^
+NÂŸK‚—Ü™[™\RUÛÜ™™]šY]Ê
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™\™]šY]Ë[\İ	ÊNÂ‚ˆYˆ
+[\İ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ˜YÈBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YË›X\
+˜YOˆÂˆ™]\›ˆ\Ë—İĞRUÛÜ™˜Y
+˜Y
+NÂˆJNÂ‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÈH˜YÎÂ‚ˆÛÛœİ\Ò˜\[™\ÙHBˆ˜YËœÛÛYJ˜YOˆ˜Y›[™ÈOOH	Ú˜IÊNÂ‚ˆÛÛœİ\Ñ[™Û\ÚBˆ˜YËœÛÛYJ˜YOˆ˜Y›[™ÈOOH	Ù[‰ÊNÂ‚ˆ\Ë—İ\]PRUÛÜ™›Û\”Ù[Xİ
+ˆ	ØZK]ÛÜ™Y›Û\‹Z˜IËˆ	Ú˜IËˆ\Ò˜\[™\ÙBˆ
+NÂ‚ˆ\Ë—İ\]PRUÛÜ™›Û\”Ù[Xİ
+ˆ	ØZK]ÛÜ™Y›Û\‹Y[‰Ëˆ	Ù[‰Ëˆ\Ñ[™Û\Úˆ
+NÂ‚ˆ\İš[›™\’SH˜YÂˆ›X\
+
+˜Y[™^
+HOˆÂˆÛÛœİ\Ñ[™Û\ÚBˆ˜Y›[™ÈOOH	Ù[‰ÎÂ‚ˆÛÛœİ]X[]T™\ÜBˆÙ]ÛÜ™[T]X[]J˜Y
+NÂ‚ˆÛÛœİ™XY[™ÑšY[H\Ñ[™Û\ÚˆÈˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[ºgìù¨!ÏÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[HœÛ™]XÈ‚ˆ˜[YOH‰Ù\ØØ\RS
+˜YœÛ™]XÊ_H‚ˆXÙZÛ\H¹i »ï&‹òfrâ2 Úrä‹È‚ˆ‚ˆÛX™[‚ˆˆˆˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[¹`aùd#OÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[HšØ[˜H‚ˆ˜[YOH‰Ù\ØØ\RS
+˜YšØ[˜J_H‚ˆXÙZÛ\H¹i »ï&¸àgøàhøàføàa8àfxà¢È‚ˆ‚ˆÛX™[‚ˆÂ‚ˆÛÛœİ›ÛİÑšY[H\Ñ[™Û\ÚˆÈˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\ZK]ÛÜ™YšY[]ÚYH‚ˆÜ[º+ãy¨.z+ãyï ÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[Hœ›ÛİÈ‚ˆ˜[YOH‰Ù\ØØ\RS
+˜Yœ›ÛİÊ_H‚ˆXÙZÛ\H¹¥è9¬åycëúgh9¢áº)èù¥í¹cëù.éyåfyênˆ‚ˆ‚ˆÛX™[‚ˆˆˆ	ÉÎÂ‚ˆ™]\›ˆˆ\XÛBˆÛ\ÜÏH˜ZK]ÛÜ™\™]šY]ËXØ\™‚ˆ]KXZK\™]šY]ËZ[™^H‰Ú[™^H‚ˆ‚ˆ]ˆÛ\ÜÏH˜ZK]ÛÜ™\™]šY]ËZXY[™È‚ˆÜ[ˆÛ\ÜÏH˜ZK]ÛÜ™[[™İXYÙK]YÈ	Ú\Ñ[™Û\ÚÈ	Ú\ËY[‰Èˆ	Ú\ËZ˜IßH‚ˆ	Ú\Ñ[™Û\ÚÈ	ÑS‰Èˆ	ù¥éIßBˆÜÜ[‚ˆİ›Û™Ïº+ãy§hH	Ú[™^
+È_OÜİ›Û™Ï‚ˆÙ]‚‚ˆ]‚ˆÛ\ÜÏH˜ZK]ÛÜ™\]X[]H‚ˆ]KXZK\]X[]KZ[™^H‰Ú[™^H‚ˆ‚ˆ	İ\Ë—Ü™[™\RUÛÜ™]X[]RS
+]X[]T™\Ü
+_BˆÙ]‚‚ˆ]ˆÛ\ÜÏH˜ZK]ÛÜ™\™]šY]ËYÜšY‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[¹cez+ãOÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[HÛÜ™‚ˆ˜[YOH‰Ù\ØØ\RS
+˜YÛÜ™
+_H‚ˆ‚ˆÛX™[‚‚ˆ	Ü™XY[™ÑšY[B‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[º+ãy )ÏÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[H\H‚ˆ˜[YOH‰Ù\ØØ\RS
+˜Y\J_H‚ˆXÙZÛ\H¹i »ï&¹bª:+ãH‚ˆ‚ˆÛX™[‚‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[¹î©ùb*ÏÜÜ[‚ˆÙ[Xİˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[H›]™[‚ˆ‚ˆÜ[Ûˆ˜[YOHˆˆ	ÈY˜Y›]™[È	ÜÙ[XİY	Èˆ	ÉßO¹§*¹b!¹î©ÏÛÜ[Û‚ˆ	ÊÓÔ‘ÓU‘SÓÔSÓ”ÖÙ˜Y›[™×H×JK›X\
+]™[OˆÂˆ™]\›ˆÜ[Ûˆ˜[YOH‰Û]™[Hˆ	Ù˜Y›]™[OOH]™[È	ÜÙ[XİY	Èˆ	ÉßO‰Û]™[OÛÜ[Û˜ÂˆJKš›Ú[Š	ÉÊ_BˆÜÙ[Xİ‚ˆÛX™[‚‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\‚ˆÜ[ºf¯¹n©ÜÜ[‚ˆÙ[Xİˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[H™Y™šXİ[H‚ˆ‚ˆ	ÓØš™Xİ™[šY\ÊQ‘’PÕSWÓP‘SÊK›X\
+
+İ˜[YKX™[JHOˆÂˆ™]\›ˆÜ[Ûˆ˜[YOH‰İ˜[Y_Hˆ	Ôİš[™Ê˜Y™Y™šXİ[JHOOH˜[YHÈ	ÜÙ[XİY	Èˆ	ÉßO‰İ˜[YHOOH	Ì	ÈÈX™[ˆ˜[YH
+È	È0­È	È
+ÈX™[OÛÜ[Û˜ÂˆJKš›Ú[Š	ÉÊ_BˆÜÙ[Xİ‚ˆÛX™[‚‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\ZK]ÛÜ™YšY[]ÚYH‚ˆÜ[¹¨!ùëoÜÜ[‚ˆ[œ]ˆ\OH^‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[HYÜÈ‚ˆ˜[YOH‰Ù\ØØ\RS
+›Ü›X[^™UÛÜ™YÜÊ˜YYÜÊKš›Ú[Š	øà IÊJ_H‚ˆXÙZÛ\H¹i »ï&ºjæ:h¤xà ycèú+ëxà yi&¹.bH‚ˆ‚ˆÛX™[‚‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\ZK]ÛÜ™YšY[]ÚYH‚ˆÜ[¹.+y¥¡úaâ¹.bOÜÜ[‚ˆ^\™XBˆ›İÜÏHŒˆ‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[H›YX[š[™È‚ˆXÙZÛ\H¹hjùa¦yë 9­ y.+y¥¡úaâ¹.bH‚ˆ‰Ù\ØØ\RS
+˜Y›YX[š[™Ê_Oİ^\™XO‚ˆÛX™[‚‚ˆX™[Û\ÜÏH˜ZK]ÛÜ™YšY[YÜ›İ\ZK]ÛÜ™YšY[]ÚYH‚ˆÜ[¹/¢ùcéy.#¹ïîú+äOÜÜ[‚ˆ^\™XBˆ›İÜÏHŒÈ‚ˆ]KXZKY˜YZ[™^H‰Ú[™^H‚ˆ]KXZKY˜YYšY[H™^[\H‚ˆXÙZÛ\H¹æë¹¨!ú+ëz* 9/¢ùcéHÈ9.+y¥¡ùïîú+äH‚ˆ‰Ù\ØØ\RS
+˜Y™^[\J_Oİ^\™XO‚ˆÛX™[‚‚ˆ	Ü›ÛİÑšY[BˆÙ]‚ˆØ\XÛO‚ˆÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆ\Ë—İ\]PRUÛÜ™Ø]™Tİ]J
+NÂŸK‚—ØÛÛXİRUÛÜ™˜YÑœ›ÛQ›Ü›J
+HÂˆÛÛœİ\İBˆšY]Ë™Ù][
+	ØZK]ÛÜ™\™]šY]Ë[\İ	ÊNÂ‚ˆYˆ
+[\İ
+HÂˆ™]\›ˆ×NÂˆB‚ˆÛÛœİ˜YÈBˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YË›X\
+˜YOˆÂˆ™]\›ˆÈ‹‹™˜YNÂˆJNÂ‚ˆ\İœ]Y\TÙ[XİÜ[
+ˆ	ÖÙ]KXZKY˜YZ[™^VÙ]KXZKY˜YYšY[IÂˆ
+K™›Ü‘XXÚ
+šY[OˆÂˆÛÛœİ[™^Bˆ[X™\ŠšY[™]\Ù]˜ZQ˜Y[™^
+NÂ‚ˆÛÛœİ˜[YHBˆšY[™]\Ù]˜ZQ˜YšY[Â‚ˆYˆ
+Y˜YÖÚ[™^H[˜[YJHÂˆ™]\›ÂˆB‚ˆ˜YÖÚ[™^VÛ˜[YWHBˆ˜[YHOOH	İYÜÉÂˆÈ›Ü›X[^™UÛÜ™YÜÊšY[˜[YJBˆˆ˜[YHOOH	ÙY™šXİ[IÂˆÈ›Ü›X[^™UÛÜ™Y™šXİ[JšY[˜[YJBˆˆšY[˜[YNÂˆJNÂ‚ˆÛÛœİ›Ü›X[^™Y˜YÈH˜YË›X\
+˜YOˆÂˆ™]\›ˆ\Ë—İĞRUÛÜ™˜Y
+ˆ›Ü›X[^™UÛÜ™[J˜Y
+Bˆ
+NÂˆJNÂ‚ˆ›Üˆ
+ˆ][™^HÂˆ[™^›Ü›X[^™Y˜YË›[™İÂˆ[™^
+ÊÂˆ
+HÂˆÛÛœİ™\ÜHÙ]ÛÜ™[T]X[]Jˆ›Ü›X[^™Y˜YÖÚ[™^Bˆ
+NÂ‚ˆYˆ
+™\Ü™\œ›ÜÛİ[OOH
+HÂˆÛÛ[YNÂˆB‚ˆÛÛœİš\œİ\œ›ÜˆH™\Üš][\Ë™š[™
+][HOˆÂˆ™]\›ˆ][K›]™[OOH	Ù\œ›Ü‰ÎÂˆJNÂ‚ˆÛÛœİšY[˜[YHHš\œİ\œ›ÜË™šY[	İÛÜ™	ÎÂ‚ˆÛÛœİ[˜[YšY[H\İœ]Y\TÙ[XİÜŠˆÙ]KXZKY˜YZ[™^H‰Ú[™^H—VÙ]KXZKY˜YYšY[H‰ÙšY[˜[Y_H—Xˆ
+NÂ‚ˆYˆ
+[˜[YšY[
+HÂˆ[˜[YšY[™›Øİ\Ê
+NÂˆB‚ˆ›İÈ™]È\œ›ÜŠˆ:+íùab9i!9ä!¹ë+	Ú[™^
+È_H9.*º+ãy§hyæ¡9î¨º"lºhnyæë˜ˆ
+NÂˆB‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÈBˆ›Ü›X[^™Y˜YÎÂ‚ˆ™]\›ˆ›Ü›X[^™Y˜YÎÂŸK‚—Ùš[™\XØ]PRUÛÜ™
+˜Y
+HÂˆÛÛœİ\™Ù]Bˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ˜YÛÜ™ˆ˜Y›[™Âˆ
+NÂ‚ˆ™]\›ˆ[Ù[™‹™š[™
+ÛÜ™OˆÂˆÛÛœİÛÜ™[™ÈBˆÛÜ™›[™È	Ú˜IÎÂ‚ˆ™]\›ˆ
+ˆÛÜ™[™ÈOOH˜Y›[™È	‰‚ˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆÛÜ™ÛÜ™ˆÛÜ™[™Âˆ
+HOOH\™Ù]ˆ
+NÂˆJNÂŸK‚˜\Ş[˜ÈÜØ]™PRUÛÜ™˜YÊ
+HÂˆ]˜YÎÂ‚ˆHÂˆ˜YÈBˆ\Ë—ØÛÛXİRUÛÜ™˜YÑœ›ÛQ›Ü›J
+NÂˆHØ]Ú
+\œ›ÜŠHÂˆÚİÕØ\İ
+\œ›Ü‹›Y\ÜØYÙJNÂˆ™]\›ÂˆB‚ˆÛÛœİ˜\[™\ÙQ›Û\ˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™Y›Û\‹Z˜IÊOË˜[YHˆ	únæ:+©:+ãyn¤ÉÎÂ‚ˆÛÛœİ[™Û\Ú›Û\ˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™Y›Û\‹Y[‰ÊOË˜[YHˆ	ùfæùî©ú+ãy¬aÉÎÂ‚ˆÛÛœİ\XØ]S[ÙHBˆšY]Ë™Ù][
+	ØZK]ÛÜ™Y\XØ]K[[ÙIÊOË˜[YHˆ	ÜÚÚ\	ÎÂ‚ˆÛÛœİYÔİ\œÈH›ÛÛX[ŠˆšY]Ë™Ù][
+	ØZK]ÛÜ™XY\İ\‰ÊOË˜ÚXÚÙYˆ
+NÂ‚ˆ]YYHÂˆ]\]YHÂˆ]ÚÚ\YHÂ‚ˆ›Üˆ
+ÛÛœİ˜YÙˆ˜YÊHÂˆÛÛœİ›Û\ˆBˆ˜Y›[™ÈOOH	Ù[‰ÂˆÈ[™Û\Ú›Û\‚ˆˆ˜\[™\ÙQ›Û\Â‚ˆÛÛœİ\XØ]HBˆ\Ë—Ùš[™\XØ]PRUÛÜ™
+˜Y
+NÂ‚ˆYˆ
+\XØ]H	‰ˆ\XØ]S[ÙHOOH	ÜÚÚ\	ÊHÂˆÚÚ\Y
+ÊÎÂˆÛÛ[YNÂˆB‚ˆÛÛœİ›Ü›X[^™YÛÜ™H›Ü›X[^™UÛÜ™[JÂˆÛÜ™ˆ˜YÛÜ™ˆ\Nˆ˜Y\KˆYX[š[™Îˆ˜Y›YX[š[™Ëˆ^[\Nˆ˜Y™^[\H	ÉËˆ›ÛİÎ‚ˆ˜Y›[™ÈOOH	Ù[‰ÂˆÈ
+˜Yœ›ÛİÈ	ÉÊBˆˆ	ÉËˆÛ™]XÎ‚ˆ˜Y›[™ÈOOH	Ù[‰ÂˆÈ
+˜YœÛ™]XÈ	ÉÊBˆˆ	ÉËˆØ[˜N‚ˆ˜Y›[™ÈOOH	Ú˜IÂˆÈ
+˜YšØ[˜H	ÉÊBˆˆ	ÉËˆ[™Îˆ˜Y›[™Ëˆ›Û\‹ˆ]™[ˆ˜Y›]™[	ÉËˆY™šXİ[Nˆ›Ü›X[^™UÛÜ™Y™šXİ[J˜Y™Y™šXİ[JKˆYÜÎˆ›Ü›X[^™UÛÜ™YÜÊ˜YYÜÊKˆZ[[ˆ˜Y˜Z[[ˆOOHYKˆ\Ò[\ÜYˆYKˆ[\ÜY]ˆ™]È]J
+KÒTÓÔİš[™Ê
+KˆZQÙ[™\˜]YˆYKˆZPÛÛ™š\›YY]ˆ™]È]J
+KÒTÓÔİš[™Ê
+KˆÜœÎˆÂˆX\ÙNˆ‹Kˆ[\˜[ˆˆ™^™]šY]Îˆ]K››İÊ
+BˆBˆJNÂ‚ˆ]Ø]™YÛÜ™H›Ü›X[^™YÛÜ™Â‚ˆYˆ
+\XØ]H	‰ˆ\XØ]S[ÙHOOH	Ûİ™\Üš]IÊHÂˆÛÛœİÜšYÚ[˜[›Û\ˆH\XØ]K™›Û\ÂˆÛÛœİÜšYÚ[˜[YH[Ù[™Ù]ÛÜ™Y
+\XØ]JNÂˆÛÛœİÜšYÚ[˜[Z[[ˆH\XØ]K˜Z[[ˆOOHYNÂ‚ˆØš™Xİ˜\ÜÚYÛŠˆ\XØ]Kˆ›Ü›X[^™YÛÜ™ˆÂˆÚYˆÜšYÚ[˜[YˆZ[[ˆÜšYÚ[˜[Z[[‹ˆ›Û\ˆÜšYÚ[˜[›Û\ˆ›Û\‚ˆBˆ
+NÂ‚ˆØ]™YÛÜ™H\XØ]NÂˆ\]Y
+ÊÎÂˆH[ÙHÂˆ[œİ\™TİX›UÛÜ™Y
+›Ü›X[^™YÛÜ™ÂˆZ[[’[ˆ›Ü›X[^™YÛÜ™˜Z[[ˆOOHYBˆJNÂˆ[Ù[™‹œ\Ú
+›Ü›X[^™YÛÜ™
+NÂˆYY
+ÊÎÂˆB‚ˆÛÛœİØ]™YÛÜ™YH[Ù[™Ù]ÛÜ™Y
+Ø]™YÛÜ™
+NÂ‚ˆYˆ
+ˆYÔİ\œÈ	‰‚ˆS[Ù[œİ\œËš[˜ÛY\ÊØ]™YÛÜ™Y
+Bˆ
+HÂˆ[Ù[œİ\œËœ\Ú
+Ø]™YÛÜ™Y
+NÂˆBˆB‚ˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ[Ù[œØ]™QŠ
+Kˆ[Ù[œØ]™Tİ\œÊ
+BˆJNÂ‚ˆšY]Ëœ™[™\‘\Ú›Ø\™
+
+NÂˆšY]Ë\]UÛÜ™˜[šÕRJ
+NÂˆšY]Ëœ™\Ù]ÛÜ™˜[šÔ™[™\™\Š
+NÂ‚ˆ\Ë—ØÛÜÙPRUÛÜ™ÛÛXİÜŠ
+NÂ‚ˆÛÛœİ™\İ[\ÈH×NÂ‚ˆYˆ
+YYˆ
+HÂˆ™\İ[\Ëœ\Ú
+9¥¬9h§ˆ	ØYYX
+NÂˆB‚ˆYˆ
+\]Yˆ
+HÂˆ™\İ[\Ëœ\Ú
+9¦í9¥¬	İ\]YX
+NÂˆB‚ˆYˆ
+ÚÚ\Yˆ
+HÂˆ™\İ[\Ëœ\Ú
+:-ìú/áÈ	ÜÚÚ\YX
+NÂˆB‚ˆÚİÕØ\İ
+ˆ™\İ[\Ë›[™İˆˆÈ:+ãyn¤ùmì¹i!9ä!»ï&‰Ü™\İ[\Ëš›Ú[Š	ûï#	Ê_Xˆˆ	ù¬¨y§"zg :) y/çykf9æ¡:+ãy¬aÉÂˆ
+NÂŸK‚—ÜØ]™Pİ\œ™[Ú]
+
+HÂˆYˆ
+]\Ë˜İ\œ™[Ú]\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\Ë›[™İOOH
+H™]\›Âˆ]\İ^\İ[™ÈH[Ù[˜ZPÛÛ™\œØ][ÛœË™š[™[™^
+ÈOˆË˜ØXÚRÙ^HOOH\Ë˜İ\œ™[Ú]˜ØXÚRÙ^JNÂˆ]ÛÛˆHÂˆYˆ]K››İÊ
+Kˆ]Nˆ™]È]J
+KÓØØ[Q]Tİš[™Ê	ŞšPÓ‰ÊH
+È	È	È
+È™]È]J
+KÓØØ[U[YTİš[™Ê	ŞšPÓ‰ËÚİ\‰Ì‹YYÚ]	ËZ[]N‰Ì‹YYÚ]	ßJKˆÙ[[˜ÙNˆ\Ë˜İ\œ™[Ú]œÙ[[˜ÙH	ÉËˆÛÜ™ˆ\Ë˜İ\œ™[Ú]ÛÜ™	ÉËˆ[™Îˆ\Ë˜İ\œ™[Ú]›[™È	Ú˜IËˆØXÚRÙ^Nˆ\Ë˜İ\œ™[Ú]˜ØXÚRÙ^KˆŞ\İ[T›Û\ˆ\Ë˜İ\œ™[Ú]œŞ\İ[T›Û\ˆY\ÜØYÙ\ÎˆË‹‹\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\×BˆNÂˆYˆ
+\İ^\İ[™ÈOOHLJHÂˆ[Ù[˜ZPÛÛ™\œØ][ÛœÖÛ\İ^\İ[™×HHÛÛÂˆH[ÙHYˆ
+ÛÛ‹›Y\ÜØYÙ\Ë›[™İˆ
+HÂˆ[Ù[˜ZPÛÛ™\œØ][ÛœË[œÚY
+ÛÛŠNÂˆYˆ
+[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İˆL
+H[Ù[˜ZPÛÛ™\œØ][ÛœÈH[Ù[˜ZPÛÛ™\œØ][ÛœËœÛXÙJL
+NÂˆBˆ\Ë—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+NÂŸK‚—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+HÂˆYˆ
+S[Ù[šY]˜Z[X›JHÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	ØZPÛÛ™\œØ][ÛœÉËˆ”ÓÓ‹œİš[™ÚYJˆ[Ù[˜ZPÛÛ™\œØ][ÛœÂˆ
+Bˆ
+NÂ‚ˆ™]\›ˆ›ÛZ\ÙKœ™\ÛÛ™J
+NÂˆB‚ˆ™]\›ˆY’Ù^]˜[œÙ]
+ˆ	ØZPÛÛ™\œØ][ÛœÉËˆ[Ù[˜ZPÛÛ™\œØ][ÛœÂˆ
+NÂŸK‚›Ü[RT™\Ù]XÚÙ\Š
+HÂˆÛÛœİ[™ÈBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆÛÛœİ[™ÓX™[BˆšY]Ë™Ù][
+ˆ	ØZK\™\Ù][[™İXYÙK[X™[	Âˆ
+NÂ‚ˆYˆ
+[™ÓX™[
+HÂˆ[™ÓX™[^ÛÛ[Bˆ[™ÈOOH	Ù[‰ÂˆÈ	ùodùbcyl!¹/oùå*:"ìz+ëykï9n"	Âˆˆ	ùodùbcyl!¹/oùå*9¥éz+ëykï9n"	ÎÂˆB‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	ØZK\™\Ù][İ™\›^IËˆYBˆ
+NÂŸK‚œİ\RUX”™\Ù]
+™\Ù]Y
+HÂˆÛÛœİ™\Ù]BˆRWĞÒUÔ‘TÑUÖÜ™\Ù]YHˆRWĞÒUÔ‘TÑUË™œ™YNÂ‚ˆÛÛœİ[™ÈBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆ\Ë˜ZUXÚ]˜Xİ]™RYHLNÂˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\ÈH×NÂˆ\Ë˜ZUXÚ]œ™\Ù]YH™\Ù]YÂˆ\Ë˜ZUXÚ]›[™ÈH[™ÎÂ‚ˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\BˆZ[RPÚ]Ş\İ[T›Û\
+ˆ™\Ù]Yˆ[™Âˆ
+NÂ‚ˆ\Ë˜ZUXÚ]˜ØXÚRÙ^HBˆœ™YWÉÜ™\Ù]YWÉÑ]K››İÊ
+_XÂ‚ˆ\Ë˜ZUXÚ]ÛÜ™Bˆ™\Ù]]NÂ‚ˆ\Ë˜ZUXÚ]œÙ[[˜ÙHH	ÉÎÂ‚ˆÛÛœİ\İšY]ÈBˆšY]Ë™Ù][
+	ØZK[\İ]šY]ÉÊNÂ‚ˆÛÛœİÚ]šY]ÈBˆšY]Ë™Ù][
+	ØZKXÚ]]šY]ÉÊNÂ‚ˆÛÛœİY\ÜØYÙ\Ñ[BˆšY]Ë™Ù][
+ˆ	ØZK]X‹XÚ][Y\ÜØYÙ\ÉÂˆ
+NÂ‚ˆÛÛœİ]Q[BˆšY]Ë™Ù][
+ˆ	ØZKXÚ]]šY]Ë]]IÂˆ
+NÂ‚ˆÛÛœİ[œ][BˆšY]Ë™Ù][
+ˆ	ØZK]X‹XÚ]Z[œ]	Âˆ
+NÂ‚ˆYˆ
+]Q[
+HÂˆ]Q[^ÛÛ[Bˆ\Ë™Ù]RUXÚ]]J
+NÂˆB‚ˆYˆ
+Y\ÜØYÙ\Ñ[
+HÂˆY\ÜØYÙ\Ñ[š[›™\’SH	ÉÎÂˆB‚ˆYˆ
+[œ][
+HÂˆ[œ][˜[YHH	ÉÎÂ‚ˆ[œ][œXÙZÛ\ˆBˆ[™ÈOOH	Ù[‰ÂˆÈ	ú/¤ùaiz"ìz+ëyki¹.h:eëºh¦8 )‰Âˆˆ	ú/¤ùaiy¥éz+ëyki¹.h:eëºh¦8 )‰ÎÂˆB‚ˆYˆ
+\İšY]ÊHÂˆ\İšY]Ë˜Û\ÜÓ\İ˜Y
+ˆ	ÚY[‰Âˆ
+NÂˆB‚ˆYˆ
+Ú]šY]ÊHÂˆÚ]šY]Ë˜Û\ÜÓ\İœ™[[İ™Jˆ	ÚY[‰Âˆ
+NÂˆB‚ˆ\Ëœ™[™\RUX•Ù[ÛÛYJ
+NÂ‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	ØZK\™\Ù][İ™\›^IËˆ˜[ÙBˆ
+NÂŸK‚™Ù]RUXÚ]]J
+HÂˆÛÛœİ™\Ù]BˆRWĞÒUÔ‘TÑUÖÂˆ\Ë˜ZUXÚ]œ™\Ù]YˆNÂ‚ˆYˆ
+\™\Ù]
+HÂˆ™]\›ˆ
+ˆ\Ë˜ZUXÚ]ÛÜ™ˆ	ùkîz+çIÂˆ
+NÂˆB‚ˆÛÛœİ[™Ó˜[YHBˆ\Ë˜ZUXÚ]›[™ÈOOH	Ù[‰ÂˆÈ	ú"ìz+ëIÂˆˆ	ù¥éz+ëIÎÂ‚ˆ™]\›ˆ
+ˆ	Ü™\Ù]]_H0­È	Û[™Ó˜[Y_Xˆ
+NÂŸK‚œ™[™\RUX•Ù[ÛÛYJ
+HÂˆÛÛœİÙ[ÛÛYQ[BˆšY]Ë™Ù][
+ˆ	ØZKXÚ]]Ù[ÛÛYIÂˆ
+NÂ‚ˆÛÛœİ[ÙSX™[BˆšY]Ë™Ù][
+ˆ	ØZKXÚ][[ÙK[X™[	Âˆ
+NÂ‚ˆÛÛœİÙ[ÛÛYU^BˆšY]Ë™Ù][
+ˆ	ØZKXÚ]]Ù[ÛÛYK]^	Âˆ
+NÂ‚ˆÛÛœİ]ZXÚĞXİ[ÛœÈBˆšY]Ë™Ù][
+ˆ	ØZKXÚ]\]ZXÚËXXİ[ÛœÉÂˆ
+NÂ‚ˆÛÛœİ[œ][BˆšY]Ë™Ù][
+ˆ	ØZK]X‹XÚ]Z[œ]	Âˆ
+NÂ‚ˆYˆ
+ˆ]Ù[ÛÛYQ[ˆ\]ZXÚĞXİ[ÛœÂˆ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ™\Ù]BˆRWĞÒUÔ‘TÑUÖÂˆ\Ë˜ZUXÚ]œ™\Ù]YˆNÂ‚ˆYˆ
+ˆ\™\Ù]ˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\Ë›[™İˆˆ
+HÂˆÙ[ÛÛYQ[˜Û\ÜÓ\İ˜Y
+ˆ	ÚY[‰Âˆ
+NÂ‚ˆ]ZXÚĞXİ[ÛœËš[›™\’SH	ÉÎÂˆ™]\›ÂˆB‚ˆÛÛœİ[™ÈBˆ\Ë˜ZUXÚ]›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆÛÛœİ[™Ó˜[YHBˆ[™ÈOOH	Ù[‰ÂˆÈ	ú"ìz+ëIÂˆˆ	ù¥éz+ëIÎÂ‚ˆYˆ
+[ÙSX™[
+HÂˆ[ÙSX™[^ÛÛ[Bˆ	Ü™\Ù]]_H0­È	Û[™Ó˜[Y_XÂˆB‚ˆYˆ
+Ù[ÛÛYU^
+HÂˆÙ[ÛÛYU^^ÛÛ[Bˆ™\Ù]Ù[ÛÛYVÛ[™×NÂˆB‚ˆ]ZXÚĞXİ[ÛœËš[›™\’SH	ÉÎÂ‚ˆ™\Ù]œÚÜİ]ÖÛ[™×Bˆ™›Ü‘XXÚ
+^OˆÂˆÛÛœİ]ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	Ø]Û‰Âˆ
+NÂ‚ˆ]Û‹\HH	Ø]Û‰ÎÂ‚ˆ]Û‹˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]\]ZXÚËXÚ\	ÎÂ‚ˆ]Û‹^ÛÛ[H^Â‚ˆ]Û‹˜Y]™[\İ[™\Šˆ	ØÛXÚÉËˆ
+
+HOˆÂˆ\™Ø\™KšXœ˜]JLŠNÂ‚ˆYˆ
+Z[œ][
+HÂˆ™]\›ÂˆB‚ˆ[œ][˜[YHH^Âˆ[œ][™›Øİ\Ê
+NÂ‚ˆ[œ][™\Ü]Ú]™[
+ˆ™]È]™[
+ˆ	Ú[œ]	ËˆÂˆX˜›\ÎˆYBˆBˆ
+Bˆ
+NÂˆBˆ
+NÂ‚ˆ]ZXÚĞXİ[ÛœË˜\[™Ú[
+ˆ]Û‚ˆ
+NÂˆJNÂ‚ˆÙ[ÛÛYQ[˜Û\ÜÓ\İœ™[[İ™Jˆ	ÚY[‰Âˆ
+NÂŸK‚›Ü[RPÚ]œ›ÛUXŠY
+HÂˆ]ÛÛˆH[Ù[˜ZPÛÛ™\œØ][ÛœÖÚYNÂˆYˆ
+XÛÛŠH™]\›Âˆ]\İšY]ÈHšY]Ë™Ù][
+	ØZK[\İ]šY]ÉÊNÂˆ]Ú]šY]ÈHšY]Ë™Ù][
+	ØZKXÚ]]šY]ÉÊNÂˆ]Y\ÜØYÙ\Ñ[HšY]Ë™Ù][
+	ØZK]X‹XÚ][Y\ÜØYÙ\ÉÊNÂˆ]]Q[HšY]Ë™Ù][
+	ØZKXÚ]]šY]Ë]]IÊNÂˆ][œ][HšY]Ë™Ù][
+	ØZK]X‹XÚ]Z[œ]	ÊNÂˆYˆ
+[Y\ÜØYÙ\Ñ[XÚ]šY]È[\İšY]ÊH™]\›Âˆˆ\Ë˜ZUXÚ]˜Xİ]™RYHYÂ‚ˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\ÈBˆÛÛ‹›Y\ÜØYÙ\ÂˆÈË‹‹˜ÛÛ‹›Y\ÜØYÙ\×Bˆˆ×NÂ‚ˆ\Ë˜ZUXÚ]˜ØXÚRÙ^HBˆÛÛ‹˜ØXÚRÙ^H	ÉÎÂ‚ˆ\Ë˜ZUXÚ]œÙ[[˜ÙHBˆÛÛ‹œÙ[[˜ÙH	ÉÎÂ‚ˆ\Ë˜ZUXÚ]›[™ÈBˆÛÛ‹›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆÛÛœİ\Ô™\Ù]BˆHPRWĞÒUÔ‘TÑUÖÂˆÛÛ‹œ™\Ù]YˆNÂ‚ˆÛÛœİ\ÓYØXŞQœ™YPÚ]BˆXÛÛ‹œ™\Ù]Y	‰‚ˆİš[™ÊˆÛÛ‹˜ØXÚRÙ^H	ÉÂˆ
+Kœİ\ÕÚ]
+	Ùœ™YWÉÊNÂ‚ˆ\Ë˜ZUXÚ]œ™\Ù]YBˆ\Ô™\Ù]ˆÈÛÛ‹œ™\Ù]Yˆˆ
+ˆ\ÓYØXŞQœ™YPÚ]ˆÈ	Ùœ™YIÂˆˆ	ÉÂˆ
+NÂ‚ˆÛÛœİ™\Ù]BˆRWĞÒUÔ‘TÑUÖÂˆ\Ë˜ZUXÚ]œ™\Ù]YˆNÂ‚ˆ\Ë˜ZUXÚ]ÛÜ™BˆÛÛ‹ÛÜ™ˆ
+ˆ™\Ù]ˆÈ™\Ù]]Bˆˆ	ÉÂˆ
+NÂ‚ˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\BˆÛÛ‹œŞ\İ[T›Û\ˆ
+ˆ™\Ù]ˆÈZ[RPÚ]Ş\İ[T›Û\
+ˆ\Ë˜ZUXÚ]œ™\Ù]Yˆ\Ë˜ZUXÚ]›[™Âˆ
+Bˆˆ	ÉÂˆ
+NÂ‚ˆYˆ
+]Q[
+HÂˆ]Q[^ÛÛ[Bˆ\Ë™Ù]RUXÚ]]J
+NÂˆB‚ˆYˆ
+[œ][
+HÂˆ[œ][˜[YHH	ÉÎÂˆBˆˆ][H	ÉÎÂˆ]\ÙÜÈH\Ë˜ZUXÚ]›Y\ÜØYÙ\ÎÂšYˆ
+\ÙÜÈ	‰ˆ\ÙÜË›[™İˆ
+HÂˆ\ÙÜË™›Ü‘XXÚ
+\ÙÈOˆÂˆYˆ
+\ÙËœ›ÛHOOH	Ø\ÜÚ\İ[	ÊHÂˆ]™[™\•^H™[™\RSY\ÜØYÙRS
+\ÙË˜ÛÛ[ÛÛ‹ÛÜ™	ÉÊNÂˆ[
+ÏH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›HZKXÚ]XX˜›KXZH]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^ZK\™\ÜÛœÙKX›Ş‰È
+È™[™\•^
+È	ÏÙ]Ù]‰ÎÂˆH[ÙHYˆ
+\ÙËœ›ÛHOOH	İ\Ù\‰ÊHÂˆ[
+ÏH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›HZKXÚ]XX˜›K]\Ù\ˆ]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+È\ØØ\RS
+\ÙË˜ÛÛ[
+H
+È	ÏÙ]Ù]‰ÎÂˆBˆJNÂŸBˆY\ÜØYÙ\Ñ[š[›™\’SH[Âˆ\Ëœ™[™\RUX•Ù[ÛÛYJ
+NÂˆˆ\İšY]Ë˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂˆÚ]šY]Ë˜Û\ÜÓ\İœ™[[İ™J	ÚY[‰ÊNÂˆÙ][Y[İ]
+
+
+HOˆÂˆY\ÜØYÙ\Ñ[œØÜ›ÛÜHY\ÜØYÙ\Ñ[œØÜ›ÛZYÚÂˆKL
+NÂŸK‚˜ÛÜÙPRUXÚ]
+
+HÂˆYˆ
+\Ë˜ZUXÚ]˜Xİ]™RYOOHLJHÂˆ\Ë—ÜØ]™UXÚ]
+
+NÂˆBˆ\Ë˜ZUXÚ]˜Xİ]™RYHLNÂˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\ÈH×NÂˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\H	ÉÎÂˆ\Ë˜ZUXÚ]˜ØXÚRÙ^HH	ÉÎÂˆ\Ë˜ZUXÚ]œÙ[[˜ÙHH	ÉÎÂˆ\Ë˜ZUXÚ]ÛÜ™H	ÉÎÂˆ\Ë˜ZUXÚ]œ™\Ù]YH	ÉÎÂ‚ˆ\Ë˜ZUXÚ]›[™ÈBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆ\Ëœ™[™\RR\İÜJ
+NÂŸK‚—ÜØ]™UXÚ]
+
+HÂˆYˆ
+\Ë˜ZUXÚ]˜Xİ]™RYOOHLH\Ë˜ZUXÚ]›Y\ÜØYÙ\Ë›[™İOOH
+H™]\›Âˆ]YH\Ë˜ZUXÚ]˜Xİ]™RYÂˆYˆ
+YH[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İ
+H™]\›Âˆ]ÛÛˆH[Ù[˜ZPÛÛ™\œØ][ÛœÖÚYNÂˆÛÛ‹›Y\ÜØYÙ\ÈBˆË‹‹\Ë˜ZUXÚ]›Y\ÜØYÙ\×NÂ‚ˆÛÛ‹œŞ\İ[T›Û\Bˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\Â‚ˆÛÛ‹œ™\Ù]YBˆ\Ë˜ZUXÚ]œ™\Ù]Y	ÉÎÂ‚ˆÛÛ‹ÛÜ™Bˆ\Ë˜ZUXÚ]ÛÜ™ˆÛÛ‹ÛÜ™ˆ	ÉÎÂ‚ˆÛÛ‹›[™ÈBˆ\Ë˜ZUXÚ]›[™ÈˆÛÛ‹›[™Èˆ	Ú˜IÎÂ‚ˆÛÛ‹œÙ[[˜ÙHBˆ\Ë˜ZUXÚ]œÙ[[˜ÙH	ÉÎÂ‚ˆÛÛ‹˜ØXÚRÙ^HBˆ\Ë˜ZUXÚ]˜ØXÚRÙ^HˆÛÛ‹˜ØXÚRÙ^Hˆ	ÉÎÂ‚ˆÛÛ‹™]HBˆ™]È]J
+BˆÓØØ[Q]Tİš[™Ê	ŞšPÓ‰ÊH
+Âˆ	È	È
+Âˆ™]È]J
+BˆÓØØ[U[YTİš[™Êˆ	ŞšPÓ‰ËˆÂˆİ\ˆ	Ì‹YYÚ]	ËˆZ[]Nˆ	Ì‹YYÚ]	ÂˆBˆ
+NÂˆ[Ù[˜ZPÛÛ™\œØ][ÛœÖÚYHHÛÛÂˆ\Ë—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+NÂŸK‚œÙ[™RUX“Y\ÜØYÙJ
+HÂˆ][œ][HšY]Ë™Ù][
+	ØZK]X‹XÚ]Z[œ]	ÊNÂˆ]Y\ÜØYÙ\Ñ[HšY]Ë™Ù][
+	ØZK]X‹XÚ][Y\ÜØYÙ\ÉÊNÂˆ]Ù[™ˆHšY]Ë™Ù][
+	ØZK]X‹XÚ]\Ù[™	ÊNÂˆYˆ
+Z[œ][[Y\ÜØYÙ\Ñ[
+H™]\›Âˆ]^H[œ][˜[YKš[J
+NÂˆYˆ
+]^
+H™]\›Âˆ]\RÙ^HHØØ[İÜ˜YÙK™Ù]][J	ÙY\ÙYZĞ\RÙ^IÊNÂ‚ˆYˆ
+X\RÙ^JHÂˆÛÛœİÙ[ˆH\ÎÂ‚ˆ\™Ø\™KšXœ˜]JŒ
+NÂ‚ˆÛÛœİ›Û\]HBˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\]]IÊNÂ‚ˆÛÛœİ›Û\[\ˆBˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[\‰ÊNÂ‚ˆÛÛœİ›Û\XÛÛˆBˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\ZXÛÛ‰ÊNÂ‚ˆÛÛœİš\ÚXš[]PˆBˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\]š\ÚXš[]IÊNÂ‚ˆÛÛœİ›Û\[œ]BˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[œ]	ÊNÂ‚ˆ›Û\]K^ÛÛ[Bˆ	úacyïkˆY\ÙYZÈTHÙ^IÎÂ‚ˆ›Û\[\‹^ÛÛ[Bˆ	ùkáºd©y/&¹/çykf9g*9odùbcz+¯¹i!ûï#9nm¹.áyå*9.£¹cäz` HRH:+íù¬`¸à ‰ÎÂ‚ˆ›Û\[\‹šY[ˆH˜[ÙNÂ‚ˆ›Û\XÛÛ‹^ÛÛ[H	İœ—ÚÙ^IÎÂ‚ˆ›Û\[œ]\HH	Ü\ÜİÛÜ™	ÎÂˆ›Û\[œ]˜]]ØÛÛ\]HH	Û™]Ë\\ÜİÛÜ™	ÎÂˆ›Û\[œ]œXÙZÛ\ˆBˆ	ùì¦:--THÙ^{ï"ÚËx )»ï"IÎÂ‚ˆ›Û\[œ]˜[YHH	ÉÎÂ‚ˆš\ÚXš[]P‹šY[ˆH˜[ÙNÂˆš\ÚXš[]P‹]HH	ù¦/¹é.¹káºd©IÎÂ‚ˆš\ÚXš[]P‹œÙ]]šX]Jˆ	Ø\šXK[X™[	Ëˆ	ù¦/¹é.¹káºd©IÂˆ
+NÂ‚ˆÛÛœİš\ÚXš[]RXÛÛˆBˆš\ÚXš[]P‹œ]Y\TÙ[XİÜŠˆ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	Âˆ
+NÂ‚ˆYˆ
+š\ÚXš[]RXÛÛŠHÂˆš\ÚXš[]RXÛÛ‹^ÛÛ[H	İš\ÚXš[]IÎÂˆB‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	Ü›Û\[İ™\›^IËˆYBˆ
+NÂ‚ˆÙ][Y[İ]
+
+
+HOˆÂˆ›Û\[œ]™›Øİ\Ê
+NÂˆKL
+NÂ‚ˆØİ[Y[™Ù][[Y[RY
+ˆ	Ü›Û\XÛÛ™š\›IÂˆ
+K›Û˜ÛXÚÈH
+
+HOˆÂˆ\™Ø\™KšXœ˜]JMJNÂ‚ˆÛÛœİ˜[YHBˆ›Û\[œ]˜[YKš[J
+NÂ‚ˆYˆ
+]˜[YJHÂˆ™]\›ÂˆB‚ˆØØ[İÜ˜YÙKœÙ]][Jˆ	ÙY\ÙYZĞ\RÙ^IËˆ˜[YBˆ
+NÂ‚ˆÛÛœİÙ][™Ò[œ]BˆšY]Ë™Ù][
+	ÜÙ][™ËXZKZÙ^IÊNÂ‚ˆYˆ
+Ù][™Ò[œ]
+HÂˆÙ][™Ò[œ]˜[YHH˜[YNÂˆB‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	Ü›Û\[İ™\›^IËˆ˜[ÙBˆ
+NÂ‚ˆÚİÕØ\İ
+	ĞTHÙ^H9mì¹/çykf	ÊNÂ‚ˆÊ‚ˆ
+ˆ:/¤ùaiy¨aºaã9æ¡9­¢9 kù.ãyá-¹/çyåf{ï#ˆ
+ˆ9/çykf9káºd©yd#º!ê¹bª:aãy¥¬9¢iú(c9cäz` xà ‚ˆ
+‹ÂˆÙ[‹œÙ[™RUX“Y\ÜØYÙJ
+NÂˆNÂ‚ˆØİ[Y[™Ù][[Y[RY
+ˆ	Ü›Û\XØ[˜Ù[	Âˆ
+K›Û˜ÛXÚÈH
+
+HOˆÂˆ\™Ø\™KšXœ˜]JL
+NÂ‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	Ü›Û\[İ™\›^IËˆ˜[ÙBˆ
+NÂˆNÂ‚ˆ™]\›ÂˆB‚ˆ[œ][˜[YHH	ÉÎÂˆYˆ
+Ù[™ŠHÙ[™‹™\ØX›YHYNÂˆˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\Ëœ\Ú
+Âˆ›ÛNˆ	İ\Ù\‰ËˆÛÛ[ˆ^ˆJNÂ‚ˆ\Ëœ™[™\RUX•Ù[ÛÛYJ
+NÂˆˆ]\Ù\X˜›HBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆ\Ù\X˜›K˜Û\ÜÓ˜[YHH	ØZKXÚ]XX˜›HZKXÚ]XX˜›K]\Ù\‰ÎÂˆ\Ù\X˜›Kš[›™\’SH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+È\ØØ\RS
+^
+H
+È	ÏÙ]‰ÎÂˆY\ÜØYÙ\Ñ[˜\[™Ú[
+\Ù\X˜›JNÂˆˆ]ZPX˜›HHØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆZPX˜›K˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]XX˜›HZKXÚ]XX˜›KXZH\Ë][šÚ[™ÉÎÂ‚ˆZPX˜›Kš[›™\’SBˆ	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+Âˆ	Ï]ˆÛ\ÜÏH˜ZK][šÚ[™ËZ[™XØ]Üˆˆ›ÛOHœİ]\Èˆ\šXK[X™[HRH9«hùg*9 'z  È‰È
+Âˆ	ÏÜ[ÜÜ[Ü[ÜÜ[Ü[ÜÜ[‰È
+Âˆ	ÏÙ]‰È
+Âˆ	ÏÙ]‰ÎÂˆY\ÜØYÙ\Ñ[˜\[™Ú[
+ZPX˜›JNÂˆ\Ë—ÜØÜ›ÛXÚ]Ğ›İÛJ
+NÂˆˆ\Ë—Üİ™X[UXÚ]™\ÜÛœÙJ\RÙ^KZPX˜›KÙ[™ŠNÂŸK‚˜\Ş[˜ÈÜİ™X[UXÚ]™\ÜÛœÙJ\RÙ^KZPX˜›KÙ[™ŠHÂˆ]Y\ÜØYÙ\ÕÔÙ[™HÂˆÂˆ›ÛNˆ	ÜŞ\İ[IËˆÛÛ[ˆ\Ë˜ZUXÚ]›[™ÈOOH	Ú˜IÂˆÈÚ]˜\[™\ÙTXR[œİXİ[ÛŠˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\ˆ
+Bˆˆ\Ë˜ZUXÚ]œŞ\İ[T›Û\ˆKˆ‹‹\Ë˜ZUXÚ]›Y\ÜØYÙ\Â—NÂˆHÂˆÛÛœİ™\ÜÛœÙHH]ØZ]™]Ú
+	ÚÎ‹ËØ\K™Y\ÙYZË˜ÛÛKØÚ]ØÛÛ\][ÛœÉËÂˆY]Ùˆ	ÔÔÕ	ËˆXY\œÎˆÈ	ĞÛÛ[U\IÎˆ	Ø\XØ][Û‹ÚœÛÛ‰Ë	Ğ]]Üš^˜][Û‰Îˆ™X\™\ˆ	Ø\RÙ^_XKˆ›ÙNˆ”ÓÓ‹œİš[™ÚYJÈ[Ù[ˆ	ÙY\ÙYZËXÚ]	ËY\ÜØYÙ\ÎˆY\ÜØYÙ\ÕÔÙ[™İ™X[NˆYHJBˆJNÂˆˆYˆ
+\™\ÜÛœÙK›ÚÊHÂˆYˆ
+™\ÜÛœÙKœİ]\ÈOOHJHÂˆZPX˜›Kš[›™\’SH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^ˆİ[OH^X[YÛ˜Ù[\ÈÛÛÜ˜\ŠKXXØÙ[\™Y
+NÈÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH™›Û\Ú^™NŒœ™[NÈÜXÚ]NŒNÈ\Ü^N˜›ØÚÎÈX\™Ú[‹X›İÛNÈšÙ^WÛÙ™ÜÜ[THÙ^H9¥è9¥b9¢%¹/fzh§y.#z-¬ÏÙ]‰ÎÂˆYˆ
+Ù[™ŠHÙ[™‹™\ØX›YH˜[ÙNÂˆ™]\›ÂˆBˆ›İÈ™]È\œ›ÜŠ	ùïdyîç:+íù¬`¹i,z-)IÊNÂˆBˆˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë][šÚ[™ÉËˆ	Ú\ËXÛÛ\]IÂˆ
+NÂ‚ˆZPX˜›K˜Û\ÜÓ\İ˜Y
+ˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆ][^H	ÉÎÂ‚ˆ]^]ˆBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂ‚ˆ^]‹˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]XX˜›K]^ZK\™\ÜÛœÙKX›Ş	ÎÂ‚ˆZPX˜›Kš[›™\’SH	ÉÎÂˆZPX˜›K˜\[™Ú[
+^]ŠNÂˆˆÛÛœİ™XY\ˆH™\ÜÛœÙK˜›ÙK™Ù]™XY\Š
+NÂˆÛÛœİXÛÙ\ˆH™]È^XÛÙ\Š]‹NŠNÂˆˆÚ[H
+YJHÂˆÛÛœİÈÛ™K˜[YHHBˆ]ØZ]™XY\‹œ™XY
+
+NÂ‚ˆYˆ
+Û™JHÂˆœ™XZÎÂˆB‚ˆ]Ú[šÔİˆBˆXÛÙ\‹™XÛÙJˆ˜[YKˆÈİ™X[NˆYHBˆ
+NÂ‚ˆ][™\ÈBˆÚ[šÔİ‹œÜ]
+	×‰ÊNÂ‚ˆ›Üˆ
+][™HÙˆ[™\ÊHÂˆ[™HH[™Kš[J
+NÂ‚ˆYˆ
+ˆ[™Kœİ\ÕÚ]
+	Ù]Nˆ	ÊH	‰‚ˆ[™HOOH	Ù]NˆÑÓ‘WIÂˆ
+HÂˆHÂˆ]]HBˆ”ÓÓ‹œ\œÙJˆ[™KœÛXÙJŠBˆ
+NÂ‚ˆ]Ú[šÈBˆ]K˜ÚÚXÙ\ÖÌBˆ™[K˜ÛÛ[Â‚ˆYˆ
+Ú[šÊHÂˆ[^
+ÏHÚ[šÎÂ‚ˆ^]‹š[›™\’SBˆ™[™\RSY\ÜØYÙRS
+ˆ[^ˆ\Ë˜ZUXÚ]ÛÜ™	ÉÂˆ
+NÂ‚ˆ\Ë—ÜØÜ›ÛXÚ]Ğ›İÛJ
+NÂˆBˆHØ]Ú
+JHßBˆBˆBˆB‚ˆÊ‚ˆ
+ˆ9..ÈRH9kîz+çyîäù§gùd#»ï#ˆ
+ˆ9/oùå*9k£9¥m9¥¡ù§+9a£y®,¹§äù. 9«(xà ‚ˆ
+‹Âˆ^]‹š[›™\’SBˆ™[™\RSY\ÜØYÙRS
+ˆ[^ˆ\Ë˜ZUXÚ]ÛÜ™	ÉÂˆ
+NÂ‚ˆ\Ë—ÜØÜ›ÛXÚ]Ğ›İÛJ
+NÂˆˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆZPX˜›K˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËXÛÛ\]IÂˆ
+NÂ‚ˆ\Ë˜ZUXÚ]›Y\ÜØYÙ\Ëœ\Ú
+Âˆ›ÛNˆ	Ø\ÜÚ\İ[	ËˆÛÛ[ˆ[^ˆJNÂ‚ˆ\Ë—Ø\[™RT™\ÜÛœÙPXİ[ÛœÊˆZPX˜›KˆÂˆØÛÜNˆ	İX‰Ëˆ™\Ù]Yˆ\Ë˜ZUXÚ]œ™\Ù]Yˆ[™Îˆ\Ë˜ZUXÚ]›[™ËˆY\ÜØYÙ\ÎˆË‹‹\Ë˜ZUXÚ]›Y\ÜØYÙ\×Kˆ™\ÜÛœÙU^ˆ[^ˆBˆ
+NÂ‚ˆ\Ë—ÜØ]™UXÚ]
+
+NÂ‚ˆYˆ
+Ù[™ŠHÂˆÙ[™‹™\ØX›YH˜[ÙNÂˆBˆHØ]Ú
+\œŠHÂˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë][šÚ[™ÉËˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆZPX˜›Kš[›™\’SBˆ	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^ˆİ[OH^X[YÛ˜Ù[\ÈÛÛÜ˜\ŠKXXØÙ[\™Y
+NÈº/ç¹£©yi,z-)OÙ]‰ÎÂ‚ˆYˆ
+Ù[™ŠHÂˆÙ[™‹™\ØX›YH˜[ÙNÂˆBˆBŸK‚—ÜØÜ›ÛXÚ]Ğ›İÛJ
+HÂˆ]Ú]\™XHHšY]Ë™Ù][
+	ØZK]X‹XÚ][Y\ÜØYÙ\ÉÊNÂˆYˆ
+Ú]\™XJHÂˆÙ][Y[İ]
+
+
+HOˆÈÚ]\™XKœØÜ›ÛÜHÚ]\™XKœØÜ›ÛZYÚÈKL
+NÂˆBŸK‚—ÜØÜ›ÛÚ]Ğ›İÛJ
+HÂˆ]Ú]\™XHHšY]Ë™Ù][
+	ØZKXÚ][Y\ÜØYÙ\ÉÊNÂˆYˆ
+Ú]\™XJHÂˆÙ][Y[İ]
+
+
+HOˆÈÚ]\™XKœØÜ›ÛÜHÚ]\™XKœØÜ›ÛZYÚÈKL
+NÂˆBŸK‚œÙ[™RSY\ÜØYÙJ
+HÂˆ][œ][HšY]Ë™Ù][
+	ØZKXÚ]Z[œ]	ÊNÂˆ]Ú]\™XHHšY]Ë™Ù][
+	ØZKXÚ][Y\ÜØYÙ\ÉÊNÂˆ]Ù[™ˆHšY]Ë™Ù][
+	ØZKXÚ]\Ù[™	ÊNÂˆYˆ
+Z[œ][XÚ]\™XJH™]\›Âˆ]^H[œ][˜[YKš[J
+NÂˆYˆ
+]^
+H™]\›Âˆ]\RÙ^HHØØ[İÜ˜YÙK™Ù]][J	ÙY\ÙYZĞ\RÙ^IÊNÂˆYˆ
+X\RÙ^JH™]\›Âˆˆ[œ][˜[YHH	ÉÎÂˆYˆ
+Ù[™ŠHÙ[™‹™\ØX›YHYNÂˆˆ\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\Ëœ\Ú
+È›ÛNˆ	İ\Ù\‰ËÛÛ[ˆ^JNÂˆ]\Ù\X˜›HHØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆ\Ù\X˜›K˜Û\ÜÓ˜[YHH	ØZKXÚ]XX˜›HZKXÚ]XX˜›K]\Ù\‰ÎÂˆ\Ù\X˜›Kš[›™\’SH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+È\ØØ\RS
+^
+H
+È	ÏÙ]‰ÎÂˆÚ]\™XK˜\[™Ú[
+\Ù\X˜›JNÂˆˆ]ZPX˜›HHØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂˆZPX˜›K˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]XX˜›HZKXÚ]XX˜›KXZH\Ë][šÚ[™ÉÎÂ‚ˆZPX˜›Kš[›™\’SBˆ	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+Âˆ	Ï]ˆÛ\ÜÏH˜ZK][šÚ[™ËZ[™XØ]Üˆˆ›ÛOHœİ]\Èˆ\šXK[X™[HRH9«hùg*9 'z  È‰È
+Âˆ	ÏÜ[ÜÜ[Ü[ÜÜ[Ü[ÜÜ[‰È
+Âˆ	ÏÙ]‰È
+Âˆ	ÏÙ]‰ÎÂˆÚ]\™XK˜\[™Ú[
+ZPX˜›JNÂˆ\Ë—ÜØÜ›ÛÚ]Ğ›İÛJ
+NÂˆˆ\Ë—Üİ™X[PÚ]™\ÜÛœÙJ\RÙ^KZPX˜›KÙ[™ŠNÂŸK‚—Üİ\Ú]İ™X[J\RÙ^KÚ]\™XKÛÜP‹[œ][
+HÂˆ]ZPX˜›HHÚ]\™XKœ]Y\TÙ[XİÜŠ	Ë˜ZKXÚ]XX˜›KXZIÊNÂˆYˆ
+XZPX˜›JHÂˆZPX˜›HBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂ‚ˆZPX˜›K˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]XX˜›HZKXÚ]XX˜›KXZH\Ë][šÚ[™ÉÎÂ‚ˆZPX˜›Kš[›™\’SBˆ	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^‰È
+Âˆ	Ï]ˆÛ\ÜÏH˜ZK][šÚ[™ËZ[™XØ]Üˆˆ›ÛOHœİ]\Èˆ\šXK[X™[HRH9«hùg*9 'z  È‰È
+Âˆ	ÏÜ[ÜÜ[Ü[ÜÜ[Ü[ÜÜ[‰È
+Âˆ	ÏÙ]‰È
+Âˆ	ÏÙ]‰ÎÂ‚ˆÚ]\™XK˜\[™Ú[
+ZPX˜›JNÂˆBˆ\Ë—Üİ™X[PÚ]™\ÜÛœÙJ\RÙ^KZPX˜›K[ÛÜP‹[œ][
+NÂŸK‚˜\Ş[˜ÈÜİ™X[PÚ]™\ÜÛœÙJˆ\RÙ^KˆZPX˜›KˆÙ[™‹ˆÛÜP‹ˆ[œ][ŠHÂˆÛÛœİŞ\İ[T›Û\Bˆ\Ë˜İ\œ™[Ú]›[™ÈOOH	Ú˜IÂˆÈÚ]˜\[™\ÙTXR[œİXİ[ÛŠˆ\Ë˜İ\œ™[Ú]œŞ\İ[T›Û\ˆ
+Bˆˆ\Ë˜İ\œ™[Ú]œŞ\İ[T›Û\Â‚ˆ]Y\ÜØYÙ\ÕÔÙ[™HÂˆÂˆ›ÛNˆ	ÜŞ\İ[IËˆÛÛ[ˆŞ\İ[T›Û\ˆKˆ‹‹\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\ÂˆNÂˆHÂˆÛÛœİ™\ÜÛœÙHH]ØZ]™]Ú
+	ÚÎ‹ËØ\K™Y\ÙYZË˜ÛÛKØÚ]ØÛÛ\][ÛœÉËÂˆY]Ùˆ	ÔÔÕ	ËˆXY\œÎˆÈ	ĞÛÛ[U\IÎˆ	Ø\XØ][Û‹ÚœÛÛ‰Ë	Ğ]]Üš^˜][Û‰Îˆ™X\™\ˆ	Ø\RÙ^_XKˆ›ÙNˆ”ÓÓ‹œİš[™ÚYJÈ[Ù[ˆ	ÙY\ÙYZËXÚ]	ËY\ÜØYÙ\ÎˆY\ÜØYÙ\ÕÔÙ[™İ™X[NˆYHJBˆJNÂˆˆYˆ
+\™\ÜÛœÙK›ÚÊHÂˆYˆ
+™\ÜÛœÙKœİ]\ÈOOHJHÂˆZPX˜›Kš[›™\’SH	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^ˆİ[OH^X[YÛ˜Ù[\ÈÛÛÜ˜\ŠKXXØÙ[\™Y
+NÈÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH™›Û\Ú^™NŒœ™[NÈÜXÚ]NŒNÈ\Ü^N˜›ØÚÎÈX\™Ú[‹X›İÛNÈšÙ^WÛÙ™ÜÜ[THÙ^H9¥è9¥b9¢%¹/fzh§y.#z-¬Ï]ÛˆYH˜ZK\™ZÙ^KXˆˆÛ\ÜÏH˜‹[İ][™Hˆİ[OH›X\™Ú[‹]ÜŒLœÈÚY˜]]ÎÈ\Ü^Nš[›[™KY›^ÈY[™ÎŒLŒÈ›Ü™\‹XÛÛÜ˜\ŠK]\X\JHZ[\Ü[ÈÛÛÜ˜\ŠK]\X\JHZ[\Ü[ÈÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yœ—ÚÙ^OÜÜ[ˆ:aãy¥¬:/¤ùaiHÙ^OØ]ÛÙ]‰ÎÂˆ\Ë—ÜØÜ›ÛÚ]Ğ›İÛJ
+NÂˆÙ][Y[İ]
+
+
+HOˆÂˆ]ˆHØİ[Y[™Ù][[Y[RY
+	ØZK\™ZÙ^KX‰ÊNÂˆYˆ
+ŠH‹›Û˜ÛXÚÈH
+
+HOˆÂˆ]Ù[ˆH\ÎÂˆ\™Ø\™KšXœ˜]JMJNÂˆÛÛœİ›Û\]HHØİ[Y[™Ù][[Y[RY
+	Ü›Û\]]IÊNÂ˜ÛÛœİ›Û\[\ˆHØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[\‰ÊNÂ˜ÛÛœİ›Û\XÛÛˆHØİ[Y[™Ù][[Y[RY
+	Ü›Û\ZXÛÛ‰ÊNÂ˜ÛÛœİš\ÚXš[]PˆHØİ[Y[™Ù][[Y[RY
+	Ü›Û\]š\ÚXš[]IÊNÂ›][œ]HØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[œ]	ÊNÂ‚œ›Û\]K^ÛÛ[H	úaãy¥¬:/¤ùaiHTHÙ^IÎÂ‚œ›Û\[\‹^ÛÛ[Bˆ	ù¥¬9káºd©y/&¹¦ïù£h¹odùbcz+¯¹i!ù.+y/çykf9æ¡9¥éùkáºd©xà ‰ÎÂœ›Û\[\‹šY[ˆH˜[ÙNÂ‚œ›Û\XÛÛ‹^ÛÛ[H	İœ—ÚÙ^IÎÂ‚œ[œ]\HH	Ü\ÜİÛÜ™	ÎÂœ[œ]˜]]ØÛÛ\]HH	Û™]Ë\\ÜİÛÜ™	ÎÂœ[œ]œXÙZÛ\ˆH	ùì¦:--9¥¬9æ¡THÙ^{ï"ÚËx )»ï"IÎÂœ[œ]˜[YHH	ÉÎÂ‚š\ÚXš[]P‹šY[ˆH˜[ÙNÂš\ÚXš[]P‹]HH	ù¦/¹é.¹káºd©IÎÂš\ÚXš[]P‹œÙ]]šX]J	Ø\šXK[X™[	Ë	ù¦/¹é.¹káºd©IÊNÂ‚˜ÛÛœİš\ÚXš[]RXÛÛˆBˆš\ÚXš[]P‹œ]Y\TÙ[XİÜŠ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	ÊNÂ‚šYˆ
+š\ÚXš[]RXÛÛŠHÂˆš\ÚXš[]RXÛÛ‹^ÛÛ[H	İš\ÚXš[]IÎÂŸBˆÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IËYJNÂˆÙ][Y[İ]
+
+
+HOˆ[œ]™›Øİ\Ê
+KL
+NÂˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\XÛÛ™š\›IÊK›Û˜ÛXÚÈH
+
+HOˆÈˆ\™Ø\™KšXœ˜]JMJNÂˆ]˜[H[œ]˜[YKš[J
+NÈˆYŠ˜[
+HÈˆØØ[İÜ˜YÙKœÙ]][J	ÙY\ÙYZĞ\RÙ^IË˜[
+NÂˆ]Ò[œ]HšY]Ë™Ù][
+	ÜÙ][™ËXZKZÙ^IÊNÂˆYˆ
+Ò[œ]
+HÒ[œ]˜[YHH˜[ÂˆÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IË˜[ÙJNÂˆÚİÕØ\İ
+	ĞTHÙ^H9mì¹¦í9¥¬;ï#:+íúaãy¥¬9à®yaîÈRH:)èù§¤	ÊNÂˆBˆNÂˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\XØ[˜Ù[	ÊK›Û˜ÛXÚÈH
+
+HOˆÈ\™Ø\™KšXœ˜]JL
+NÈÚ[™İËÙÙÛS[Ù[
+	Ü›Û\[İ™\›^IË˜[ÙJNÈNÂˆNÂˆKL
+NÂˆYˆ
+Ù[™ŠHÙ[™‹™\ØX›YH˜[ÙNÂˆ™]\›ÂŸBˆ›İÈ™]È\œ›ÜŠ	ùïdyîç:+íù¬`¹i,z-)Nˆ:e&z+ëùè H	È
+È™\ÜÛœÙKœİ]\ÊNÂˆBˆˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë][šÚ[™ÉËˆ	Ú\ËXÛÛ\]IÂˆ
+NÂ‚ˆZPX˜›K˜Û\ÜÓ\İ˜Y
+ˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆ][^H	ÉÎÂ‚ˆ]^]ˆBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ù]‰ÊNÂ‚ˆ^]‹˜Û\ÜÓ˜[YHBˆ	ØZKXÚ]XX˜›K]^ZK\™\ÜÛœÙKX›Ş	ÎÂ‚ˆZPX˜›Kš[›™\’SH	ÉÎÂˆZPX˜›K˜\[™Ú[
+^]ŠNÂˆˆÛÛœİ™XY\ˆH™\ÜÛœÙK˜›ÙK™Ù]™XY\Š
+NÂˆÛÛœİXÛÙ\ˆH™]È^XÛÙ\Š]‹NŠNÂˆˆÚ[H
+YJHÂˆÛÛœİÈÛ™K˜[YHHH]ØZ]™XY\‹œ™XY
+
+NÂˆYˆ
+Û™JHœ™XZÎÂˆ]Ú[šÔİˆHXÛÙ\‹™XÛÙJ˜[YKÜİ™X[NˆY_JNÂˆ][™\ÈHÚ[šÔİ‹œÜ]
+	×‰ÊNÂˆ›Üˆ
+][™HÙˆ[™\ÊHÂˆ[™HH[™Kš[J
+NÂˆYˆ
+[™Kœİ\ÕÚ]
+	Ù]Nˆ	ÊH	‰ˆ[™HOOH	Ù]NˆÑÓ‘WIÊHÂˆHÂˆ]]HH”ÓÓ‹œ\œÙJ[™KœÛXÙJŠJNÂˆ]Ú[šÈH]K˜ÚÚXÙ\ÖÌK™[K˜ÛÛ[ÂˆYˆ
+Ú[šÊHÂˆ[^
+ÏHÚ[šÎÂˆ^]‹š[›™\’SH™[™\RSY\ÜØYÙRS
+[^\Ë˜İ\œ™[Ú]ÛÜ™	ÉÊNÂ\Ë—ÜØÜ›ÛÚ]Ğ›İÛJ
+NÂˆBˆHØ]Ú
+JHßBˆBˆBˆB‚ˆÊ‚ˆ
+ˆ9/¢ùcéyîéùîëz/ïzeë¹îäù§gùd#»ï#ˆ
+ˆ9/oùå*9k£9¥m9¥¡ù§+9a£y®,¹§äù. 9«(xà ‚ˆ
+‹Âˆ^]‹š[›™\’SBˆ™[™\RSY\ÜØYÙRS
+ˆ[^ˆ\Ë˜İ\œ™[Ú]ÛÜ™	ÉÂˆ
+NÂ‚ˆ\Ë—ÜØÜ›ÛÚ]Ğ›İÛJ
+NÂˆˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆZPX˜›K˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËXÛÛ\]IÂˆ
+NÂ‚ˆ\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\Ëœ\Ú
+Âˆ›ÛNˆ	Ø\ÜÚ\İ[	ËˆÛÛ[ˆ[^ˆJNÂ‚ˆ\Ë—Ø\[™RT™\ÜÛœÙPXİ[ÛœÊˆZPX˜›KˆÂˆØÛÜNˆ	ÜÚY]	ËˆÛÜ™ˆ\Ë˜İ\œ™[Ú]ÛÜ™	ÉËˆÛÜ™[™^ˆ\Ë˜İ\œ™[Ú]ÛÜ™[™^ˆ[™Îˆ\Ë˜İ\œ™[Ú]›[™È	Ú˜IËˆY\ÜØYÙ\ÎˆË‹‹\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\×Kˆ™\ÜÛœÙU^ˆ[^ˆBˆ
+NÂˆˆYˆ
+\Ë˜İ\œ™[Ú]˜ØXÚRÙ^H	‰ˆ\Ë˜İ\œ™[Ú]›Y\ÜØYÙ\Ë›[™İOOHJHÂˆ]Ú]\™XHHšY]Ë™Ù][
+	ØZKXÚ][Y\ÜØYÙ\ÉÊNÂˆYˆ
+Ú]\™XJHÂˆÛÛ›Û\‹˜ZPØXÚVİ\Ë˜İ\œ™[Ú]˜ØXÚRÙ^WHHÚ]\™XKš[›™\’SÂˆBˆBˆYˆ
+ÛÜPŠHÛÜP‹œİ[K™\Ü^HH	Ù›^	ÎÂˆYˆ
+Ù[™ŠHÙ[™‹™\ØX›YH˜[ÙNÂ‚ˆHØ]Ú
+\œŠHÂˆZPX˜›K˜Û\ÜÓ\İœ™[[İ™Jˆ	Ú\Ë][šÚ[™ÉËˆ	Ú\Ë\İ™X[Z[™ÉÂˆ
+NÂ‚ˆZPX˜›Kš[›™\’SBˆ	Ï]ˆÛ\ÜÏH˜ZKXÚ]XX˜›K]^ˆİ[OH^X[YÛ˜Ù[\ÈÛÛÜ˜\ŠKXXØÙ[\™Y
+NÈ‰È
+Âˆ	ÏÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Yˆİ[OH™›Û\Ú^™NŒœ™[NÈÜXÚ]NŒNÈ\Ü^N˜›ØÚÎÈX\™Ú[‹X›İÛNÈÚYšWÛÙ™ÜÜ[‰È
+Âˆ	ú/ç¹£©yi,z-){ï&‰È
+Âˆ\ØØ\RS
+\œ‹›Y\ÜØYÙJH
+Âˆ	ÏÙ]‰ÎÂ‚ˆYˆ
+Ù[™ŠHÂˆÙ[™‹™\ØX›YH˜[ÙNÂˆBˆBŸK‚ŸNÂ‚‹ÊˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOBˆ9ë+9.£8à y."z/k¹h§¹o.»ï&¹¦nº ïze&zh¦8à yîäù§¡9c%ˆRH9l#ù­bøà Bˆ9cëù¤©:e 9b(:fi8à y. ùi*yfç¹¥-¹êæy.#¹b!¹îá:+¯¹ïkºhmBˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOH
+‹ÂŠ
+
+HOˆÂˆÛÛœİÔ“Ó‘×Ğ“ÓÒ×ÒÑVHH	İÜ›Û™Ğ›ÛÚ×İŒIÎÂˆÛÛœİRWÔURV—ÒTÕÔ–WÒÑVHH	ØZT]Z^’\İÜWİŒIÎÂˆÛÛœİ‘PÖPÓWĞ’S—ÒÑVHH	Ü™XŞXÛPš[—İŒIÎÂˆÛÛœİTÒÔ‘US•SÓ—ÓTÈHÈ
+ˆ
+ˆŒ
+ˆŒ
+ˆLÂ‚ˆÛÛœİÔ“Ó‘×ÑSQS”ÒSÓ—ÓP‘SÈHØš™Xİ™œ™Y^™JÂˆÜ[ˆ	ù¢ï9a¦IËˆ\İ[š[™Îˆ	ùd+9b¦ÉËˆ™XY[™Îˆ	ú+îúgìÉËˆYX[š[™Îˆ	úaâ¹.bIËˆ\ØYÙNˆ	ùå*9¬åIËˆÜ˜[[X\ˆ	ú+ëy¬åIÂˆJNÂ‚ˆÛÛœİY\ÛÛ™HH˜[YHOˆÂˆYˆ
+\[ÙˆİXİ\™YÛÛ™HOOH	Ù[˜İ[Û‰ÊHÂˆHÂˆ™]\›ˆİXİ\™YÛÛ™J˜[YJNÂˆHØ]Ú
+\œ›ÜŠHßBˆB‚ˆ™]\›ˆ”ÓÓ‹œ\œÙJ”ÓÓ‹œİš[™ÚYJ˜[YJJNÂˆNÂ‚ˆÛÛœİXZÙRYH™Yš^OˆÂˆYˆ
+ˆ\[ÙˆÜ\ÈOOH	İ[™Yš[™Y	È	‰‚ˆ\[ÙˆÜ\Ëœ˜[™ÛUURQOOH	Ù[˜İ[Û‰Âˆ
+HÂˆ™]\›ˆ	Ü™Yš^WÉØÜ\Ëœ˜[™ÛUURQ
+
+_XÂˆB‚ˆ™]\›ˆ
+ˆ	Ü™Yš^WÉÑ]K››İÊ
+KÔİš[™ÊÍŠ_WØ
+ÂˆX]œ˜[™ÛJ
+KÔİš[™ÊÍŠKœÛXÙJ‹L
+Bˆ
+NÂˆNÂ‚ˆÛÛœİ[œİ\™UÛÜ™YHÛÜ™OˆÂˆ™]\›ˆ[œİ\™TİX›UÛÜ™Y
+ÛÜ™ÂˆZ[[’[ˆÛÜ™Ë˜Z[[ˆOOHYBˆJNÂˆNÂ‚ˆÛÛœİ›Ü›X[^™P[œİÙ\ˆH˜[YHOˆÂˆ™]\›ˆİš[™Ê˜[YHÏÈ	ÉÊBˆ››Ü›X[^™J	Ó‘’ĞÉÊBˆš[J
+BˆÓİÙ\Ø\ÙJ
+Bˆœ™\XÙJÖ××LÌJËÙË	È	ÊBˆœ™\XÙJˆÖøà »ï#‹ˆ{ï Oûï'Ë;ï#ûï&Î‰È¸ '8 'x &8 &J
+{ï";ï"W×xà$8à$WKÙËˆ	ÉÂˆ
+NÂˆNÂ‚ˆÛÛœİ›Ü›X]™[]]™Q]HH˜[YHOˆÂˆÛÛœİ]HH™]È]J˜[YJNÂ‚ˆYˆ
+[X™\‹š\Ó˜SŠ]K™Ù][YJ
+JJHÂˆ™]\›ˆ	ù¥íºeí9§*¹çéIÎÂˆB‚ˆÛÛœİ[\ÙYH]K››İÊ
+HH]K™Ù][YJ
+NÂ‚ˆYˆ
+[\ÙYŒ
+ˆL
+HÂˆ™]\›ˆ	ùb&¹b&‰ÎÂˆB‚ˆYˆ
+[\ÙYŒ
+ˆŒ
+ˆL
+HÂˆ™]\›ˆ	ÓX]™›ÛÜŠ[\ÙYÈŒ
+_H9b!ºd§ùbcXÂˆB‚ˆYˆ
+[\ÙY
+ˆŒ
+ˆŒ
+ˆL
+HÂˆ™]\›ˆ	ÓX]™›ÛÜŠ[\ÙYÈÍŒ
+_H9l#ù¥í¹bcXÂˆB‚ˆ™]\›ˆ	ÓX]™›ÛÜŠ[\ÙYÈ
+_H9i*ybcXÂˆNÂ‚ˆ]Xİ[Û•Ø\İ[Y\ˆH[Âˆ]Xİ[Û•Ø\İØ[˜XÚÈH[Â‚ˆÚ[™İËœÚİĞXİ[Û•Ø\İH
+ˆY\ÜØYÙKˆXİ[Û“X™[H	ÉËˆØ[˜XÚÈH[ˆ\˜][ÛˆHMLˆ
+HOˆÂˆÛÛœİØ\İHØİ[Y[™Ù][[Y[RY
+	ØXİ[Û‹]Ø\İ	ÊNÂˆÛÛœİY\ÜØYÙQ[HØİ[Y[™Ù][[Y[RY
+ˆ	ØXİ[Û‹]Ø\İ[Y\ÜØYÙIÂˆ
+NÂˆÛÛœİXİ[ÛˆHØİ[Y[™Ù][[Y[RY
+ˆ	ØXİ[Û‹]Ø\İXXİ[Û‰Âˆ
+NÂ‚ˆYˆ
+]Ø\İ[Y\ÜØYÙQ[XXİ[ÛŠHÂˆÚİÕØ\İ
+Y\ÜØYÙJNÂˆ™]\›ÂˆB‚ˆYˆ
+Xİ[Û•Ø\İ[Y\ŠHÂˆÚ[™İË˜ÛX\•[Y[İ]
+Xİ[Û•Ø\İ[Y\ŠNÂˆXİ[Û•Ø\İ[Y\ˆH[ÂˆB‚ˆXİ[Û•Ø\İØ[˜XÚÈBˆ\[ÙˆØ[˜XÚÈOOH	Ù[˜İ[Û‰ÂˆÈØ[˜XÚÂˆˆ[Â‚ˆY\ÜØYÙQ[^ÛÛ[HY\ÜØYÙNÂˆXİ[Û‹^ÛÛ[HXİ[Û“X™[ÂˆXİ[Û‹šY[ˆHXXİ[Û“X™[XXİ[Û•Ø\İØ[˜XÚÎÂˆØ\İ˜Û\ÜÓ\İ˜Y
+	ÜÚİÉÊNÂ‚ˆXİ[Û•Ø\İ[Y\ˆHÚ[™İËœÙ][Y[İ]
+
+
+HOˆÂˆØ\İ˜Û\ÜÓ\İœ™[[İ™J	ÜÚİÉÊNÂˆXİ[Û•Ø\İØ[˜XÚÈH[ÂˆXİ[Û•Ø\İ[Y\ˆH[ÂˆK\˜][ÛŠNÂˆNÂ‚ˆ[Ù[Ü›Û™Ğ›ÛÚÈH[Ù[Ü›Û™Ğ›ÛÚÈßNÂˆ[Ù[˜ZT]Z^’\İÜHH[Ù[˜ZT]Z^’\İÜH×NÂˆ[Ù[œ™XŞXÛPš[ˆH[Ù[œ™XŞXÛPš[ˆ×NÂˆ[Ù[œİ]Kš\ÕÜ›Û™Ğ›ÛÚÔ˜XİXÙHH˜[ÙNÂ‚ˆ[Ù[œØ]™UÜ›Û™Ğ›ÛÚÈH[˜İ[ÛŠ
+HÂˆ™]\›ˆ\ËÜš]TİÜ˜YÙU˜[YJˆÔ“Ó‘×Ğ“ÓÒ×ÒÑVKˆ\ËÜ›Û™Ğ›ÛÚÂˆ
+NÂˆNÂ‚ˆ[Ù[œØ]™PRT]Z^’\İÜHH[˜İ[ÛŠ
+HÂˆ™]\›ˆ\ËÜš]TİÜ˜YÙU˜[YJˆRWÔURV—ÒTÕÔ–WÒÑVKˆ\Ë˜ZT]Z^’\İÜBˆ
+NÂˆNÂ‚ˆ[Ù[œØ]™T™XŞXÛPš[ˆH[˜İ[ÛŠ
+HÂˆ™]\›ˆ\ËÜš]TİÜ˜YÙU˜[YJˆ‘PÖPÓWĞ’S—ÒÑVKˆ\Ëœ™XŞXÛPš[‚ˆ
+NÂˆNÂ‚ˆ[Ù[˜ÛX[\™XŞXÛPš[ˆH[˜İ[ÛŠ
+HÂˆÛÛœİ›İÈH]K››İÊ
+NÂˆÛÛœİÛ[™İH\Ëœ™XŞXÛPš[‹›[™İÂ‚ˆ\Ëœ™XŞXÛPš[ˆH\Ëœ™XŞXÛPš[‹™š[\Š][HOˆÂˆÛÛœİ^\™\Ğ]H[X™\Š][K™^\™\Ğ]
+HÂˆ™]\›ˆY^\™\Ğ]^\™\Ğ]ˆ›İÎÂˆJNÂ‚ˆYˆ
+\Ëœ™XŞXÛPš[‹›[™İOOHÛ[™İ
+HÂˆ\ËœØ]™T™XŞXÛPš[Š
+NÂˆBˆNÂ‚ˆ[Ù[™Ù]Ü›Û™Ô™XÛÜ™H[˜İ[ÛŠÛÜ™Ü™X]HH˜[ÙJHÂˆYˆ
+]ÛÜ™
+HÂˆ™]\›ˆ[ÂˆB‚ˆÛÛœİÛÜ™YH[œİ\™UÛÜ™Y
+ÛÜ™
+NÂ‚ˆYˆ
+]\ËÜ›Û™Ğ›ÛÚÖİÛÜ™YH	‰ˆÜ™X]JHÂˆ\ËÜ›Û™Ğ›ÛÚÖİÛÜ™YHHÂˆÛÜ™YˆÛÜ™ˆÛÜ™ÛÜ™	ÉËˆ[™ÎˆÛÜ™›[™È	Ú˜IËˆ›Û\ˆÛÜ™™›Û\ˆ	ÉËˆİ[Ü›Û™Îˆˆİ[ÛÜœ™Xİˆˆ[Y[œÚ[ÛœÎˆÂˆÜ[ˆˆ\İ[š[™Îˆˆ™XY[™ÎˆˆYX[š[™Îˆˆ\ØYÙNˆˆÜ˜[[X\ˆˆKˆÛİ\˜ÙPÛİ[ÎˆÂˆİYNˆˆš[\ˆˆZT]Z^ˆˆKˆ™XÙ[[œİÙ\œÎˆ×KˆÛÜœ™Xİİ™XZÎˆˆ\İÜ›Û™Ğ]ˆ	ÉËˆ\İÛÜœ™Xİ]ˆ	ÉËˆİ]\Îˆ	Û™]ÉÂˆNÂˆB‚ˆÛÛœİ™XÛÜ™H\ËÜ›Û™Ğ›ÛÚÖİÛÜ™YH[Â‚ˆYˆ
+\™XÛÜ™
+HÂˆ™]\›ˆ[ÂˆB‚ˆ™XÛÜ™ÛÜ™YHÛÜ™YÂˆ™XÛÜ™ÛÜ™HÛÜ™ÛÜ™™XÛÜ™ÛÜ™	ÉÎÂˆ™XÛÜ™›[™ÈHÛÜ™›[™È™XÛÜ™›[™È	Ú˜IÎÂˆ™XÛÜ™™›Û\ˆHÛÜ™™›Û\ˆ™XÛÜ™™›Û\ˆ	ÉÎÂˆ™XÛÜ™İ[Ü›Û™ÈH[X™\Š™XÛÜ™İ[Ü›Û™ÊHÂˆ™XÛÜ™İ[ÛÜœ™XİH[X™\Š™XÛÜ™İ[ÛÜœ™Xİ
+HÂˆ™XÛÜ™˜ÛÜœ™Xİİ™XZÈH[X™\Š™XÛÜ™˜ÛÜœ™Xİİ™XZÊHÂˆ™XÛÜ™œİ]\ÈH™XÛÜ™œİ]\È	Û™]ÉÎÂˆ™XÛÜ™™[Y[œÚ[ÛœÈHÂˆÜ[ˆˆ\İ[š[™Îˆˆ™XY[™ÎˆˆYX[š[™Îˆˆ\ØYÙNˆˆÜ˜[[X\ˆˆ‹‹Š™XÛÜ™™[Y[œÚ[ÛœÈßJBˆNÂˆ™XÛÜ™œÛİ\˜ÙPÛİ[ÈHÂˆİYNˆˆš[\ˆˆZT]Z^ˆˆ‹‹Š™XÛÜ™œÛİ\˜ÙPÛİ[ÈßJBˆNÂˆ™XÛÜ™œ™XÙ[[œİÙ\œÈH\œ˜^Kš\Ğ\œ˜^J™XÛÜ™œ™XÙ[[œİÙ\œÊBˆÈ™XÛÜ™œ™XÙ[[œİÙ\œÂˆˆ×NÂ‚ˆ™]\›ˆ™XÛÜ™ÂˆNÂ‚ˆ[Ù[œ™XÛÜ™İYT™\İ[H[˜İ[ÛŠÂˆÛÜ™ˆ[Y[œÚ[ÛˆH	ÛYX[š[™ÉËˆÛÜœ™XİH˜[ÙKˆ\Ù\[œİÙ\ˆH	ÉËˆÛÜœ™Xİ[œİÙ\ˆH	ÉËˆÛİ\˜ÙHH	ÜİYIËˆ]Y\İ[ÛˆH	ÉÂˆJHÂˆYˆ
+ˆ]ÛÜ™ˆØØ[İÜ˜YÙK™Ù]][J	İÜ›Û™Ğ›ÛÚÑ[˜X›Y	ÊHOOH	Ù˜[ÙIÂˆ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİØY™Q[Y[œÚ[ÛˆHØš™Xİœ›İİ\Kš\ÓİÛ”›Ü\K˜Ø[
+ˆÔ“Ó‘×ÑSQS”ÒSÓ—ÓP‘SËˆ[Y[œÚ[Û‚ˆ
+BˆÈ[Y[œÚ[Û‚ˆˆ	ÛYX[š[™ÉÎÂ‚ˆÛÛœİ^\İ[™ÈH\Ë™Ù]Ü›Û™Ô™XÛÜ™
+ÛÜ™˜[ÙJNÂ‚ˆYˆ
+ÛÜœ™Xİ	‰ˆY^\İ[™ÊHÂˆ™]\›ÂˆB‚ˆÛÛœİ™XÛÜ™H^\İ[™È\Ë™Ù]Ü›Û™Ô™XÛÜ™
+ÛÜ™YJNÂˆÛÛœİ›İÈH™]È]J
+KÒTÓÔİš[™Ê
+NÂ‚ˆYˆ
+ÛÜœ™Xİ
+HÂˆ™XÛÜ™İ[ÛÜœ™Xİ
+ÊÎÂˆ™XÛÜ™˜ÛÜœ™Xİİ™XZÊÊÎÂˆ™XÛÜ™›\İÛÜœ™Xİ]H›İÎÂ‚ˆYˆ
+™XÛÜ™˜ÛÜœ™Xİİ™XZÈHÊHÂˆ™XÛÜ™œİ]\ÈH	Ü™\ÛÛ™Y	ÎÂˆH[ÙHÂˆ™XÛÜ™œİ]\ÈH	Ü™Z[™›Ü˜Ú[™ÉÎÂˆBˆH[ÙHÂˆ™XÛÜ™İ[Ü›Û™ÊÊÎÂˆ™XÛÜ™˜ÛÜœ™Xİİ™XZÈHÂˆ™XÛÜ™›\İÜ›Û™Ğ]H›İÎÂˆ™XÛÜ™œİ]\ÈBˆ™XÛÜ™İ[Ü›Û™ÈHÂˆÈ	Ü™\X]Y	Âˆˆ	Û™]ÉÎÂˆ™XÛÜ™™[Y[œÚ[ÛœÖÜØY™Q[Y[œÚ[Û—HBˆ
+™XÛÜ™™[Y[œÚ[ÛœÖÜØY™Q[Y[œÚ[Û—H
+H
+ÈNÂˆ™XÛÜ™œÛİ\˜ÙPÛİ[ÖÜÛİ\˜ÙWHBˆ
+™XÛÜ™œÛİ\˜ÙPÛİ[ÖÜÛİ\˜ÙWH
+H
+ÈNÂˆB‚ˆ™XÛÜ™œ™XÙ[[œİÙ\œË[œÚY
+Âˆ]ˆ›İËˆÛÜœ™Xİˆ›ÛÛX[ŠÛÜœ™Xİ
+Kˆ[Y[œÚ[ÛˆØY™Q[Y[œÚ[Û‹ˆ\Ù\[œİÙ\ˆİš[™Ê\Ù\[œİÙ\ˆ	ÉÊKˆÛÜœ™Xİ[œİÙ\ˆİš[™ÊÛÜœ™Xİ[œİÙ\ˆ	ÉÊKˆÛİ\˜ÙKˆ]Y\İ[Ûˆİš[™Ê]Y\İ[Ûˆ	ÉÊBˆJNÂ‚ˆ™XÛÜ™œ™XÙ[[œİÙ\œÈH™XÛÜ™œ™XÙ[[œİÙ\œËœÛXÙJŒ
+NÂˆ\ËœØ]™UÜ›Û™Ğ›ÛÚÊ
+NÂˆNÂ‚ˆ[Ù[˜Y™XŞXÛR][HH[˜İ[ÛŠÚ[™^[ØYX™[˜]ÚYH	ÉÊHÂˆÛÛœİ›İÈH]K››İÊ
+NÂˆÛÛœİ][HHÂˆYˆXZÙRY
+	İ˜\Ú	ÊKˆ˜]ÚYˆÚ[™ˆX™[ˆİš[™ÊX™[	ùmì¹b(:fi:hnyæë‰ÊKˆ[]Y]ˆ™]È]J›İÊKÒTÓÔİš[™Ê
+Kˆ^\™\Ğ]ˆ›İÈ
+ÈTÒÔ‘US•SÓ—ÓTËˆ^[ØYˆY\ÛÛ™J^[ØY
+BˆNÂ‚ˆ\Ëœ™XŞXÛPš[‹[œÚY
+][JNÂˆ\Ëœ™XŞXÛPš[ˆH\Ëœ™XŞXÛPš[‹œÛXÙJÌ
+NÂˆ\ËœØ]™T™XŞXÛPš[Š
+NÂˆ™]\›ˆ][NÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[[Ù[[š]H[Ù[š[š]˜š[™
+[Ù[
+NÂˆ[Ù[š[š]H\Ş[˜È[˜İ[ÛŠ
+HÂˆ]ØZ]ÜšYÚ[˜[[Ù[[š]
+
+NÂ‚ˆ\ËÜ›Û™Ğ›ÛÚÈBˆ
+]ØZ]\Ëœ™XYİÜ˜YÙU˜[YJÔ“Ó‘×Ğ“ÓÒ×ÒÑVJJHßNÂˆ\Ë˜ZT]Z^’\İÜHBˆ
+]ØZ]\Ëœ™XYİÜ˜YÙU˜[YJRWÔURV—ÒTÕÔ–WÒÑVJJH×NÂˆ\Ëœ™XŞXÛPš[ˆBˆ
+]ØZ]\Ëœ™XYİÜ˜YÙU˜[YJ‘PÖPÓWĞ’S—ÒÑVJJH×NÂ‚ˆYˆ
+P\œ˜^Kš\Ğ\œ˜^J\Ë˜ZT]Z^’\İÜJJHÂˆ\Ë˜ZT]Z^’\İÜHH×NÂˆB‚ˆYˆ
+P\œ˜^Kš\Ğ\œ˜^J\Ëœ™XŞXÛPš[ŠJHÂˆ\Ëœ™XŞXÛPš[ˆH×NÂˆB‚ˆYˆ
+ˆ]\ËÜ›Û™Ğ›ÛÚÈˆ\[Ùˆ\ËÜ›Û™Ğ›ÛÚÈOOH	ÛØš™Xİ	Èˆ\œ˜^Kš\Ğ\œ˜^J\ËÜ›Û™Ğ›ÛÚÊBˆ
+HÂˆ\ËÜ›Û™Ğ›ÛÚÈHßNÂˆB‚ˆ]Ú[™ÙYH˜[ÙNÂˆ\Ë™‹™›Ü‘XXÚ
+ÛÜ™OˆÂˆYˆ
+]ÛÜ™—ÚY
+HÂˆ[œİ\™UÛÜ™Y
+ÛÜ™
+NÂˆÚ[™ÙYHYNÂˆBˆJNÂ‚ˆÛÛœİ˜[YÛÜ™YÈH™]ÈÙ]
+ˆ\Ë™‹›X\
+ÛÜ™Oˆ[œİ\™UÛÜ™Y
+ÛÜ™
+JBˆ
+NÂ‚ˆØš™Xİ™[šY\Ê\ËÜ›Û™Ğ›ÛÚÊK™›Ü‘XXÚ
+
+İÛÜ™Y™XÛÜ™JHOˆÂˆYˆ
+˜[YÛÜ™YËš\ÊÛÜ™Y
+JHÂˆ™]\›ÂˆB‚ˆÛÛœİX]ÚYÛÜ™H\Ë™‹™š[™
+ÛÜ™OˆÂˆYˆ
+\™XÛÜ™\[Ùˆ™XÛÜ™OOH	ÛØš™Xİ	ÊHÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆ™]\›ˆ
+ˆİš[™ÊÛÜ™ÛÜ™	ÉÊHOOHİš[™Ê™XÛÜ™ÛÜ™	ÉÊH	‰‚ˆ
+ÛÜ™›[™È	Ú˜IÊHOOH
+™XÛÜ™›[™È	Ú˜IÊH	‰‚ˆ
+ˆ\™XÛÜ™™›Û\ˆˆÛÜ™™›Û\ˆOOH™XÛÜ™™›Û\‚ˆ
+Bˆ
+NÂˆJNÂ‚ˆYˆ
+X]ÚYÛÜ™
+HÂˆÛÛœİ™^YH\Ë™Ù]ÛÜ™Y
+X]ÚYÛÜ™
+NÂ‚ˆYˆ
+]\ËÜ›Û™Ğ›ÛÚÖÛ™^YJHÂˆ\ËÜ›Û™Ğ›ÛÚÖÛ™^YHHÂˆ‹‹œ™XÛÜ™ˆÛÜ™Yˆ™^YˆNÂˆBˆB‚ˆ[]H\ËÜ›Û™Ğ›ÛÚÖİÛÜ™YNÂˆJNÂ‚ˆ\Ë˜ÛX[\™XŞXÛPš[Š
+NÂ‚ˆYˆ
+Ú[™ÙY
+HÂˆ]ØZ]\ËœØ]™QŠ
+NÂˆB‚ˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ\ËœØ]™UÜ›Û™Ğ›ÛÚÊ
+Kˆ\ËœØ]™PRT]Z^’\İÜJ
+Kˆ\ËœØ]™T™XŞXÛPš[Š
+BˆJNÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[Ø]™QˆH[Ù[œØ]™Q‹˜š[™
+[Ù[
+NÂˆ[Ù[œØ]™QˆH[˜İ[ÛŠ
+HÂˆ\Ë™‹™›Ü‘XXÚ
+ÛÜ™Oˆ[œİ\™UÛÜ™Y
+ÛÜ™
+JNÂˆ™]\›ˆÜšYÚ[˜[Ø]™QŠ
+NÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[Ø]™P[\Ù\‘]HBˆ[Ù[œØ]™P[\Ù\‘]K˜š[™
+[Ù[
+NÂˆ[Ù[œØ]™P[\Ù\‘]HH\Ş[˜È[˜İ[ÛŠ
+HÂˆ]ØZ]ÜšYÚ[˜[Ø]™P[\Ù\‘]J
+NÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ\ËœØ]™UÜ›Û™Ğ›ÛÚÊ
+Kˆ\ËœØ]™PRT]Z^’\İÜJ
+Kˆ\ËœØ]™T™XŞXÛPš[Š
+BˆJNÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[ÚXÚÑš[\ˆH[Ù[˜ÚXÚÑš[\‹˜š[™
+[Ù[
+NÂˆ[Ù[˜ÚXÚÑš[\ˆH[˜İ[ÛŠÛÜ™š[\“˜[YJHÂˆÛÛœİ™XÛÜ™H\Ë™Ù]Ü›Û™Ô™XÛÜ™
+ÛÜ™˜[ÙJNÂˆÛÛœİ\ĞXİ]™UÜ›Û™ÈH›ÛÛX[Šˆ™XÛÜ™	‰‚ˆ™XÛÜ™İ[Ü›Û™Èˆ	‰‚ˆ™XÛÜ™œİ]\ÈOOH	Ü™\ÛÛ™Y	Âˆ
+NÂ‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×Ø[	ÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™ÎÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×ÜÜ[	ÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™È	‰ˆ™XÛÜ™™[Y[œÚ[ÛœËœÜ[ˆÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×Û\İ[š[™ÉÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™È	‰ˆ™XÛÜ™™[Y[œÚ[ÛœË›\İ[š[™ÈˆÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×Ü™XY[™ÉÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™È	‰ˆ™XÛÜ™™[Y[œÚ[ÛœËœ™XY[™ÈˆÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×ÛYX[š[™ÉÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™È	‰ˆ™XÛÜ™™[Y[œÚ[ÛœË›YX[š[™ÈˆÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×ØZIÊHÂˆ™]\›ˆ\ĞXİ]™UÜ›Û™È	‰ˆ™XÛÜ™œÛİ\˜ÙPÛİ[Ë˜ZT]Z^ˆˆÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×Ü™\X]Y	ÊHÂˆ™]\›ˆ™XÛÜ™Ëœİ]\ÈOOH	Ü™\X]Y	ÎÂˆB‚ˆYˆ
+š[\“˜[YHOOH	İš\X[İÜ›Û™×Ü™\ÛÛ™Y	ÊHÂˆ™]\›ˆ™XÛÜ™Ëœİ]\ÈOOH	Ü™\ÛÛ™Y	ÎÂˆB‚ˆ™]\›ˆÜšYÚ[˜[ÚXÚÑš[\ŠÛÜ™š[\“˜[YJNÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]Qš[\™YˆBˆ[Ù[\]Qš[\™Y‹˜š[™
+[Ù[
+NÂˆ[Ù[\]Qš[\™YˆH[˜İ[ÛŠÙX\˜Ú]Y\Kİ\œ™[š[\ŠHÂˆÜšYÚ[˜[\]Qš[\™YŠÙX\˜Ú]Y\Kİ\œ™[š[\ŠNÂ‚ˆYˆ
+Tİš[™Êİ\œ™[š[\ŠKœİ\ÕÚ]
+	İš\X[İÜ›Û™×ÉÊJHÂˆ™]\›ÂˆB‚ˆÛÛœİ[H\Ëœİ]K™š[\™Y‹™š[™
+][HOˆ][KšYOOHNNNJNÂˆÛÛœİÛÜ™ÈH\Ëœİ]K™š[\™Y‹™š[\Š][HOˆ][KšYOOHNNNJNÂˆÛÛœİÙZYÚHÂˆ™\X]Yˆˆ™]ÎˆËˆ™Z[™›Ü˜Ú[™Îˆ‹ˆ™\ÛÛ™YˆBˆNÂ‚ˆÛÜ™ËœÛÜ
+
+KŠHOˆÂˆÛÛœİT™XÛÜ™H\Ë™Ù]Ü›Û™Ô™XÛÜ™
+KË˜[ÙJHßNÂˆÛÛœİ”™XÛÜ™H\Ë™Ù]Ü›Û™Ô™XÛÜ™
+‹Ë˜[ÙJHßNÂˆÛÛœİİ]\ÑY™ˆBˆ
+ÙZYÚØ”™XÛÜ™œİ]\×H
+HBˆ
+ÙZYÚØT™XÛÜ™œİ]\×H
+NÂ‚ˆYˆ
+İ]\ÑY™ŠHÂˆ™]\›ˆİ]\ÑY™ÂˆB‚ˆ™]\›ˆ
+ˆ
+”™XÛÜ™İ[Ü›Û™È
+HBˆ
+T™XÛÜ™İ[Ü›Û™È
+Bˆ
+NÂˆJNÂ‚ˆ\Ëœİ]K™š[\™YˆH[ÈÚ[‹‹ÛÜ™×HˆÛÜ™ÎÂˆNÂ‚ˆÛÛœİ[œİ\™UÜ›Û™Ğ›ÛÚÓÜ[ÛœÈH
+
+HOˆÂˆÛÛœİÙ[XİHšY]Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊNÂ‚ˆYˆ
+\Ù[Xİ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİÜ[ÛœÈHÂˆÉù¦nº ïze&zh¦9§+	Ë	İš\X[İÜ›Û™×Ø[	×KˆÉúe&zh¦0­È9¢ï9a¦IË	İš\X[İÜ›Û™×ÜÜ[	×KˆÉúe&zh¦0­È9d+9b¦ÉË	İš\X[İÜ›Û™×Û\İ[š[™É×KˆÉúe&zh¦0­È:+îúgìÉË	İš\X[İÜ›Û™×Ü™XY[™É×KˆÉúe&zh¦0­È:aâ¹.bIË	İš\X[İÜ›Û™×ÛYX[š[™É×KˆÉúe&zh¦0­ÈRH9l#ù­bÉË	İš\X[İÜ›Û™×ØZI×KˆÉúe&zh¦0­È9cãyi#yaîºe&IË	İš\X[İÜ›Û™×Ü™\X]Y	×KˆÉúe&zh¦0­È9mìº)èùa¬ÉË	İš\X[İÜ›Û™×Ü™\ÛÛ™Y	×BˆNÂ‚ˆÛÛœİ[œÙ\™Y›Ü™HH\œ˜^K™œ›ÛJÙ[Xİ›Ü[ÛœÊK™š[™
+Ü[ÛˆOˆÂˆ™]\›ˆÜ[Û‹˜[YHOOH	İš\X[ØÛX\™Y	ÎÂˆJNÂ‚ˆÜ[ÛœË™›Ü‘XXÚ
+
+ÛX™[˜[YWJHOˆÂˆYˆ
+Ù[Xİœ]Y\TÙ[XİÜŠÜ[Û–İ˜[YOH‰İ˜[Y_H—X
+JHÂˆ™]\›ÂˆB‚ˆÛÛœİÜ[ÛˆH™]ÈÜ[ÛŠX™[˜[YJNÂ‚ˆYˆ
+[œÙ\™Y›Ü™JHÂˆÙ[Xİš[œÙ\™Y›Ü™JÜ[Û‹[œÙ\™Y›Ü™JNÂˆH[ÙHÂˆÙ[Xİ˜Y
+Ü[ÛŠNÂˆBˆJNÂˆNÂ‚ˆÛÛœİ\]UÜ›Û™ÕÛÛ˜\ˆH
+
+HOˆÂˆÛÛœİÙ[XİHšY]Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊNÂˆÛÛœİÛÛ˜\ˆHšY]Ë™Ù][
+	İÜ›Û™Ø›ÛÚË]ÛÛ˜\‰ÊNÂˆÛÛœİÛİ[HšY]Ë™Ù][
+	İÜ›Û™Ø›ÛÚËXÛİ[	ÊNÂ‚ˆYˆ
+\Ù[Xİ]ÛÛ˜\ˆXÛİ[
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ\ÕÜ›Û™ÈHİš[™ÊÙ[Xİ˜[YJKœİ\ÕÚ]
+	İš\X[İÜ›Û™×ÉÊNÂˆÛÛ˜\‹šY[ˆHZ\ÕÜ›Û™ÎÂ‚ˆYˆ
+Z\ÕÜ›Û™ÊHÂˆ™]\›ÂˆB‚ˆÛÛœİ[[İ[H[Ù[™‹™š[\ŠÛÜ™OˆÂˆ™]\›ˆ
+ˆ
+ÛÜ™›[™È	Ú˜IÊHOOH[Ù[œİ]K˜İ\œ™[[™Ó[ÙH	‰‚ˆ[Ù[˜ÚXÚÑš[\ŠÛÜ™Ù[Xİ˜[YJBˆ
+NÂˆJK›[™İÂ‚ˆÛİ[^ÛÛ[H	Ø[[İ[H:+ãXÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]UÛÜ™˜[šÕRHHšY]Ë\]UÛÜ™˜[šÕRK˜š[™
+šY]ÊNÂˆšY]Ë\]UÛÜ™˜[šÕRHH[˜İ[ÛŠ
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[\]UÛÜ™˜[šÕRJ
+NÂˆ[œİ\™UÜ›Û™Ğ›ÛÚÓÜ[ÛœÊ
+NÂˆ\]UÜ›Û™ÕÛÛ˜\Š
+NÂˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİ™[™\•Ü›Û™Ôİ[[X\HHÛÜ™OˆÂˆÛÛœİÛÛZ[™\ˆHšY]Ë™Ù][
+	Ù]Ü›Û™Ë\İ[[X\IÊNÂ‚ˆYˆ
+XÛÛZ[™\ŠHÂˆ™]\›ÂˆB‚ˆÛÛœİ™XÛÜ™H[Ù[™Ù]Ü›Û™Ô™XÛÜ™
+ÛÜ™˜[ÙJNÂ‚ˆYˆ
+\™XÛÜ™™XÛÜ™İ[Ü›Û™ÈH
+HÂˆÛÛZ[™\‹šY[ˆHYNÂˆÛÛZ[™\‹š[›™\’SH	ÉÎÂˆ™]\›ÂˆB‚ˆÛÛœİİ]\Õ^HÂˆ™]Îˆ	ù¥¬:e&zh¦	Ëˆ™\X]Yˆ	ùcãyi#yaîºe&IËˆ™Z[™›Ü˜Ú[™Îˆ	ù«hùg*9mêyfî‰Ëˆ™\ÛÛ™Yˆ	ùmìº)èùa¬ÉÂˆVÜ™XÛÜ™œİ]\×H	ùo¡ymêyfî‰ÎÂ‚ˆÛÛœİ[Y[œÚ[Û•^HØš™Xİ™[šY\Ê™XÛÜ™™[Y[œÚ[ÛœÊBˆ™š[\Š
+Ë[[İ[JHOˆ[[İ[ˆ
+Bˆ›X\
+
+Ù[Y[œÚ[Û‹[[İ[JHOˆÂˆ™]\›ˆ	ÕÔ“Ó‘×ÑSQS”ÒSÓ—ÓP‘SÖÙ[Y[œÚ[Û—H[Y[œÚ[ÛŸH	Ø[[İ[XÂˆJBˆš›Ú[Š	È0­È	ÊNÂ‚ˆÛÛœİ]\İÜ›Û™ÈH™XÛÜ™œ™XÙ[[œİÙ\œË™š[™
+][HOˆÂˆ™]\›ˆZ][K˜ÛÜœ™XİÂˆJNÂ‚ˆÛÛZ[™\‹šY[ˆH˜[ÙNÂˆÛÛZ[™\‹š[›™\’SHˆ]ˆÛ\ÜÏH™]Ü›Û™Ë\İ[[X\KZXY‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y™\œ›Ü—ÛYYÜÜ[‚ˆİ›Û™Ï‰Ù\ØØ\RS
+İ]\Õ^
+_OÜİ›Û™Ï‚ˆÜ[‰Ü™XÛÜ™İ[Ü›Û™ßH9«(ze&z+ëÏÜÜ[‚ˆÙ]‚ˆ]ˆÛ\ÜÏH™]Ü›Û™Ë\İ[[X\KX›ÙH‚ˆ]‰Ù\ØØ\RS
+[Y[œÚ[Û•^	ù¦ ¹¥è9îí9n©¹¦#¹îá‰Ê_OÙ]‚ˆ	Âˆ]\İÜ›Û™ÏË\Ù\[œİÙ\‚ˆÈÛX[¹§ :/äze&z+ëùëe9¨b;ï&‰Ù\ØØ\RS
+]\İÜ›Û™Ë\Ù\[œİÙ\Š_OÜÛX[˜ˆˆ	ÉÂˆBˆÙ]‚ˆÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]Q]Z[ÛÛ[BˆÛÛ›Û\‹\]Q]Z[ÛÛ[˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹\]Q]Z[ÛÛ[H[˜İ[ÛŠÛÜ™šYÙÙ\•ÈH˜[ÙJHÂˆÛÛœİ™\İ[HÜšYÚ[˜[\]Q]Z[ÛÛ[
+ÛÜ™šYÙÙ\•ÊNÂ‚ˆÊˆ:aãy¥¬9n)¹."º+ãy§hykîz,h{ï#9èk¹/çz"ìz+ëHRH:)èù§¤9.#y/&¹fçº` 9b,9¥éz+ëxà ˆ
+‹ÂˆšY]Ëœ™[™\‘^[\P›Ş
+ˆÛÜ™™^[\Kˆ	ÙY^[\KX›Ş	Ëˆ	Û›Ü›X[	ËˆÛÜ™ˆ
+NÂ‚ˆ™[™\•Ü›Û™Ôİ[[X\JÛÜ™
+NÂˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİ™\ÛÛ™TİYQ[Y[œÚ[ÛˆH
+ˆÛÜ™ˆ[\˜Xİ[Û‹ˆ\Ü^S[ÙHH	ÉÂˆ
+HOˆÂˆÛÛœİ\Ñ[™Û\ÚHÛÜ™Ë›[™ÈOOH	Ù[‰ÎÂ‚ˆYˆ
+[\˜Xİ[ÛˆOOH	ÜÜ[	ÊHÂˆYˆ
+ˆ\Ñ[™Û\Ú	‰‚ˆ[Ù[œİ]K›[ÙHOOH	ÛY[[ÜK]\İ	È	‰‚ˆ[Ù[œİ]K›]›İ[™OOH‚ˆ
+HÂˆ™]\›ˆ	Û\İ[š[™ÉÎÂˆB‚ˆYˆ
+ˆ\Ñ[™Û\Ú	‰‚ˆ[Ù[œİ]K›[ÙHOOH	Ü›İK[X\›š[™ÉÈ	‰‚ˆ\Ü^S[ÙHOOH	ÚØ[˜IÂˆ
+HÂˆ™]\›ˆ	Û\İ[š[™ÉÎÂˆB‚ˆ™]\›ˆ\Ñ[™Û\ÚÈ	ÜÜ[	Èˆ	Ü™XY[™ÉÎÂˆB‚ˆYˆ
+[Ù[œİ]K›[ÙHOOH	ÙX[]˜XÚÉÊHÂˆ™]\›ˆ	ÛYX[š[™ÉÎÂˆB‚ˆYˆ
+\Ü^S[ÙHOOH	ÛYX[š[™ÉÊHÂˆ™]\›ˆ[\˜Xİ[ÛˆOOH	ØÚÚXÙIÂˆÈ\Ñ[™Û\ÚˆÈ	ÜÜ[	Âˆˆ	Ü™XY[™ÉÂˆˆ	ÛYX[š[™ÉÎÂˆB‚ˆYˆ
+\Ü^S[ÙHOOH	ÚØ[˜IÊHÂˆ™]\›ˆ[Ù[œİ]K›]İ\OOHBˆÈ\Ñ[™Û\ÚˆÈ	Û\İ[š[™ÉÂˆˆ	Ü™XY[™ÉÂˆˆ	ÛYX[š[™ÉÎÂˆB‚ˆ™]\›ˆ[\˜Xİ[ÛˆOOH	ØÚÚXÙIÂˆÈ	ÛYX[š[™ÉÂˆˆ\Ñ[™Û\ÚˆÈ	ÜÜ[	Âˆˆ	Ü™XY[™ÉÎÂˆNÂ‚ˆÛÛœİÛÜœ™Xİ[œİÙ\‘›ÜˆH
+ÛÜ™[Y[œÚ[ÛŠHOˆÂˆYˆ
+]ÛÜ™
+HÂˆ™]\›ˆ	ÉÎÂˆB‚ˆYˆ
+[Y[œÚ[ÛˆOOH	ÛYX[š[™ÉÊHÂˆ™]\›ˆÛÜ™›YX[š[™È	ÉÎÂˆB‚ˆYˆ
+[Y[œÚ[ÛˆOOH	Ü™XY[™ÉÊHÂˆ™]\›ˆÛÜ™šØ[˜H	ÉÎÂˆB‚ˆ™]\›ˆÛÜ™ÛÜ™	ÉÎÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[š[\”™\İ[BˆÛÛ›Û\‹œ›ØÙ\ÜÑš[\•\İ™\İ[˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹œ›ØÙ\ÜÑš[\•\İ™\İ[H[˜İ[ÛŠ\ĞÛÜœ™Xİ
+HÂˆÛÛœİÛÜ™H[Ù[™–Âˆ[Ù[œİ]KœİYT]Y]YVÓ[Ù[œİ]K˜İ\œ™[[™^BˆNÂˆ][ÙHHšY]Ë™Ù][
+	İ\İY\Ü^K\Ù[Xİ	ÊOË˜[YH	ÚØ[˜IÎÂ‚ˆYˆ
+ÛÜ™Ë›[™ÈOOH	Ù[‰È	‰ˆ[ÙHOOH	ÚØ[˜IÊHÂˆ[ÙHH	İÛÜ™	ÎÂˆB‚ˆÛÛœİ[Y[œÚ[ÛˆHÂˆÛÜ™ˆÛÜ™Ë›[™ÈOOH	Ù[‰ÈÈ	ÜÜ[	Èˆ	Ü™XY[™ÉËˆØ[˜NˆÛÜ™Ë›[™ÈOOH	Ù[‰ÈÈ	ÜÜ[	Èˆ	Ü™XY[™ÉËˆ]Y[Îˆ	Û\İ[š[™ÉËˆYX[š[™Îˆ	ÛYX[š[™ÉÂˆVÛ[ÙWH	ÛYX[š[™ÉÎÂ‚ˆÛÛœİ™\İ[HÜšYÚ[˜[š[\”™\İ[
+\ĞÛÜœ™Xİ
+NÂ‚ˆ[Ù[œ™XÛÜ™İYT™\İ[
+ÂˆÛÜ™ˆ[Y[œÚ[Û‹ˆÛÜœ™Xİˆ\ĞÛÜœ™Xİˆ\Ù\[œİÙ\ˆ\ĞÛÜœ™XİÈ	ú!êº+á9«hùèk‰Èˆ	ú!êº+á:e&z+ëÉËˆÛÜœ™Xİ[œİÙ\ˆÛÜœ™Xİ[œİÙ\‘›ÜŠÛÜ™[Y[œÚ[ÛŠKˆÛİ\˜ÙNˆ	Ùš[\‰Ëˆ]Y\İ[Ûˆ	ùëfú`"y¨à:j£	ÂˆJNÂ‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[Ü[ÛÛ™š\›HBˆÛÛ›Û\‹š[™TÜ[ÛÛ™š\›K˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹š[™TÜ[ÛÛ™š\›HH[˜İ[ÛŠ[œ][ÛÜ™\Ü^S[ÙJHÂˆYˆ
+]ÛÜ™[Ù[œİ]Kš\Ğ[š[X][™ÊHÂˆ™]\›ˆÜšYÚ[˜[Ü[ÛÛ™š\›J[œ][ÛÜ™\Ü^S[ÙJNÂˆB‚ˆÛÛœİ\Ñ[™Û\ÚHÛÜ™›[™ÈOOH	Ù[‰ÎÂˆÛÛœİ\™Ù]H\Ñ[™Û\ÚˆÈİš[™ÊÛÜ™ÛÜ™	ÉÊKÓİÙ\Ø\ÙJ
+Kš[J
+Bˆˆİš[™ÊÛÜ™šØ[˜H	ÉÊKœ™\XÙJÖøà$8à$W×J
+WKÙË	ÉÊNÂˆÛÛœİ[œİÙ\ˆH\Ñ[™Û\ÚˆÈİš[™Ê[™Û\Ú[œ]˜Y™™\ˆ	ÉÊKÓİÙ\Ø\ÙJ
+Kš[J
+Bˆˆ›ÛXZšQ[™Ú[™K™Ù]š[˜[^
+
+NÂ‚ˆÛÛœİ™\İ[HÜšYÚ[˜[Ü[ÛÛ™š\›J[œ][ÛÜ™\Ü^S[ÙJNÂ‚ˆYˆ
+[œİÙ\ŠHÂˆÛÛœİ[Y[œÚ[ÛˆH™\ÛÛ™TİYQ[Y[œÚ[ÛŠˆÛÜ™ˆ	ÜÜ[	Ëˆ\Ü^S[ÙBˆ
+NÂ‚ˆ[Ù[œ™XÛÜ™İYT™\İ[
+ÂˆÛÜ™ˆ[Y[œÚ[Û‹ˆÛÜœ™Xİˆ[œİÙ\ˆOOH\™Ù]ˆ\Ù\[œİÙ\ˆ[œİÙ\‹ˆÛÜœ™Xİ[œİÙ\ˆ\™Ù]ˆÛİ\˜ÙNˆ	ÜİYIËˆ]Y\İ[Ûˆ	úe+¹ææ9¢ï9a¦IÂˆJNÂˆB‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[ÚÚXÙHBˆÛÛ›Û\‹š[™QÚÚXÙPÛXÚË˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹š[™QÚÚXÙPÛXÚÈH[˜İ[ÛŠ]Û‹\ĞÛÜœ™Xİ
+HÂˆÛÛœİÛÜ™H[Ù[™–Âˆ[Ù[œİ]KœİYT]Y]YVÓ[Ù[œİ]K˜İ\œ™[[™^BˆNÂˆÛÛœİ[œİÙ\ˆBˆ]ÛËœ]Y\TÙ[XİÜŠ	ÜÜ[›\İXÚ[	ÊOË^ÛÛ[ˆ]ÛË^ÛÛ[ˆ	ÉÎÂˆÛÛœİ™\İ[HÜšYÚ[˜[ÚÚXÙJ]Û‹\ĞÛÜœ™Xİ
+NÂ‚ˆ[Ù[œ™XÛÜ™İYT™\İ[
+ÂˆÛÜ™ˆ[Y[œÚ[Ûˆ	ÛYX[š[™ÉËˆÛÜœ™Xİˆ\ĞÛÜœ™Xİˆ\Ù\[œİÙ\ˆ[œİÙ\‹ˆÛÜœ™Xİ[œİÙ\ˆÛÜ™Ë›YX[š[™È	ÉËˆÛİ\˜ÙNˆ	ÜİYIËˆ]Y\İ[Ûˆ	ùo 9i#y­búj£:aâ¹.bz`"y¢êIÂˆJNÂ‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[]ÚÚXÙHBˆÛÛ›Û\‹š[™S]ÚÚXÙPÛXÚË˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹š[™S]ÚÚXÙPÛXÚÈH[˜İ[ÛŠˆ]Û‹ˆ\ĞÛÜœ™XİˆÛÜ™ˆ\Ü^S[ÙBˆ
+HÂˆÛÛœİ[Y[œÚ[ÛˆH™\ÛÛ™TİYQ[Y[œÚ[ÛŠˆÛÜ™ˆ	ØÚÚXÙIËˆ\Ü^S[ÙBˆ
+NÂˆÛÛœİ[œİÙ\ˆBˆ]ÛËœ]Y\TÙ[XİÜŠ	ÜÜ[›\İXÚ[	ÊOË^ÛÛ[ˆ]ÛË^ÛÛ[ˆ	ÉÎÂˆÛÛœİ™\İ[HÜšYÚ[˜[]ÚÚXÙJˆ]Û‹ˆ\ĞÛÜœ™XİˆÛÜ™ˆ\Ü^S[ÙBˆ
+NÂ‚ˆ[Ù[œ™XÛÜ™İYT™\İ[
+ÂˆÛÜ™ˆ[Y[œÚ[Û‹ˆÛÜœ™Xİˆ\ĞÛÜœ™Xİˆ\Ù\[œİÙ\ˆ[œİÙ\‹ˆÛÜœ™Xİ[œİÙ\ˆÛÜœ™Xİ[œİÙ\‘›ÜŠÛÜ™[Y[œÚ[ÛŠKˆÛİ\˜ÙNˆ	ÜİYIËˆ]Y\İ[Ûˆ	ùoª¹ã«ùo.º+¬9¢%¹."z/kº`&¹alú`"y¢êzh¦	ÂˆJNÂ‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛ›Û\‹œİ\Ü›Û™Ğ›ÛÚÔ˜XİXÙHH[˜İ[ÛŠ
+HÂˆÛÛœİš[\ˆBˆšY]Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊOË˜[YHˆ	İš\X[İÜ›Û™×Ø[	ÎÂˆÛÛœİÛÜ™ÈH[Ù[™‚ˆ›X\
+
+ÛÜ™[™^
+HOˆ
+ÈÛÜ™[™^JJBˆ™š[\Š][HOˆÂˆ™]\›ˆ
+ˆ
+][KÛÜ™›[™È	Ú˜IÊHOOBˆ[Ù[œİ]K˜İ\œ™[[™Ó[ÙH	‰‚ˆ[Ù[˜ÚXÚÑš[\Š][KÛÜ™š[\ŠBˆ
+NÂˆJNÂ‚ˆYˆ
+ÛÜ™Ë›[™İOOH
+HÂˆÚİÕØ\İ
+	ùodùbcze&zh¦9b!¹ìnúaã9¬¨y§"ycëùîàù.h9æ¡:+ãIÊNÂˆ™]\›ÂˆB‚ˆÛÜ™ËœÛÜ
+
+KŠHOˆÂˆÛÛœİT™XÛÜ™H[Ù[™Ù]Ü›Û™Ô™XÛÜ™
+KÛÜ™˜[ÙJHßNÂˆÛÛœİ”™XÛÜ™H[Ù[™Ù]Ü›Û™Ô™XÛÜ™
+‹ÛÜ™˜[ÙJHßNÂˆ™]\›ˆ
+ˆ
+”™XÛÜ™İ[Ü›Û™È
+HBˆ
+T™XÛÜ™İ[Ü›Û™È
+Bˆ
+NÂˆJNÂ‚ˆÛÛœİÙ[XİYHÛÜ™ËœÛXÙJŒ
+NÂˆ[Ù[œİ]K›[ÙHH	ÙX[]˜XÚÉÎÂˆ[Ù[œİ]Kš\ÕÜ›Û™Ğ›ÛÚÔ˜XİXÙHHYNÂˆ[Ù[œİ]K˜İ\œ™[[™^HÂˆ[Ù[œİ]K™ÛÜ™\X\˜[˜ÙSX\HßNÂˆ[Ù[œİ]K˜İ\œ™[ÛÜ™˜Z[YH˜[ÙNÂˆ[Ù[œİ]K˜ÛÛX›ĞÛİ[HÂˆ[Ù[œİ]K›X^›ÙÜ™\ÜÔÙY[ˆHÂˆ[Ù[œİ]K[š\]YUÛÜ™Ûİ[HÙ[XİY›[™İÂˆ[Ù[œİ]K˜İ\œ™[Ü›İ\Ù^HH	İÜ›Û™Ø›ÛÚË\˜XİXÙIÎÂˆ[Ù[œİ]K˜İ\œ™[Ü›İ\X™[H	úe&zh¦9.$úhnIÎÂˆ[Ù[œİ]KœİYT]Y]YHH×NÂ‚ˆÙ[XİY™›Ü‘XXÚ
+][HOˆÂˆ[Ù[œİ]KœİYT]Y]YKœ\Ú
+][Kš[™^][Kš[™^
+NÂˆJNÂ‚ˆ[Ù[œİ]KœİYT]Y]YKœÛÜ
+
+
+HOˆX]œ˜[™ÛJ
+HHJNÂˆ[Ù[œİ]Kš[š]X[]Y]YS[™İH[Ù[œİ]KœİYT]Y]YK›[™İÂˆšY]Ë\]PÛÛX›Ğ˜YÙJ
+NÂˆšY]ËœÚİÔYÙJ	ÜİYKX\™XIÊNÂ‚ˆÛÛœİX]š^HšY]Ë™Ù][
+	Ü^[[X]š^	ÊNÂˆYˆ
+X]š^
+HÂˆX]š^š[›™\’SH	ÉÎÂˆB‚ˆšY]Ëœ™[™\”İYPØ\™
+	Û›Û™IÊNÂˆ\™Ø\™KšXœ˜]J
+NÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[š[š\Ú[™[[HBˆÛÛ›Û\‹™š[š\Ú[™[[K˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹™š[š\Ú[™[[HH[˜İ[ÛŠ
+HÂˆYˆ
+S[Ù[œİ]Kš\ÕÜ›Û™Ğ›ÛÚÔ˜XİXÙJHÂˆ™]\›ˆÜšYÚ[˜[š[š\Ú[™[[J
+NÂˆB‚ˆ[Ù[œİ]Kš\ÕÜ›Û™Ğ›ÛÚÔ˜XİXÙHH˜[ÙNÂˆÚİÕØ\İ
+	úe&zh¦9.$úhnyk£9¢$;ï#:/ç¹îëyëe9kîy/&º`$9«iyéîùaîºe&zh¦9§+	ÊNÂˆšY]Ë™Ù][
+	Ø‹Y^]\İYIÊOË˜ÛXÚÊ
+NÂˆNÂ‚ˆÊˆKKKKKKKKKH9îäù§¡9c%ˆRH9l#ù­bÈKKKKKKKKKH
+‹ÂˆÛÛ›Û\‹˜ZT]Z^”İ]HHÂˆÛİ\˜ÙT^[ØYˆ[ˆ]Nˆ	ÉËˆ]Y\İ[ÛœÎˆ×Kˆİ\œ™[[™^ˆˆ[œİÙ\œÎˆ×KˆÙ[XİYÜ[Ûˆ	ÉËˆİ\Y]ˆˆÛÛ\]Y]ˆˆNÂ‚ˆÛÛ›Û\‹—Ü™\Ù]RT]Z^”İ]HH[˜İ[ÛŠ
+HÂˆ\Ë˜ZT]Z^”İ]HHÂˆÛİ\˜ÙT^[ØYˆ[ˆ]Nˆ	ÉËˆ]Y\İ[ÛœÎˆ×Kˆİ\œ™[[™^ˆˆ[œİÙ\œÎˆ×KˆÙ[XİYÜ[Ûˆ	ÉËˆİ\Y]ˆˆÛÛ\]Y]ˆˆNÂˆNÂ‚ˆÛÛ›Û\‹—ÜÚİĞRT]Z^”İYÙHH[˜İ[ÛŠİYÙJHÂˆÛÛœİX\HÂˆØY[™Îˆ	ØZK\]Z^‹[ØY[™ÉËˆ]Y\İ[Ûˆ	ØZK\]Z^‹\]Y\İ[Û‹\İYÙIËˆ™\İ[ˆ	ØZK\]Z^‹\™\İ[\İYÙIÂˆNÂ‚ˆØš™Xİ™[šY\ÊX\
+K™›Ü‘XXÚ
+
+Û˜[YKYJHOˆÂˆÛÛœİ[[Y[HšY]Ë™Ù][
+Y
+NÂˆYˆ
+[[Y[
+HÂˆ[[Y[šY[ˆH˜[YHOOHİYÙNÂˆBˆJNÂˆNÂ‚ˆÛÛ›Û\‹—ÛX\RT]Z^•\UÑ[Y[œÚ[ÛˆH[˜İ[ÛŠ]Y\İ[ÛŠHÂˆYˆ
+]Y\İ[Û‹\HOOH	ÜÜ[	ÊHÂˆ™]\›ˆ]Y\İ[Û‹›[™ÈOOH	Ú˜IÈÈ	Ü™XY[™ÉÈˆ	ÜÜ[	ÎÂˆB‚ˆYˆ
+]Y\İ[Û‹\HOOH	ÛYX[š[™ÉÊHÂˆ™]\›ˆ	ÛYX[š[™ÉÎÂˆB‚ˆYˆ
+]Y\İ[Û‹\HOOH	İ\ØYÙIÊHÂˆ™]\›ˆ	İ\ØYÙIÎÂˆB‚ˆ™]\›ˆ	ÙÜ˜[[X\‰ÎÂˆNÂ‚ˆÛÛ›Û\‹—Ùš[™RT]Z^•ÛÜ™H[˜İ[ÛŠ]Y\İ[ÛŠHÂˆYˆ
+\]Y\İ[Û‹ÛÜ™
+HÂˆ™]\›ˆ[ÂˆB‚ˆÛÛœİ[™ÈBˆ]Y\İ[Û‹›[™ÈOOH	Ù[‰È]Y\İ[Û‹›[™ÈOOH	Ú˜IÂˆÈ]Y\İ[Û‹›[™ÂˆˆÖĞKV˜K^—KË\İ
+]Y\İ[Û‹ÛÜ™
+BˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂˆÛÛœİ\™Ù]Hİš[™Ê]Y\İ[Û‹ÛÜ™
+Kš[J
+KÓİÙ\Ø\ÙJ
+NÂ‚ˆ™]\›ˆ
+ˆ[Ù[™‹™š[™
+ÛÜ™OˆÂˆ™]\›ˆ
+ˆ
+ÛÜ™›[™È	Ú˜IÊHOOH[™È	‰‚ˆİš[™ÊÛÜ™ÛÜ™	ÉÊKš[J
+KÓİÙ\Ø\ÙJ
+HOOH\™Ù]ˆ
+NÂˆJH[ˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹—Üİ\RT]Z^ˆH\Ş[˜È[˜İ[ÛŠ^[ØY
+HÂˆÛÛœİÛİ\˜ÙU^Hİš[™Ê^[ØYËœ™\ÜÛœÙU^	ÉÊKš[J
+NÂ‚ˆYˆ
+\Ûİ\˜ÙU^
+HÂˆÚİÕØ\İ
+	ú/æy§hyfç¹ëe9¦ ¹¥í¹¥è9¬åyå'ù¢$9l#ù­bÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë—Ü™\Ù]RT]Z^”İ]J
+NÂˆ\Ë˜ZT]Z^”İ]KœÛİ\˜ÙT^[ØYH^[ØYÂˆ\Ë˜ZT]Z^”İ]Kœİ\Y]H]K››İÊ
+NÂˆÚ[™İËÙÙÛS[Ù[
+	ØZK\]Z^‹[İ™\›^IËYJNÂˆ\Ë—ÜÚİĞRT]Z^”İYÙJ	ÛØY[™ÉÊNÂ‚ˆÛÛœİ[™İXYÙT[HBˆ^[ØYË›[™ÈOOH	Ù[‰ÂˆÈ	úh¦9æë¹cëù.éyc!yd*ú"ìz+ë{ï#:+¬º)èù/oùå*9.+y¥¡ûï#9é y«h¹aî¹ã¬9¥éz+ëxà ‰Âˆˆ^[ØYË›[™ÈOOH	Ú˜IÂˆÈ	úh¦9æë¹cëù.éyc!yd*ù¥éz+ë{ï#:+¬º)èù/oùå*9.+y¥¡øà ‰Âˆˆ	ù¨.y£k¹c§ùfç¹ëe9a¡yk®z`"y¢êz"ìz+ëy¢%¹¥éz+ë{ï#:+¬º)èù/oùå*9.+y¥¡øà ‰ÎÂ‚ˆÛÛœİ›Û\Hº+íù¨.y£k¹."úgh¹æ¡:+ëz* 9ki¹.h9a¡yk®yå'ù¢$ú`dùîäù§¡9c%¹l#ù­búh¦8à ‚‚º) y¬`»ï&‚ŒKˆ	Û[™İXYÙT[_BŒ‹ˆ:h¦9g¢ù.ãˆÜ[8à [YX[š[™øà ]\ØYÙxà YÜ˜[[X\ˆ9.+z`"y¢êxà ‚ŒËˆÜ[9/oùå*^;ï&ùam¹.åºh¦9g¢ù/&9ab9/oùå*ÚÚXÙxà ‚ˆÚÚXÙH9oázhnù£ä9/¦Í9.*º`"zhn{ï#[œİÙ\ˆ9oázhnù.#¹am¹.+y. 9.*º`"zhnyk£9aj9. :!í8à ‚KˆÛÜ™9hjùa¦zh¦9æë¹kîyn¥9æ¡:+ãyan9c§ùoh»ï&ùî«ú+ëy¬åzh¦9cëù.éyåfyên¸à ‚‹ˆ[™È9cêº ïy¦+È[¸à Z˜H9¢%¹ên¹keùë)¹.,¸à ‚Ëˆ^[˜][Ûˆ9/oùå*9ë 9çëy.+y¥¡øà ‚ˆ9cêº/¤ùaîˆ”ÓÓ»ï#9.#z) HX\šÙİÛ»ï#9.#z) zh§yi%º+í9¦#¸à ‚‚¹¨/9o#ûï&‚È]Hˆ¹§+9«(yl#ù­bÈ‹œ]Y\İ[ÛœÈ–ŞÈ\Hˆ›YX[š[™È‹ÛÜ™ˆœ[ˆ‹›[™Èˆ™[ˆ‹œ›Û\ˆœ[ˆ9æ¡9«hùèkºaâ¹.by¦+ûï'È‹˜[œİÙ\“[ÙHˆ˜ÚÚXÙH‹›Ü[ÛœÈ–Èº+¨yb$»ï&ù¢dùë¥È‹ºhç¹§.ˆ‹¹nlùc§È‹¹éãy©#H—K˜[œİÙ\ˆˆº+¨yb$»ï&ù¢dùë¥È‹™^[˜][Ûˆˆœ[ˆ9/g9d#z+ãz(j9é.º+¨yb$»ï#9/g9bª:+ãz(j9é.¹¢dùë¥øà ˆŸW_B‚¹ki¹.h9a¡yk®{ï&‚‰ÜÛİ\˜ÙU^œÛXÙJL
+_Bˆš[J
+NÂ‚ˆHÂˆÛÛœİ™\İ[H]ØZ]\Ë—Ü™\]Y\İRR”ÓÓŠ›Û\
+NÂˆÛÛœİ]Y\İ[ÛœÈH
+\œ˜^Kš\Ğ\œ˜^J™\İ[œ]Y\İ[ÛœÊBˆÈ™\İ[œ]Y\İ[ÛœÂˆˆ×JBˆœÛXÙJÊBˆ›X\
+
+][K[™^
+HOˆÂˆÛÛœİ[œİÙ\“[ÙHBˆ][OË˜[œİÙ\“[ÙHOOH	İ^	ÈÈ	İ^	Èˆ	ØÚÚXÙIÎÂˆ]Ü[ÛœÈH[œİÙ\“[ÙHOOH	ØÚÚXÙIÂˆÈË‹‹›™]ÈÙ]
+ˆ
+\œ˜^Kš\Ğ\œ˜^J][OË›Ü[ÛœÊBˆÈ][K›Ü[ÛœÂˆˆ×JBˆ›X\
+Ü[ÛˆOˆİš[™ÊÜ[Ûˆ	ÉÊKš[J
+JBˆ™š[\Š›ÛÛX[ŠBˆ
+WKœÛXÙJ
+Bˆˆ×NÂˆÛÛœİ[œİÙ\ˆHİš[™Ê][OË˜[œİÙ\ˆ	ÉÊKš[J
+NÂ‚ˆYˆ
+ˆ[œİÙ\“[ÙHOOH	ØÚÚXÙIÈ	‰‚ˆ[œİÙ\ˆ	‰‚ˆ[Ü[ÛœËš[˜ÛY\Ê[œİÙ\ŠBˆ
+HÂˆÜ[ÛœË[œÚY
+[œİÙ\ŠNÂˆB‚ˆ™]\›ˆÂˆYˆXZÙRY
+]Z^—ÉÚ[™^X
+Kˆ\NˆÉÜÜ[	Ë	ÛYX[š[™ÉË	İ\ØYÙIË	ÙÜ˜[[X\‰×Kš[˜ÛY\Êˆ][OË\Bˆ
+BˆÈ][K\Bˆˆ	ÛYX[š[™ÉËˆÛÜ™ˆİš[™Ê][OËÛÜ™	ÉÊKš[J
+Kˆ[™Î‚ˆ][OË›[™ÈOOH	Ù[‰È][OË›[™ÈOOH	Ú˜IÂˆÈ][K›[™Âˆˆ	ÉËˆ›Û\ˆİš[™Ê][OËœ›Û\	ÉÊKš[J
+Kˆ[œİÙ\“[ÙKˆÜ[ÛœÎˆÜ[ÛœËœÛXÙJ
+Kˆ[œİÙ\‹ˆ^[˜][Ûˆİš[™Ê][OË™^[˜][Ûˆ	ÉÊKš[J
+BˆNÂˆJBˆ™š[\Š]Y\İ[ÛˆOˆ]Y\İ[Û‹œ›Û\	‰ˆ]Y\İ[Û‹˜[œİÙ\ŠNÂ‚ˆYˆ
+]Y\İ[ÛœË›[™İOOH
+HÂˆ›İÈ™]È\œ›ÜŠ	ĞRH9¬¨y§"yå'ù¢$9§"y¥b:h¦9æë‰ÊNÂˆB‚ˆ\Ë˜ZT]Z^”İ]K]HHİš[™Ê™\İ[]H	ù§+9«(yl#ù­bÉÊNÂˆ\Ë˜ZT]Z^”İ]Kœ]Y\İ[ÛœÈH]Y\İ[ÛœÎÂˆ\Ë˜ZT]Z^”İ]K˜İ\œ™[[™^HÂˆ\Ë—Ü™[™\RT]Z^”]Y\İ[ÛŠ
+NÂˆ\Ë—ÜÚİĞRT]Z^”İYÙJ	Ü]Y\İ[Û‰ÊNÂˆHØ]Ú
+\œ›ÜŠHÂˆÛÛœÛÛK™\œ›ÜŠ	ÖĞRH]Z^—IË\œ›ÜŠNÂˆ\Ë—ØÛÜÙPRT]Z^Š
+NÂˆÚİÕØ\İ
+\œ›ÜË›Y\ÜØYÙH	ùl#ù­bùå'ù¢$9i,z-){ï#:+íùê#yd#ºaãz+åIÊNÂˆBˆNÂ‚ˆÛÛ›Û\‹—Ü™[™\RT]Z^”]Y\İ[ÛˆH[˜İ[ÛŠ
+HÂˆÛÛœİİ]HH\Ë˜ZT]Z^”İ]NÂˆÛÛœİ]Y\İ[ÛˆHİ]Kœ]Y\İ[ÛœÖÜİ]K˜İ\œ™[[™^NÂ‚ˆYˆ
+\]Y\İ[ÛŠHÂˆ\Ë—ØÛÛ\]PRT]Z^Š
+NÂˆ™]\›ÂˆB‚ˆİ]KœÙ[XİYÜ[ÛˆH	ÉÎÂ‚ˆÛÛœİ›ÙÜ™\ÜÈHšY]Ë™Ù][
+	ØZK\]Z^‹\›ÙÜ™\ÜÉÊNÂˆÛÛœİ]HHšY]Ë™Ù][
+	ØZK\]Z^‹]]IÊNÂˆÛÛœİ\HHšY]Ë™Ù][
+	ØZK\]Z^‹]\IÊNÂˆÛÛœİ›Û\HšY]Ë™Ù][
+	ØZK\]Z^‹\›Û\	ÊNÂˆÛÛœİÛÜ™HšY]Ë™Ù][
+	ØZK\]Z^‹]ÛÜ™	ÊNÂˆÛÛœİÜ[ÛœÈHšY]Ë™Ù][
+	ØZK\]Z^‹[Ü[ÛœÉÊNÂˆÛÛœİ[œ]Ü˜\HšY]Ë™Ù][
+	ØZK\]Z^‹Z[œ]]Ü˜\	ÊNÂˆÛÛœİ[œ]HšY]Ë™Ù][
+	ØZK\]Z^‹Z[œ]	ÊNÂˆÛÛœİ™YY˜XÚÈHšY]Ë™Ù][
+	ØZK\]Z^‹Y™YY˜XÚÉÊNÂˆÛÛœİİX›Z]HšY]Ë™Ù][
+	ØZK\]Z^‹\İX›Z]	ÊNÂˆÛÛœİ™^HšY]Ë™Ù][
+	ØZK\]Z^‹[™^	ÊNÂ‚ˆYˆ
+›ÙÜ™\ÜÊHÂˆ›ÙÜ™\ÜË^ÛÛ[H	Üİ]K˜İ\œ™[[™^
+È_HÈ	Üİ]Kœ]Y\İ[ÛœË›[™İXÂˆBˆYˆ
+]JHÂˆ]K^ÛÛ[Hİ]K]NÂˆBˆYˆ
+\JHÂˆÛÛœİ[Y[œÚ[ÛˆH\Ë—ÛX\RT]Z^•\UÑ[Y[œÚ[ÛŠ]Y\İ[ÛŠNÂˆ\K^ÛÛ[HÔ“Ó‘×ÑSQS”ÒSÓ—ÓP‘SÖÙ[Y[œÚ[Û—H	ùl#ù­bÉÎÂˆBˆYˆ
+›Û\
+HÂˆ›Û\^ÛÛ[H]Y\İ[Û‹œ›Û\ÂˆBˆYˆ
+ÛÜ™
+HÂˆÛÜ™^ÛÛ[H]Y\İ[Û‹ÛÜ™ÂˆÛÜ™šY[ˆH\]Y\İ[Û‹ÛÜ™ÂˆBˆYˆ
+™YY˜XÚÊHÂˆ™YY˜XÚËšY[ˆHYNÂˆ™YY˜XÚË˜Û\ÜÓ˜[YHH	ØZK\]Z^‹Y™YY˜XÚÉÎÂˆ™YY˜XÚËš[›™\’SH	ÉÎÂˆBˆYˆ
+İX›Z]
+HÂˆİX›Z]šY[ˆH˜[ÙNÂˆİX›Z]™\ØX›YH˜[ÙNÂˆBˆYˆ
+™^
+HÂˆ™^šY[ˆHYNÂˆB‚ˆYˆ
+]Y\İ[Û‹˜[œİÙ\“[ÙHOOH	ØÚÚXÙIÊHÂˆYˆ
+[œ]Ü˜\
+HÂˆ[œ]Ü˜\šY[ˆHYNÂˆBˆYˆ
+Ü[ÛœÊHÂˆÜ[ÛœËšY[ˆH˜[ÙNÂˆÜ[ÛœËš[›™\’SH]Y\İ[Û‹›Ü[ÛœÂˆ›X\
+Ü[ÛˆOˆÂˆ™]\›ˆˆ]Û‚ˆ\OH˜]Ûˆ‚ˆÛ\ÜÏH˜ZK\]Z^‹[Ü[Ûˆ‚ˆ]K\]Z^‹[Ü[ÛH‰Ù\ØØ\RS
+Ü[ÛŠ_H‚ˆ‰Ù\ØØ\RS
+Ü[ÛŠ_OØ]Û‚ˆÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆÜ[ÛœÂˆœ]Y\TÙ[XİÜ[
+	Ë˜ZK\]Z^‹[Ü[Û‰ÊBˆ™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆÜ[ÛœÂˆœ]Y\TÙ[XİÜ[
+	Ë˜ZK\]Z^‹[Ü[Û‰ÊBˆ™›Ü‘XXÚ
+][HOˆÂˆ][K˜Û\ÜÓ\İÙÙÛJˆ	ÜÙ[XİY	Ëˆ][HOOH]Û‚ˆ
+NÂˆJNÂˆİ]KœÙ[XİYÜ[ÛˆBˆ]Û‹™]\Ù]œ]Z^“Ü[Ûˆ	ÉÎÂˆJNÂˆJNÂˆBˆH[ÙHÂˆYˆ
+Ü[ÛœÊHÂˆÜ[ÛœËšY[ˆHYNÂˆÜ[ÛœËš[›™\’SH	ÉÎÂˆBˆYˆ
+[œ]Ü˜\
+HÂˆ[œ]Ü˜\šY[ˆH˜[ÙNÂˆBˆYˆ
+[œ]
+HÂˆ[œ]˜[YHH	ÉÎÂˆ[œ]™\ØX›YH˜[ÙNÂˆÙ][Y[İ]
+
+
+HOˆ[œ]™›Øİ\Ê
+K
+NÂˆBˆBˆNÂ‚ˆÛÛ›Û\‹—ÜİX›Z]RT]Z^[œİÙ\ˆH[˜İ[ÛŠ
+HÂˆÛÛœİİ]HH\Ë˜ZT]Z^”İ]NÂˆÛÛœİ]Y\İ[ÛˆHİ]Kœ]Y\İ[ÛœÖÜİ]K˜İ\œ™[[™^NÂ‚ˆYˆ
+\]Y\İ[ÛŠHÂˆ™]\›ÂˆB‚ˆÛÛœİ[œ]HšY]Ë™Ù][
+	ØZK\]Z^‹Z[œ]	ÊNÂˆÛÛœİ\Ù\[œİÙ\ˆBˆ]Y\İ[Û‹˜[œİÙ\“[ÙHOOH	ØÚÚXÙIÂˆÈİ]KœÙ[XİYÜ[Û‚ˆˆİš[™Ê[œ]Ë˜[YH	ÉÊKš[J
+NÂ‚ˆYˆ
+]\Ù\[œİÙ\ŠHÂˆÚİÕØ\İ
+	ú+íùab9/g9ëe	ÊNÂˆ™]\›ÂˆB‚ˆÛÛœİ\ĞÛÜœ™XİBˆ›Ü›X[^™P[œİÙ\Š\Ù\[œİÙ\ŠHOOH›Ü›X[^™P[œİÙ\Š]Y\İ[Û‹˜[œİÙ\ŠNÂˆÛÛœİX]ÚYÛÜ™H\Ë—Ùš[™RT]Z^•ÛÜ™
+]Y\İ[ÛŠNÂˆÛÛœİ[Y[œÚ[ÛˆH\Ë—ÛX\RT]Z^•\UÑ[Y[œÚ[ÛŠ]Y\İ[ÛŠNÂ‚ˆYˆ
+ˆX]ÚYÛÜ™	‰‚ˆØØ[İÜ˜YÙK™Ù]][J	ØZT]Z^”™XÛÜ™	ÊHOOH	Ù˜[ÙIÂˆ
+HÂˆ[Ù[œ™XÛÜ™İYT™\İ[
+ÂˆÛÜ™ˆX]ÚYÛÜ™ˆ[Y[œÚ[Û‹ˆÛÜœ™Xİˆ\ĞÛÜœ™Xİˆ\Ù\[œİÙ\‹ˆÛÜœ™Xİ[œİÙ\ˆ]Y\İ[Û‹˜[œİÙ\‹ˆÛİ\˜ÙNˆ	ØZT]Z^‰Ëˆ]Y\İ[Ûˆ]Y\İ[Û‹œ›Û\ˆJNÂˆB‚ˆİ]K˜[œİÙ\œËœ\Ú
+Âˆ]Y\İ[Û’Yˆ]Y\İ[Û‹šYˆ\Nˆ]Y\İ[Û‹\Kˆ[Y[œÚ[Û‹ˆÛÜ™ˆ]Y\İ[Û‹ÛÜ™ˆ[™Îˆ]Y\İ[Û‹›[™Ëˆ›Û\ˆ]Y\İ[Û‹œ›Û\ˆ\Ù\[œİÙ\‹ˆÛÜœ™Xİ[œİÙ\ˆ]Y\İ[Û‹˜[œİÙ\‹ˆ^[˜][Ûˆ]Y\İ[Û‹™^[˜][Û‹ˆ\ĞÛÜœ™XİˆX]ÚYÛÜ™YˆX]ÚYÛÜ™Ë—ÚY	ÉÂˆJNÂ‚ˆÛÛœİ™YY˜XÚÈHšY]Ë™Ù][
+	ØZK\]Z^‹Y™YY˜XÚÉÊNÂˆÛÛœİİX›Z]HšY]Ë™Ù][
+	ØZK\]Z^‹\İX›Z]	ÊNÂˆÛÛœİ™^HšY]Ë™Ù][
+	ØZK\]Z^‹[™^	ÊNÂˆÛÛœİÜ[ÛœÈHšY]Ë™Ù][
+	ØZK\]Z^‹[Ü[ÛœÉÊNÂ‚ˆYˆ
+™YY˜XÚÊHÂˆ™YY˜XÚËšY[ˆH˜[ÙNÂˆ™YY˜XÚË˜Û\ÜÓ˜[YHBˆZK\]Z^‹Y™YY˜XÚÈ	Ú\ĞÛÜœ™XİÈ	Ú\ËXÛÜœ™Xİ	Èˆ	Ú\Ë]Ü›Û™ÉßXÂˆ™YY˜XÚËš[›™\’SHˆİ›Û™Ï‰Ú\ĞÛÜœ™XİÈ	ùfç¹ëe9«hùèk‰Èˆ	ùfç¹ëe:e&z+ëÉßOÜİ›Û™Ï‚ˆ	Âˆ\ĞÛÜœ™XİˆÈ	ÉÂˆˆ]¹«hùèk¹ëe9¨b;ï&‰Ù\ØØ\RS
+]Y\İ[Û‹˜[œİÙ\Š_OÙ]˜ˆBˆ‰Ù\ØØ\RS
+]Y\İ[Û‹™^[˜][Ûˆ	ÉÊ_OÜ‚ˆÂˆB‚ˆYˆ
+Ü[ÛœÊHÂˆÜ[ÛœËœ]Y\TÙ[XİÜ[
+	Ë˜ZK\]Z^‹[Ü[Û‰ÊK™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹™\ØX›YHYNÂˆÛÛœİÜ[ÛˆH]Û‹™]\Ù]œ]Z^“Ü[Ûˆ	ÉÎÂˆ]Û‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËX[œİÙ\‰Ëˆ›Ü›X[^™P[œİÙ\ŠÜ[ÛŠHOOH›Ü›X[^™P[œİÙ\Š]Y\İ[Û‹˜[œİÙ\ŠBˆ
+NÂˆ]Û‹˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë]Ü›Û™ÉËˆZ\ĞÛÜœ™Xİ	‰‚ˆ›Ü›X[^™P[œİÙ\ŠÜ[ÛŠHOOH›Ü›X[^™P[œİÙ\Š\Ù\[œİÙ\ŠBˆ
+NÂˆJNÂˆB‚ˆYˆ
+[œ]
+HÂˆ[œ]™\ØX›YHYNÂˆBˆYˆ
+İX›Z]
+HÂˆİX›Z]šY[ˆHYNÂˆBˆYˆ
+™^
+HÂˆ™^šY[ˆH˜[ÙNÂˆ™^^ÛÛ[Bˆİ]K˜İ\œ™[[™^Hİ]Kœ]Y\İ[ÛœË›[™İHBˆÈ	ù§éyç"ùîäù§§	Âˆˆ	ù."ù. :h¦	ÎÂˆBˆNÂ‚ˆÛÛ›Û\‹—ØY˜[˜ÙPRT]Z^ˆH[˜İ[ÛŠ
+HÂˆÛÛœİ[œ]HšY]Ë™Ù][
+	ØZK\]Z^‹Z[œ]	ÊNÂˆYˆ
+[œ]
+HÂˆ[œ]™\ØX›YH˜[ÙNÂˆB‚ˆ\Ë˜ZT]Z^”İ]K˜İ\œ™[[™^
+ÊÎÂ‚ˆYˆ
+ˆ\Ë˜ZT]Z^”İ]K˜İ\œ™[[™^Bˆ\Ë˜ZT]Z^”İ]Kœ]Y\İ[ÛœË›[™İˆ
+HÂˆ\Ë—ØÛÛ\]PRT]Z^Š
+NÂˆ™]\›ÂˆB‚ˆ\Ë—Ü™[™\RT]Z^”]Y\İ[ÛŠ
+NÂˆNÂ‚ˆÛÛ›Û\‹—ØÛÛ\]PRT]Z^ˆH[˜İ[ÛŠ
+HÂˆÛÛœİİ]HH\Ë˜ZT]Z^”İ]NÂˆİ]K˜ÛÛ\]Y]H]K››İÊ
+NÂ‚ˆÛÛœİÛÜœ™XİÛİ[Hİ]K˜[œİÙ\œË™š[\Š[œİÙ\ˆOˆÂˆ™]\›ˆ[œİÙ\‹š\ĞÛÜœ™XİÂˆJK›[™İÂˆÛÛœİÜ›Û™Ğ[œİÙ\œÈHİ]K˜[œİÙ\œË™š[\Š[œİÙ\ˆOˆÂˆ™]\›ˆX[œİÙ\‹š\ĞÛÜœ™XİÂˆJNÂˆÛÛœİZ\ÜÚ[™ÕÛÜ™ÈHÜ›Û™Ğ[œİÙ\œË™š[\Š[œİÙ\ˆOˆÂˆ™]\›ˆ[œİÙ\‹ÛÜ™	‰ˆX[œİÙ\‹›X]ÚYÛÜ™YÂˆJNÂ‚ˆ[Ù[˜ZT]Z^’\İÜK[œÚY
+ÂˆYˆXZÙRY
+	ØZWÜ]Z^‰ÊKˆ]Nˆİ]K]KˆÜ™X]Y]ˆ™]È]J
+KÒTÓÔİš[™Ê
+Kˆ\˜][Û“\ÎˆX]›X^
+İ]K˜ÛÛ\]Y]Hİ]Kœİ\Y]
+Kˆİ[ˆİ]K˜[œİÙ\œË›[™İˆÛÜœ™XİˆÛÜœ™XİÛİ[ˆ[œİÙ\œÎˆY\ÛÛ™Jİ]K˜[œİÙ\œÊBˆJNÂˆ[Ù[˜ZT]Z^’\İÜHH[Ù[˜ZT]Z^’\İÜKœÛXÙJL
+NÂˆ[Ù[œØ]™PRT]Z^’\İÜJ
+NÂ‚ˆÛÛœİØÛÜ™HHšY]Ë™Ù][
+	ØZK\]Z^‹\™\İ[\ØÛÜ™IÊNÂˆÛÛœİÙXZÓ\İHšY]Ë™Ù][
+	ØZK\]Z^‹]ÙXZË[\İ	ÊNÂˆÛÛœİ[\Ü]ÛˆHšY]Ë™Ù][
+	ØZK\]Z^‹Z[\Ü[Z\ÜÚ[™ÉÊNÂ‚ˆYˆ
+ØÛÜ™JHÂˆØÛÜ™K^ÛÛ[H	ØÛÜœ™XİÛİ[HÈ	Üİ]K˜[œİÙ\œË›[™İXÂˆB‚ˆYˆ
+ÙXZÓ\İ
+HÂˆÙXZÓ\İš[›™\’SHÜ›Û™Ğ[œİÙ\œË›[™İˆÈÜ›Û™Ğ[œİÙ\œÂˆ›X\
+[œİÙ\ˆOˆÂˆÛÛœİX™[BˆÔ“Ó‘×ÑSQS”ÒSÓ—ÓP‘SÖØ[œİÙ\‹™[Y[œÚ[Û—Hˆ[œİÙ\‹™[Y[œÚ[ÛÂˆ™]\›ˆˆ]ˆÛ\ÜÏH˜ZK\]Z^‹]ÙXZËZ][H‚ˆ]‚ˆİ›Û™Ï‰Ù\ØØ\RS
+[œİÙ\‹ÛÜ™	ú+ëy¬åzh¦	Ê_OÜİ›Û™Ï‚ˆÜ[‰Ù\ØØ\RS
+X™[
+_OÜÜ[‚ˆ	Âˆ[œİÙ\‹ÛÜ™	‰ˆX[œİÙ\‹›X]ÚYÛÜ™YˆÈ	ÏÜ[ˆÛ\ÜÏH˜ZK\]Z^‹[Z\ÜÚ[™Ë]YÈ¹§*¹aiz+ãyn¤ÏÜÜ[‰Âˆˆ	ÉÂˆBˆÙ]‚ˆÛX[‰Ù\ØØ\RS
+[œİÙ\‹œ›Û\
+_OÜÛX[‚ˆÙ]‚ˆÂˆJBˆš›Ú[Š	ÉÊBˆˆ	Ï]ˆÛ\ÜÏH˜ZK\]Z^‹\\™™Xİ¹aj:`ê9ëe9kî{ï#:(j9ã¬9o¢9ê,ûï OÙ]‰ÎÂˆB‚ˆYˆ
+[\Ü]ÛŠHÂˆ[\Ü]Û‹šY[ˆHZ\ÜÚ[™ÕÛÜ™Ë›[™İOOHÂˆB‚ˆ\Ë—ÜÚİĞRT]Z^”İYÙJ	Ü™\İ[	ÊNÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆNÂ‚ˆÛÛ›Û\‹—ÛÜ[•Ü›Û™Ğ›ÛÚÑœ›ÛT]Z^ˆH[˜İ[ÛŠ
+HÂˆ\Ë—ØÛÜÙPRT]Z^Š
+NÂˆÛÛœİ˜]’][HHØİ[Y[œ]Y\TÙ[XİÜŠˆ	Ë›˜]‹Z][VÙ]K]\™Ù]HX‹]ÛÜ™˜[šÈ—IÂˆ
+NÂˆ˜]‹œİÚ]ÚXŠˆ	İX‹]ÛÜ™˜[šÉËˆ	ÙÜšYİšY]ß9aj9¦kú*§¹ofIËˆ˜]’][Bˆ
+NÂˆÛÛœİš[\ˆHšY]Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊNÂ‚ˆYˆ
+š[\ŠHÂˆš[\‹˜[YHH	İš\X[İÜ›Û™×Ø[	ÎÂˆš[\‹™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÂˆš[\‹™\Ü]Ú]™[
+™]È]™[
+	ØÚ[™ÙIÊJNÂˆBˆNÂ‚ˆÛÛ›Û\‹—Ú[\ÜZ\ÜÚ[™ĞRT]Z^•ÛÜ™ÈH[˜İ[ÛŠ
+HÂˆÛÛœİZ\ÜÚ[™ÈH\Ë˜ZT]Z^”İ]K˜[œİÙ\œÂˆ™š[\Š[œİÙ\ˆOˆÂˆ™]\›ˆX[œİÙ\‹š\ĞÛÜœ™Xİ	‰ˆ[œİÙ\‹ÛÜ™	‰ˆX[œİÙ\‹›X]ÚYÛÜ™YÂˆJBˆ›X\
+[œİÙ\ˆOˆÂˆÛÛœİ[™ÈBˆ[œİÙ\‹›[™ÈOOH	Ù[‰È[œİÙ\‹›[™ÈOOH	Ú˜IÂˆÈ[œİÙ\‹›[™ÂˆˆÖĞKV˜K^—KË\İ
+[œİÙ\‹ÛÜ™
+BˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂˆ™]\›ˆÂˆÛÜ™ˆİš[™Ê[œİÙ\‹ÛÜ™
+Kš[J
+Kˆ[™ËˆÙ[XİYˆYKˆ^\İ[™Ñ›Û\ˆ	ÉÂˆNÂˆJBˆ™š[\Š
+][K[™^\İ
+HOˆÂˆ™]\›ˆ
+ˆ][KÛÜ™	‰‚ˆ\İ™š[™[™^
+İ\ˆOˆÂˆ™]\›ˆİ\‹›[™ÈOOH][K›[™È	‰ˆİ\‹ÛÜ™OOH][KÛÜ™ÂˆJHOOH[™^ˆ
+NÂˆJNÂ‚ˆYˆ
+[Z\ÜÚ[™Ë›[™İ
+HÂˆÚİÕØ\İ
+	ù¬¨y§"zg :) yb¨9aiyæ¡:+ãy¬aÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë—ØÛÜÙPRT]Z^Š
+NÂˆ\Ë—Ü™\Ù]RUÛÜ™ÛÛXİ[ÛŠ
+NÂˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹˜Ø[™Y]\ÈHZ\ÜÚ[™ÎÂˆ\Ë—Ü™[™\RUÛÜ™Ø[™Y]\Ê
+NÂˆÚ[™İËÙÙÛS[Ù[
+	ØZK]ÛÜ™XÛÛXİÜ‹[İ™\›^IËYJNÂˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJ	ÜÙ[Xİ	ÊNÂˆNÂ‚ˆÛÛ›Û\‹—ØÛÜÙPRT]Z^ˆH[˜İ[ÛŠ
+HÂˆÚ[™İËÙÙÛS[Ù[
+	ØZK\]Z^‹[İ™\›^IË˜[ÙJNÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[[™PRPXİ[ÛˆBˆÛÛ›Û\‹š[™PRT™\ÜÛœÙPXİ[Û‹˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹š[™PRT™\ÜÛœÙPXİ[ÛˆH[˜İ[ÛŠXİ[Û‹^[ØYY
+HÂˆÛÛœİ^[ØYH\Ë˜ZPXİ[Û”^[ØYÖÜ^[ØYYNÂ‚ˆYˆ
+Xİ[ÛˆOOH	Ü]Z^‰ÊHÂˆYˆ
+\^[ØY
+HÂˆÚİÕØ\İ
+	ú/æy§hy¤ãy/g9mì¹îãùi,y¥b;ï#:+íúaãy¥¬9¢dùo 9fç¹ëe	ÊNÂˆ™]\›ÂˆB‚ˆ\Ë—Üİ\RT]Z^Š^[ØY
+NÂˆ™]\›ÂˆB‚ˆ™]\›ˆÜšYÚ[˜[[™PRPXİ[ÛŠXİ[Û‹^[ØYY
+NÂˆNÂ‚ˆÊˆKKKKKKKKKH9fç¹¥-¹êæHKKKKKKKKKH
+‹ÂˆÛÛœİ™[[İ™UÛÜ™œ›ÛPXİ]™Q]HH
+ÛÜ™[™^
+HOˆÂˆÛÛœİÛÜ™YH[œİ\™UÛÜ™Y
+ÛÜ™
+NÂˆÛÛœİÛ˜\ÚİHÂˆÛÜ™ˆY\ÛÛ™JÛÜ™
+KˆÜšYÚ[˜[[™^ˆ[™^ˆİ\œ™Yˆ[Ù[œİ\œËš[˜ÛY\ÊÛÜ™Y
+KˆÛX\”İ]NˆY\ÛÛ™J[Ù[›]ÛÜ™ÛX\œÖİÛÜ™YH[
+KˆÜ›Û™Ô™XÛÜ™ˆY\ÛÛ™J[Ù[Ü›Û™Ğ›ÛÚÖİÛÜ™YH[
+BˆNÂ‚ˆ[Ù[™‹œÜXÙJ[™^JNÂˆ[Ù[œİ\œÈH[Ù[œİ\œË™š[\Š][HOˆ][HOOHÛÜ™Y
+NÂˆ[]H[Ù[›]ÛÜ™ÛX\œÖİÛÜ™YNÂˆ[]H[Ù[Ü›Û™Ğ›ÛÚÖİÛÜ™YNÂˆ™]\›ˆÛ˜\ÚİÂˆNÂ‚ˆÛÛœİ\œÚ\İY\•ÛÜ™[]HH\Ş[˜È
+
+HOˆÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ[Ù[œØ]™QŠ
+Kˆ[Ù[œØ]™Tİ\œÊ
+Kˆ[Ù[œØ]™PÛX\œÊ
+Kˆ[Ù[œØ]™UÜ›Û™Ğ›ÛÚÊ
+Kˆ[Ù[œØ]™T™XŞXÛPš[Š
+BˆJNÂˆšY]Ë\]UÛÜ™˜[šÕRJ
+NÂˆšY]Ëœ™\Ù]ÛÜ™˜[šÔ™[™\™\Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÛÛ›Û\‹œ™[™\”™XŞXÛPš[Š
+NÂˆNÂ‚ˆÛÛ›Û\‹œ™\İÜ™U˜\Ú][HH\Ş[˜È[˜İ[ÛŠ][RYÚ[[H˜[ÙJHÂˆÛÛœİ[™^H[Ù[œ™XŞXÛPš[‹™š[™[™^
+][HOˆ][KšYOOH][RY
+NÂ‚ˆYˆ
+[™^
+HÂˆYˆ
+\Ú[[
+HÂˆÚİÕØ\İ
+	ú/æy§hya¡yk®ymì¹îãù.#yg*9fç¹¥-¹êæy.+IÊNÂˆBˆ™]\›ˆ˜[ÙNÂˆB‚ˆÛÛœİ][HH[Ù[œ™XŞXÛPš[–Ú[™^NÂ‚ˆYˆ
+][KšÚ[™OOH	İÛÜ™	ÊHÂˆÛÛœİÛ˜\ÚİH][Kœ^[ØYÂˆÛÛœİÛÜ™HY\ÛÛ™JÛ˜\ÚİÛÜ™
+NÂ‚ˆYˆ
+ÛÜ™˜Z[[ˆOOHYJHÂˆÛÛœİØ[›ÛšXØ[H[Ù[˜Z[[•ÛÜ™Ë™š[™
+[HOˆÂˆ™]\›ˆ
+ˆ[Ù[™Ù]ÛÜ™Y[]J[KYJHOOBˆ[Ù[™Ù]ÛÜ™Y[]JÛÜ™YJBˆ
+NÂˆJNÂ‚ˆYˆ
+Ø[›ÛšXØ[
+HÂˆÛÜ™—ÚYH[Ù[™Ù]ÛÜ™Y
+Ø[›ÛšXØ[
+NÂˆÛÜ™˜Z[[ˆHYNÂˆBˆB‚ˆ[œİ\™UÛÜ™Y
+ÛÜ™
+NÂ‚ˆYˆ
+[Ù[™‹œÛÛYJ^\İ[™ÈOˆ^\İ[™Ë—ÚYOOHÛÜ™—ÚY
+JHÂˆ[Ù[œ™XŞXÛPš[‹œÜXÙJ[™^JNÂˆ]ØZ][Ù[œØ]™T™XŞXÛPš[Š
+NÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆÛÛœİ\™Ù][™^HX]›Z[ŠˆX]›X^
+[X™\ŠÛ˜\Úİ›ÜšYÚ[˜[[™^
+H
+Kˆ[Ù[™‹›[™İˆ
+NÂˆ[Ù[™‹œÜXÙJ\™Ù][™^ÛÜ™
+NÂ‚ˆÛÛœİÛÜ™YH[Ù[™Ù]ÛÜ™Y
+ÛÜ™
+NÂ‚ˆYˆ
+Û˜\Úİœİ\œ™Y	‰ˆS[Ù[œİ\œËš[˜ÛY\ÊÛÜ™Y
+JHÂˆ[Ù[œİ\œËœ\Ú
+ÛÜ™Y
+NÂˆB‚ˆYˆ
+Û˜\Úİ˜ÛX\”İ]JHÂˆ[Ù[›]ÛÜ™ÛX\œÖİÛÜ™YHHY\ÛÛ™JÛ˜\Úİ˜ÛX\”İ]JNÂˆB‚ˆYˆ
+Û˜\ÚİÜ›Û™Ô™XÛÜ™
+HÂˆ[Ù[Ü›Û™Ğ›ÛÚÖİÛÜ™—ÚYHHY\ÛÛ™JÛ˜\ÚİÜ›Û™Ô™XÛÜ™
+NÂˆBˆH[ÙHYˆ
+][KšÚ[™OOH	ØÛÛ™\œØ][Û‰ÊHÂˆÛÛœİ\™Ù][™^HX]›Z[ŠˆX]›X^
+[X™\Š][Kœ^[ØY›ÜšYÚ[˜[[™^
+H
+Kˆ[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İˆ
+NÂˆ[Ù[˜ZPÛÛ™\œØ][ÛœËœÜXÙJˆ\™Ù][™^ˆˆY\ÛÛ™J][Kœ^[ØY˜ÛÛ™\œØ][ÛŠBˆ
+NÂˆ\Ë—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+NÂˆH[ÙHYˆ
+][KšÚ[™OOH	Ù^[\IÊHÂˆÛÛœİ^[ØYH][Kœ^[ØYÂˆÛÛœİÛÜ™Bˆ[Ù[™‹™š[™
+[HOˆ[K—ÚYOOH^[ØYÛÜ™Y
+Hˆ[Ù[™‹™š[™
+[HOˆÂˆ™]\›ˆ
+ˆ[KÛÜ™OOH^[ØYÛÜ™	‰‚ˆ
+[K›[™È	Ú˜IÊHOOH
+^[ØY›[™È	Ú˜IÊBˆ
+NÂˆJNÂ‚ˆYˆ
+ÛÜ™
+HÂˆÛÛœİ^[\\ÈHİš[™ÊÛÜ™™^[\H	ÉÊBˆœÜ]
+	ß	ÊBˆ›X\
+^[\HOˆ^[\Kš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂˆÛÛœİ\™Ù][™^HX]›Z[ŠˆX]›X^
+[X™\Š^[ØY›ÜšYÚ[˜[[™^
+H
+Kˆ^[\\Ë›[™İˆ
+NÂˆ^[\\ËœÜXÙJ\™Ù][™^^[ØY™^[\JNÂˆÛÜ™™^[\HH^[\\Ëš›Ú[Š	È	ÊNÂˆBˆB‚ˆ[Ù[œ™XŞXÛPš[‹œÜXÙJ[™^JNÂˆ]ØZ][Ù[œØ]™P[\Ù\‘]J
+NÂˆšY]Ë\]UÛÜ™˜[šÕRJ
+NÂˆšY]Ëœ™\Ù]ÛÜ™˜[šÔ™[™\™\Š
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\Ëœ™[™\RR\İÜJ
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂ‚ˆYˆ
+\Ú[[
+HÂˆÚİÕØ\İ
+	ùmì¹ h¹i#IÊNÂˆB‚ˆ™]\›ˆYNÂˆNÂ‚ˆÛÛ›Û\‹œ™\İÜ™U˜\Ú˜]ÚH\Ş[˜È[˜İ[ÛŠ][RYÊHÂˆ›Üˆ
+ÛÛœİ][RYÙˆ][RYÊHÂˆ]ØZ]\Ëœ™\İÜ™U˜\Ú][J][RYYJNÂˆB‚ˆÚİÕØ\İ
+	ùmì¹¤©:e 9b(:fi	ÊNÂˆNÂ‚ˆÛÛ›Û\‹œ\›X[™[Q[]U˜\Ú][HH\Ş[˜È[˜İ[ÛŠ][RY
+HÂˆ[Ù[œ™XŞXÛPš[ˆH[Ù[œ™XŞXÛPš[‹™š[\Š][HOˆ][KšYOOH][RY
+NÂˆ]ØZ][Ù[œØ]™T™XŞXÛPš[Š
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÚİÕØ\İ
+	ùmì¹¬.9.ayb(:fi	ÊNÂˆNÂ‚ˆÛÛ›Û\‹™[]UÛÜ™H\Ş[˜È[˜İ[ÛŠ[™^
+HÂˆÛÛœİÛÜ™H[Ù[™–Ú[™^NÂ‚ˆYˆ
+]ÛÜ™
+HÂˆ™]\›ÂˆB‚ˆ\Ë˜ÛÜÙQ]Z[Y“Ü[Š
+NÂˆÛÛœİÛ˜\ÚİH™[[İ™UÛÜ™œ›ÛPXİ]™Q]JÛÜ™[™^
+NÂˆÛÛœİ˜\ÚH[Ù[˜Y™XŞXÛR][Jˆ	İÛÜ™	ËˆÛ˜\ÚİˆÛÜ™ÛÜ™ˆ
+NÂˆ]ØZ]\œÚ\İY\•ÛÜ™[]J
+NÂˆÚİĞXİ[Û•Ø\İ
+ˆ9mì¹éîùaiyfç¹¥-¹êæ{ï&‰İÛÜ™ÛÜ™Xˆ	ù¤©:e 	Ëˆ
+
+HOˆ\Ëœ™\İÜ™U˜\Ú˜]Ú
+İ˜\ÚšYJBˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹˜˜]Ú[]HH\Ş[˜È[˜İ[ÛŠ
+HÂˆYˆ
+[Ù[œİ]KœÙ[XİYÙ]œÚ^™HOOH
+HÂˆÚİÕØ\İ
+	ú+íùab:`"y¢êycez+ãIÊNÂˆ™]\›ÂˆB‚ˆ\Ë˜ÛÜÙQ]Z[Y“Ü[Š
+NÂˆÛÛœİ˜]ÚYHXZÙRY
+	İ˜\ÚØ˜]Ú	ÊNÂˆÛÛœİÙ[XİYHË‹‹“[Ù[œİ]KœÙ[XİYÙ]BˆœÛÜ
+
+KŠHOˆˆHJNÂˆÛÛœİ˜\ÚYÈH×NÂ‚ˆÙ[XİY™›Ü‘XXÚ
+[™^OˆÂˆÛÛœİÛÜ™H[Ù[™–Ú[™^NÂˆYˆ
+]ÛÜ™
+HÂˆ™]\›ÂˆB‚ˆÛÛœİÛ˜\ÚİH™[[İ™UÛÜ™œ›ÛPXİ]™Q]JÛÜ™[™^
+NÂˆÛÛœİ˜\ÚH[Ù[˜Y™XŞXÛR][Jˆ	İÛÜ™	ËˆÛ˜\ÚİˆÛÜ™ÛÜ™ˆ˜]ÚYˆ
+NÂˆ˜\ÚYËœ\Ú
+˜\ÚšY
+NÂˆJNÂ‚ˆ[Ù[œİ]KœÙ[XİYÙ]˜ÛX\Š
+NÂˆ[Ù[œİ]K˜˜]Ú[ÙHH˜[ÙNÂˆ[Ù[œİ]K›X[˜YÙS[ÙHH˜[ÙNÂˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ËØ‹[X[˜YÙK[İ™\›^IÊBˆ™›Ü‘XXÚ
+[[Y[Oˆ[[Y[˜Û\ÜÓ\İœ™[[İ™J	ØXİ]™IÊJNÂˆ]ØZ]\œÚ\İY\•ÛÜ™[]J
+NÂ‚ˆÚİĞXİ[Û•Ø\İ
+ˆ9mì¹l!ˆ	İ˜\ÚYË›[™İH9.*º+ãyéîùaiyfç¹¥-¹êæXˆ	ù¤©:e 	Ëˆ
+
+HOˆ\Ëœ™\İÜ™U˜\Ú˜]Ú
+Ë‹‹˜\ÚY×Kœ™]™\œÙJ
+JBˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹™[]Q^[\HH\Ş[˜È[˜İ[ÛŠÛÜ™^[\R[™^
+HÂˆYˆ
+]ÛÜ™
+HÂˆ™]\›ÂˆB‚ˆÛÛœİ^[\\ÈHİš[™ÊÛÜ™™^[\H	ÉÊBˆœÜ]
+	ß	ÊBˆ›X\
+^[\HOˆ^[\Kš[J
+JBˆ™š[\Š›ÛÛX[ŠNÂˆÛÛœİ^[\HH^[\\ÖÙ^[\R[™^NÂ‚ˆYˆ
+Y^[\JHÂˆ™]\›ÂˆB‚ˆ^[\\ËœÜXÙJ^[\R[™^JNÂˆÛÜ™™^[\HH^[\\Ëš›Ú[Š	È	ÊNÂˆÛÛœİ˜\ÚH[Ù[˜Y™XŞXÛR][Jˆ	Ù^[\IËˆÂˆÛÜ™Yˆ[œİ\™UÛÜ™Y
+ÛÜ™
+KˆÛÜ™ˆÛÜ™ÛÜ™ˆ[™ÎˆÛÜ™›[™È	Ú˜IËˆ^[\KˆÜšYÚ[˜[[™^ˆ^[\R[™^ˆKˆ	İÛÜ™ÛÜ™H9æ¡9/¢ùcéXˆ
+NÂˆ]ØZ][Ù[œØ]™QŠ
+NÂˆ\Ë\]Q]Z[ÛÛ[
+ÛÜ™˜[ÙJNÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆÚİĞXİ[Û•Ø\İ
+ˆ	ùmì¹b(:fi9. 9§hy/¢ùcéIËˆ	ù¤©:e 	Ëˆ
+
+HOˆ\Ëœ™\İÜ™U˜\Ú˜]Ú
+İ˜\ÚšYJBˆ
+NÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[™[™\‘^[\P›ŞBˆšY]Ëœ™[™\‘^[\P›Ş˜š[™
+šY]ÊNÂˆšY]Ëœ™[™\‘^[\P›ŞH[˜İ[ÛŠˆ^[\Tİš[™Ëˆ›ŞYˆ[ÙHH	Û›Ü›X[	ËˆÛÜ™H[ˆ
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[™[™\‘^[\P›Ş
+ˆ^[\Tİš[™Ëˆ›ŞYˆ[ÙKˆÛÜ™ˆ
+NÂ‚ˆYˆ
+›ŞYOOH	ÙY^[\KX›Ş	È]ÛÜ™
+HÂˆ™]\›ˆ™\İ[ÂˆB‚ˆÛÛœİ›ŞH\Ë™Ù][
+›ŞY
+NÂˆYˆ
+X›Ş
+HÂˆ™]\›ˆ™\İ[ÂˆB‚ˆ›Şˆœ]Y\TÙ[XİÜ[
+	Ë™^Z][IÊBˆ™›Ü‘XXÚ
+
+][K[™^
+HOˆÂˆYˆ
+ˆ][Kœ]Y\TÙ[XİÜŠˆ	Ë™^[\KY[]KX‰Âˆ
+Bˆ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİXİ[Û”›İÈBˆ][Kœ]Y\TÙ[XİÜŠ	Ë™Y^Zœ	ÊNÂ‚ˆYˆ
+XXİ[Û”›İÊHÂˆ™]\›ÂˆB‚ˆXİ[Û”›İË˜Û\ÜÓ\İ˜Y
+ˆ	Ú\ËY^[\KXXİ[ÛœÉÂˆ
+NÂ‚ˆÛÛœİ]ÛˆBˆØİ[Y[˜Ü™X]Q[[Y[
+	Ø]Û‰ÊNÂ‚ˆ]Û‹\HH	Ø]Û‰ÎÂˆ]Û‹˜Û\ÜÓ˜[YHH	Ù^[\KY[]KX‰ÎÂˆ]Û‹]HH	ùb(:fi:/æy§hy/¢ùcéIÎÂˆ]Û‹œÙ]]šX]Jˆ	Ø\šXK[X™[	Ëˆ	ùb(:fi:/æy§hy/¢ùcéIÂˆ
+NÂˆ]Û‹š[›™\’SBˆ	ÏÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y™[]WÛİ][™OÜÜ[‰ÎÂ‚ˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË]™[OˆÂˆ]™[œİÜ›ÜYØ][ÛŠ
+NÂˆ\™Ø\™KšXœ˜]JMJNÂˆÛÛ›Û\‹™[]Q^[\JÛÜ™[™^
+NÂˆJNÂ‚ˆÛÛœİÜ\šÛP]ÛˆBˆXİ[Û”›İËœ]Y\TÙ[XİÜŠˆ	Ë˜ZK\Ü\šÛKZXÛÛ‰Âˆ
+NÂ‚ˆYˆ
+Ü\šÛP]ÛŠHÂˆÜ\šÛP]Û‹š[œÙ\Y˜XÙ[[[Y[
+ˆ	ØY\™[™	Ëˆ]Û‚ˆ
+NÂˆH[ÙHÂˆXİ[Û”›İË˜\[™Ú[
+]ÛŠNÂˆBˆJNÂ‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛ›Û\‹œ™[™\”™XŞXÛPš[ˆH[˜İ[ÛŠ
+HÂˆ[Ù[˜ÛX[\™XŞXÛPš[Š
+NÂ‚ˆÛÛœİ\İHšY]Ë™Ù][
+	Ü™XŞXÛKXš[‹[\İ	ÊNÂˆÛÛœİ[\HHšY]Ë™Ù][
+	Ü™XŞXÛKXš[‹Y[\IÊNÂˆÛÛœİÛİ[HšY]Ë™Ù][
+	Ü™XŞXÛKXš[‹XÛİ[	ÊNÂˆÛÛœİÛX\]ÛˆHšY]Ë™Ù][
+	Ø‹XÛX\‹\™XŞXÛKXš[‰ÊNÂ‚ˆYˆ
+Ûİ[
+HÂˆÛİ[^ÛÛ[H	Ó[Ù[œ™XŞXÛPš[‹›[™İH:hnXÂˆB‚ˆYˆ
+ÛX\]ÛŠHÂˆÛX\]Û‹™\ØX›YH[Ù[œ™XŞXÛPš[‹›[™İOOHÂˆB‚ˆYˆ
+[\İY[\JHÂˆ™]\›ÂˆB‚ˆYˆ
+[Ù[œ™XŞXÛPš[‹›[™İOOH
+HÂˆ\İš[›™\’SH	ÉÎÂˆ[\KšY[ˆH˜[ÙNÂˆ™]\›ÂˆB‚ˆ[\KšY[ˆHYNÂˆ\İš[›™\’SH[Ù[œ™XŞXÛPš[‚ˆ›X\
+][HOˆÂˆÛÛœİÚ[™X™[HÂˆÛÜ™ˆ	ú+ãy¬aÉËˆÛÛ™\œØ][Ûˆ	ĞRH9kîz+çIËˆ^[\Nˆ	ù/¢ùcéIÂˆVÚ][KšÚ[™H	úhnyæë‰ÎÂˆÛÛœİ^\ÓYHX]›X^
+ˆKˆX]˜ÙZ[
+
+][K™^\™\Ğ]H]K››İÊ
+JHÈ
+Bˆ
+NÂ‚ˆ™]\›ˆˆ\XÛHÛ\ÜÏHœ™XŞXÛKZ][Hˆ]K]˜\ÚZYH‰Ú][KšYH‚ˆ]ˆÛ\ÜÏHœ™XŞXÛKZ][KZXÛÛˆ‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‰Âˆ][KšÚ[™OOH	ØÛÛ™\œØ][Û‰ÂˆÈ	Ù›Ü[IÂˆˆ][KšÚ[™OOH	Ù^[\IÂˆÈ	Ù›Ü›X]Ü][İIÂˆˆ	ÙXİ[Û˜\IÂˆOÜÜ[‚ˆÙ]‚ˆ]ˆÛ\ÜÏHœ™XŞXÛKZ][KXÛÜH‚ˆ]ˆÛ\ÜÏHœ™XŞXÛKZ][K]]H‰Ù\ØØ\RS
+][K›X™[
+_OÙ]‚ˆ]ˆÛ\ÜÏHœ™XŞXÛKZ][K[Y]H‚ˆ	ÚÚ[™X™[H0­È	Ù›Ü›X]™[]]™Q]J][K™[]Y]
+_H0­È	Ù^\ÓYH9i*yd#¹®!yä!‚ˆÙ]‚ˆÙ]‚ˆ]ˆÛ\ÜÏHœ™XŞXÛKZ][KXXİ[ÛœÈ‚ˆ]Ûˆ\OH˜]Ûˆˆ]K]˜\ÚXXİ[ÛHœ™\İÜ™H¹ h¹i#OØ]Û‚ˆ]Ûˆ\OH˜]Ûˆˆ]K]˜\ÚXXİ[ÛH™[]HˆÛ\ÜÏH™[™Ù\ˆ¹¬.9.ayb(:fiØ]Û‚ˆÙ]‚ˆØ\XÛO‚ˆÂˆJBˆš›Ú[Š	ÉÊNÂˆNÂ‚ˆÛÛ›Û\‹˜ÛX\”™XŞXÛPš[ˆH[˜İ[ÛŠ
+HÂˆYˆ
+S[Ù[œ™XŞXÛPš[‹›[™İ
+HÂˆÚİÕØ\İ
+	ùfç¹¥-¹êæymì¹îãù¦+ùên¹æ¡	ÊNÂˆ™]\›ÂˆB‚ˆÚİĞÛÛ™š\›Jˆ	ù®!yên¹fç¹¥-¹êæ{ï'ÉËˆ	ùfç¹¥-¹êæy.+yæ¡:+ãy¬aøà y/¢ùcéyd£RH9kîz+çyl!¹¥è9¬åy h¹i#xà ‰Ëˆ\Ş[˜È
+
+HOˆÂˆ[Ù[œ™XŞXÛPš[ˆH×NÂˆ]ØZ][Ù[œØ]™T™XŞXÛPš[Š
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÚİÕØ\İ
+	ùfç¹¥-¹êæymì¹®!yên‰ÊNÂˆBˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹œ™[™\RR\İÜHH[˜İ[ÛŠ
+HÂˆÛÛœİ\İHšY]Ë™Ù][
+	ØZKZ\İÜK[\İ	ÊNÂˆÛÛœİ[\HHšY]Ë™Ù][
+	ØZKZ\İÜKY[\IÊNÂˆÛÛœİÚ]šY]ÈHšY]Ë™Ù][
+	ØZKXÚ]]šY]ÉÊNÂˆÛÛœİ\İšY]ÈHšY]Ë™Ù][
+	ØZK[\İ]šY]ÉÊNÂ‚ˆYˆ
+Ú]šY]ÊHÂˆÚ]šY]Ë˜Û\ÜÓ\İ˜Y
+	ÚY[‰ÊNÂˆBˆYˆ
+\İšY]ÊHÂˆ\İšY]Ë˜Û\ÜÓ\İœ™[[İ™J	ÚY[‰ÊNÂˆBˆYˆ
+[\İ
+HÂˆ™]\›ÂˆB‚ˆYˆ
+S[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İ
+HÂˆ\İš[›™\’SH	ÉÎÂˆYˆ
+[\JHÂˆ[\Kœİ[K™\Ü^HH	Ø›ØÚÉÎÂˆBˆ™]\›ÂˆB‚ˆYˆ
+[\JHÂˆ[\Kœİ[K™\Ü^HH	Û›Û™IÎÂˆB‚ˆ\İš[›™\’SH[Ù[˜ZPÛÛ™\œØ][ÛœÂˆ›X\
+
+ÛÛ™\œØ][Û‹[™^
+HOˆÂˆÛÛœİY\ÜØYÙ\ÈH\œ˜^Kš\Ğ\œ˜^JÛÛ™\œØ][Û‹›Y\ÜØYÙ\ÊBˆÈÛÛ™\œØ][Û‹›Y\ÜØYÙ\Âˆˆ×NÂˆÛÛœİ\İY\ÜØYÙHHY\ÜØYÙ\Ë˜]
+LJOË˜ÛÛ[	ÉÎÂˆÛÛœİ™]šY]ÈH\İY\ÜØYÙBˆœ™\XÙJÈÈÈËŠ×‹ÙË	ÉÊBˆœ™\XÙJ×
+—
+‹ÙË	ÉÊBˆœ™\XÙJ×‹ÙË	È	ÊBˆœÛXÙJŒ
+NÂ‚ˆ™]\›ˆˆ]ˆÛ\ÜÏH˜ZKZ\İÜKXØ\™ˆ]KZYH‰Ú[™^HˆXš[™^HŒˆ›ÛOH˜]Ûˆ‚ˆ]ˆÛ\ÜÏH˜ZKZ\İÜKXØ\™]Ü‚ˆÜ[ˆÛ\ÜÏH˜ZKZ\İÜK[[™Ë]YÈ‰ØÛÛ™\œØ][Û‹›[™ÈOOH	Ù[‰ÈÈ	ÑS‰Èˆ	ù¥éIßOÜÜ[‚ˆÜ[ˆÛ\ÜÏH˜ZKZ\İÜK]ÛÜ™‰Ù\ØØ\RS
+ÛÛ™\œØ][Û‹ÛÜ™	ú!ê¹å,ykîz+çIÊ_OÜÜ[‚ˆÜ[ˆÛ\ÜÏH˜ZKZ\İÜK[\ÙØÛİ[‰ÛY\ÜØYÙ\Ë›[™İH9§hykîz+çOÜÜ[‚ˆ]ÛˆÛ\ÜÏH˜ZKZ\İÜKY[Xˆˆ]KZYH‰Ú[™^Hˆ]OH¹éîùaiyfç¹¥-¹êæHˆ\šXK[X™[H¹éîùaiyfç¹¥-¹êæH‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y™[]OÜÜ[‚ˆØ]Û‚ˆÙ]‚ˆ]ˆÛ\ÜÏH˜ZKZ\İÜK\™]šY]È‰Ù\ØØ\RS
+™]šY]È	ùà®yaîùîéùîëykîz+çxà ‰Ê_OÙ]‚ˆ]ˆÛ\ÜÏH˜ZKZ\İÜKY]H‰Ù\ØØ\RS
+ÛÛ™\œØ][Û‹™]H	ÉÊ_OÙ]‚ˆÙ]‚ˆÂˆJBˆš›Ú[Š	ÉÊNÂ‚ˆ\İœ]Y\TÙ[XİÜ[
+	Ë˜ZKZ\İÜKXØ\™	ÊK™›Ü‘XXÚ
+Ø\™OˆÂˆØ\™˜Y]™[\İ[™\Š	ØÛXÚÉË]™[OˆÂˆYˆ
+]™[\™Ù]˜ÛÜÙ\İ
+	Ë˜ZKZ\İÜKY[X‰ÊJHÂˆ™]\›ÂˆBˆ\™Ø\™KšXœ˜]JMJNÂˆ\Ë›Ü[RPÚ]œ›ÛUXŠ[X™\ŠØ\™™]\Ù]šY
+JNÂˆJNÂˆJNÂ‚ˆ\İœ]Y\TÙ[XİÜ[
+	Ë˜ZKZ\İÜKY[X‰ÊK™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË\Ş[˜È]™[OˆÂˆ]™[œİÜ›ÜYØ][ÛŠ
+NÂˆÛÛœİ[™^H[X™\Š]Û‹™]\Ù]šY
+NÂˆÛÛœİÛÛ™\œØ][ÛˆH[Ù[˜ZPÛÛ™\œØ][ÛœÖÚ[™^NÂ‚ˆYˆ
+XÛÛ™\œØ][ÛŠHÂˆ™]\›ÂˆB‚ˆ[Ù[˜ZPÛÛ™\œØ][ÛœËœÜXÙJ[™^JNÂˆÛÛœİ˜\ÚH[Ù[˜Y™XŞXÛR][Jˆ	ØÛÛ™\œØ][Û‰ËˆÂˆÛÛ™\œØ][Û‹ˆÜšYÚ[˜[[™^ˆ[™^ˆKˆÛÛ™\œØ][Û‹ÛÜ™	ú!ê¹å,ykîz+çIÂˆ
+NÂˆ\Ë—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+NÂˆ\Ëœ™[™\RR\İÜJ
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÚİĞXİ[Û•Ø\İ
+ˆ	ĞRH9kîz+çymì¹éîùaiyfç¹¥-¹êæIËˆ	ù¤©:e 	Ëˆ
+
+HOˆ\Ëœ™\İÜ™U˜\Ú˜]Ú
+İ˜\ÚšYJBˆ
+NÂˆJNÂˆJNÂˆNÂ‚ˆÊˆKKKKKKKKKH9i!ù.ïyao9k®HKKKKKKKKKH
+‹ÂˆÛÛœİÜšYÚ[˜[Z[˜XÚİ\BˆÛÛ›Û\‹˜Z[˜XÚİ\^[ØY˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹˜Z[˜XÚİ\^[ØYH[˜İ[ÛŠÚ[™H	ÛX[X[	ÊHÂˆÛÛœİ^[ØYHÜšYÚ[˜[Z[˜XÚİ\
+Ú[™
+NÂˆ^[ØY˜˜XÚİ\™\œÚ[ÛˆHX]›X^
+[X™\Š^[ØY˜˜XÚİ\™\œÚ[ÛŠHÊNÂˆ^[ØY™]KÜ›Û™Ğ›ÛÚÈHY\ÛÛ™J[Ù[Ü›Û™Ğ›ÛÚÊNÂˆ^[ØY™]K˜ZT]Z^’\İÜHHY\ÛÛ™J[Ù[˜ZT]Z^’\İÜJNÂˆ^[ØY™]Kœ™XŞXÛPš[ˆHY\ÛÛ™J[Ù[œ™XŞXÛPš[ŠNÂˆ™]\›ˆ^[ØYÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[›Ü›X[^™P˜XÚİ\BˆÛÛ›Û\‹››Ü›X[^™P˜XÚİ\^[ØY˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹››Ü›X[^™P˜XÚİ\^[ØYH[˜İ[ÛŠ˜]Ñ]JHÂˆÛÛœİ^[ØYHÜšYÚ[˜[›Ü›X[^™P˜XÚİ\
+˜]Ñ]JNÂˆÛÛœİÛİ\˜ÙHH˜]Ñ]OË™]H˜]Ñ]HßNÂˆ^[ØY™]KÜ›Û™Ğ›ÛÚÈBˆÛİ\˜ÙKÜ›Û™Ğ›ÛÚÈ	‰ˆ\[ÙˆÛİ\˜ÙKÜ›Û™Ğ›ÛÚÈOOH	ÛØš™Xİ	ÂˆÈÛİ\˜ÙKÜ›Û™Ğ›ÛÚÂˆˆßNÂˆ^[ØY™]K˜ZT]Z^’\İÜHH\œ˜^Kš\Ğ\œ˜^JÛİ\˜ÙK˜ZT]Z^’\İÜJBˆÈÛİ\˜ÙK˜ZT]Z^’\İÜBˆˆ×NÂˆ^[ØY™]Kœ™XŞXÛPš[ˆH\œ˜^Kš\Ğ\œ˜^JÛİ\˜ÙKœ™XŞXÛPš[ŠBˆÈÛİ\˜ÙKœ™XŞXÛPš[‚ˆˆ×NÂˆ™]\›ˆ^[ØYÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\P˜XÚİ\BˆÛÛ›Û\‹˜\P˜XÚİ\^[ØY˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹˜\P˜XÚİ\^[ØYH\Ş[˜È[˜İ[ÛŠ^[ØY
+HÂˆ]ØZ]ÜšYÚ[˜[\P˜XÚİ\
+^[ØY
+NÂˆ[Ù[Ü›Û™Ğ›ÛÚÈHY\ÛÛ™J^[ØY™]KÜ›Û™Ğ›ÛÚÈßJNÂˆ[Ù[˜ZT]Z^’\İÜHHY\ÛÛ™J^[ØY™]K˜ZT]Z^’\İÜH×JNÂˆ[Ù[œ™XŞXÛPš[ˆHY\ÛÛ™J^[ØY™]Kœ™XŞXÛPš[ˆ×JNÂˆ]ØZ]›ÛZ\ÙK˜[
+Âˆ[Ù[œØ]™UÜ›Û™Ğ›ÛÚÊ
+Kˆ[Ù[œØ]™PRT]Z^’\İÜJ
+Kˆ[Ù[œØ]™T™XŞXÛPš[Š
+BˆJNÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆNÂ‚ˆÊˆKKKKKKKKKH:+¯¹ïkºhmyb!¹îáKKKKKKKKKH
+‹ÂˆÛÛœİÚİÔÙ][™ÜÔÙXİ[ÛˆHÙXİ[Û“˜[YHOˆÂˆÛÛœİÛYHHšY]Ë™Ù][
+	ÜÙ][™ÜËZÛYIÊNÂˆÛÛœİÙXİ[ÛœÈHØİ[Y[œ]Y\TÙ[XİÜ[
+	ËœÙ][™ÜË\ÙXİ[Û‰ÊNÂ‚ˆYˆ
+ÛYJHÂˆÛYKšY[ˆH›ÛÛX[ŠÙXİ[Û“˜[YJNÂˆB‚ˆÙXİ[ÛœË™›Ü‘XXÚ
+ÙXİ[ÛˆOˆÂˆÙXİ[Û‹šY[ˆHÙXİ[Û‹™]\Ù]œÙ][™ÜÔÙXİ[ÛˆOOHÙXİ[Û“˜[YNÂˆJNÂ‚ˆYˆ
+ÙXİ[Û“˜[YHOOH	ÛXœ˜\IÊHÂˆÛÛ›Û\‹œ™[™\”™XŞXÛPš[Š
+NÂˆB‚ˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÚ[™İËœØÜ›ÛÊÈÜˆ™Z]š[Üˆ	ÜÛ[Ûİ	ÈJNÂˆNÂ‚ˆÛÛœİ\]SÛ›[™Tİ]\ÈH
+
+HOˆÂˆÛÛœİİ]\ÈHšY]Ë™Ù][
+	ÜÙ][™ÜË[Û›[™K\İ]\ÉÊNÂˆÛÛœİ]Z[HšY]Ë™Ù][
+	ÜÙ][™ÜË[Û›[™K\İ]\ËY]Z[	ÊNÂˆÛÛœİ^H˜]šYØ]Ü‹›Û“[™HÈ	ùg*9î¯ÉÈˆ	ùé®ùî¯ÉÎÂ‚ˆYˆ
+İ]\ÊHÂˆİ]\Ë^ÛÛ[H^Âˆİ]\Ë™]\Ù]œİ]HH˜]šYØ]Ü‹›Û“[™HÈ	ÛÛ›[™IÈˆ	ÛÙ™›[™IÎÂˆB‚ˆYˆ
+]Z[
+HÂˆ]Z[^ÛÛ[H^ÂˆBˆNÂ‚ˆ[˜İ[Ûˆ\]TÙ][™ÜÔİ]Ê
+HÂˆÛÛœİÜ›Û™ĞÛİ[HšY]Ë™Ù][
+	ÜÙ][™ÜË]Ü›Û™ËXÛİ[	ÊNÂˆÛÛœİ]Z^Ûİ[HšY]Ë™Ù][
+	ÜÙ][™ÜË\]Z^‹XÛİ[	ÊNÂˆÛÛœİ˜\ÚÛİ[HšY]Ë™Ù][
+	ÜÙ][™ÜË]˜\ÚXÛİ[	ÊNÂ‚ˆYˆ
+Ü›Û™ĞÛİ[
+HÂˆÜ›Û™ĞÛİ[^ÛÛ[HØš™Xİ˜[Y\Ê[Ù[Ü›Û™Ğ›ÛÚÊK™š[\Šˆ™XÛÜ™Oˆ™XÛÜ™İ[Ü›Û™Èˆ	‰ˆ™XÛÜ™œİ]\ÈOOH	Ü™\ÛÛ™Y	Âˆ
+K›[™İÂˆB‚ˆYˆ
+]Z^Ûİ[
+HÂˆ]Z^Ûİ[^ÛÛ[H[Ù[˜ZT]Z^’\İÜK›[™İÂˆB‚ˆYˆ
+˜\ÚÛİ[
+HÂˆ˜\ÚÛİ[^ÛÛ[H[Ù[œ™XŞXÛPš[‹›[™İÂˆB‚ˆ\]SÛ›[™Tİ]\Ê
+NÂˆB‚ˆÛÛœİÜšYÚ[˜[˜]”İÚ]ÚH˜]‹œİÚ]ÚX‹˜š[™
+˜]ŠNÂˆ˜]‹œİÚ]ÚXˆH[˜İ[ÛŠ\™Ù]Y]Q]K˜]’][Q[
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[˜]”İÚ]Ú
+\™Ù]Y]Q]K˜]’][Q[
+NÂˆYˆ
+\™Ù]YOOH	İX‹\Ù][™ÜÉÊHÂˆÚİÔÙ][™ÜÔÙXİ[ÛŠ	ÉÊNÂˆBˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[ÛÛ›Û\’[š]HÛÛ›Û\‹š[š]˜š[™
+ÛÛ›Û\ŠNÂˆÛÛ›Û\‹š[š]H\Ş[˜È[˜İ[ÛŠ
+HÂˆ]ØZ]ÜšYÚ[˜[ÛÛ›Û\’[š]
+
+NÂ‚ˆ[œİ\™UÜ›Û™Ğ›ÛÚÓÜ[ÛœÊ
+NÂˆ\]UÜ›Û™ÕÛÛ˜\Š
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂ‚ˆÛÛœİXİ[Û]ÛˆHšY]Ë™Ù][
+	ØXİ[Û‹]Ø\İXXİ[Û‰ÊNÂˆYˆ
+Xİ[Û]ÛŠHÂˆXİ[Û]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆÛÛœİØ[˜XÚÈHXİ[Û•Ø\İØ[˜XÚÎÂˆXİ[Û•Ø\İØ[˜XÚÈH[ÂˆšY]Ë™Ù][
+	ØXİ[Û‹]Ø\İ	ÊOË˜Û\ÜÓ\İœ™[[İ™J	ÜÚİÉÊNÂˆYˆ
+Xİ[Û•Ø\İ[Y\ŠHÂˆÚ[™İË˜ÛX\•[Y[İ]
+Xİ[Û•Ø\İ[Y\ŠNÂˆXİ[Û•Ø\İ[Y\ˆH[ÂˆBˆØ[˜XÚÏËŠ
+NÂˆJNÂˆB‚ˆšY]Ë™Ù][
+	Ø‹\İ\]Ü›Û™Ø›ÛÚÉÊOË˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™K[›ØÚÔÜYXÚ
+
+NÂˆ\Ëœİ\Ü›Û™Ğ›ÛÚÔ˜XİXÙJ
+NÂˆJNÂ‚ˆšY]Ë™Ù][
+	İØ‹Y›Û\‹Yš[\‰ÊOË˜Y]™[\İ[™\Š	ØÚ[™ÙIË
+
+HOˆÂˆ\]UÜ›Û™ÕÛÛ˜\Š
+NÂˆJNÂ‚ˆÛÛœİ]Z^š[™[™ÜÈHÂˆ	ØZK\]Z^‹XÛÜÙIÎˆ
+
+HOˆ\Ë—ØÛÜÙPRT]Z^Š
+Kˆ	ØZK\]Z^‹\İX›Z]	Îˆ
+
+HOˆ\Ë—ÜİX›Z]RT]Z^[œİÙ\Š
+Kˆ	ØZK\]Z^‹[™^	Îˆ
+
+HOˆ\Ë—ØY˜[˜ÙPRT]Z^Š
+Kˆ	ØZK\]Z^‹YÛ™IÎˆ
+
+HOˆ\Ë—ØÛÜÙPRT]Z^Š
+Kˆ	ØZK\]Z^‹\™]IÎˆ
+
+HO‚ˆ\Ë—Üİ\RT]Z^Š\Ë˜ZT]Z^”İ]KœÛİ\˜ÙT^[ØY
+Kˆ	ØZK\]Z^‹[Ü[‹]Ü›Û™Ø›ÛÚÉÎˆ
+
+HO‚ˆ\Ë—ÛÜ[•Ü›Û™Ğ›ÛÚÑœ›ÛT]Z^Š
+Kˆ	ØZK\]Z^‹Z[\Ü[Z\ÜÚ[™ÉÎˆ
+
+HO‚ˆ\Ë—Ú[\ÜZ\ÜÚ[™ĞRT]Z^•ÛÜ™Ê
+BˆNÂ‚ˆØš™Xİ™[šY\Ê]Z^š[™[™ÜÊK™›Ü‘XXÚ
+
+ÚY[™\—JHOˆÂˆšY]Ë™Ù][
+Y
+OË˜Y]™[\İ[™\Š	ØÛXÚÉË[™\ŠNÂˆJNÂ‚ˆšY]Ë™Ù][
+	ØZK\]Z^‹Z[œ]	ÊOË˜Y]™[\İ[™\Š	ÚÙ^YİÛ‰Ë]™[OˆÂˆYˆ
+]™[šÙ^HOOH	Ñ[\‰ÊHÂˆ]™[œ™]™[Y˜][
+
+NÂˆYˆ
+UšY]Ë™Ù][
+	ØZK\]Z^‹\İX›Z]	ÊOËšY[ŠHÂˆ\Ë—ÜİX›Z]RT]Z^[œİÙ\Š
+NÂˆBˆBˆJNÂ‚ˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ÖÙ]K[Ü[‹\Ù][™ÜË\ÙXİ[Û—IÊBˆ™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÂˆ\™Ø\™KšXœ˜]JMJNÂ‚ˆÚİÔÙ][™ÜÔÙXİ[ÛŠˆ]Û‹™]\Ù]›Ü[”Ù][™ÜÔÙXİ[Û‚ˆ
+NÂˆJNÂˆJNÂ‚ˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ÖÙ]K\Ù][™ÜËX˜XÚ×IÊBˆ™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÂˆ\™Ø\™KšXœ˜]JL
+NÂ‚ˆÚİÔÙ][™ÜÔÙXİ[ÛŠ	ÉÊNÂˆJNÂˆJNÂ‚ˆšY]Ë™Ù][
+	Ü™XŞXÛKXš[‹[\İ	ÊOË˜Y]™[\İ[™\Š	ØÛXÚÉË]™[OˆÂˆÛÛœİ]ÛˆH]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]K]˜\ÚXXİ[Û—IÊNÂˆÛÛœİ][HH]™[\™Ù]˜ÛÜÙ\İ
+	ÖÙ]K]˜\ÚZYIÊNÂ‚ˆYˆ
+X]ÛˆZ][JHÂˆ™]\›ÂˆB‚ˆÛÛœİ][RYH][K™]\Ù]˜\ÚYÂˆYˆ
+]Û‹™]\Ù]˜\ÚXİ[ÛˆOOH	Ü™\İÜ™IÊHÂˆ\Ëœ™\İÜ™U˜\Ú][J][RY
+NÂˆH[ÙHÂˆ\Ëœ\›X[™[Q[]U˜\Ú][J][RY
+NÂˆBˆJNÂ‚ˆšY]Ë™Ù][
+	Ø‹XÛX\‹\™XŞXÛKXš[‰ÊOË˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\Ë˜ÛX\”™XŞXÛPš[Š
+NÂˆJNÂ‚ˆÛÛœİÛX\RP]ÛˆHšY]Ë™Ù][
+	Ø‹\Ù][™ÜËXÛX\‹XZKZ\İÜIÊNÂˆYˆ
+ÛX\RP]ÛŠHÂˆÛX\RP]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆYˆ
+S[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İ
+HÂˆÚİÕØ\İ
+	ù¦ ¹¥èRH9kîz+çz+¬9oeIÊNÂˆ™]\›ÂˆB‚ˆÚİĞÛÛ™š\›Jˆ	ù®!yênˆRH9kîz+ç{ï'ÉËˆ	ù¢`9§"ykîz+çy/&¹éîùaiyfç¹¥-¹êæ{ï#9cëùg*È9i*ya¡y h¹i#xà ‰Ëˆ\Ş[˜È
+
+HOˆÂˆÛÛœİ˜]ÚYHXZÙRY
+	ØÛÛ™\œØ][Û—Ø˜]Ú	ÊNÂˆÛÛœİYÈH×NÂˆË‹‹“[Ù[˜ZPÛÛ™\œØ][Ûœ×Bˆœ™]™\œÙJ
+Bˆ™›Ü‘XXÚ
+
+ÛÛ™\œØ][Û‹™]™\œÙR[™^
+HOˆÂˆÛÛœİÜšYÚ[˜[[™^Bˆ[Ù[˜ZPÛÛ™\œØ][ÛœË›[™İBˆHBˆ™]™\œÙR[™^ÂˆÛÛœİ][HH[Ù[˜Y™XŞXÛR][Jˆ	ØÛÛ™\œØ][Û‰ËˆÈÛÛ™\œØ][Û‹ÜšYÚ[˜[[™^KˆÛÛ™\œØ][Û‹ÛÜ™	ú!ê¹å,ykîz+çIËˆ˜]ÚYˆ
+NÂˆYËœ\Ú
+][KšY
+NÂˆJNÂˆ[Ù[˜ZPÛÛ™\œØ][ÛœÈH×NÂˆ\Ë—Ü\œÚ\İÛÛ™\œØ][ÛœÊ
+NÂˆ\Ëœ™[™\RR\İÜJ
+NÂˆ\Ëœ™[™\”™XŞXÛPš[Š
+NÂˆ\]TÙ][™ÜÔİ]Ê
+NÂˆÚİĞXİ[Û•Ø\İ
+ˆ9mì¹l!ˆ	ÚYË›[™İH9§hykîz+çyéîùaiyfç¹¥-¹êæXˆ	ù¤©:e 	Ëˆ
+
+HOˆ\Ëœ™\İÜ™U˜\Ú˜]Ú
+YËœ™]™\œÙJ
+JBˆ
+NÂˆBˆ
+NÂˆJNÂˆB‚ˆÛÛœİÜ›Û™Ğ›ÛÚÕÙÙÛHHšY]Ë™Ù][
+	ÜÙ][™Ë]Ü›Û™Ø›ÛÚËY[˜X›Y	ÊNÂˆYˆ
+Ü›Û™Ğ›ÛÚÕÙÙÛJHÂˆÜ›Û™Ğ›ÛÚÕÙÙÛK˜ÚXÚÙYBˆØØ[İÜ˜YÙK™Ù]][J	İÜ›Û™Ğ›ÛÚÑ[˜X›Y	ÊHOOH	Ù˜[ÙIÎÂˆÜ›Û™Ğ›ÛÚÕÙÙÛK˜Y]™[\İ[™\Š	ØÚ[™ÙIË]™[OˆÂˆØØ[İÜ˜YÙKœÙ]][Jˆ	İÜ›Û™Ğ›ÛÚÑ[˜X›Y	Ëˆ]™[\™Ù]˜ÚXÚÙYˆ
+NÂˆÚİÕØ\İ
+ˆ]™[\™Ù]˜ÚXÚÙYˆÈ	ùmì¹o 9d+úe&zh¦:+¬9oeIÂˆˆ	ùmì¹¦ ¹`g:+¬9oey¥¬:e&zh¦	Âˆ
+NÂˆJNÂˆB‚ˆÛÛœİ]Z^”™XÛÜ™ÙÙÛHHšY]Ë™Ù][
+	ÜÙ][™ËXZK\]Z^‹\™XÛÜ™	ÊNÂˆYˆ
+]Z^”™XÛÜ™ÙÙÛJHÂˆ]Z^”™XÛÜ™ÙÙÛK˜ÚXÚÙYBˆØØ[İÜ˜YÙK™Ù]][J	ØZT]Z^”™XÛÜ™	ÊHOOH	Ù˜[ÙIÎÂˆ]Z^”™XÛÜ™ÙÙÛK˜Y]™[\İ[™\Š	ØÚ[™ÙIË]™[OˆÂˆØØ[İÜ˜YÙKœÙ]][J	ØZT]Z^”™XÛÜ™	Ë]™[\™Ù]˜ÚXÚÙY
+NÂˆÚİÕØ\İ
+ˆ]™[\™Ù]˜ÚXÚÙYˆÈ	ĞRH9l#ù­bù/&¹a¦yaiyki¹.h:+¬9oeIÂˆˆ	ĞRH9l#ù­bù.áy/çyåfyîäù§§;ï#9.#yolydãze&zh¦9§+	Âˆ
+NÂˆJNÂˆB‚ˆÚ[™İË˜Y]™[\İ[™\Š	ÛÛ›[™IË\]SÛ›[™Tİ]\ÊNÂˆÚ[™İË˜Y]™[\İ[™\Š	ÛÙ™›[™IË\]SÛ›[™Tİ]\ÊNÂˆNÂŸJJ
+NÂ‚‚‹ÊˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOBˆ9ë+9fæú/k»ï&¹¢nzaãùkï9aiyb¨9aiHRH9¦nº ïz(iyajˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOH
+‹ÂŠ
+
+HOˆÂˆÛÛœİRWÒSTÔ•ĞUÒÔÒV‘HHŒÂˆÛÛœİRWÒSTÔ•ÓPVÕÓÔ‘ÈHLÂ‚ˆÛÛœİÜšYÚ[˜[[š]X[^™R[\Ü[™[BˆÛÛ›Û\‹š[š]X[^™R[\Ü[™[˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛœİÜšYÚ[˜[\]R[\Ü›Ü›X]RHBˆÛÛ›Û\‹\]R[\Ü›Ü›X]RK˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛœİÜšYÚ[˜[[\ÜÛÜ™ÈBˆÛÛ›Û\‹š[\ÜÛÜ™Ë˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛœİÜšYÚ[˜[ÛÜÙPRUÛÜ™ÛÛXİÜˆBˆÛÛ›Û\‹—ØÛÜÙPRUÛÜ™ÛÛXİÜ‹˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛœİÜšYÚ[˜[Ø]™PRUÛÜ™˜YÈBˆÛÛ›Û\‹—ÜØ]™PRUÛÜ™˜YË˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛœİÜšYÚ[˜[ÛÛ›Û\’[š]BˆÛÛ›Û\‹š[š]˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛ›Û\‹š[\Ü[ÙHBˆØØ[İÜ˜YÙK™Ù]][J	Ú[\Ü[ÙIÊHOOH	ØZIÂˆÈ	ØZIÂˆˆ	ÛX[X[	ÎÂ‚ˆÛÛ›Û\‹˜ZR[\Üİ]HHÂˆ[™Îˆ	Ú˜IËˆ›Û\ˆ	ÉËˆ\XØ]S[ÙNˆ	ÜÚÚ\	ËˆYÔİ\œÎˆ˜[ÙKˆ]™[ˆ	ÉËˆY™šXİ[NˆˆYÜÎˆ×Kˆİ[[œ]ˆˆÚÚ\Y^\İ[™Îˆˆ[˜[Y[™\Îˆ×KˆØ[™Y]\Îˆ×KˆİXØÙ\ÜÙ\Îˆ×Kˆ˜Z[Yˆ×Kˆ[›š[™Îˆ˜[ÙBˆNÂ‚ˆÛÛ›Û\‹š[š]X[^™R[\Ü[™[H[˜İ[ÛŠ
+HÂˆÜšYÚ[˜[[š]X[^™R[\Ü[™[
+
+NÂˆ\ËœÙ][\Ü[ÙJ\Ëš[\Ü[ÙK˜[ÙJNÂˆNÂ‚ˆÛÛ›Û\‹œÙ][\Ü[ÙHH[˜İ[ÛŠˆ[ÙKˆ[››İ[˜ÙHHYBˆ
+HÂˆÛÛœİ™^[ÙHBˆ[ÙHOOH	ØZIÂˆÈ	ØZIÂˆˆ	ÛX[X[	ÎÂ‚ˆ\Ëš[\Ü[ÙHH™^[ÙNÂˆØØ[İÜ˜YÙKœÙ]][J	Ú[\Ü[ÙIË™^[ÙJNÂ‚ˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ÖÙ]KZ[\Ü[[ÙWIÊBˆ™›Ü‘XXÚ
+]ÛˆOˆÂˆÛÛœİXİ]™HBˆ]Û‹™]\Ù]š[\Ü[ÙHOOH™^[ÙNÂ‚ˆ]Û‹˜Û\ÜÓ\İÙÙÛJ	ØXİ]™IËXİ]™JNÂˆ]Û‹œÙ]]šX]Jˆ	Ø\šXK\™\ÜÙY	Ëˆİš[™ÊXİ]™JBˆ
+NÂˆJNÂ‚ˆÛÛœİİ\“Ü[ÛˆBˆšY]Ë™Ù][
+	Ú[\ÜXZK\İ\‹[Ü[Û‰ÊNÂ‚ˆÛÛœİ[œ]›İHBˆšY]Ë™Ù][
+	ØZKZ[\ÜZ[œ][›İIÊNÂ‚ˆYˆ
+İ\“Ü[ÛŠHÂˆİ\“Ü[Û‹šY[ˆH™^[ÙHOOH	ØZIÎÂˆB‚ˆYˆ
+[œ]›İJHÂˆ[œ]›İKšY[ˆH™^[ÙHOOH	ØZIÎÂˆB‚ˆ\Ë\]R[\Ü›Ü›X]RJ
+NÂ‚ˆYˆ
+[››İ[˜ÙJHÂˆÚİÕØ\İ
+ˆ™^[ÙHOOH	ØZIÂˆÈ	ùmì¹b!ù£h¹b,RH9¦nº ïz(iyaj	Âˆˆ	ùmì¹b!ù£h¹b,9¦kº`&¹kï9aiIÂˆ
+NÂˆBˆNÂ‚ˆÛÛ›Û\‹\]R[\Ü›Ü›X]RHH[˜İ[ÛŠ
+HÂˆYˆ
+\Ëš[\Ü[ÙHOOH	ØZIÊHÂˆÜšYÚ[˜[\]R[\Ü›Ü›X]RJ
+NÂ‚ˆÛÛœİ\ØÜš\[ÛˆBˆšY]Ë™Ù][
+	Ú[\Ü\ÙXİ[Û‹Y\ØÉÊNÂ‚ˆÛÛœİ\XØ]SX™[BˆšY]Ë™Ù][
+	Ú[\ÜY\XØ]K[X™[	ÊNÂ‚ˆÛÛœİ]Û“X™[BˆšY]Ë™Ù][
+	Ø‹Z[\Ü[X™[	ÊNÂ‚ˆÛÛœİ]Û’XÛÛˆBˆšY]Ë™Ù][
+	Ø‹Z[\Ü	ÊBˆËœ]Y\TÙ[XİÜŠ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	ÊNÂ‚ˆYˆ
+\ØÜš\[ÛŠHÂˆ\ØÜš\[Û‹^ÛÛ[Bˆ	ùab9¨à9§éycëùkï9aiz+ãxà zaãyi#z+ãy.#ºe&z+ëú(c;ï#9a£yèkº+©9a¦yaixà ‰ÎÂˆB‚ˆYˆ
+\XØ]SX™[
+HÂˆ\XØ]SX™[^ÛÛ[Bˆ	ú`aùb,9d#:+ãyn¤ùa¡yæ¡:aãyi#z+ãIÎÂˆB‚ˆYˆ
+]Û“X™[
+HÂˆ]Û“X™[^ÛÛ[H	ù¨à9§éynm¹kï9aiIÎÂˆB‚ˆYˆ
+]Û’XÛÛŠHÂˆ]Û’XÛÛ‹^ÛÛ[H	Ù˜XİØÚXÚÉÎÂˆB‚ˆ™]\›ÂˆB‚ˆÛÛœİ[™ÈBˆšY]Ë™Ù][
+	Ú[\Ü[[™Ë\Ù[Xİ	ÊOË˜[YH	Ú˜IÎÂ‚ˆÛÛœİ›Ü›X]^BˆšY]Ë™Ù][
+	Ú[\ÜY›Ü›X]]^	ÊNÂ‚ˆÛÛœİ›Ü›X]›İHBˆšY]Ë™Ù][
+	Ú[\ÜY›Ü›X][›İIÊNÂ‚ˆÛÛœİ^\™XHBˆšY]Ë™Ù][
+	Øİ\İÛKZ[œ]	ÊNÂ‚ˆÛÛœİ\ØÜš\[ÛˆBˆšY]Ë™Ù][
+	Ú[\Ü\ÙXİ[Û‹Y\ØÉÊNÂ‚ˆÛÛœİ\XØ]SX™[BˆšY]Ë™Ù][
+	Ú[\ÜY\XØ]K[X™[	ÊNÂ‚ˆÛÛœİ]Û“X™[BˆšY]Ë™Ù][
+	Ø‹Z[\Ü[X™[	ÊNÂ‚ˆÛÛœİ]Û’XÛÛˆBˆšY]Ë™Ù][
+	Ø‹Z[\Ü	ÊBˆËœ]Y\TÙ[XİÜŠ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	ÊNÂ‚ˆYˆ
+\ØÜš\[ÛŠHÂˆ\ØÜš\[Û‹^ÛÛ[Bˆ	ù«ãú(c9cêº/¤ùaiy. 9.*¹cez+ã{ï#RH9/&º(iyaj:+îúgìøà z+ãy )øà zaâ¹.bxà y/¢ùcéy.#¹am¹.å¹/èy køà ‰ÎÂˆB‚ˆYˆ
+\XØ]SX™[
+HÂˆ\XØ]SX™[^ÛÛ[Bˆ	ú`aùb,:+ãyn¤ù.+ymì¹îãùkf9g*9æ¡:+ãIÎÂˆB‚ˆYˆ
+›Ü›X]^
+HÂˆ›Ü›X]^^ÛÛ[Bˆ[™ÈOOH	Ù[‰ÂˆÈ	ù«ãú(c9. 9.*º"ìz+ëycez+ãy¢%¹n.9å*9çëz+ëIÂˆˆ	ù«ãú(c9. 9.*¹¥éz+ëycez+ãy¢%¹n.9å*9çëz+ëIÎÂˆB‚ˆYˆ
+›Ü›X]›İJHÂˆ›Ü›X]›İK^ÛÛ[Bˆ[™ÈOOH	Ù[‰ÂˆÈ	ù/¢ùi »ï&˜X˜[™Û¸à XXš[]xà ]ZÙH\[¸à º"ìz+ëy/&º!ê¹bª9îçù. 9..º+ãyan9oh¹o#øà ‰Âˆˆ	ù/¢ùi »ï&º*"9å.øà ybª¹b¦øàfxà¢øà yonxàjùêâøài8à ¹bª:+ãyd£9oh¹k®z+ãynîº+«º/¤ùaiygî¹§+9oh¸à ‰ÎÂˆB‚ˆYˆ
+^\™XJHÂˆ^\™XKœXÙZÛ\ˆBˆ[™ÈOOH	Ù[‰ÂˆÈ	ØX˜[™Û—˜Xš[]WZÙH\[‰Âˆˆ	ú*"9å.×¹bª¹b¦øàfxà¢×¹onxàjùêâøài	ÎÂˆB‚ˆYˆ
+]Û“X™[
+HÂˆ]Û“X™[^ÛÛ[H	ú+ªHRH:(iyaj	ÎÂˆB‚ˆYˆ
+]Û’XÛÛŠHÂˆ]Û’XÛÛ‹^ÛÛ[H	Ø]]×Ùš^ÚYÚ	ÎÂˆBˆNÂ‚ˆÛÛ›Û\‹š[\ÜÛÜ™ÈH[˜İ[ÛŠ
+HÂˆYˆ
+\Ëš[\Ü[ÙHOOH	ØZIÊHÂˆ™]\›ˆ\Ë—Üİ\RR[\Ü
+
+NÂˆB‚ˆ™]\›ˆÜšYÚ[˜[[\ÜÛÜ™Ê
+NÂˆNÂ‚ˆÛÛ›Û\‹—Ü\œÙPRR[\Ü[œ]H[˜İ[ÛŠˆ^ˆ[™Âˆ
+HÂˆÛÛœİ[˜[Y[™\ÈH×NÂˆÛÛœİÙY[ˆH™]ÈÙ]
+
+NÂˆÛÛœİÛÜ™ÈH×NÂ‚ˆÛÛœİ˜]Ó[™\ÈHİš[™Ê^	ÉÊBˆœÜ]
+××‹ÊBˆ›X\
+
+[™K[™^
+HOˆ
+Âˆ[™Kˆ[X™\ˆ[™^
+ÈBˆJJNÂ‚ˆ›Üˆ
+ÛÛœİ][HÙˆ˜]Ó[™\ÊHÂˆ]˜[YHHİš[™Ê][K›[™H	ÉÊBˆœ™\XÙJˆ×—ÊŠÎ–ËJ¸ (°­×Jß
+ÖËŠxà {ï#—JWÊ‹Ëˆ	ÉÂˆ
+Bˆš[J
+NÂ‚ˆYˆ
+]˜[YJHÂˆÛÛ[YNÂˆB‚ˆ˜[YHH\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ˜[YKˆ[™Âˆ
+NÂ‚ˆÛÛœİ˜[Y[™İXYÙHBˆ[™ÈOOH	Ù[‰ÂˆÈ
+ˆÖĞKV˜K^—KË\İ
+˜[YJH	‰‚ˆKÖøà`Kxà¥¸à¨Kxàî¹. zo«øà!xà!¸àí—KİK\İ
+˜[YJBˆ
+BˆˆÖøà`Kxà¥¸à¨Kxàî¹. zo«øà!xà!¸àí—KİK\İ
+˜[YJNÂ‚ˆYˆ
+]˜[YH]˜[Y[™İXYÙJHÂˆ[˜[Y[™\Ëœ\Ú
+Âˆ[X™\ˆ][K›[X™\‹ˆ˜[YNˆİš[™Ê][K›[™H	ÉÊKš[J
+Kˆ™X\ÛÛ‚ˆ[™ÈOOH	Ù[‰ÂˆÈ	ù.#y`ãù§"y¥b:"ìz+ëz+ãy¬aÉÂˆˆ	ù.#y`ãù§"y¥b9¥éz+ëz+ãy¬aÉÂˆJNÂ‚ˆÛÛ[YNÂˆB‚ˆYˆ
+˜[YK›[™İˆ
+HÂˆ[˜[Y[™\Ëœ\Ú
+Âˆ[X™\ˆ][K›[X™\‹ˆ˜[YKˆ™X\ÛÛˆ	ùa¡yk®z/áúeoÉÂˆJNÂ‚ˆÛÛ[YNÂˆB‚ˆÛÛœİÙ^HBˆ	Û[™ßN˜
+Âˆ
+[™ÈOOH	Ù[‰ÂˆÈ˜[YKÓİÙ\Ø\ÙJ
+Bˆˆ˜[YJNÂ‚ˆYˆ
+ÙY[‹š\ÊÙ^JJHÂˆÛÛ[YNÂˆB‚ˆÙY[‹˜Y
+Ù^JNÂˆÛÜ™Ëœ\Ú
+ÂˆÛÜ™ˆ˜[YKˆ[™ÂˆJNÂˆB‚ˆ™]\›ˆÂˆÛÜ™ÎˆÛÜ™ËœÛXÙJRWÒSTÔ•ÓPVÕÓÔ‘ÊKˆ[˜[Y[™\Ëˆ[˜Ø]YÛİ[‚ˆX]›X^
+ÛÜ™Ë›[™İHRWÒSTÔ•ÓPVÕÓÔ‘ÊKˆ˜]Ó›Û‘[\PÛİ[‚ˆ˜]Ó[™\Ë™š[\Š][HOˆ][K›[™Kš[J
+JK›[™İˆNÂˆNÂ‚ˆÛÛ›Û\‹—Ùš[™^\İ[™ĞRR[\ÜÛÜ™H[˜İ[ÛŠˆØ[™Y]Bˆ
+HÂˆÛÛœİ\™Ù]Bˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆØ[™Y]KÛÜ™ˆØ[™Y]K›[™Âˆ
+NÂ‚ˆ™]\›ˆ[Ù[™‹™š[™
+[HOˆÂˆÛÛœİ[S[™ÈH[K›[™È	Ú˜IÎÂ‚ˆ™]\›ˆ
+ˆ[S[™ÈOOHØ[™Y]K›[™È	‰‚ˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ[KÛÜ™ˆ[S[™Âˆ
+HOOH\™Ù]ˆ
+NÂˆJH[ÂˆNÂ‚ˆÛÛ›Û\‹—ØZ[RR[\Ü›Û\H[˜İ[ÛŠˆØ[™Y]\Ëˆ[™Âˆ
+HÂˆÛÛœİ˜]Ú]™[HØ[™Y]\ÖÌOË›]™[	ÉÎÂˆÛÛœİ˜]ÚY™šXİ[HH›Ü›X[^™UÛÜ™Y™šXİ[JˆØ[™Y]\ÖÌOË™Y™šXİ[Bˆ
+NÂˆÛÛœİ˜]ÚYÜÈH›Ü›X[^™UÛÜ™YÜÊˆØ[™Y]\ÖÌOËYÜÂˆ
+NÂ‚ˆÛÛœİ[™İXYÙT[\ÈBˆ[™ÈOOH	Ù[‰ÂˆÈº"ìz+ëykeù«­z) y¬`»ï&‚‹HÛÜ™;ï&¹.)y¨/9/çyåfz/¤ùaiz+ãyæ¡:+ãyan9oh¹o#ûï#9.#z) yïîú+äxà ‚‹HÛ™]Xûï&¹/oùå*9n.:)àHT{ï#9nm¹å*ÈÈ9c!z(î{ï&ù¥è9¬åyèkº+©9¥í¹åfyên¸à ‚‹H\{ï&¹/oùå*9.+y¥¡ú+ãy )ûï&ùi&º+ãy )ù/oùå*8 '8àîø 'yb!ºf¥8à ‚‹HYX[š[™ûï&¹/oùå*9ë 9­ y.+y¥¡ûï#9i&¹.bzhny/oùå*8 ';ï&ø 'yb!ºf¥8à ‚‹H›Ûİûï&¹cê¹a¦ycëúgh8à yë 9­ yæ¡:+ãy¨.z+ãyï ;ï&ù.#yèk¹k¦¹¥í¹åfyên»ï#9é y«h¹ï%º`(8à ‚‹H^[\{ï&¹. 9§hz!ê¹á-¹n.9å*9æ¡:"ìz+ëy/¢ùcé{ï#9.)y¨/9a¦y¢$8 ':"ìz+ëy/¢ùcéHÈ9.+y¥¡ùïîú+äx 'xà ‚‹HØ[˜{ï&¹oázhnù..¹ên¹keùë)¹.,¸à ˜ˆˆ¹¥éz+ëykeù«­z) y¬`»ï&‚‹HÛÜ™;ï&¹.)y¨/9/çyåfz/¤ùaiz+ãyæ¡9gî¹§+9oh»ï#9.#z) yïîú+äxà ‚‹HØ[˜{ï&¹cê¹a¦ykîyn¥9`aùd#z+îúgìûï#9.#z) y¢ë9cíù¢%¹¬ê:gìùë)¹cíøà ‚‹H\{ï&¹/oùå*9.+y¥¡ú+ãy )ûï&ùi&º+ãy )ù/oùå*8 '8àîø 'yb!ºf¥;ï&øà­ycæ:+ãycëùa¦x '9d#z+ãxàîøà­ycæ9bª:+ãxàfxà¢ø 'xà ‚‹HYX[š[™ûï&¹/oùå*9ë 9­ y.+y¥¡ûï#9i&¹.bzhny/oùå*8 ';ï&ø 'yb!ºf¥8à ‚‹H^[\{ï&¹. 9§hz!ê¹á-¹n.9å*9æ¡9¥éz+ëy/¢ùcé{ï#9.)y¨/9a¦y¢$8 '9¥éz+ëy/¢ùcéHÈ9.+y¥¡ùïîú+äx 'xà ‚‹HÛ™]XÈ9d£›Ûİûï&¹oázhnù..¹ên¹keùë)¹.,¸à ˜Â‚ˆ™]\›ˆ:+íù¢¢¹."úgh¹æ¡	Û[™ÈOOH	Ù[‰ÈÈ	ú"ìz+ëIÈˆ	ù¥éz+ëIßz+ãy¬aú(iyaj9¢$:` ¹d"9.+y¥¡ùki¹.h: !y/çykf9b,:+ãyn¤ùæ¡9k£9¥m:+ãy§hxà ‚‚º`&¹å*:)á9b&{ï&‚ŒKˆ9.)y¨/9/çy£ z/¤ùaizhn¹n£ûï#9«ãù.*º/¤ùaiz+ãyoázhnùkîyn¥9. 9.*¹îäù§§;ï#9.#z ïz`eù¯#øà yd"9nm¹¢%¹h§¹b¨:+ãy¬aøà ‚Œ‹ˆ[™È9oázhnùîçù. 9..ˆ‰Û[™ßH¸à ‚ŒËˆ9¢`9§"ykeù«­z`ïyoázhnùkf9g*;ï&ù¥è9¬åycëúgh9èkº+©9æ¡9keù«­ya¦yên¹keùë)¹.,¸à ‚ˆ]™[9fî¹k¦¹..ˆ‰Ø˜]Ú]™[H»ï#9.#z) z!êº(c9¥.y¢$9am¹.åº  ú+åyî©ùb*øà ‚KˆY™šXİ[H9/oùå*{ïg{ï&ù¢ny«(zh¡:+¯¹..ˆ	Ø˜]ÚY™šXİ[H{ï#9odúh¡:+¯¹..ˆ9¥íº+íù£"yk§ºfayki¹.h:f¯¹n©¹/,:+¨xà ‚‹ˆYÜÈ9§ 9i&ˆÈ9.*¹ë 9çëy.+y¥¡ù¨!ùëo»ï&ù/&9ab9/çyåfy¢ny«(y¨!ùëoˆ	Ò”ÓÓ‹œİš[™ÚYJ˜]ÚYÜÊ_{ï#9nm¹cëú(iyaayoáz) y¨!ùëo¸à ‚Ëˆ9cêº/¤ùaî¹. 9.*ˆ”ÓÓˆ9kîz,h{ï#9.#z) y/oùå*X\šÙİÛ»ï#9.#z) y­îùb¨:)èúaâ¸à ‚ˆ:/¤ùaî¹¨/9o#ùoázhnù¦+ûï&‚Èš][\È–ŞÈÛÜ™ˆˆ‹›[™Èˆ‰Û[™ßH‹šØ[˜Hˆˆ‹œÛ™]XÈˆˆ‹\Hˆˆ‹›YX[š[™Èˆˆ‹™^[\Hˆˆ‹œ›ÛİÈˆˆ‹›]™[ˆˆ‹™Y™šXİ[HŒYÜÈ–×_W_B‰Û[™İXYÙT[\ßB‚¹o¡z(iyaj:+ãy¬aûï&‚‰Ò”ÓÓ‹œİš[™ÚYJØ[™Y]\Ë›X\
+][HOˆ
+ÂˆÛÜ™ˆ][KÛÜ™ˆ[™Îˆ][K›[™ÂˆJJJ_XÂˆNÂ‚ˆÛÛ›Û\‹—Ü™\]Y\İRR[\Ü˜]ÚH\Ş[˜È[˜İ[ÛŠˆØ[™Y]\Âˆ
+HÂˆYˆ
+P\œ˜^Kš\Ğ\œ˜^JØ[™Y]\ÊHØ[™Y]\Ë›[™İOOH
+HÂˆ™]\›ˆÂˆİXØÙ\ÜÙ\Îˆ×Kˆ˜Z[Yˆ×BˆNÂˆB‚ˆÛÛœİ[™ÈHØ[™Y]\ÖÌK›[™ÎÂˆÛÛœİ›Û\Bˆ\Ë—ØZ[RR[\Ü›Û\
+Ø[™Y]\Ë[™ÊNÂ‚ˆHÂˆÛÛœİ™\İ[Bˆ]ØZ]\Ë—Ü™\]Y\İRR”ÓÓŠ›Û\
+NÂ‚ˆÛÛœİ˜]Ò][\ÈBˆ\œ˜^Kš\Ğ\œ˜^J™\İ[š][\ÊBˆÈ™\İ[š][\Âˆˆ×NÂ‚ˆÛÛœİ][SX\H™]ÈX\
+
+NÂ‚ˆ˜]Ò][\Ë™›Ü‘XXÚ
+][HOˆÂˆÛÛœİ][S[™ÈBˆ][OË›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆÛÛœİÙ^HBˆ	Ú][S[™ßN˜
+Âˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ][OËÛÜ™ˆ][S[™Âˆ
+NÂ‚ˆYˆ
+Z][SX\š\ÊÙ^JJHÂˆ][SX\œÙ]
+Ù^K][JNÂˆBˆJNÂ‚ˆÛÛœİİXØÙ\ÜÙ\ÈH×NÂˆÛÛœİ˜Z[YH×NÂ‚ˆØ[™Y]\Ë™›Ü‘XXÚ
+
+Ø[™Y]K[™^
+HOˆÂˆÛÛœİÙ^HBˆ	ØØ[™Y]K›[™ßN˜
+Âˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆØ[™Y]KÛÜ™ˆØ[™Y]K›[™Âˆ
+NÂ‚ˆ]X]Ú[™ÈH][SX\™Ù]
+Ù^JNÂ‚ˆYˆ
+ˆ[X]Ú[™È	‰‚ˆ˜]Ò][\Ë›[™İOOHØ[™Y]\Ë›[™İˆ
+HÂˆÛÛœİÜÚ][Û˜[H˜]Ò][\ÖÚ[™^NÂˆÛÛœİÜÚ][Û˜[[™ÈBˆÜÚ][Û˜[Ë›[™ÈOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆYˆ
+ÜÚ][Û˜[[™ÈOOHØ[™Y]K›[™ÊHÂˆX]Ú[™ÈHÜÚ][Û˜[ÂˆBˆB‚ˆYˆ
+[X]Ú[™ÊHÂˆ˜Z[Yœ\Ú
+Âˆ‹‹˜Ø[™Y]Kˆ™X\ÛÛˆ	ĞRH9§*º/å9fç¹kîyn¥:+ãy§hIÂˆJNÂˆ™]\›ÂˆB‚ˆÛÛœİ˜]Ñ˜YHÂˆÛÜ™ˆØ[™Y]KÛÜ™ˆ[™ÎˆØ[™Y]K›[™ËˆØ[˜N‚ˆØ[™Y]K›[™ÈOOH	Ú˜IÂˆÈİš[™ÊX]Ú[™ËšØ[˜H	ÉÊBˆˆ	ÉËˆÛ™]XÎ‚ˆØ[™Y]K›[™ÈOOH	Ù[‰ÂˆÈİš[™ÊX]Ú[™ËœÛ™]XÈ	ÉÊBˆˆ	ÉËˆ\Nˆİš[™ÊX]Ú[™Ë\H	ÉÊKˆYX[š[™Îˆİš[™ÊX]Ú[™Ë›YX[š[™È	ÉÊKˆ^[\Nˆİš[™ÊX]Ú[™Ë™^[\H	ÉÊKˆ›ÛİÎ‚ˆØ[™Y]K›[™ÈOOH	Ù[‰ÂˆÈİš[™ÊX]Ú[™Ëœ›ÛİÈ	ÉÊBˆˆ	ÉËˆ]™[ˆØ[™Y]K›]™[	ÉËˆY™šXİ[N‚ˆØ[™Y]K™Y™šXİ[HˆˆÈØ[™Y]K™Y™šXİ[Bˆˆ›Ü›X[^™UÛÜ™Y™šXİ[JˆX]Ú[™Ë™Y™šXİ[Bˆ
+KˆYÜÎ‚ˆØ[™Y]KYÜÏË›[™İˆÈØ[™Y]KYÜÂˆˆ›Ü›X[^™UÛÜ™YÜÊX]Ú[™ËYÜÊKˆZ[[ˆ˜[ÙBˆNÂ‚ˆİXØÙ\ÜÙ\Ëœ\Ú
+ˆ\Ë—İĞRUÛÜ™˜Y
+ˆ›Ü›X[^™UÛÜ™[J˜]Ñ˜Y
+Bˆ
+Bˆ
+NÂˆJNÂ‚ˆ™]\›ˆÂˆİXØÙ\ÜÙ\Ëˆ˜Z[YˆNÂˆHØ]Ú
+\œ›ÜŠHÂˆ™]\›ˆÂˆİXØÙ\ÜÙ\Îˆ×Kˆ˜Z[YˆØ[™Y]\Ë›X\
+Ø[™Y]HOˆ
+Âˆ‹‹˜Ø[™Y]Kˆ™X\ÛÛ‚ˆ\œ›ÜË›Y\ÜØYÙH	ú+íù¬`¹i,z-)IÂˆJJBˆNÂˆBˆNÂ‚ˆÛÛ›Û\‹—ÜÙ]RR[\ÜÛÛXİÜÛÛ^H[˜İ[ÛŠ
+HÂˆÛÛœİ]HBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹]]K]^	ÊNÂ‚ˆÛÛœİİX]HBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹\İX]IÊNÂ‚ˆÛÛœİXÛÛˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹ZXÛÛ‰ÊNÂ‚ˆÛÛœİ˜XÚÓX™[BˆšY]Ë™Ù][
+	ØZK]ÛÜ™X˜XÚË[X™[	ÊNÂ‚ˆÛÛœİ›ÙÜ™\ÜÈBˆšY]Ë™Ù][
+	ØZKZ[\Ü[ØY[™Ë\›ÙÜ™\ÜÉÊNÂ‚ˆYˆ
+]JHÂˆ]K^ÛÛ[H	ĞRH9¦nº ïykï9aiIÎÂˆB‚ˆYˆ
+İX]JHÂˆİX]K^ÛÛ[Bˆ9«ãù¢ny§ 9i&ˆ	ĞRWÒSTÔ•ĞUÒÔÒV‘_H9.*»ï#9k£9¢$9d#¹ab:h¡:)â9a£y/çykfÂˆB‚ˆYˆ
+XÛÛŠHÂˆXÛÛ‹^ÛÛ[H	Ø]]×Ùš^ÚYÚ	ÎÂˆB‚ˆYˆ
+˜XÚÓX™[
+HÂˆ˜XÚÓX™[^ÛÛ[H	ú/å9fç¹kï9aiIÎÂˆB‚ˆYˆ
+›ÙÜ™\ÜÊHÂˆ›ÙÜ™\ÜËšY[ˆH˜[ÙNÂˆBˆNÂ‚ˆÛÛ›Û\‹—Ü™\Ù]RR[\ÜÛÛXİÜÛÛ^H[˜İ[ÛŠ
+HÂˆÛÛœİ]HBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹]]K]^	ÊNÂ‚ˆÛÛœİİX]HBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹\İX]IÊNÂ‚ˆÛÛœİXÛÛˆBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹ZXÛÛ‰ÊNÂ‚ˆÛÛœİ˜XÚÓX™[BˆšY]Ë™Ù][
+	ØZK]ÛÜ™X˜XÚË[X™[	ÊNÂ‚ˆÛÛœİ›ÙÜ™\ÜÈBˆšY]Ë™Ù][
+	ØZKZ[\Ü[ØY[™Ë\›ÙÜ™\ÜÉÊNÂ‚ˆÛÛœİ˜Z[\™P›ŞBˆšY]Ë™Ù][
+	ØZKZ[\ÜY˜Z[\™KX›Ş	ÊNÂ‚ˆÛÛœİ™]šY]Ó›İHBˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]šY]Ë[›İIÊNÂ‚ˆYˆ
+]JHÂˆ]K^ÛÛ[H	ù.ã¹fç¹ëe9b¨9aiz+ãyn¤ÉÎÂˆB‚ˆYˆ
+İX]JHÂˆİX]K^ÛÛ[Bˆ	ùab:`"y¢êz+ãy¬aûï#9a£yå,HRH:(iyaj9nmºh¡:)â	ÎÂˆB‚ˆYˆ
+XÛÛŠHÂˆXÛÛ‹^ÛÛ[H	Ü^[\İØY	ÎÂˆB‚ˆYˆ
+˜XÚÓX™[
+HÂˆ˜XÚÓX™[^ÛÛ[H	ú/å9fçº`"y¢êIÎÂˆB‚ˆYˆ
+›ÙÜ™\ÜÊHÂˆ›ÙÜ™\ÜËšY[ˆHYNÂˆB‚ˆYˆ
+˜Z[\™P›Ş
+HÂˆ˜Z[\™P›ŞšY[ˆHYNÂˆB‚ˆYˆ
+™]šY]Ó›İJHÂˆ™]šY]Ó›İKšY[ˆHYNÂˆBˆNÂ‚ˆÛÛ›Û\‹—İ\]PRR[\Ü›ÙÜ™\ÜÈH[˜İ[ÛŠˆÛ™Kˆİ[ˆX™[ˆ
+HÂˆÛÛœİ›ÙÜ™\ÜÓX™[BˆšY]Ë™Ù][
+	ØZKZ[\Ü\›ÙÜ™\ÜË[X™[	ÊNÂ‚ˆÛÛœİ›ÙÜ™\ÜĞÛİ[BˆšY]Ë™Ù][
+	ØZKZ[\Ü\›ÙÜ™\ÜËXÛİ[	ÊNÂ‚ˆÛÛœİ›ÙÜ™\ÜĞ˜\ˆBˆšY]Ë™Ù][
+	ØZKZ[\Ü\›ÙÜ™\ÜËX˜\‰ÊNÂ‚ˆÛÛœİØY[™Õ^BˆšY]Ë™Ù][
+	ØZK]ÛÜ™[ØY[™Ë]^	ÊNÂ‚ˆÛÛœİØY™Uİ[HX]›X^
+Kİ[
+NÂˆÛÛœİ\˜Ù[HX]›Z[ŠˆLˆX]›X^
+Û™HÈØY™Uİ[
+ˆL
+Bˆ
+NÂ‚ˆYˆ
+›ÙÜ™\ÜÓX™[
+HÂˆ›ÙÜ™\ÜÓX™[^ÛÛ[BˆX™[	ù«hùg*:(iyaj	ÎÂˆB‚ˆYˆ
+›ÙÜ™\ÜĞÛİ[
+HÂˆ›ÙÜ™\ÜĞÛİ[^ÛÛ[Bˆ	ÓX]›Z[ŠÛ™Kİ[
+_HÈ	İİ[XÂˆB‚ˆYˆ
+›ÙÜ™\ÜĞ˜\ŠHÂˆ›ÙÜ™\ÜĞ˜\‹œİ[KÚYH	Ü\˜Ù[IXÂˆB‚ˆYˆ
+ØY[™Õ^
+HÂˆØY[™Õ^^ÛÛ[BˆÛ™HHİ[ˆÈ	ĞRH:(iyaj9k£9¢$;ï#9«hùg*9¥m9ä!ºh¡:)â8 )‰Âˆˆ9«hùg*:(iyaj9ë+	ÓX]™›ÛÜŠÛ™HÈRWÒSTÔ•ĞUÒÔÒV‘JH
+È_H9¢nz+ãy¬aø )˜ÂˆBˆNÂ‚ˆÛÛ›Û\‹—Ü™[™\RR[\Ü˜Z[\™\ÈH[˜İ[ÛŠˆİYÙHH	ÛØY[™ÉÂˆ
+HÂˆÛÛœİ˜Z[YBˆ\Ë˜ZR[\Üİ]K™˜Z[Y×NÂ‚ˆÛÛœİ˜Z[\™P›ŞBˆšY]Ë™Ù][
+	ØZKZ[\ÜY˜Z[\™KX›Ş	ÊNÂ‚ˆÛÛœİ˜Z[\™U]HBˆšY]Ë™Ù][
+	ØZKZ[\ÜY˜Z[\™K]]K]^	ÊNÂ‚ˆÛÛœİ˜Z[\™S\İBˆšY]Ë™Ù][
+	ØZKZ[\ÜY˜Z[\™K[\İ	ÊNÂ‚ˆÛÛœİ™]šY]Ó›İHBˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]šY]Ë[›İIÊNÂ‚ˆÛÛœİ™]šY]Õ]HBˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]šY]Ë[›İK]]IÊNÂ‚ˆÛÛœİ™]šY]Õ^BˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]šY]Ë[›İK]^	ÊNÂ‚ˆYˆ
+˜Z[\™P›Ş
+HÂˆ˜Z[\™P›ŞšY[ˆBˆİYÙHOOH	ÛØY[™ÉÈ˜Z[Y›[™İOOHÂˆB‚ˆYˆ
+˜Z[\™U]JHÂˆ˜Z[\™U]K^ÛÛ[Bˆ	Ù˜Z[Y›[™İH9.*º+ãy¬aú(iyaj9i,z-)XÂˆB‚ˆYˆ
+˜Z[\™S\İ
+HÂˆ˜Z[\™S\İš[›™\’SH˜Z[YˆœÛXÙJÌ
+Bˆ›X\
+][HOˆÂˆ™]\›ˆÜ[ˆ]OH‰Ù\ØØ\RS
+][Kœ™X\ÛÛˆ	ÉÊ_H‰Ù\ØØ\RS
+][KÛÜ™
+_OÜÜ[˜ÂˆJBˆš›Ú[Š	ÉÊNÂˆB‚ˆYˆ
+™]šY]Ó›İJHÂˆ™]šY]Ó›İKšY[ˆBˆİYÙHOOH	Ü™]šY]ÉÈ˜Z[Y›[™İOOHÂˆB‚ˆYˆ
+™]šY]Õ]JHÂˆ™]šY]Õ]K^ÛÛ[Bˆ	Ù˜Z[Y›[™İH9.*º+ãy¬aùl&¹§*º(iyajÂˆB‚ˆYˆ
+™]šY]Õ^
+HÂˆÛÛœİ˜[Y\ÈH˜Z[YˆœÛXÙJŠBˆ›X\
+][HOˆ][KÛÜ™
+Bˆš›Ú[Š	øà IÊNÂ‚ˆ™]šY]Õ^^ÛÛ[Bˆ˜[Y\È
+Âˆ
+˜Z[Y›[™İˆ‚ˆÈ9ëbH	Ù˜Z[Y›[™İH9.*º+ãXˆˆ	ÉÊH
+Âˆ	øà ¹mì¹k£9¢$9æ¡:+ãy§hycëù.éyab9¨à9§é{ï#9.gùcëù.éycêºaãz+åz/æy.¦ùi,z-)z+ãxà ‰ÎÂˆBˆNÂ‚ˆÛÛ›Û\‹—Ø\PRR[\Ü™]šY]ÔÙ][™ÜÈH[˜İ[ÛŠ
+HÂˆÛÛœİİ]HH\Ë˜ZR[\Üİ]NÂˆÛÛœİ›Û\”Ù[XİBˆšY]Ë™Ù][
+ˆİ]K›[™ÈOOH	Ù[‰ÂˆÈ	ØZK]ÛÜ™Y›Û\‹Y[‰Âˆˆ	ØZK]ÛÜ™Y›Û\‹Z˜IÂˆ
+NÂ‚ˆYˆ
+›Û\”Ù[Xİ
+HÂˆÛÛœİ\Ñ›Û\ˆH\œ˜^K™œ›ÛJˆ›Û\”Ù[Xİ›Ü[ÛœÂˆ
+KœÛÛYJÜ[ÛˆOˆÜ[Û‹˜[YHOOHİ]K™›Û\ŠNÂ‚ˆYˆ
+\Ñ›Û\ŠHÂˆ›Û\”Ù[Xİ˜[YHHİ]K™›Û\Âˆ›Û\”Ù[Xİ™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂˆBˆB‚ˆÛÛœİ\XØ]TÙ[XİBˆšY]Ë™Ù][
+	ØZK]ÛÜ™Y\XØ]K[[ÙIÊNÂ‚ˆYˆ
+\XØ]TÙ[Xİ
+HÂˆ\XØ]TÙ[Xİ˜[YHHİ]K™\XØ]S[ÙNÂˆ\XØ]TÙ[Xİ™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂˆB‚ˆÛÛœİİ\’[œ]BˆšY]Ë™Ù][
+	ØZK]ÛÜ™XY\İ\‰ÊNÂ‚ˆYˆ
+İ\’[œ]
+HÂˆİ\’[œ]˜ÚXÚÙYHİ]K˜YÔİ\œÎÂˆBˆNÂ‚ˆÛÛ›Û\‹—Üİ\RR[\ÜH\Ş[˜È[˜İ[ÛŠ
+HÂˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÂˆ\™Ø\™KšXœ˜]JN
+NÂ‚ˆYˆ
+\Ë˜ZR[\Üİ]Kœ[›š[™ÊHÂˆ™]\›ÂˆB‚ˆYˆ
+[ØØ[İÜ˜YÙK™Ù]][J	ÙY\ÙYZĞ\RÙ^IÊJHÂˆÚİÕØ\İ
+	ú+íùab9g*:+¯¹ïk¹.+zacyïkˆY\ÙYZÈTHÙ^IÊNÂˆ™]\›ÂˆB‚ˆÛÛœİ^BˆšY]Ë™Ù][
+	Øİ\İÛKZ[œ]	ÊOË˜[YH	ÉÎÂ‚ˆÛÛœİ[™ÈBˆšY]Ë™Ù][
+	Ú[\Ü[[™Ë\Ù[Xİ	ÊOË˜[YH	Ú˜IÎÂ‚ˆÛÛœİ›Û\ˆBˆšY]Ë™Ù][
+	Ú[\ÜY›Û\‹\Ù[Xİ	ÊOË˜[YH	ÉÎÂ‚ˆÛÛœİ\XØ]S[ÙHBˆšY]Ë™Ù][
+	Ú[\ÜY\XØ]K[[ÙIÊOË˜[YH	ÜÚÚ\	ÎÂ‚ˆÛÛœİYÔİ\œÈH›ÛÛX[ŠˆšY]Ë™Ù][
+	Ú[\ÜXZKXY\İ\‰ÊOË˜ÚXÚÙYˆ
+NÂ‚ˆÛÛœİ]™[H›Ü›X[^™UÛÜ™]™[
+ˆšY]Ë™Ù][
+	Ú[\Ü[]™[\Ù[Xİ	ÊOË˜[YH	ÉËˆ[™Âˆ
+NÂ‚ˆÛÛœİY™šXİ[HH›Ü›X[^™UÛÜ™Y™šXİ[JˆšY]Ë™Ù][
+	Ú[\ÜYY™šXİ[K\Ù[Xİ	ÊOË˜[YHˆ
+NÂ‚ˆÛÛœİYÜÈH›Ü›X[^™UÛÜ™YÜÊˆšY]Ë™Ù][
+	Ú[\Ü]YÜËZ[œ]	ÊOË˜[YH	ÉÂˆ
+NÂ‚ˆYˆ
+]^š[J
+JHÂˆÚİÕØ\İ
+	ú+íùab:/¤ùaiz) z(iyaj9æ¡9cez+ãIÊNÂˆ™]\›ÂˆB‚ˆYˆ
+Y›Û\ŠHÂˆÚİÕØ\İ
+	ùodùbcz+ëz* 9¬¨y§"ycëùå*:+ãyn¤ÉÊNÂˆ™]\›ÂˆB‚ˆÛÛœİ\œÙYBˆ\Ë—Ü\œÙPRR[\Ü[œ]
+^[™ÊNÂ‚ˆYˆ
+\œÙYÛÜ™Ë›[™İOOH
+HÂˆÚİÕØ\İ
+ˆ[™ÈOOH	Ù[‰ÂˆÈ	ù¬¨y§"z+á¹b*ùb,9§"y¥b:"ìz+ëz+ãy¬aÉÂˆˆ	ù¬¨y§"z+á¹b*ùb,9§"y¥b9¥éz+ëz+ãy¬aÉÂˆ
+NÂˆ™]\›ÂˆB‚ˆ]ÚÚ\Y^\İ[™ÈHÂˆÛÛœİØ[™Y]\ÈH×NÂ‚ˆ›Üˆ
+ÛÛœİØ[™Y]HÙˆ\œÙYÛÜ™ÊHÂˆÛÛœİ^\İ[™ÈBˆ\Ë—Ùš[™^\İ[™ĞRR[\ÜÛÜ™
+Ø[™Y]JNÂ‚ˆYˆ
+^\İ[™È	‰ˆ\XØ]S[ÙHOOH	ÜÚÚ\	ÊHÂˆÚÚ\Y^\İ[™ÊÊÎÂˆÛÛ[YNÂˆB‚ˆØ[™Y]\Ëœ\Ú
+Âˆ‹‹˜Ø[™Y]Kˆ]™[ˆY™šXİ[KˆYÜËˆZ[[ˆ˜[ÙKˆ^\İ[™Ñ›Û\ˆ^\İ[™ÏË™›Û\ˆ	ÉÂˆJNÂˆB‚ˆYˆ
+Ø[™Y]\Ë›[™İOOH
+HÂˆÚİÕØ\İ
+ˆ:+á¹b*ùb,9æ¡	Ü\œÙYÛÜ™Ë›[™İH9.*º+ãz`ïymì¹kf9g*;ï#9mì¹£"z+¯¹ïkº-ìú/áØˆ
+NÂˆ™]\›ÂˆB‚ˆ\Ë˜ZR[\Üİ]HHÂˆ[™Ëˆ›Û\‹ˆ\XØ]S[ÙKˆYÔİ\œËˆ]™[ˆY™šXİ[KˆYÜËˆİ[[œ]ˆ\œÙYœ˜]Ó›Û‘[\PÛİ[ˆÚÚ\Y^\İ[™Ëˆ[˜[Y[™\Îˆ\œÙYš[˜[Y[™\Ëˆ[˜Ø]YÛİ[ˆ\œÙY[˜Ø]YÛİ[ˆØ[™Y]\ËˆİXØÙ\ÜÙ\Îˆ×Kˆ˜Z[Yˆ×Kˆ[›š[™ÎˆYBˆNÂ‚ˆ\Ë—Ü™\Ù]RUÛÜ™ÛÛXİ[ÛŠ
+NÂ‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹œÛİ\˜ÙT^[ØYHÂˆØÛÜNˆ	Ú[\Ü	Ëˆ[™Ëˆ›Û\‹ˆ\XØ]S[ÙKˆYÔİ\œËˆ]™[ˆY™šXİ[KˆYÜÂˆNÂ‚ˆÚ[™İËÙÙÛS[Ù[
+ˆ	ØZK]ÛÜ™XÛÛXİÜ‹[İ™\›^IËˆYBˆ
+NÂ‚ˆ\Ë—ÜÙ]RR[\ÜÛÛXİÜÛÛ^
+
+NÂ‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJˆ	ÛØY[™ÉËˆ9aá¹i!ù..ˆ	ØØ[™Y]\Ë›[™İH9.*º+ãy¬aú(iyaj9/èy kø )˜ˆ
+NÂ‚ˆÛÛœİØY[™Ó›İHBˆšY]Ë™Ù][
+	ØZK]ÛÜ™[ØY[™Ë[›İIÊNÂ‚ˆYˆ
+ØY[™Ó›İJHÂˆÛÛœİ›İ\ÈH×NÂ‚ˆYˆ
+ÚÚ\Y^\İ[™Èˆ
+HÂˆ›İ\Ëœ\Ú
+9mì¹£ä9bcz-ìú/áÈ	ÜÚÚ\Y^\İ[™ßH9.*ºaãyi#z+ãX
+NÂˆB‚ˆYˆ
+\œÙYš[˜[Y[™\Ë›[™İˆ
+HÂˆ›İ\Ëœ\Ú
+9oïyåiH	Ü\œÙYš[˜[Y[™\Ë›[™İH:(c9¥è9¥b9a¡yk®X
+NÂˆB‚ˆYˆ
+\œÙY[˜Ø]YÛİ[ˆ
+HÂˆ›İ\Ëœ\Ú
+:-¡z/áù."ºfd9æ¡	Ü\œÙY[˜Ø]YÛİ[H9.*º+ãy¦ ¹§*¹i!9ä!˜
+NÂˆB‚ˆØY[™Ó›İK^ÛÛ[Bˆ›İ\Ë›[™İˆˆÈ›İ\Ëš›Ú[Š	È0­È	ÊBˆˆ9ìîùîçù/&º!ê¹bª9b!¹..ˆ	ÓX]˜ÙZ[
+Ø[™Y]\Ë›[™İÈRWÒSTÔ•ĞUÒÔÒV‘J_H9¢nyi!9ä!˜ÂˆB‚ˆ\Ë—İ\]PRR[\Ü›ÙÜ™\ÜÊˆˆØ[™Y]\Ë›[™İˆ	ù«hùg*9aá¹i!ÉÂˆ
+NÂ‚ˆ]ØZ]\Ë—Ü[RR[\ÜØ[™Y]\ÊˆØ[™Y]\Ëˆ˜[ÙBˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹—Ü[RR[\ÜØ[™Y]\ÈH\Ş[˜È[˜İ[ÛŠˆØ[™Y]\Ëˆ\Ô™]HH˜[ÙBˆ
+HÂˆÛÛœİİ[HØ[™Y]\Ë›[™İÂˆ]›ØÙ\ÜÙYHÂˆÛÛœİ[”İXØÙ\ÜÙ\ÈH×NÂˆÛÛœİ[‘˜Z[\™\ÈH×NÂ‚ˆ\Ë˜ZR[\Üİ]Kœ[›š[™ÈHYNÂ‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJˆ	ÛØY[™ÉËˆ\Ô™]BˆÈ9«hùg*:aãz+åH	İİ[H9.*¹i,z-)z+ãx )˜ˆˆ9«hùg*:(iyaj	İİ[H9.*º+ãy¬aø )˜ˆ
+NÂ‚ˆ\Ë—Ü™[™\RR[\Ü˜Z[\™\Ê	Û›Û™IÊNÂ‚ˆ›Üˆ
+ˆ]İ\HÂˆİ\Ø[™Y]\Ë›[™İÂˆİ\
+ÏHRWÒSTÔ•ĞUÒÔÒV‘Bˆ
+HÂˆÛÛœİ˜]ÚHØ[™Y]\ËœÛXÙJˆİ\ˆİ\
+ÈRWÒSTÔ•ĞUÒÔÒV‘Bˆ
+NÂ‚ˆÛÛœİ˜]Ú[X™\ˆBˆX]™›ÛÜŠİ\ÈRWÒSTÔ•ĞUÒÔÒV‘JH
+ÈNÂ‚ˆÛÛœİ˜]Úİ[BˆX]˜ÙZ[
+Ø[™Y]\Ë›[™İÈRWÒSTÔ•ĞUÒÔÒV‘JNÂ‚ˆ\Ë—İ\]PRR[\Ü›ÙÜ™\ÜÊˆ›ØÙ\ÜÙYˆİ[ˆ9ë+	Ø˜]Ú[X™\ŸHÈ	Ø˜]Úİ[H9¢nXˆ
+NÂ‚ˆÛÛœİ™\İ[Bˆ]ØZ]\Ë—Ü™\]Y\İRR[\Ü˜]Ú
+˜]Ú
+NÂ‚ˆ[”İXØÙ\ÜÙ\Ëœ\Ú
+‹‹œ™\İ[œİXØÙ\ÜÙ\ÊNÂˆ[‘˜Z[\™\Ëœ\Ú
+‹‹œ™\İ[™˜Z[Y
+NÂ‚ˆ›ØÙ\ÜÙY
+ÏH˜]Ú›[™İÂ‚ˆ\Ë—İ\]PRR[\Ü›ÙÜ™\ÜÊˆ›ØÙ\ÜÙYˆİ[ˆ9ë+	Ø˜]Ú[X™\ŸHÈ	Ø˜]Úİ[H9¢nXˆ
+NÂˆB‚ˆÛÛœİİXØÙ\ÜÓX\H™]ÈX\
+
+NÂ‚ˆÂˆ‹‹Š\Ô™]BˆÈ\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\Âˆˆ×JKˆ‹‹œ[”İXØÙ\ÜÙ\ÂˆK™›Ü‘XXÚ
+˜YOˆÂˆÛÛœİÙ^HBˆ	Ù˜Y›[™ßN˜
+Âˆ\Ë—Û›Ü›X[^™PRUÛÜ™^
+ˆ˜YÛÜ™ˆ˜Y›[™Âˆ
+NÂ‚ˆİXØÙ\ÜÓX\œÙ]
+Ù^K˜Y
+NÂˆJNÂ‚ˆ\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\ÈBˆ\œ˜^K™œ›ÛJİXØÙ\ÜÓX\˜[Y\Ê
+JNÂ‚ˆ\Ë˜ZR[\Üİ]K™˜Z[YH[‘˜Z[\™\ÎÂˆ\Ë˜ZR[\Üİ]Kœ[›š[™ÈH˜[ÙNÂ‚ˆYˆ
+\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\Ë›[™İOOH
+HÂˆÛÛœİØY[™Õ^BˆšY]Ë™Ù][
+	ØZK]ÛÜ™[ØY[™Ë]^	ÊNÂ‚ˆYˆ
+ØY[™Õ^
+HÂˆØY[™Õ^^ÛÛ[Bˆ	ú/æy«(y¬¨y§"y¢$9b§ú(iyaj9.îù/ez+ãy¬aÉÎÂˆB‚ˆ\Ë—Ü™[™\RR[\Ü˜Z[\™\Ê	ÛØY[™ÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‹™˜YÈBˆ\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\Ë›X\
+˜YOˆ
+Âˆ‹‹™˜YˆJJNÂ‚ˆ\Ë—Ü™[™\RUÛÜ™™]šY]Ê
+NÂˆ\Ë—Ø\PRR[\Ü™]šY]ÔÙ][™ÜÊ
+NÂˆ\Ë—Ü™[™\RR[\Ü˜Z[\™\Ê	Ü™]šY]ÉÊNÂ‚ˆ\Ë—ÜÚİĞRUÛÜ™ÛÛXİÜ”İYÙJ	Ü™]šY]ÉÊNÂ‚ˆÚİÕØ\İ
+ˆ\Ë˜ZR[\Üİ]K™˜Z[Y›[™İˆˆÈ9mìº(iyaj	İ\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\Ë›[™İH9.*»ï#	İ\Ë˜ZR[\Üİ]K™˜Z[Y›[™İH9.*¹o¡zaãz+åXˆˆ9mìº(iyaj	İ\Ë˜ZR[\Üİ]KœİXØÙ\ÜÙ\Ë›[™İH9.*º+ãy¬aûï#:+íù¨à9§éyd#¹/çykfˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹—Ü™]PRR[\Ü˜Z[\™\ÈH\Ş[˜È[˜İ[ÛŠ
+HÂˆYˆ
+\Ë˜ZR[\Üİ]Kœ[›š[™ÊHÂˆ™]\›ÂˆB‚ˆÛÛœİ˜Z[YBˆ
+\Ë˜ZR[\Üİ]K™˜Z[Y×JBˆ›X\
+][HOˆ
+ÂˆÛÜ™ˆ][KÛÜ™ˆ[™Îˆ][K›[™ÂˆJJNÂ‚ˆYˆ
+˜Z[Y›[™İOOH
+HÂˆÚİÕØ\İ
+	ù¬¨y§"zg :) zaãz+åyæ¡:+ãy¬aÉÊNÂˆ™]\›ÂˆB‚ˆ\Ë—ÜÙ]RR[\ÜÛÛXİÜÛÛ^
+
+NÂˆ\Ë—İ\]PRR[\Ü›ÙÜ™\ÜÊˆˆ˜Z[Y›[™İˆ	ù«hùg*9aá¹i!úaãz+åIÂˆ
+NÂ‚ˆ]ØZ]\Ë—Ü[RR[\ÜØ[™Y]\Êˆ˜Z[YˆYBˆ
+NÂˆNÂ‚ˆÛÛ›Û\‹—ØÛÜÙPRUÛÜ™ÛÛXİÜˆH[˜İ[ÛŠ
+HÂˆÜšYÚ[˜[ÛÜÙPRUÛÜ™ÛÛXİÜŠ
+NÂˆ\Ë—Ü™\Ù]RR[\ÜÛÛXİÜÛÛ^
+
+NÂˆ\Ë˜ZR[\Üİ]Kœ[›š[™ÈH˜[ÙNÂˆNÂ‚ˆÛÛ›Û\‹—ÜØ]™PRUÛÜ™˜YÈH\Ş[˜È[˜İ[ÛŠ
+HÂˆÛÛœİØ\ĞRR[\ÜBˆ\Ë˜ZUÛÜ™ÛÛXİ[ÛËœÛİ\˜ÙT^[ØYËœØÛÜHOOH	Ú[\Ü	ÎÂ‚ˆ]ØZ]ÜšYÚ[˜[Ø]™PRUÛÜ™˜YÊ
+NÂ‚ˆÛÛœİİ™\›^HBˆšY]Ë™Ù][
+	ØZK]ÛÜ™XÛÛXİÜ‹[İ™\›^IÊNÂ‚ˆYˆ
+ˆØ\ĞRR[\Ü	‰‚ˆİ™\›^H	‰‚ˆ[İ™\›^K˜Û\ÜÓ\İ˜ÛÛZ[œÊ	ØXİ]™IÊBˆ
+HÂˆÛÛœİ^\™XHBˆšY]Ë™Ù][
+	Øİ\İÛKZ[œ]	ÊNÂ‚ˆYˆ
+^\™XJHÂˆ^\™XK˜[YHH	ÉÎÂˆB‚ˆ\Ë˜ZR[\Üİ]HHÂˆ[™Îˆ	Ú˜IËˆ›Û\ˆ	ÉËˆ\XØ]S[ÙNˆ	ÜÚÚ\	ËˆYÔİ\œÎˆ˜[ÙKˆ]™[ˆ	ÉËˆY™šXİ[NˆˆYÜÎˆ×Kˆİ[[œ]ˆˆÚÚ\Y^\İ[™Îˆˆ[˜[Y[™\Îˆ×KˆØ[™Y]\Îˆ×KˆİXØÙ\ÜÙ\Îˆ×Kˆ˜Z[Yˆ×Kˆ[›š[™Îˆ˜[ÙBˆNÂˆBˆNÂ‚ˆÛÛ›Û\‹š[š]H\Ş[˜È[˜İ[ÛŠ
+HÂˆ]ØZ]ÜšYÚ[˜[ÛÛ›Û\’[š]
+
+NÂ‚ˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ÖÙ]KZ[\Ü[[ÙWIÊBˆ™›Ü‘XXÚ
+]ÛˆOˆÂˆ]Û‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™Kœ^TÛİ[™
+	ØÛXÚÉÊNÂˆ\™Ø\™KšXœ˜]JLŠNÂˆ\ËœÙ][\Ü[ÙJˆ]Û‹™]\Ù]š[\Ü[ÙBˆ
+NÂˆJNÂˆJNÂ‚ˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]IÊBˆË˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™KšXœ˜]JMJNÂˆ\Ë—Ü™]PRR[\Ü˜Z[\™\Ê
+NÂˆJNÂ‚ˆšY]Ë™Ù][
+	ØZKZ[\Ü\™]šY]Ë\™]IÊBˆË˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™KšXœ˜]JMJNÂˆ\Ë—Ü™]PRR[\Ü˜Z[\™\Ê
+NÂˆJNÂ‚ˆšY]Ë™Ù][
+	ØZK]ÛÜ™X˜XÚÉÊBˆË˜Y]™[\İ[™\Šˆ	ØÛXÚÉËˆ]™[OˆÂˆYˆ
+ˆ\Ë˜ZUÛÜ™ÛÛXİ[Û‚ˆËœÛİ\˜ÙT^[ØYˆËœØÛÜHOOH	Ú[\Ü	Âˆ
+HÂˆ]™[œ™]™[Y˜][
+
+NÂˆ]™[œİÜ[[YYX]T›ÜYØ][ÛŠ
+NÂˆ\™Ø\™KšXœ˜]JL
+NÂˆ\Ë—ØÛÜÙPRUÛÜ™ÛÛXİÜŠ
+NÂˆBˆKˆYBˆ
+NÂ‚ˆ\ËœÙ][\Ü[ÙJˆ\Ëš[\Ü[ÙKˆ˜[ÙBˆ
+NÂˆNÂŸJJ
+NÂ‚‚‹ÊˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOBˆ9ë+9.¥:/k»ï&º+ãyn¤ùî©ùb*øà zf¯¹n©¸à y¨!ùëo¹.#¹¥l9£k¹¨à9§éBˆOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOH
+‹ÂŠ
+
+HOˆÂˆÛÛœİÙ]š[\”İÜ˜YÙRÙ^HH
+˜[YK[™ÊHOˆÂˆ™]\›ˆÛÜ™˜[š×ÉÛ˜[Y_WÉÛ[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IßXÂˆNÂ‚ˆÛÛœİŞ[˜ÕÛÜ™˜[šÓY]Y]Qš[\œÈH
+
+HOˆÂˆÛÛœİ[™ÈH[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİ]™[Ù[XİHšY]Ë™Ù][
+	İØ‹[]™[Yš[\‰ÊNÂˆÛÛœİY™šXİ[TÙ[XİHšY]Ë™Ù][
+	İØ‹YY™šXİ[KYš[\‰ÊNÂ‚ˆYˆ
+]™[Ù[Xİ
+HÂˆÛÛœİØ]™YHØØ[İÜ˜YÙK™Ù]][JˆÙ]š[\”İÜ˜YÙRÙ^J	Û]™[	Ë[™ÊBˆ
+H	ÉÎÂ‚ˆ]™[Ù[Xİš[›™\’SBˆ	ÏÜ[Ûˆ˜[YOHˆ¹aj:`ê9î©ùb*ÏÛÜ[Û‰È
+Âˆ
+ÓÔ‘ÓU‘SÓÔSÓ”ÖÛ[™×H×JBˆ›X\
+]™[OˆÂˆ™]\›ˆÜ[Ûˆ˜[YOH‰Û]™[H‰Û]™[OÛÜ[Û˜ÂˆJBˆš›Ú[Š	ÉÊH
+Âˆ	ÏÜ[Ûˆ˜[YOH—×İ[˜\ÜÚYÛ™Y×È¹§*¹b!¹î©ÏÛÜ[Û‰ÎÂ‚ˆ]™[Ù[Xİ˜[YHH\œ˜^K™œ›ÛJ]™[Ù[Xİ›Ü[ÛœÊBˆœÛÛYJÜ[ÛˆOˆÜ[Û‹˜[YHOOHØ]™Y
+BˆÈØ]™Yˆˆ	ÉÎÂ‚ˆ]™[Ù[Xİ™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂˆB‚ˆYˆ
+Y™šXİ[TÙ[Xİ
+HÂˆÛÛœİØ]™YHØØ[İÜ˜YÙK™Ù]][JˆÙ]š[\”İÜ˜YÙRÙ^J	ÙY™šXİ[IË[™ÊBˆ
+H	ÉÎÂ‚ˆY™šXİ[TÙ[Xİ˜[YHH\œ˜^K™œ›ÛJˆY™šXİ[TÙ[Xİ›Ü[ÛœÂˆ
+KœÛÛYJÜ[ÛˆOˆÜ[Û‹˜[YHOOHØ]™Y
+BˆÈØ]™Yˆˆ	ÉÎÂ‚ˆY™šXİ[TÙ[Xİ™\Ü]Ú]™[
+ˆ™]È]™[
+	Ù˜XØYK]\]IÊBˆ
+NÂˆBˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]UÛÜ™˜[šÕRHBˆšY]Ë\]UÛÜ™˜[šÕRK˜š[™
+šY]ÊNÂ‚ˆšY]Ë\]UÛÜ™˜[šÕRHH[˜İ[ÛŠ
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[\]UÛÜ™˜[šÕRJ
+NÂˆŞ[˜ÕÛÜ™˜[šÓY]Y]Qš[\œÊ
+NÂˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]Qš[\™YˆBˆ[Ù[\]Qš[\™Y‹˜š[™
+[Ù[
+NÂ‚ˆ[Ù[\]Qš[\™YˆH[˜İ[ÛŠˆÙX\˜Ú]Y\Kˆİ\œ™[š[\‚ˆ
+HÂˆÜšYÚ[˜[\]Qš[\™YŠˆÙX\˜Ú]Y\Kˆİ\œ™[š[\‚ˆ
+NÂ‚ˆÛÛœİ]™[š[\ˆBˆšY]Ë™Ù][
+	İØ‹[]™[Yš[\‰ÊOË˜[YH	ÉÎÂˆÛÛœİY™šXİ[Qš[\ˆBˆšY]Ë™Ù][
+	İØ‹YY™šXİ[KYš[\‰ÊOË˜[YH	ÉÎÂ‚ˆÛÛœİ[H\Ëœİ]K™š[\™Y‹™š[™
+][HOˆÂˆ™]\›ˆ][KšYOOHNNNNÂˆJNÂ‚ˆÛÛœİÛÜ™ÈH\Ëœİ]K™š[\™Y‹™š[\Š][HOˆÂˆYˆ
+][KšYOOHNNNJHÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆÛÛœİ[™ÈH][KË›[™ÈOOH	Ù[‰ÈÈ	Ù[‰Èˆ	Ú˜IÎÂˆÛÛœİ]™[H›Ü›X[^™UÛÜ™]™[
+][KË›]™[[™ÊNÂˆÛÛœİY™šXİ[HH›Ü›X[^™UÛÜ™Y™šXİ[Jˆ][KË™Y™šXİ[Bˆ
+NÂ‚ˆÛÛœİ]™[X]Ú\ÈBˆ[]™[š[\ˆˆ
+]™[š[\ˆOOH	××İ[˜\ÜÚYÛ™Y×ÉÂˆÈ[]™[ˆˆ]™[OOH]™[š[\ŠNÂ‚ˆÛÛœİY™šXİ[SX]Ú\ÈBˆYY™šXİ[Qš[\ˆˆ
+Y™šXİ[Qš[\ˆOOH	××İ[˜\ÜÚYÛ™Y×ÉÂˆÈY™šXİ[HOOHˆˆY™šXİ[HOOH[X™\ŠY™šXİ[Qš[\ŠJNÂ‚ˆ™]\›ˆ]™[X]Ú\È	‰ˆY™šXİ[SX]Ú\ÎÂˆJNÂ‚ˆ\Ëœİ]K™š[\™YˆH[ˆÈÚ[‹‹ÛÜ™×BˆˆÛÜ™ÎÂˆNÂ‚ˆÛÛœİXÛÜ˜]UÛÜ™˜[šĞØ\™ÈH
+
+HOˆÂˆÛÛœİÜšYHšY]Ë™Ù][
+	İØ‹YÜšY	ÊNÂ‚ˆÛÛœİÛÛ[[œÈBˆ[X™\‹œ\œÙR[
+ˆÜšYË™]\Ù]˜ÛÛÈ	ÌÉËˆLˆ
+HÎÂ‚ˆØİ[Y[ˆœ]Y\TÙ[XİÜ[
+	ËØ‹XØ\™Ù]KZYIÊBˆ™›Ü‘XXÚ
+Ø\™OˆÂˆÛÛœİ[™^Bˆ[X™\ŠØ\™™]\Ù]šY
+NÂ‚ˆYˆ
+ˆS[X™\‹š\Ò[YÙ\Š[™^
+Hˆ[™^ˆ
+HÂˆ™]\›ÂˆB‚ˆÛÛœİÛÜ™H[Ù[™–Ú[™^NÂ‚ˆÛÛœİÛÜ™›ÙHBˆØ\™œ]Y\TÙ[XİÜŠˆ	ËØ‹XË]ÛÜ™	Âˆ
+NÂ‚ˆYˆ
+]ÛÜ™]ÛÜ™›ÙJHÂˆ™]\›ÂˆB‚ˆÛÛœİ\Ñ[™Û\ÚBˆÛÜ™›[™ÈOOH	Ù[‰ÎÂ‚ˆÛÛœİÛÜ™[™İBˆ\œ˜^K™œ›ÛJˆİš[™ÊÛÜ™ÛÜ™	ÉÊBˆ
+K›[™İÂ‚ˆÛÛœİ™XY[™Õ^Bˆ\Ñ[™Û\ÚˆÈÛÜ™œÛ™]XÂˆˆÛÜ™šØ[˜NÂ‚ˆÛÛœİ™XY[™Ó[™İBˆ\œ˜^K™œ›ÛJˆİš[™Êˆ™XY[™Õ^	ÉÂˆ
+Bˆ
+K›[™İÂ‚ˆØ\™˜Û\ÜÓ\İÙÙÛJˆ	Ú\ËY[™Û\Ú]ÛÜ™	Ëˆ\Ñ[™Û\Úˆ
+NÂ‚ˆØ\™˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë]ÛÜ™[Û™ÉËˆÛÜ™[™İ‚ˆ
+\Ñ[™Û\ÚÈLˆ
+Bˆ
+NÂ‚ˆØ\™˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë]ÛÜ™]™\K[Û™ÉËˆÛÜ™[™İ‚ˆ
+\Ñ[™Û\ÚÈMHˆŠBˆ
+NÂ‚ˆØ\™˜Û\ÜÓ\İÙÙÛJˆ	Ú\Ë\™XY[™Ë[Û™ÉËˆ™XY[™Ó[™İ‚ˆ
+\Ñ[™Û\ÚÈMˆ
+Bˆ
+NÂ‚ˆ]Y]HBˆØ\™œ]Y\TÙ[XİÜŠˆ	ËØ‹[Y]K\›İÉÂˆ
+NÂ‚ˆYˆ
+[Y]JHÂˆY]HBˆØİ[Y[˜Ü™X]Q[[Y[
+ˆ	Ù]‰Âˆ
+NÂ‚ˆY]K˜Û\ÜÓ˜[YHBˆ	İØ‹[Y]K\›İÉÎÂ‚ˆÛÜ™›ÙBˆš[œÙ\Y˜XÙ[[[Y[
+ˆ	ØY\™[™	ËˆY]Bˆ
+NÂˆB‚ˆÛÛœİ[BˆÙ]ÛÜ™Y]Y]RS
+ˆÛÜ™ˆÂˆÛÛ\XİˆYKˆÚİÕ[˜\ÜÚYÛ™Yˆ˜[ÙKˆÜXÚX[YÓ[Z]‚ˆÛÛ[[œÈOOH‚ˆÈBˆˆˆBˆ
+NÂ‚ˆY]Kš[›™\’SH[ÂˆY]KšY[ˆHZ[Â‚ˆÛÛœİ]Ú›ÙHBˆØ\™œ]Y\TÙ[XİÜŠˆ	ËØ‹XË\]Ú	Âˆ
+NÂ‚ˆYˆ
+ˆ]Ú›ÙH	‰‚ˆZ\Ñ[™Û\Úˆ
+HÂˆ]Ú›ÙK^ÛÛ[Bˆ›Ü›X]ÛÜ™]Ú\Ü^JˆÛÜ™œ]Úˆ
+NÂˆBˆJNÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[™[™\•š\X[ÜšYBˆšY]Ëœ™[™\•š\X[ÜšY˜š[™
+šY]ÊNÂ‚ˆšY]Ëœ™[™\•š\X[ÜšYH[˜İ[ÛŠ
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[™[™\•š\X[ÜšY
+
+NÂˆXÛÜ˜]UÛÜ™˜[šĞØ\™Ê
+NÂˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[\]Q]Z[ÛÛ[BˆÛÛ›Û\‹\]Q]Z[ÛÛ[˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛ›Û\‹\]Q]Z[ÛÛ[H[˜İ[ÛŠˆÛÜ™ˆšYÙÙ\•ÈH˜[ÙBˆ
+HÂˆÛÛœİ™\İ[HÜšYÚ[˜[\]Q]Z[ÛÛ[
+ˆÛÜ™ˆšYÙÙ\•Âˆ
+NÂ‚ˆÛÛœİY]HHšY]Ë™Ù][
+	Ù[Y]IÊNÂ‚ˆYˆ
+Y]JHÂˆY]Kš[›™\’SHÙ]ÛÜ™Y]Y]RS
+ÛÜ™ÂˆÚİÕ[˜\ÜÚYÛ™YˆYKˆ[˜ÛYUYÜÎˆYKˆÜXÚX[YÓ[Z]ˆ‚ˆJNÂˆB‚ˆ™]\›ˆ™\İ[ÂˆNÂ‚ˆÛÛ›Û\‹œ™[™\•›ØØX[\P]Y]H[˜İ[ÛŠ™\Ü
+HÂˆÛÛœİ™\İ[›ŞHšY]Ë™Ù][
+	ÛXœ˜\KX]Y]\™\İ[	ÊNÂˆÛÛœİİ[[X\HHšY]Ë™Ù][
+	ÛXœ˜\KX]Y]\İ[[X\IÊNÂˆÛÛœİ\ÜİYS\İHšY]Ë™Ù][
+	ÛXœ˜\KX]Y]Z\ÜİY\ÉÊNÂ‚ˆYˆ
+\™\İ[›Ş\İ[[X\HZ\ÜİYS\İ
+HÂˆ™]\›ÂˆB‚ˆ™\İ[›ŞšY[ˆH˜[ÙNÂˆ™\İ[›Ş™]\Ù]œİ]HH™\Üœ\ÜÙYˆÈ
+™\ÜØ\›š[™ÜË›[™İÈ	İØ\›š[™ÉÈˆ	ÛÚÉÊBˆˆ	Ù\œ›Ü‰ÎÂ‚ˆİ[[X\Kš[›™\’SHˆ]ˆÛ\ÜÏH›Xœ˜\KX]Y]\ØÛÜ™H‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ	Ü™\Üœ\ÜÙYÈ	İ™\šYšYY	Èˆ	Ù\œ›Ü—ÛYY	ßBˆÜÜ[‚ˆ]‚ˆİ›Û™Ï‚ˆ	Ü™\Üœ\ÜÙYÈ	ù¬¨y§"zf.ù¥«zeëºh¦	Èˆ	Ü™\Ü™\œ›ÜœË›[™İH9.*¹oázhnù/ë¹i#yæ¡:eëºh¦BˆÜİ›Û™Ï‚ˆÛX[‚ˆ9alH	Ü™\Üİ[H:+ãH0­È9¥éz+ëH	Ü™\Üš˜\[™\Ù_H0­È:"ìz+ëH	Ü™\Ü™[™Û\ÚH0­È9a¡yïkˆ	Ü™\Ü˜Z[[ŸH0­È9£ä:a¤ˆ	Ü™\ÜØ\›š[™ÜË›[™İBˆÜÛX[‚ˆÙ]‚ˆÙ]‚ˆÂ‚ˆÛÛœİš\ÚX›R\ÜİY\ÈH™\Üš\ÜİY\ËœÛXÙJL
+NÂ‚ˆ\ÜİYS\İš[›™\’SHš\ÚX›R\ÜİY\Ë›[™İˆÈš\ÚX›R\ÜİY\Ë›X\
+\ÜİYHOˆÂˆ™]\›ˆˆ]ˆÛ\ÜÏH›Xœ˜\KX]Y]Z\ÜİYH\ËIÚ\ÜİYKœÙ]™\š]_H‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y‚ˆ	Ú\ÜİYKœÙ]™\š]HOOH	Ù\œ›Ü‰ÈÈ	ØØ[˜Ù[	Èˆ	Ù\œ›Ü‰ßBˆÜÜ[‚ˆ]‚ˆİ›Û™Ï‰Ù\ØØ\RS
+\ÜİYKÛÜ™
+_OÜİ›Û™Ï‚ˆÛX[¹ë+	Ú\ÜİYKš[™^
+È_H9§hH0­È	Ù\ØØ\RS
+\ÜİYK›Y\ÜØYÙJ_OÜÛX[‚ˆÙ]‚ˆÙ]‚ˆÂˆJKš›Ú[Š	ÉÊBˆˆˆ]ˆÛ\ÜÏH›Xœ˜\KX]Y]\\™™Xİ‚ˆÜ[ˆÛ\ÜÏH›X]\šX[\Ş[X›ÛË\›İ[™Y\Ú×Ø[ÜÜ[‚ˆ9odùbcz+ãyn¤ú`&º/áùk£9¥m9¨à9§é{ï#9cëù.éyîéùîëy¢jyaaxà ‚ˆÙ]‚ˆÂ‚ˆYˆ
+™\Üš\ÜİY\Ë›[™İˆL
+HÂˆ\ÜİYS\İš[œÙ\Y˜XÙ[S
+ˆ	Ø™Y›Ü™Y[™	Ëˆ]ˆÛ\ÜÏH›Xœ˜\KX]Y][[Ü™H¹cé¹§"H	Ü™\Üš\ÜİY\Ë›[™İHLH9§hzeëºh¦;ï#:+íùg*9­cú)â9fj9£©ùb-¹cì9§éyç"ùk£9¥m9¢©ydb¸à Ù]˜ˆ
+NÂˆBˆNÂ‚ˆÛÛ›Û\‹œ[•›ØØX[\P]Y]H[˜İ[ÛŠ
+HÂˆÛÛœİ™\ÜH˜[Y]U›ØØX[\Q]J[Ù[™ŠNÂˆ\Ëœ™[™\•›ØØX[\P]Y]
+™\Ü
+NÂ‚ˆÛÛœÛÛK™Ü›İ\ÛÛ\ÙY
+ˆú+ãyn¤ù¨à9§éWH	Ü™\Ü™\œ›ÜœË›[™İH:e&z+ëÈÈ	Ü™\ÜØ\›š[™ÜË›[™İH9£ä:a¤˜ˆ
+NÂˆÛÛœÛÛKX›J™\Üš\ÜİY\ÊNÂˆÛÛœÛÛK™Ü›İ\[™
+
+NÂ‚ˆÚİÕØ\İ
+ˆ™\Üœ\ÜÙYˆÈ
+™\ÜØ\›š[™ÜË›[™İˆÈ9¨à9§éyk£9¢$;ï&‰Ü™\ÜØ\›š[™ÜË›[™İH9§hy£ä:a¤˜ˆˆ	ú+ãyn¤ù¨à9§éz`&º/áÉÊBˆˆ9cäyã¬	Ü™\Ü™\œ›ÜœË›[™İH9.*¹oázhnù/ë¹i#yæ¡:eëºh¦ˆ
+NÂˆNÂ‚ˆÛÛœİÜšYÚ[˜[ÛÛ›Û\’[š]BˆÛÛ›Û\‹š[š]˜š[™
+ÛÛ›Û\ŠNÂ‚ˆÛÛ›Û\‹š[š]H\Ş[˜È[˜İ[ÛŠ
+HÂˆ]ØZ]ÜšYÚ[˜[ÛÛ›Û\’[š]
+
+NÂ‚ˆŞ[˜ÕÛÜ™˜[šÓY]Y]Qš[\œÊ
+NÂˆ\Ë\]R[\ÜY]Y]SÜ[ÛœÊ
+NÂ‚ˆÛÛœİš[™š[\ˆH
+Y˜[YJHOˆÂˆÛÛœİÙ[XİHšY]Ë™Ù][
+Y
+NÂ‚ˆYˆ
+\Ù[XİÙ[Xİ™]\Ù]›Y]Qš[\”™XYHOOH	İYIÊHÂˆ™]\›ÂˆB‚ˆÙ[Xİ™]\Ù]›Y]Qš[\”™XYHH	İYIÎÂˆÙ[Xİ˜Y]™[\İ[™\Š	ØÚ[™ÙIË
+
+HOˆÂˆÛÛœİ[™ÈH[Ù[œİ]K˜İ\œ™[[™Ó[ÙHOOH	Ù[‰ÂˆÈ	Ù[‰Âˆˆ	Ú˜IÎÂ‚ˆØØ[İÜ˜YÙKœÙ]][JˆÙ]š[\”İÜ˜YÙRÙ^J˜[YK[™ÊKˆÙ[Xİ˜[YBˆ
+NÂ‚ˆšY]Ëœ™\Ù]ÛÜ™˜[šÔ™[™\™\Š
+NÂˆJNÂˆNÂ‚ˆš[™š[\Š	İØ‹[]™[Yš[\‰Ë	Û]™[	ÊNÂˆš[™š[\Š	İØ‹YY™šXİ[KYš[\‰Ë	ÙY™šXİ[IÊNÂ‚ˆšY]Ë™Ù][
+	Ø‹\[‹[Xœ˜\KX]Y]	ÊBˆË˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™KšXœ˜]JMJNÂˆ\Ëœ[•›ØØX[\P]Y]
+
+NÂˆJNÂ‚ˆšY]Ë™Ù][
+	ÙY][]™[	ÊOË˜Y]™[\İ[™\Š	ØÚ[™ÙIË]™[OˆÂˆ]™[\™Ù]™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÂˆJNÂ‚ˆšY]Ë™Ù][
+	ÙY]YY™šXİ[IÊOË˜Y]™[\İ[™\Š	ØÚ[™ÙIË]™[OˆÂˆ]™[\™Ù]™\Ü]Ú]™[
+™]È]™[
+	Ù˜XØYK]\]IÊJNÂˆJNÂ‚ˆXÛÜ˜]UÛÜ™˜[šĞØ\™Ê
+NÂˆNÂŸJJ
+NÂ‚‚‚Ú[™İË›Û›ØYH
+
+HOˆÂˆÛÛœİš\ÚXš[]PˆBˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\]š\ÚXš[]IÊNÂ‚ˆÛÛœİ[œ]BˆØİ[Y[™Ù][[Y[RY
+	Ü›Û\Z[œ]	ÊNÂ‚ˆYˆ
+š\ÚXš[]Pˆ	‰ˆ[œ]
+HÂˆš\ÚXš[]P‹˜Y]™[\İ[™\Š	ØÛXÚÉË
+
+HOˆÂˆ\™Ø\™KšXœ˜]JL
+NÂ‚ˆÛÛœİÚİ[ÚİÈBˆ[œ]\HOOH	Ü\ÜİÛÜ™	ÎÂ‚ˆ[œ]\HBˆÚİ[ÚİÈÈ	İ^	Èˆ	Ü\ÜİÛÜ™	ÎÂ‚ˆÛÛœİXÛÛˆBˆš\ÚXš[]P‹œ]Y\TÙ[XİÜŠˆ	Ë›X]\šX[\Ş[X›ÛË\›İ[™Y	Âˆ
+NÂ‚ˆYˆ
+XÛÛŠHÂˆXÛÛ‹^ÛÛ[BˆÚİ[ÚİÂˆÈ	İš\ÚXš[]WÛÙ™‰Âˆˆ	İš\ÚXš[]IÎÂˆB‚ˆš\ÚXš[]P‹]HBˆÚİ[ÚİÈÈ	úf¤:%ãùkáºd©IÈˆ	ù¦/¹é.¹káºd©IÎÂ‚ˆš\ÚXš[]P‹œÙ]]šX]Jˆ	Ø\šXK[X™[	ËˆÚİ[ÚİÈÈ	úf¤:%ãùkáºd©IÈˆ	ù¦/¹é.¹káºd©IÂˆ
+NÂ‚ˆ[œ]™›Øİ\Ê
+NÂ‚ˆHÂˆ[œ]œÙ]Ù[Xİ[Û”˜[™ÙJˆ[œ]˜[YK›[™İˆ[œ]˜[YK›[™İˆ
+NÂˆHØ]Ú
+\œ›ÜŠHßBˆJNÂˆB‚ˆÛÛ›Û\‹š[š]
+
+NÂŸNÂ

@@ -1629,21 +1629,19 @@
 <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 <script src="data.js"></script> 
 <script src="english-data.js"></script>
-<!-- WORDBANK_CHUNKS_START -->
-<script src="wordbanks/ja-001.js"></script>
-<script src="wordbanks/ja-002.js"></script>
-<script src="wordbanks/ja-003.js"></script>
-<script src="wordbanks/ja-004.js"></script>
-<script src="wordbanks/ja-005.js"></script>
-<script src="wordbanks/ja-006.js"></script>
-<script src="wordbanks/ja-007.js"></script>
-<script src="wordbanks/en-001.js"></script>
-<script src="wordbanks/en-002.js"></script>
-<script src="wordbanks/en-003.js"></script>
-<script src="wordbanks/en-004.js"></script>
-<script src="wordbanks/en-005.js"></script>
-<script src="wordbanks/finalize.js"></script>
-<!-- WORDBANK_CHUNKS_END -->
+<script src="wordbanks/assets.js"></script>
+<script src="wordbank-loader.js"></script>
+<script>
+  (function () {
+    const initialLanguage = localStorage.getItem('langMode') === 'en' ? 'en' : 'ja';
+    const initialAssets = ZhongriWordbankLoader.getAssets(initialLanguage);
+    window.__zhongriInitialWordbankLanguage = initialLanguage;
+    document.write(initialAssets.map(asset => (
+      `<script src="${asset}" data-zhongri-wordbank="${asset}" data-loaded="true"><\/script>`
+    )).join(''));
+    ZhongriWordbankLoader.markLoaded(initialLanguage);
+  })();
+</script>
 <script src="release-info.js"></script>
 <script src="core-utils.js"></script>
 <script src="haptics.js"></script>

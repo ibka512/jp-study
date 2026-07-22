@@ -48,6 +48,7 @@ jobs:
         run: |
           node --check data.js
           node --check english-data.js
+          node --check wordbank-loader.js
           node --check release-info.js
           node --check core-utils.js
           node --check haptics.js
@@ -62,6 +63,7 @@ jobs:
           node tests/core-utils.test.js
           node tests/release-info.test.js
           node tests/haptics.test.js
+          node tests/wordbank-loader.test.js
           node tests/rote-learning-core.test.js
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js

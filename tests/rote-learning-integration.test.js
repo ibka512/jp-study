@@ -12,7 +12,8 @@ const index = read('index.html');
 const app = read('app.js');
 const style = read('style.css');
 const serviceWorker = read('sw.js');
-const wordbankAssets = read('wordbanks/assets.js');
+const wordbankLoader = read('wordbank-loader.js');
+const { WORD_BANK_ASSETS } = require('../wordbanks/assets.js');
 
 const releaseInfoPosition = index.indexOf(
     '<script src="release-info.js"></script>'
@@ -27,6 +28,12 @@ const coreScriptPosition = index.indexOf(
     '<script src="rote-learning-core.js"></script>'
 );
 const appScriptPosition = index.indexOf('<script src="app.js"></script>');
+const wordbankAssetsPosition = index.indexOf(
+    '<script src="wordbanks/assets.js"></script>'
+);
+const wordbankLoaderPosition = index.indexOf(
+    '<script src="wordbank-loader.js"></script>'
+);
 
 assert.ok(coreUtilsPosition >= 0, '页面没有加载公共工具模块');
 assert.ok(releaseInfoPosition >= 0, '页面没有加载发布信息模块');
@@ -35,6 +42,12 @@ assert.ok(
     '发布信息模块必须先于 app.js 加载'
 );
 assert.ok(hapticsPosition >= 0, '页面没有加载场景化触感模块');
+assert.ok(wordbankAssetsPosition >= 0, '页面没有加载词库分片清单');
+assert.ok(wordbankLoaderPosition >= 0, '页面没有加载按语言词库加载器');
+assert.ok(
+    wordbankLoaderPosition < appScriptPosition,
+    '按语言词库加载器必须先于 app.js 加载'
+);
 assert.ok(
     coreUtilsPosition < appScriptPosition,
     '公共工具模块必须先于 app.js 加载'
@@ -54,7 +67,7 @@ assert.match(serviceWorker, /'\.\/haptics\.js'/);
 assert.match(serviceWorker, /'\.\/release-info\.js'/);
 assert.match(serviceWorker, /staleWhileRevalidate/);
 assert.match(serviceWorker, /importScripts\('\.\/wordbanks\/assets\.js'\)/);
-assert.match(serviceWorker, /\.\.\.WORD_BANK_ASSETS/);
+assert.match(serviceWorker, /WORD_BANK_BASE_URL/);
 assert.doesNotMatch(serviceWorker, /wordbank-builder\.html/);
 assert.match(app, /renderRoteLearningUI\(wObj, displayMode\)/);
 assert.match(app, /ROTE_CORE\.getGroupRange/);
@@ -125,6 +138,7 @@ for (const asset of [
     'style.css',
     'data.js',
     'english-data.js',
+    'wordbank-loader.js',
     'release-info.js',
     'core-utils.js',
     'haptics.js',
@@ -134,15 +148,19 @@ for (const asset of [
     assert.ok(fs.existsSync(path.join(root, asset)), `缺少预缓存文件：${asset}`);
 }
 
-const chunkAssets = [...wordbankAssets.matchAll(/"(\.\/wordbanks\/(?:ja|en)-\d+\.js)"/g)]
-    .map(match => match[1]);
+const chunkAssets = WORD_BANK_ASSETS.filter(asset => {
+    return /\.\/wordbanks\/(?:ja|en)-\d+\.js/.test(asset);
+});
 assert.ok(chunkAssets.length >= 2, '词库分片清单为空');
 
 for (const asset of chunkAssets) {
     const relative = asset.replace(/^\.\//, '');
     assert.ok(fs.existsSync(path.join(root, relative)), `缺少词库分片：${relative}`);
-    assert.match(index, new RegExp(`<script src="${relative.replace('.', '\\.')}"></script>`));
+    assert.doesNotMatch(index, new RegExp(`src="${relative.replace('.', '\\.')}"`));
 }
-assert.match(index, /<script src="wordbanks\/finalize\.js"><\/script>/);
+assert.match(index, /ZhongriWordbankLoader\.getAssets/);
+assert.match(index, /ZhongriWordbankLoader\.markLoaded/);
+assert.match(wordbankLoader, /loadLanguage/);
+assert.match(wordbankLoader, /ZhongriFinalizeWordbanks/);
 
 console.log('循环强记集成检查通过');

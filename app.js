@@ -12497,7 +12497,7 @@ async _requestAIJSON(prompt) {
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'deepseek-chat',
+                model: 'deepseek-v4-flash', thinking: { type: 'disabled' },
                 messages: [
                     {
                         role: 'user',
@@ -14284,7 +14284,7 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+            body: JSON.stringify({ model: 'deepseek-v4-flash', thinking: { type: 'disabled' }, messages: messagesToSend, stream: true })
         });
         
         if (!response.ok) {
@@ -14520,7 +14520,7 @@ async _streamChatResponse(
         const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages: messagesToSend, stream: true })
+            body: JSON.stringify({ model: 'deepseek-v4-flash', thinking: { type: 'disabled' }, messages: messagesToSend, stream: true })
         });
         
         if (!response.ok) {

@@ -7953,6 +7953,26 @@ span:not(.ai-quiz-missing-tag) {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* API 密钥必须独占一行；不要继承通用设置项的横向紧凑布局。 */
+.settings-section[data-settings-section="ai"] .ai-key-setting {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+}
+
+.settings-section[data-settings-section="ai"] .ai-key-setting .setting-info {
+    width: 100%;
+    padding-right: 0;
+    margin: 0;
+}
+
+.settings-section[data-settings-section="ai"] .ai-key-setting .settings-key-wrapper {
+    width: 100% !important;
+    max-width: none;
+    min-width: 0;
+}
+
 .settings-note-card {
     display: flex;
     align-items: flex-start;

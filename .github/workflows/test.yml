@@ -49,6 +49,7 @@ jobs:
           node --check data.js
           node --check english-data.js
           node --check core-utils.js
+          node --check haptics.js
           node --check rote-learning-core.js
           node --check app.js
           node --check root-review.js
@@ -58,6 +59,7 @@ jobs:
       - name: 运行前端与词库测试
         run: |
           node tests/core-utils.test.js
+          node tests/haptics.test.js
           node tests/rote-learning-core.test.js
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js

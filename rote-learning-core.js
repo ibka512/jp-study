@@ -62,7 +62,7 @@
             word: Object.freeze([
                 Object.freeze({
                     test: 'spell',
-                    dimension: 'spell',
+                    dimension: 'spelling',
                     prompt: Object.freeze(['meaning', 'type']),
                     answer: 'word',
                     hidePhonetic: true
@@ -98,7 +98,7 @@
                 }),
                 Object.freeze({
                     test: 'choice-word',
-                    dimension: 'spell',
+                    dimension: 'spelling',
                     prompt: Object.freeze(['meaning', 'type']),
                     answer: 'word',
                     hidePhonetic: true

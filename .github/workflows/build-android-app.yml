@@ -81,10 +81,11 @@ jobs:
       - name: 适配状态栏主题
         run: node scripts/patch-android-theme.mjs 2>&1 | tee theme-patch.log
 
-      - name: 更新测试版版本号
+      - name: 更新版本号（读取 release-info.js）
         run: |
+          APP_VERSION=$(node -p "String(require('./release-info.js').version).replace(/^V/, '')")
           sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
-          sed -i "s/versionName \"1.0\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"${APP_VERSION}.${GITHUB_RUN_NUMBER}\"/" android/app/build.gradle
 
       - name: 同步原生插件
         run: npx cap sync android 2>&1 | tee cap-sync.log

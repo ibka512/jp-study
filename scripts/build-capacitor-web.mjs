@@ -23,7 +23,8 @@ const runtimeEntries = [
   'native-app.js',
   'root-review.js',
   'vendor',
-  'wordbanks'
+  'wordbanks',
+  'reports'
 ];
 
 await rm(dist, { recursive: true, force: true });

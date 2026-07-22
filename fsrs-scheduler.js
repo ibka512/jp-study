@@ -18,7 +18,11 @@
 
   function dimensionFor(language, dimension) {
     const list = DIMENSIONS[language] || DIMENSIONS.ja;
-    return list.includes(dimension) ? dimension : list[list.length - 1];
+    if (list.includes(dimension)) {
+      return dimension;
+    }
+    console.warn(`[FSRS] 未认识的复习维度「${language}:${dimension}」，已按「${list[list.length - 1]}」记录`);
+    return list[list.length - 1];
   }
   function key(wordId, language, dimension) {
     return `${language || 'ja'}:${String(wordId)}:${dimensionFor(language, dimension)}`;

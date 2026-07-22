@@ -12,6 +12,7 @@
 
   const $ = id => document.getElementById(id);
   const vibrate = duration => {
+    if (window.ZhongriHaptics?.isEnabled?.() === false) return;
     if (typeof Hardware !== 'undefined' && Hardware.vibrate) Hardware.vibrate(duration);
     else if (navigator.vibrate) navigator.vibrate(duration);
   };

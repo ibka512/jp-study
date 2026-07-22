@@ -53,6 +53,8 @@ jobs:
           node --check core-utils.js
           node --check haptics.js
           node --check rote-learning-core.js
+          node --check vendor/ts-fsrs.umd.js
+          node --check fsrs-scheduler.js
           node --check app.js
           node --check root-review.js
           node --check sw.js
@@ -68,6 +70,7 @@ jobs:
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js
           node tests/app-shell-safety.test.js
+          node tests/fsrs-scheduler.test.js
 
       - name: 检查空白错误
         run: git diff --check HEAD^

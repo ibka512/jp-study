@@ -2886,6 +2886,8 @@ const Model = {
   folderLangs: { "默认词库": "ja" },
   stars: [],
   records: [],
+  fsrsCards: {},
+  fsrsReviewLogs: [],
   aiConversations: [],
   editingIdx: -1,
   mtGroupClears: {},
@@ -3483,6 +3485,7 @@ const Model = {
           this.saveStars(),
           this.saveRecords(),
           this.saveClears(),
+          this.saveFsrs(),
 
           this.writeStorageValue(
               'aiConversations',
@@ -3859,7 +3862,9 @@ const Model = {
           storedRecords,
           storedGroupClears,
           storedWordClears,
-          storedConversations
+          storedConversations,
+          storedFsrsCards,
+          storedFsrsReviewLogs
       ] = await Promise.all([
           this.readStorageValue(USER_WORDS_STORAGE_KEY),
           this.readStorageValue(WORD_OVERRIDES_STORAGE_KEY),
@@ -3870,7 +3875,9 @@ const Model = {
           this.readStorageValue('studyRecords'),
           this.readStorageValue('mtGroupClears_v3'),
           this.readStorageValue('mtWordClears_v3'),
-          this.readStorageValue('aiConversations')
+          this.readStorageValue('aiConversations'),
+          this.readStorageValue('fsrsCards_v1'),
+          this.readStorageValue('fsrsReviewLogs_v1')
       ]);
 
       const hasSeparatedStorage =
@@ -3938,6 +3945,12 @@ const Model = {
               : {};
       this.aiConversations = Array.isArray(storedConversations)
           ? cloneDataValue(storedConversations)
+          : [];
+      this.fsrsCards = storedFsrsCards && typeof storedFsrsCards === 'object' && !Array.isArray(storedFsrsCards)
+          ? cloneDataValue(storedFsrsCards)
+          : {};
+      this.fsrsReviewLogs = Array.isArray(storedFsrsReviewLogs)
+          ? cloneDataValue(storedFsrsReviewLogs).slice(-500)
           : [];
 
       this.builtInWords.forEach(word => {
@@ -4089,6 +4102,45 @@ const Model = {
   saveRecords() {
       if (!this.idbAvailable) { localStorage.setItem('studyRecords', JSON.stringify(this.records)); return Promise.resolve(); }
       return idbKeyval.set('studyRecords', this.records);
+  },
+  saveFsrs() {
+      return Promise.all([
+          this.writeStorageValue('fsrsCards_v1', this.fsrsCards),
+          this.writeStorageValue('fsrsReviewLogs_v1', this.fsrsReviewLogs.slice(-500))
+      ]);
+  },
+  recordFsrsReview({ word, dimension, rating = 'good', source = 'study', now = new Date() } = {}) {
+      if (!word || !globalThis.ZhongriFsrsScheduler) return null;
+      const language = word.lang || 'ja';
+      const normalizedDimension = globalThis.ZhongriFsrsScheduler.dimensionFor(language, dimension);
+      const cardKey = globalThis.ZhongriFsrsScheduler.key(this.getWordId(word), language, normalizedDimension);
+      const previous = this.fsrsCards[cardKey] || null;
+      const result = globalThis.ZhongriFsrsScheduler.review(previous, rating, now);
+      this.fsrsCards[cardKey] = result.card;
+      this.fsrsReviewLogs.push({
+          key: cardKey,
+          wordId: this.getWordId(word),
+          lang: language,
+          dimension: normalizedDimension,
+          source,
+          rating: result.log.rating,
+          review: result.log.review,
+          due: result.card.due
+      });
+      this.saveFsrs().catch(error => console.warn('[FSRS] 保存失败', error));
+      return result;
+  },
+  getDueFsrsCards(now = new Date(), language = this.getCurrentLang()) {
+      const dueKeys = globalThis.ZhongriFsrsScheduler
+          ? globalThis.ZhongriFsrsScheduler.getDueCards(this.fsrsCards, now)
+          : [];
+      return dueKeys.map(key => {
+          const parts = key.split(':');
+          const word = this.getWordById(parts[1]);
+          return word && (word.lang || 'ja') === language
+              ? { key, word, dimension: parts.slice(2).join(':') }
+              : null;
+      }).filter(Boolean);
   },
   
   checkFilter(w, filterName) {
@@ -9269,7 +9321,9 @@ if (aiCloseBtn) {
               ),
               aiConversations: cloneValue(
                   Model.aiConversations
-              )
+              ),
+              fsrsCards: cloneValue(Model.fsrsCards),
+              fsrsReviewLogs: cloneValue(Model.fsrsReviewLogs)
           },
 
           preferences:
@@ -9737,6 +9791,13 @@ if (aiCloseBtn) {
                   )
               );
       }
+
+      Model.fsrsCards = data.fsrsCards && typeof data.fsrsCards === 'object' && !Array.isArray(data.fsrsCards)
+          ? JSON.parse(JSON.stringify(data.fsrsCards))
+          : {};
+      Model.fsrsReviewLogs = Array.isArray(data.fsrsReviewLogs)
+          ? JSON.parse(JSON.stringify(data.fsrsReviewLogs)).slice(-500)
+          : [];
 
       this.applyBackupPreferences(
           payload.preferences
@@ -15229,6 +15290,16 @@ this._scrollChatToBottom();
             correctAnswer: correctAnswerFor(word, dimension),
             source: 'filter',
             question: '筛选检验'
+        });
+
+        // FSRS 只在一次筛选检验完成后记录一次；“忘记/错误”=Again，
+        // “认识/正确”=Good。“模糊”仍然只是当前题目的提示步骤，
+        // 不在这里提前推进长期复习卡片。
+        Model.recordFsrsReview({
+            word,
+            dimension,
+            rating: isCorrect ? 'good' : 'again',
+            source: 'filter'
         });
 
         return result;

@@ -17,6 +17,7 @@ const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const CORE_UTILS = globalThis.ZhongriCoreUtils;
 const HAPTICS = globalThis.ZhongriHaptics;
+const WORD_BANK_LOADER = globalThis.ZhongriWordbankLoader;
 const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
     version: '未知版本',
     build: '本地缓存',
@@ -2877,6 +2878,7 @@ const EnglishInput = {
 const Model = {
   db: [],
   builtInWords: [],
+  builtInLoadOrder: [],
   userWords: [],
   wordOverrides: {},
   builtInIdSet: new Set(),
@@ -2980,13 +2982,29 @@ const Model = {
 
   getDefaultBuiltInWords() {
       const words = [];
+      const sources = {
+          ja: typeof DefaultWords !== 'undefined'
+              ? DefaultWords
+              : [],
+          en: typeof DefaultEnglishWords !== 'undefined'
+              ? DefaultEnglishWords
+              : []
+      };
+      const languages = this.builtInLoadOrder.length
+          ? this.builtInLoadOrder
+          : ['ja', 'en'].filter(language => sources[language].length);
 
-      if (typeof DefaultWords !== 'undefined') {
-          DefaultWords.forEach(word => {
+      languages.forEach(language => {
+          const sourceWords = sources[language] || [];
+          const isEnglish = language === 'en';
+
+          sourceWords.forEach(word => {
               const entry = normalizeWordEntry({
                   ...cloneDataValue(word),
-                  lang: 'ja',
-                  folder: word.folder || '默认词库',
+                  lang: language,
+                  folder: word.folder || (
+                      isEnglish ? '四级词汇' : '默认词库'
+                  ),
                   builtIn: true
               });
 
@@ -2996,26 +3014,41 @@ const Model = {
 
               words.push(entry);
           });
-      }
-
-      if (typeof DefaultEnglishWords !== 'undefined') {
-          DefaultEnglishWords.forEach(word => {
-              const entry = normalizeWordEntry({
-                  ...cloneDataValue(word),
-                  lang: 'en',
-                  folder: word.folder || '四级词汇',
-                  builtIn: true
-              });
-
-              ensureStableWordId(entry, {
-                  builtInHint: true
-              });
-
-              words.push(entry);
-          });
-      }
+      });
 
       return words;
+  },
+
+  refreshBuiltInWords() {
+      this.builtInWords = this.getDefaultBuiltInWords();
+      this.builtInIdSet = new Set(
+          this.builtInWords.map(word => this.getWordId(word))
+      );
+  },
+
+  async ensureBuiltInLanguage(language, { rebuild = true } = {}) {
+      const normalizedLanguage = language === 'en' ? 'en' : 'ja';
+
+      if (!WORD_BANK_LOADER) {
+          throw new Error('词库加载器初始化失败');
+      }
+
+      await WORD_BANK_LOADER.loadLanguage(normalizedLanguage);
+
+      if (!this.builtInLoadOrder.includes(normalizedLanguage)) {
+          this.builtInLoadOrder.push(normalizedLanguage);
+      }
+
+      this.refreshBuiltInWords();
+      if (rebuild) {
+          this.rebuildCombinedDB();
+      }
+  },
+
+  async ensureAllBuiltInLanguages() {
+      for (const language of ['ja', 'en']) {
+          await this.ensureBuiltInLanguage(language);
+      }
   },
 
   getWordIdentity(word, includeFolder = true) {
@@ -3324,6 +3357,15 @@ const Model = {
   },
 
   async init() {
+      const initialLanguage =
+          localStorage.getItem('langMode') === 'en'
+              ? 'en'
+              : 'ja';
+
+      this.state.currentLangMode = initialLanguage;
+      await this.ensureBuiltInLanguage(initialLanguage, {
+          rebuild: false
+      });
       await this.loadData();
   },
 
@@ -3855,6 +3897,9 @@ const Model = {
                   : {};
           this.rebuildCombinedDB();
       } else if (Array.isArray(legacyDB)) {
+          // 旧版把全部内置词直接写入同一数据库。迁移前须补齐两种语言，
+          // 否则未加载语言的内置词会被错误地当作自定义词。
+          await this.ensureAllBuiltInLanguages();
           this.migrateLegacyWordStorage(legacyDB, {
               markMissingBuiltInsAsDeleted: true
           });
@@ -7640,10 +7685,23 @@ setupVirtualScroll() {
 
     // 📚 词书切换核心事件
     document.querySelectorAll('.book-card').forEach(card => {
-        card.addEventListener('click', () => {
+        card.addEventListener('click', async () => {
             let targetLang = card.getAttribute('data-lang');
             if (targetLang !== Model.state.currentLangMode) {
                 Hardware.playSound('click'); Hardware.vibrate(20);
+                card.setAttribute('aria-busy', 'true');
+                showToast(`正在加载${targetLang === 'en' ? '英语' : '日语'}词库…`);
+
+                try {
+                    await Model.ensureBuiltInLanguage(targetLang);
+                } catch (error) {
+                    console.error('[Wordbank] 词库切换加载失败', error);
+                    showToast('词库加载失败，请检查网络后重试');
+                    return;
+                } finally {
+                    card.removeAttribute('aria-busy');
+                }
+
                 Model.state.currentLangMode = targetLang;
                 localStorage.setItem('langMode', targetLang);
                 document.body.setAttribute('data-lang', targetLang);
@@ -9604,10 +9662,7 @@ if (aiCloseBtn) {
           }
       }
 
-      Model.builtInWords = Model.getDefaultBuiltInWords();
-      Model.builtInIdSet = new Set(
-          Model.builtInWords.map(word => Model.getWordId(word))
-      );
+      await Model.ensureAllBuiltInLanguages();
 
       if (
           Array.isArray(data.userWords) &&
@@ -11485,6 +11540,7 @@ deleteWord(idx) {
 
   restoreBuiltInLibrary() {
       return this.runSafeDataOperation('pre-remove-imported', async () => {
+          await Model.ensureAllBuiltInLanguages();
           const defaults = this.getDefaultLibraryState();
           const wordIds = new Set(
               defaults.db.map(word => Model.getWordId(word))
@@ -11508,6 +11564,7 @@ deleteWord(idx) {
 
   fullResetApp() {
       return this.runSafeDataOperation('pre-full-reset', async () => {
+          await Model.ensureAllBuiltInLanguages();
           const defaults = this.getDefaultLibraryState();
 
           Model.db = defaults.db;

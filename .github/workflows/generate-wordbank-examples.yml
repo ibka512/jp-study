@@ -115,6 +115,7 @@ jobs:
             tests.test_generate_wordbank_examples
           node --check data.js
           node --check english-data.js
+          node --check wordbank-loader.js
           for file in wordbanks/*.js; do node --check "$file"; done
           node --check release-info.js
           node --check core-utils.js
@@ -123,6 +124,7 @@ jobs:
           node tests/core-utils.test.js
           node tests/release-info.test.js
           node tests/haptics.test.js
+          node tests/wordbank-loader.test.js
           node tests/rote-learning-core.test.js
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js

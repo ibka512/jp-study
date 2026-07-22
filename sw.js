@@ -1,20 +1,20 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v17';
+const CACHE_NAME = 'zhongri-shell-v18';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './logo.png',
-  './style.css?v=android-reminders-v1',
+  './style.css?v=android-native-v2',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js',
-  './haptics.js',
+  './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
@@ -35,10 +35,10 @@ const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
-  './style.css?v=android-reminders-v1',
+  './style.css?v=android-native-v2',
   './release-info.js',
   './core-utils.js',
-  './haptics.js',
+  './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',

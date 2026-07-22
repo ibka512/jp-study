@@ -48,7 +48,7 @@
     chtml: { scale: 1.1 } 
   };
 </script>
-<link rel="stylesheet" href="style.css?v=motion-v2-fix1">
+<link rel="stylesheet" href="style.css?v=android-reminders-v1">
 </head>
 <body>
 
@@ -744,6 +744,33 @@
         <div class="settings-section-header">
           <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
           <div><span>备份与应用</span><small>保护数据，并查看当前运行状态</small></div>
+        </div>
+
+        <div class="card-panel settings-detail-card native-reminder-card" id="native-reminder-card">
+          <div class="native-reminder-heading">
+            <h3><span class="material-symbols-rounded">notifications_active</span> 每日学习提醒</h3>
+            <span class="native-platform-badge" id="native-platform-badge">检测中</span>
+          </div>
+          <div class="setting-desc settings-section-intro">由 Android 系统在后台提醒，不需要让网页一直保持打开。</div>
+          <label class="native-reminder-toggle" for="setting-study-reminder-enabled">
+            <span>
+              <strong>开启每日提醒</strong>
+              <small id="study-reminder-status">正在检测运行环境</small>
+            </span>
+            <input type="checkbox" id="setting-study-reminder-enabled">
+            <span class="native-switch" aria-hidden="true"></span>
+          </label>
+          <div class="native-reminder-time-row">
+            <label for="setting-study-reminder-time">
+              <span>提醒时间</span>
+              <input type="time" id="setting-study-reminder-time" value="20:00">
+            </label>
+            <button type="button" id="btn-test-study-reminder" class="btn-outline icon-text-gap">
+              <span class="material-symbols-rounded">notification_add</span>
+              5 秒测试
+            </button>
+          </div>
+          <div class="setting-desc native-reminder-note"><span class="material-symbols-rounded">info</span> Android 13 及以上首次开启时会请求通知权限；系统可能让提醒有几分钟偏差。</div>
         </div>
 
         <div class="card-panel settings-detail-card">
@@ -1697,6 +1724,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="app.js?v=deepseek-v4-flash-thinking"></script>
+<script src="native-app.js?v=android-reminders-v1"></script>
 <script src="root-review.js"></script>
 </body>
 </html>

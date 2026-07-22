@@ -18,6 +18,7 @@ on:
       - "package-lock.json"
       - "capacitor.config.json"
       - "scripts/build-capacitor-web.mjs"
+      - "scripts/prepare-android-icon.mjs"
       - ".github/workflows/build-android-app.yml"
 
 permissions:
@@ -65,9 +66,16 @@ jobs:
 
       - name: 生成 Android 应用图标
         run: |
-          mkdir -p assets
-          cp logo.png assets/icon-only.png
+          node scripts/prepare-android-icon.mjs
           npx capacitor-assets generate --android
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+
+      - name: 更新测试版版本号
+        run: |
+          sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${GITHUB_RUN_NUMBER}\"/" android/app/build.gradle
 
       - name: 同步原生插件
         run: npx cap sync android

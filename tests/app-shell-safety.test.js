@@ -17,6 +17,10 @@ assert.match(
 );
 assert.match(index, /updateViaCache:\s*['"]none['"]/);
 assert.match(index, /registration\.update\(\)/);
+assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
+assert.match(app, /const loadMathJax = \(\) =>/);
+assert.match(app, /document\.head\.appendChild\(script\)/);
+assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.match(serviceWorker, /request\.mode === ['"]navigate['"]/);
 assert.match(serviceWorker, /NETWORK_FIRST_ASSETS/);
 assert.match(serviceWorker, /event\.request\.method !== ['"]GET['"]/);

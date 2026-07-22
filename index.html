@@ -349,20 +349,26 @@
           <div class="settings-home-heading">
             <div>
               <span class="settings-eyebrow">学习环境</span>
-              <h3><span class="material-symbols-rounded">library_books</span> 词书选择</h3>
+              <h3><span class="material-symbols-rounded">library_books</span> 学习语言</h3>
+              <p class="book-selector-intro">切换后，道场、词库和复习计划会同步切换</p>
             </div>
           </div>
 
           <div class="book-shelf">
-            <div class="book-card jp-book" data-lang="ja">
-              <span class="watermark-book">あ</span>
-              <div class="book-title">日语模式</div>
-            </div>
-            <div class="book-card en-book" data-lang="en">
-              <span class="watermark-book">A</span>
-              <div class="book-title">英语模式</div>
-            </div>
+            <button type="button" class="book-card jp-book" data-lang="ja" aria-pressed="false">
+              <span class="book-language-mark">あ</span>
+              <span class="book-card-copy"><span class="book-card-kicker">JAPANESE</span><strong class="book-title">日语词书</strong><span class="book-meta" data-book-count>正在读取…</span><span class="book-progress-track"><span class="book-progress-fill" data-book-progress></span></span><span class="book-progress-copy" data-book-progress-copy>学习进度 0%</span></span>
+              <span class="book-status"><span class="material-symbols-rounded">check</span><span data-book-status>选择</span></span>
+              <span class="book-loading"><span class="book-loading-spinner"></span>正在载入</span>
+            </button>
+            <button type="button" class="book-card en-book" data-lang="en" aria-pressed="false">
+              <span class="book-language-mark">A</span>
+              <span class="book-card-copy"><span class="book-card-kicker">ENGLISH</span><strong class="book-title">英语词书</strong><span class="book-meta" data-book-count>点击载入</span><span class="book-progress-track"><span class="book-progress-fill" data-book-progress></span></span><span class="book-progress-copy" data-book-progress-copy>尚未载入学习进度</span></span>
+              <span class="book-status"><span class="material-symbols-rounded">check</span><span data-book-status>选择</span></span>
+              <span class="book-loading"><span class="book-loading-spinner"></span>正在载入</span>
+            </button>
           </div>
+          <p class="book-selector-note"><span class="material-symbols-rounded">verified_user</span>切换语言不会删除另一词书的学习记录</p>
         </div>
 
         <div class="settings-category-grid">

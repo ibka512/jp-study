@@ -89,105 +89,142 @@
       </div>
 
       <div class="home-right-col">
-        <div class="card-panel">
-          <h3 style="margin-bottom: 12px; margin-top: 0;">
-            <span class="material-symbols-rounded">rocket_launch</span> 学习模式
-          </h3>
-          
-          <div class="mastery-progress-container">
-              <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
-                  <div style="font-size: 0.85rem; font-weight: 800; color: var(--on-surface); opacity: 0.7;">当前已通关</div>
-                  <div style="font-family: var(--font-jp-sans); font-weight: 900; color: var(--tertiary); font-size: 1.1rem; display: flex; align-items: baseline; gap: 4px;">
-                      <span id="mastery-count">0</span>
-                      <span style="font-size: 0.8rem; opacity: 0.5; color: var(--on-surface); font-weight: 700;">/ <span id="mastery-total">0</span> 词</span>
-                      <span id="mastery-percent" style="font-size: 0.95rem;">(0%)</span>
-                  </div>
+        <section class="card-panel home-study-panel" aria-labelledby="home-study-title">
+          <header class="home-study-header">
+            <div>
+              <span class="home-study-eyebrow">开始学习</span>
+              <h3 id="home-study-title">
+                <span class="material-symbols-rounded">school</span>
+                学习模式
+              </h3>
+              <p>先确认学习范围，再选择适合当前状态的方式</p>
+            </div>
+            <div class="home-mastery-number" aria-label="总体掌握进度">
+              <strong id="mastery-percent">(0%)</strong>
+              <span>总体掌握</span>
+            </div>
+          </header>
+
+          <div class="mastery-progress-container home-mastery-progress">
+            <div class="home-mastery-meta">
+              <span>已掌握</span>
+              <strong><span id="mastery-count">0</span><small> / <span id="mastery-total">0</span> 词</small></strong>
+            </div>
+            <div class="mastery-track">
+              <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
+            </div>
+
+            <details class="home-progress-details">
+              <summary>
+                <span>查看单词、读音与释义进度</span>
+                <span class="material-symbols-rounded">expand_more</span>
+              </summary>
+              <div class="home-sub-progress-group">
+                <div class="home-sub-progress-row">
+                  <div class="home-sub-progress-label"><i class="is-word"></i><span>单词</span></div>
+                  <div class="home-sub-progress-track"><div id="prog-bar-kanji" class="is-word" style="width: 0%;"></div></div>
+                  <div class="home-sub-progress-value" id="prog-txt-kanji">0 (0%)</div>
+                </div>
+                <div id="prog-row-kana" class="home-sub-progress-row">
+                  <div class="home-sub-progress-label"><i class="is-reading"></i><span id="kana-bar-label">读音</span></div>
+                  <div class="home-sub-progress-track"><div id="prog-bar-kana" class="is-reading" style="width: 0%;"></div></div>
+                  <div class="home-sub-progress-value" id="prog-txt-kana">0 (0%)</div>
+                </div>
+                <div class="home-sub-progress-row">
+                  <div class="home-sub-progress-label"><i class="is-meaning"></i><span>释义</span></div>
+                  <div class="home-sub-progress-track"><div id="prog-bar-meaning" class="is-meaning" style="width: 0%;"></div></div>
+                  <div class="home-sub-progress-value" id="prog-txt-meaning">0 (0%)</div>
+                </div>
               </div>
-              <div class="mastery-track" style="margin-bottom: 12px;">
-                  <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
-              </div>
-              
-              <div class="sub-progress-group" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
-                      <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
-                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #F5B041;"></div>单词
-                      </div>
-                      <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
-                          <div id="prog-bar-kanji" style="height: 100%; background: #F5B041; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
-                      </div>
-                      <div style="width: auto; min-width: 80px; white-space: nowrap; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-kanji">0 (0%)</div>
-                  </div>
-                  <div id="prog-row-kana" style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
-                      <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
-                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #E74C3C;"></div><span id="kana-bar-label">读音</span>
-                      </div>
-                      <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
-                          <div id="prog-bar-kana" style="height: 100%; background: #E74C3C; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
-                      </div>
-                      <div style="width: auto; min-width: 80px; white-space: nowrap; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-kana">0 (0%)</div>
-                  </div>
-                  <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; font-weight: 700; opacity: 0.8;">
-                      <div style="display: flex; align-items: center; gap: 6px; width: 60px;">
-                          <div style="width: 8px; height: 8px; border-radius: 50%; background: #D0D3D4;"></div>释义
-                      </div>
-                      <div style="flex: 1; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin: 0 10px; overflow: hidden;">
-                          <div id="prog-bar-meaning" style="height: 100%; background: #D0D3D4; width: 0%; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);"></div>
-                      </div>
-                      <div style="width: auto; min-width: 80px; white-space: nowrap; text-align: right; font-family: var(--font-jp-sans);" id="prog-txt-meaning">0 (0%)</div>
-                  </div>
-              </div>
+            </details>
           </div>
 
-          <div class="filter-test-btn-group">
-            <button id="btn-start-filter-test" class="ft-main icon-text-gap">
-              <span class="material-symbols-rounded">psychology_alt</span> 筛选检验词汇 <kbd class="kbd-hint">E</kbd>
-            </button>
-            <div class="ft-divider"></div>
-            <button id="btn-test-range-trigger" class="ft-sub" title="范围 (F)">
-              <span class="material-symbols-rounded">keyboard_arrow_down</span><kbd class="kbd-hint">F</kbd>
-            </button>
-            <div class="ft-divider"></div>
-            <button id="btn-test-display-trigger" class="ft-sub" title="模式 (G)">
-              <span class="material-symbols-rounded">visibility</span><kbd class="kbd-hint">G</kbd>
-            </button>
-          </div>
-
-          <button id="btn-custom-group-select" class="bs-facade" style="width: 100%; margin-top: 12px; margin-bottom: 24px;">
+          <div class="home-study-section home-range-section">
+            <div class="home-section-label">
+              <span class="material-symbols-rounded">library_books</span>
+              当前学习范围
+            </div>
+            <button id="btn-custom-group-select" class="bs-facade home-range-button" type="button">
               <span class="bs-facade-text" id="custom-group-text">默认词库 (第 1-10 词)</span>
-              <span class="material-symbols-rounded" style="opacity:0.5;">keyboard_arrow_down</span>
-          </button>
+              <span class="material-symbols-rounded">keyboard_arrow_down</span>
+            </button>
+          </div>
 
           <select id="test-range-select" style="display:none;" class="no-bs"></select>
           <select id="test-display-select" style="display:none;" class="no-bs">
-              <option value="word">专攻汉字辨认 (点亮黄杠)</option>
-              <option value="kana">专攻假名辨认 (点亮红杠)</option>
-              <option value="audio">专攻听力辨音 (点亮红杠)</option>
-              <option value="meaning">专攻释义默写 (点亮白杠)</option>
+            <option value="word">专攻汉字辨认 (点亮黄杠)</option>
+            <option value="kana">专攻假名辨认 (点亮红杠)</option>
+            <option value="audio">专攻听力辨音 (点亮红杠)</option>
+            <option value="meaning">专攻释义默写 (点亮白杠)</option>
           </select>
 
-          <div class="flex-row" style="margin-bottom: 8px; flex-wrap: wrap; gap: 12px;">
-            <button id="btn-start-pendulum" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px; border-radius: var(--radius-md) !important;" class="icon-text-gap mode-btn-classic">
-                <span class="material-symbols-rounded">directions_run</span> 自由浏览 <kbd class="kbd-hint">A</kbd>
-            </button>
-            <button id="btn-start-dual-track" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px; border-radius: var(--radius-md) !important;" class="icon-text-gap mode-btn-challenge">
-                <span class="material-symbols-rounded">swords</span> 往复测验 <kbd class="kbd-hint">B</kbd>
-            </button>
-            <button id="btn-start-rote-learning" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px; border-radius: var(--radius-md) !important;" class="icon-text-gap mode-btn-rote">
-                <span class="material-symbols-rounded">menu_book</span> 循环强记 <kbd class="kbd-hint">C</kbd>
-            </button>
-            <button id="btn-start-memory-test" style="flex: 1 1 40%; margin-bottom: 0; white-space: nowrap; padding: 16px 8px; border-radius: var(--radius-md) !important;" class="icon-text-gap mode-btn-test">
-                <span class="material-symbols-rounded">quiz</span> 三轮通关 <kbd class="kbd-hint">D</kbd>
-            </button>
+          <div class="home-study-section">
+            <div class="home-section-label">
+              <span class="material-symbols-rounded">filter_alt</span>
+              学习前筛选
+            </div>
+            <div class="filter-test-btn-group home-filter-card">
+              <button id="btn-start-filter-test" class="ft-main" type="button">
+                <span class="home-action-icon material-symbols-rounded">psychology_alt</span>
+                <span class="home-action-copy">
+                  <strong>筛选检验</strong>
+                  <small>先找出已认识的词，减少重复学习</small>
+                </span>
+                <kbd class="kbd-hint">E</kbd>
+              </button>
+              <button id="btn-test-range-trigger" class="ft-sub" type="button" title="选择筛选范围 (F)" aria-label="选择筛选范围">
+                <span class="material-symbols-rounded">format_list_numbered</span>
+                <small>范围</small>
+                <kbd class="kbd-hint">F</kbd>
+              </button>
+              <button id="btn-test-display-trigger" class="ft-sub" type="button" title="选择检验内容 (G)" aria-label="选择检验内容">
+                <span class="material-symbols-rounded">visibility</span>
+                <small>内容</small>
+                <kbd class="kbd-hint">G</kbd>
+              </button>
+            </div>
           </div>
 
-          <button id="btn-long-press" class="btn-long-press" style="margin-top: 40px;">
-            <div class="lp-bg"></div>
-            <span class="lp-text">
-                <span class="material-symbols-rounded" style="font-size: 2.2rem; margin-right: 4px;">fingerprint</span> 
-                <span style="letter-spacing: 2px;">长按打卡</span>
-            </span>
-          </button>
-        </div>
+          <div class="home-study-section">
+            <div class="home-section-label">
+              <span class="material-symbols-rounded">apps</span>
+              选择学习方式
+            </div>
+            <div class="home-mode-grid">
+              <button id="btn-start-pendulum" class="home-mode-card mode-btn-classic" type="button">
+                <span class="home-mode-icon material-symbols-rounded">explore</span>
+                <span class="home-mode-copy"><strong>自由浏览</strong><small>自由翻看，不记录答题结果</small></span>
+                <kbd class="kbd-hint">A</kbd>
+              </button>
+              <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
+                <span class="home-mode-icon material-symbols-rounded">sync_alt</span>
+                <span class="home-mode-copy"><strong>往复测验</strong><small>正反方向交替检验记忆</small></span>
+                <kbd class="kbd-hint">B</kbd>
+              </button>
+              <button id="btn-start-rote-learning" class="home-mode-card mode-btn-rote" type="button">
+                <span class="home-mode-icon material-symbols-rounded">menu_book</span>
+                <span class="home-mode-copy"><strong>循环强记</strong><small>分阶段重复强化记忆</small></span>
+                <kbd class="kbd-hint">C</kbd>
+              </button>
+              <button id="btn-start-memory-test" class="home-mode-card mode-btn-test" type="button">
+                <span class="home-mode-icon material-symbols-rounded">workspace_premium</span>
+                <span class="home-mode-copy"><strong>三轮通关</strong><small>连续三轮检验掌握程度</small></span>
+                <kbd class="kbd-hint">D</kbd>
+              </button>
+            </div>
+          </div>
+
+          <div class="home-checkin-area">
+            <button id="btn-long-press" class="btn-long-press" type="button">
+              <div class="lp-bg"></div>
+              <span class="lp-text">
+                <span class="material-symbols-rounded">fingerprint</span>
+                长按打卡
+              </span>
+            </button>
+            <small><span class="material-symbols-rounded">touch_app</span>长按 1.5 秒完成今日打卡，键盘可长按空格</small>
+          </div>
+        </section>
       </div>
     </div>
   </div>

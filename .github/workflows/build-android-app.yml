@@ -15,6 +15,7 @@ on:
       - "vendor/**"
       - "wordbanks/**"
       - "package.json"
+      - "package-lock.json"
       - "capacitor.config.json"
       - "scripts/build-capacitor-web.mjs"
       - ".github/workflows/build-android-app.yml"
@@ -44,7 +45,7 @@ jobs:
           java-version: 21
 
       - name: 安装依赖
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: 生成 Web 资源
         run: npm run build:web

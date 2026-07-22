@@ -96,7 +96,19 @@ class WordbankCompilerTests(unittest.TestCase):
     def test_end_to_end_write_generates_both_data_and_report(self):
         with tempfile.TemporaryDirectory() as folder:
             repo = Path(folder) / "repo"
-            shutil.copytree(ROOT, repo, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+            shutil.copytree(
+                ROOT,
+                repo,
+                ignore=shutil.ignore_patterns(
+                    ".git",
+                    "__pycache__",
+                    "node_modules",
+                    "dist",
+                    "android",
+                    "ios",
+                    "assets",
+                ),
+            )
             existing_count = len(compiler.load_js_words(repo / "data.js", "DefaultWords"))
             args = argparse.Namespace(
                 source=str(ROOT / "tests" / "fixtures" / "sample-ja.tsv"), language="ja",

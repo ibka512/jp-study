@@ -11,7 +11,7 @@
 
     return Object.freeze({
         version: 'V9',
-        build: '2026.07.22.5',
-        publishedAt: '2026-07-22T06:00:00Z'
+        build: '2026.07.23.1',
+        publishedAt: '2026-07-22T21:32:00Z'
     });
 });

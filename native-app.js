@@ -38,6 +38,27 @@
     return status.display === 'granted';
   };
 
+  const getExactAlarmPermission = async () => {
+    if (!notifications?.checkExactNotificationSetting) return 'granted';
+    const status = await notifications.checkExactNotificationSetting();
+    return status.exact_alarm || 'denied';
+  };
+
+  const requestExactAlarmPermission = async () => {
+    let status = await getExactAlarmPermission();
+    if (status !== 'granted' && notifications?.changeExactNotificationSetting) {
+      const result = await notifications.changeExactNotificationSetting();
+      status = result.exact_alarm || 'denied';
+    }
+    return status === 'granted';
+  };
+
+  const reminderStatusText = (time, isExact) => {
+    return isExact
+      ? `已开启 · 每天 ${time} 准时提醒`
+      : `已开启 · 每天约 ${time} 提醒（受系统调度影响）`;
+  };
+
   const createReminderChannel = async () => {
     if (!notifications?.createChannel) return;
     await notifications.createChannel({
@@ -217,8 +238,9 @@
       await createReminderChannel();
       const permission = await notifications.checkPermissions();
       if (savedEnabled && permission.display === 'granted') {
+        const isExact = await getExactAlarmPermission() === 'granted';
         await scheduleDailyReminder(savedTime);
-        status.textContent = `已开启 · 每天 ${savedTime} 提醒`;
+        status.textContent = reminderStatusText(savedTime, isExact);
       } else if (savedEnabled) {
         enabledInput.checked = false;
         localStorage.setItem(STORAGE.enabled, 'false');
@@ -246,10 +268,11 @@
             return;
           }
           await createReminderChannel();
+          const isExact = await requestExactAlarmPermission();
           await scheduleDailyReminder(timeInput.value);
           localStorage.setItem(STORAGE.enabled, 'true');
-          status.textContent = `已开启 · 每天 ${timeInput.value} 提醒`;
-          showMessage('每日学习提醒已开启');
+          status.textContent = reminderStatusText(timeInput.value, isExact);
+          showMessage(isExact ? '每日准时提醒已开启' : '每日提醒已开启，时间可能略有延迟');
         } else {
           await cancelDailyReminder();
           localStorage.setItem(STORAGE.enabled, 'false');
@@ -270,8 +293,9 @@
       localStorage.setItem(STORAGE.time, time);
       if (!enabledInput.checked) return;
       try {
+        const isExact = await getExactAlarmPermission() === 'granted';
         await scheduleDailyReminder(time);
-        status.textContent = `已开启 · 每天 ${time} 提醒`;
+        status.textContent = reminderStatusText(time, isExact);
         showMessage(`提醒时间已改为 ${time}`);
       } catch (error) {
         console.warn('修改提醒时间失败', error);

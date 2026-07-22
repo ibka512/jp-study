@@ -2,7 +2,7 @@
 
 AI 辅助开发的日英双语学习 PWA：<https://ibka512.github.io/jp-study/>
 
-Android 安装包（APK）由 GitHub 自动构建，下载安装与商店上架方法见 [安卓打包与上架说明](docs/ANDROID_BUILD.md)。
+配置持久签名后，Android 安装包（APK/AAB）由 GitHub 自动构建；下载安装、旧测试包迁移与商店上架方法见 [安卓打包与上架说明](docs/ANDROID_BUILD.md)。
 
 ## 自动建设词库
 

@@ -256,6 +256,7 @@ const normalizeWordType = (value) => {
         ['adj', '形容词'],
         ['形动', '形容动词'],
         ['形動', '形容动词'],
+        ['ナ形', '形容动词'],
         ['形容动词', '形容动词'],
         ['形容動詞', '形容动词'],
         ['ナ形容词', '形容动词'],
@@ -4748,14 +4749,14 @@ const View = {
         if (typeStr.includes('自')) wmSet.add('が');
         if (typeStr.includes('他')) wmSet.add('を');
     }
-    if (typeStr.includes('形动') || typeStr.includes('形容动词')) wmSet.add('な');
+    if (typeStr.includes('形动') || typeStr.includes('形容动词') || typeStr.includes('ナ形')) wmSet.add('な');
     if (typeStr.includes('名')) wmSet.add('の');
 
     let wmArray = Array.from(wmSet).slice(0, 2);
     let wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('・')}</span>` : wmArray.join('');
 
     const getCat = (t) => {
-        if (t.includes('形容动词') || t.includes('形动')) return { color: 'var(--bg-adj-na)' };
+        if (t.includes('形容动词') || t.includes('形动') || t.includes('ナ形')) return { color: 'var(--bg-adj-na)' };
         if (t.includes('形')) return { color: 'var(--bg-adj)' };
         if (/[段変变動自他サ]/.test(t)) return { color: 'var(--bg-verb)' };
         if (t.includes('代')) return { color: 'var(--bg-pronoun)' };

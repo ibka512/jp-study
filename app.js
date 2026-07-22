@@ -4130,12 +4130,14 @@ const Hardware = {
   vibrate(pattern, options) {
     return HAPTICS.triggerLegacy(pattern, options);
   },
-  playSound(type) {
-    this.haptic(
-        type === 'success' || type === 'error'
-            ? type
-            : 'tap'
-    );
+  playSound(type, { haptic = true } = {}) {
+    if (haptic) {
+        this.haptic(
+            type === 'success' || type === 'error'
+                ? type
+                : 'tap'
+        );
+    }
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
@@ -8184,12 +8186,15 @@ if (aiChatInput) {
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.haptic('success', { force: true });
-        if (HAPTICS.isSupported()) {
-            showToast('已播放“成功”触感，请感受震动节奏');
+        Hardware.playSound('click', { haptic: false });
+        const accepted = Hardware.haptic(
+            'diagnostic',
+            { force: true }
+        );
+        if (accepted) {
+            showToast('浏览器已发送两次强震动请求');
         } else {
-            showToast('您的浏览器不支持震动 API（iOS 系统或桌面浏览器）');
+            showToast('浏览器拒绝了震动请求，请改用 Android Chrome');
         }
     });
 }

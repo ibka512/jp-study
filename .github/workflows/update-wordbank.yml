@@ -107,7 +107,9 @@ jobs:
           python -m unittest -v tests.test_generate_wordbank_examples
           node --check data.js
           node --check english-data.js
+          node --check core-utils.js
           node --check app.js
+          node tests/core-utils.test.js
           node tests/rote-learning-core.test.js
           node tests/rote-learning-integration.test.js
           node tests/wordbank-data.test.js

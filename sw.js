@@ -11,6 +11,7 @@ const LOCAL_ASSETS = [
   './data.js',
   './english-data.js',
   ...WORD_BANK_ASSETS,
+  './core-utils.js',
   './rote-learning-core.js',
   './app.js',
   './root-review.js'
@@ -28,6 +29,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
   './style.css',
+  './core-utils.js',
   './rote-learning-core.js',
   './app.js',
   './root-review.js'

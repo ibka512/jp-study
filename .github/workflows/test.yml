@@ -43,6 +43,8 @@ jobs:
             tests.test_generate_wordbank_examples \
             tests.test_generate_wordbank_roots \
             tests.test_apply_root_review
+          python -m unittest -v tests.test_normalize_japanese_pos
+          python tools/normalize_japanese_pos.py
 
       - name: 检查 JavaScript 语法
         run: |

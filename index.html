@@ -74,10 +74,16 @@
     <div class="home-layout-container">
       <div class="home-left-col">
         <div class="card-panel fsrs-home-card" id="stats-panel">
-          <div class="fsrs-home-heading"><span class="material-symbols-rounded">event_repeat</span><div><h3>今日复习</h3><p id="fsrs-streak-text">连续学习 0 天</p></div></div>
-          <div class="fsrs-home-count"><strong id="fsrs-due-count">0</strong><span>个待复习维度</span></div>
-          <p class="fsrs-home-detail" id="fsrs-due-detail">完成一次复习后，FSRS 会自动安排下一次时间</p>
-          <button id="btn-start-fsrs-review" class="primary-action-btn" type="button"><span class="material-symbols-rounded">play_arrow</span>开始今日复习</button>
+          <div class="fsrs-home-topline">
+            <div class="fsrs-home-heading"><span class="fsrs-home-icon material-symbols-rounded">event_repeat</span><div><span class="fsrs-home-eyebrow">FSRS 智能复习</span><h3>今日复习</h3></div></div>
+            <div class="fsrs-streak-badge"><span class="material-symbols-rounded">local_fire_department</span><span id="fsrs-streak-text">连续 0 天</span></div>
+          </div>
+          <div class="fsrs-home-main">
+            <div class="fsrs-home-count"><strong id="fsrs-due-count">0</strong><span>个维度<br>等待复习</span></div>
+            <button id="btn-start-fsrs-review" class="fsrs-start-button" type="button"><span>开始复习</span><span class="material-symbols-rounded">arrow_forward</span></button>
+          </div>
+          <div class="fsrs-home-divider"></div>
+          <div class="fsrs-home-detail" id="fsrs-due-detail">完成一次复习后，系统会安排下一次时间</div>
         </div>
         <div id="total-words" style="display:none;"></div>
       </div>

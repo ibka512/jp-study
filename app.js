@@ -5463,15 +5463,22 @@ let dbTotalEl = this.getEl('db-total-count');
     const dueDetailEl = this.getEl('fsrs-due-detail');
     const streakTextEl = this.getEl('fsrs-streak-text');
     if (dueCountEl) dueCountEl.innerText = dueItems.length;
-    if (streakTextEl) streakTextEl.innerText = `连续学习 ${stats.streak || 0} 天`;
+    if (streakTextEl) streakTextEl.innerText = `连续 ${stats.streak || 0} 天`;
     if (dueDetailEl) {
         const groups = dueItems.reduce((map, item) => {
             map[item.dimension] = (map[item.dimension] || 0) + 1;
             return map;
         }, {});
         const labels = { kanji: '拼写', spelling: '拼写', reading: '读音', listening: '听力', meaning: '释义' };
-        const summary = Object.entries(groups).map(([dimension, count]) => `${labels[dimension] || dimension} ${count}`).join(' · ');
-        dueDetailEl.innerText = summary || '今天没有到期项目，继续保持节奏';
+        const summary = Object.entries(groups).map(([dimension, count]) => `<span class="fsrs-due-chip">${labels[dimension] || dimension}<strong>${count}</strong></span>`).join('');
+        dueDetailEl.innerHTML = summary || '<span class="fsrs-empty-copy"><span class="material-symbols-rounded">task_alt</span>今天没有到期项目，继续保持节奏</span>';
+    }
+    const fsrsStartButton = this.getEl('btn-start-fsrs-review');
+    if (fsrsStartButton) {
+        fsrsStartButton.disabled = dueItems.length === 0;
+        fsrsStartButton.innerHTML = dueItems.length
+            ? '<span>开始复习</span><span class="material-symbols-rounded">arrow_forward</span>'
+            : '<span>今日已完成</span><span class="material-symbols-rounded">check</span>';
     }
 
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;

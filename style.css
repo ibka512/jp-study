@@ -10169,16 +10169,48 @@ button.import-mode-btn.active > .material-symbols-rounded {
         line-height: 1.38;
     }
 }
-.fsrs-home-card { display: flex; flex-direction: column; gap: 12px; }
-.fsrs-home-heading { display:flex; align-items:center; gap:10px; color:var(--tertiary); }
-.fsrs-home-heading .material-symbols-rounded { font-size:2rem; }
-.fsrs-home-heading h3 { margin:0; font-size:1.1rem; }
-.fsrs-home-heading p { margin:3px 0 0; color:var(--outline); font-size:.8rem; }
-.fsrs-home-count { display:flex; align-items:baseline; gap:8px; }
-.fsrs-home-count strong { font-size:2.5rem; line-height:1; color:var(--tertiary); }
-.fsrs-home-count span,.fsrs-home-detail { color:var(--outline); font-size:.82rem; }
-.fsrs-home-detail { margin:0; min-height:2.4em; }
-.fsrs-home-card .primary-action-btn { width:100%; justify-content:center; }
+.fsrs-home-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    padding: 22px;
+    border: 1px solid color-mix(in srgb, var(--tertiary) 28%, transparent);
+    background:
+        radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--tertiary) 15%, transparent) 0 62px, transparent 63px),
+        linear-gradient(145deg, color-mix(in srgb, var(--surface-container-low) 88%, white), var(--surface));
+}
+.fsrs-home-card::after {
+    content: '';
+    position: absolute;
+    right: -24px;
+    bottom: -42px;
+    width: 120px;
+    height: 120px;
+    border: 1px solid color-mix(in srgb, var(--tertiary) 18%, transparent);
+    border-radius: 50%;
+    pointer-events: none;
+}
+.fsrs-home-topline,.fsrs-home-main,.fsrs-home-heading,.fsrs-streak-badge,.fsrs-start-button { display:flex; align-items:center; }
+.fsrs-home-topline,.fsrs-home-main { position:relative; z-index:1; justify-content:space-between; gap:14px; }
+.fsrs-home-heading { gap:11px; }
+.fsrs-home-icon { display:grid; place-items:center; width:44px; height:44px; border-radius:15px; color:var(--tertiary); background:color-mix(in srgb,var(--tertiary) 13%,var(--surface)); font-size:1.65rem; }
+.fsrs-home-eyebrow { display:block; color:var(--outline); font-size:.68rem; font-weight:800; letter-spacing:.1em; }
+.fsrs-home-heading h3 { margin:2px 0 0; color:var(--on-surface); font-size:1.18rem; }
+.fsrs-streak-badge { gap:4px; padding:7px 10px; border-radius:999px; color:var(--tertiary); background:color-mix(in srgb,var(--tertiary) 10%,var(--surface)); font-size:.72rem; font-weight:800; white-space:nowrap; }
+.fsrs-streak-badge .material-symbols-rounded { font-size:1rem; }
+.fsrs-home-count { display:flex; align-items:center; gap:10px; }
+.fsrs-home-count strong { color:var(--tertiary); font-family:var(--font-jp-sans); font-size:3.25rem; line-height:.9; }
+.fsrs-home-count span { color:var(--outline); font-size:.75rem; font-weight:700; line-height:1.35; }
+.fsrs-start-button { justify-content:center; gap:8px; min-height:48px; padding:0 18px; border:0; border-radius:16px; color:var(--on-tertiary); background:var(--tertiary); box-shadow:0 9px 22px color-mix(in srgb,var(--tertiary) 24%,transparent); font:inherit; font-size:.86rem; font-weight:900; cursor:pointer; }
+.fsrs-start-button .material-symbols-rounded { font-size:1.15rem; }
+.fsrs-start-button:disabled { color:var(--outline); background:color-mix(in srgb,var(--outline) 10%,var(--surface)); box-shadow:none; cursor:default; }
+.fsrs-home-divider { position:relative; z-index:1; height:1px; background:color-mix(in srgb,var(--outline) 16%,transparent); }
+.fsrs-home-detail { position:relative; z-index:1; display:flex; flex-wrap:wrap; gap:7px; min-height:28px; color:var(--outline); font-size:.76rem; }
+.fsrs-due-chip { display:inline-flex; align-items:center; gap:4px; padding:5px 9px; border-radius:999px; background:color-mix(in srgb,var(--tertiary) 8%,var(--surface)); }
+.fsrs-empty-copy { display:flex; align-items:center; gap:6px; }
+.fsrs-empty-copy .material-symbols-rounded { color:var(--tertiary); font-size:1rem; }
 .fsrs-review-panel { display:flex; flex-direction:column; gap:10px; width:100%; }
 .fsrs-review-heading { display:flex; justify-content:space-between; color:var(--tertiary); font-weight:800; font-size:.9rem; }
 .fsrs-review-tip { margin:0; color:var(--outline); font-size:.78rem; }
@@ -10190,4 +10222,11 @@ button.import-mode-btn.active > .material-symbols-rounded {
 .fsrs-rating-btn em { display:block; margin-top:5px; color:var(--tertiary); font-size:.72rem; font-style:normal; font-weight:700; }
 .fsrs-rating-btn[data-rating="again"] { border-color:color-mix(in srgb,#d66 45%,var(--outline-variant)); }
 .fsrs-rating-btn[data-rating="easy"] { border-color:color-mix(in srgb,var(--tertiary) 55%,var(--outline-variant)); }
-@media (max-width: 640px) { .fsrs-rating-grid { gap:8px; } .fsrs-rating-btn { padding:10px 8px; } }
+@media (max-width: 640px) {
+    .fsrs-home-card { padding:18px; border-radius:24px; }
+    .fsrs-home-main { align-items:flex-end; }
+    .fsrs-home-count strong { font-size:2.8rem; }
+    .fsrs-start-button { min-height:44px; padding:0 14px; }
+    .fsrs-rating-grid { gap:8px; }
+    .fsrs-rating-btn { padding:10px 8px; }
+}

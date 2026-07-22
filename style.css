@@ -10286,3 +10286,500 @@ button.import-mode-btn.active > .material-symbols-rounded {
     .settings-mode-card .book-card { min-height:128px; grid-template-columns:52px minmax(0,1fr) auto; padding:15px; }
     .book-language-mark { width:52px; height:64px; }
 }
+
+
+/* ===== 首页学习模式 UI 重构（2026-07） ===== */
+.home-study-panel {
+    overflow: hidden;
+    padding: clamp(20px, 4vw, 30px);
+}
+
+.home-study-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
+.home-study-eyebrow {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--tertiary);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+}
+
+.home-study-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: clamp(1.35rem, 4vw, 1.7rem);
+}
+
+.home-study-header h3 .material-symbols-rounded {
+    color: var(--tertiary);
+    font-size: 1.55rem;
+}
+
+.home-study-header p {
+    margin: 7px 0 0;
+    color: var(--on-surface);
+    font-size: 0.84rem;
+    line-height: 1.5;
+    opacity: 0.62;
+}
+
+.home-mastery-number {
+    display: flex;
+    min-width: 74px;
+    flex-direction: column;
+    align-items: flex-end;
+    padding-top: 2px;
+}
+
+.home-mastery-number strong {
+    color: var(--tertiary);
+    font-family: var(--font-jp-sans);
+    font-size: 1.35rem;
+    line-height: 1.1;
+}
+
+.home-mastery-number span {
+    margin-top: 4px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    opacity: 0.5;
+}
+
+.home-mastery-progress.mastery-progress-container {
+    margin: 0;
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--outline) 72%, transparent);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-container) 78%, transparent);
+}
+
+.home-mastery-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 9px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.home-mastery-meta > span {
+    opacity: 0.62;
+}
+
+.home-mastery-meta strong {
+    color: var(--tertiary);
+    font-family: var(--font-jp-sans);
+    font-size: 1rem;
+}
+
+.home-mastery-meta small {
+    color: var(--on-surface);
+    font-size: 0.75rem;
+    opacity: 0.5;
+}
+
+.home-mastery-progress .mastery-track {
+    height: 8px;
+    overflow: hidden;
+}
+
+.home-progress-details {
+    margin-top: 11px;
+}
+
+.home-progress-details summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 32px;
+    color: var(--on-surface);
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 750;
+    list-style: none;
+    opacity: 0.66;
+}
+
+.home-progress-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.home-progress-details summary .material-symbols-rounded {
+    font-size: 1.15rem;
+    transition: transform 0.2s ease;
+}
+
+.home-progress-details[open] summary .material-symbols-rounded {
+    transform: rotate(180deg);
+}
+
+.home-sub-progress-group {
+    display: grid;
+    gap: 10px;
+    padding: 8px 0 3px;
+}
+
+.home-sub-progress-row {
+    display: grid;
+    grid-template-columns: 58px minmax(48px, 1fr) minmax(72px, auto);
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-size: 0.76rem;
+    font-weight: 750;
+}
+
+.home-sub-progress-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.home-sub-progress-label i {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    border-radius: 50%;
+}
+
+.home-sub-progress-label i.is-word,
+.home-sub-progress-track .is-word {
+    background: #e7ad55;
+}
+
+.home-sub-progress-label i.is-reading,
+.home-sub-progress-track .is-reading {
+    background: #c96f69;
+}
+
+.home-sub-progress-label i.is-meaning,
+.home-sub-progress-track .is-meaning {
+    background: #a7aaa7;
+}
+
+.home-sub-progress-track {
+    height: 5px;
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--on-surface) 9%, transparent);
+}
+
+.home-sub-progress-track > div {
+    height: 100%;
+    border-radius: inherit;
+    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.home-sub-progress-value {
+    min-width: 72px;
+    text-align: right;
+    font-family: var(--font-jp-sans);
+    white-space: nowrap;
+    opacity: 0.72;
+}
+
+.home-study-section {
+    margin-top: 22px;
+}
+
+.home-section-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 2px 10px;
+    color: var(--on-surface);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    opacity: 0.62;
+}
+
+.home-section-label .material-symbols-rounded {
+    font-size: 1rem;
+}
+
+.home-range-button.bs-facade {
+    min-height: 52px;
+    margin: 0 !important;
+    border-radius: var(--radius-lg) !important;
+    color: var(--on-surface) !important;
+    box-shadow: none !important;
+}
+
+.home-range-button .bs-facade-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-filter-card.filter-test-btn-group {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 62px 62px;
+    min-height: 78px;
+    margin: 0;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+}
+
+.home-filter-card::before {
+    display: none;
+}
+
+.home-filter-card button {
+    position: relative;
+    min-width: 0;
+    min-height: 78px;
+    padding: 10px !important;
+}
+
+.home-filter-card .ft-main {
+    display: grid !important;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    white-space: normal !important;
+}
+
+.home-action-icon {
+    font-size: 1.75rem;
+}
+
+.home-action-copy,
+.home-mode-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.home-action-copy strong {
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.home-action-copy small {
+    overflow: hidden;
+    font-size: 0.72rem;
+    font-weight: 650;
+    line-height: 1.35;
+    opacity: 0.7;
+    text-overflow: ellipsis;
+}
+
+.home-filter-card .ft-sub {
+    display: flex !important;
+    flex-direction: column;
+    gap: 2px;
+    border-left: 1px solid color-mix(in srgb, currentColor 18%, transparent) !important;
+}
+
+.home-filter-card .ft-sub .material-symbols-rounded {
+    font-size: 1.3rem !important;
+}
+
+.home-filter-card .ft-sub small {
+    font-size: 0.66rem;
+    font-weight: 800;
+}
+
+.home-filter-card .kbd-hint {
+    position: static;
+    margin: 0;
+    align-self: center;
+}
+
+.home-filter-card .ft-sub .kbd-hint {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    transform: scale(0.8);
+    transform-origin: top right;
+}
+
+.home-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.home-mode-card {
+    position: relative;
+    display: grid !important;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    min-height: 88px;
+    margin: 0 !important;
+    padding: 14px !important;
+    border-radius: var(--radius-lg) !important;
+    text-align: left;
+    white-space: normal !important;
+}
+
+.home-mode-icon {
+    font-size: 1.65rem;
+}
+
+.home-mode-copy strong {
+    font-size: 0.92rem;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.home-mode-copy small {
+    font-size: 0.7rem;
+    font-weight: 650;
+    line-height: 1.4;
+    opacity: 0.68;
+}
+
+.home-mode-card .kbd-hint {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    margin: 0;
+    transform: scale(0.9);
+    transform-origin: top right;
+}
+
+.home-checkin-area {
+    display: grid;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid color-mix(in srgb, var(--outline) 72%, transparent);
+}
+
+.home-checkin-area .btn-long-press {
+    width: 100%;
+    min-height: 58px;
+    margin: 0 !important;
+    padding: 13px 28px !important;
+}
+
+.home-checkin-area > small {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--on-surface);
+    font-size: 0.7rem;
+    font-weight: 650;
+    line-height: 1.4;
+    text-align: center;
+    opacity: 0.48;
+}
+
+.home-checkin-area > small .material-symbols-rounded {
+    font-size: 0.9rem;
+}
+
+[data-theme="dark"] .home-mastery-progress.mastery-progress-container {
+    background: color-mix(in srgb, var(--surface-container) 88%, transparent);
+}
+
+@media (max-width: 430px) {
+    .home-study-panel {
+        padding: 18px 16px 20px;
+    }
+
+    .home-study-header {
+        gap: 12px;
+    }
+
+    .home-study-header p {
+        max-width: 220px;
+    }
+
+    .home-mode-grid {
+        gap: 10px;
+    }
+
+    .home-mode-card {
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 8px;
+        min-height: 92px;
+        padding: 12px 10px !important;
+    }
+
+    .home-mode-icon {
+        font-size: 1.4rem;
+    }
+
+    .home-mode-copy strong {
+        font-size: 0.88rem;
+    }
+
+    .home-mode-copy small {
+        font-size: 0.66rem;
+    }
+
+    .home-filter-card.filter-test-btn-group {
+        grid-template-columns: minmax(0, 1fr) 56px 56px;
+    }
+
+    .home-filter-card .ft-main {
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 7px;
+    }
+
+    .home-filter-card .ft-main > .kbd-hint {
+        position: absolute;
+        top: 7px;
+        right: 7px;
+        transform: scale(0.8);
+        transform-origin: top right;
+    }
+
+    .home-action-copy small {
+        white-space: normal;
+    }
+}
+
+@media (max-width: 350px) {
+    .home-mode-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .home-mode-card {
+        min-height: 76px;
+    }
+
+    .home-filter-card.filter-test-btn-group {
+        grid-template-columns: minmax(0, 1fr) 52px 52px;
+    }
+
+    .home-action-copy small {
+        display: none;
+    }
+}
+
+@media (hover: hover) {
+    .home-mode-card:hover,
+    .home-range-button:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.02);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .home-progress-details summary .material-symbols-rounded,
+    .home-sub-progress-track > div,
+    .home-mode-card,
+    .home-range-button {
+        transition: none !important;
+    }
+}

@@ -8170,30 +8170,6 @@ if (btnClearAI) {
     });
 }
 
-let aiHistDetailClose = View.getEl('ai-history-detail-close');
-if (aiHistDetailClose) {
-    aiHistDetailClose.addEventListener('click', () => {
-        Hardware.vibrate(10);
-        window.toggleModal('ai-history-detail-overlay', false);
-    });
-}
-let aiHistDetailCopy = View.getEl('ai-history-detail-copy');
-if (aiHistDetailCopy) {
-    aiHistDetailCopy.addEventListener('click', () => {
-        Hardware.vibrate(15);
-        let c = View.getEl('ai-history-detail-messages');
-        if (c) {
-            let t = '';
-            c.querySelectorAll('.ai-chat-bubble-text').forEach(b => { t += b.innerText + '\n\n'; });
-            t = t.trim();
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(t).then(() => showToast('已复制对话全文')).catch(() => showToast('复制失败'));
-            } else {
-                showToast('复制失败');
-            }
-        }
-    });
-}
 let aiChatSend = View.getEl('ai-chat-send');
 if (aiChatSend) {
     aiChatSend.addEventListener('click', () => {
@@ -13662,72 +13638,6 @@ renderAITabWelcome() {
     );
 },
 
-renderAIHistory() {
-    let listEl = View.getEl('ai-history-list');
-    let emptyEl = View.getEl('ai-history-empty');
-    let chatView = View.getEl('ai-chat-view');
-    let listView = View.getEl('ai-list-view');
-    if (chatView) chatView.classList.add('hidden');
-    if (listView) listView.classList.remove('hidden');
-    if (!listEl) return;
-    if (Model.aiConversations.length === 0) {
-        listEl.innerHTML = '';
-        if (emptyEl) emptyEl.style.display = 'block';
-        return;
-    }
-    if (emptyEl) emptyEl.style.display = 'none';
-    let html = '';
-    Model.aiConversations.forEach((conv, idx) => {
-        let preview = '';
-        let msgCount = 0;
-        if (conv.messages && conv.messages.length > 0) {
-            msgCount = conv.messages.length;
-            let lastMsg = conv.messages[conv.messages.length - 1].content || '';
-            preview = lastMsg.replace(/###.*?\n/g, '').replace(/\*\*/g, '').replace(/\n/g, ' ').substring(0, 60);
-            if (lastMsg.length > 60) preview += '...';
-        }
-        let isEnglish = conv.lang === 'en';
-        let wordDisplay = conv.word || '自由对话';
-        html += '<div class="ai-history-card" data-idx="' + idx + '" tabindex="0" role="button">';
-html += '<div class="ai-history-card-top">';
-html += '<span class="ai-history-lang-tag">' + (isEnglish ? 'EN' : '日') + '</span>';
-html += '<span class="ai-history-word">' + escapeHTML(wordDisplay) + '</span>';
-html += '<span class="ai-history-msgcount">' + msgCount + ' 条对话</span>';
-html += '<button class="ai-history-del-btn" data-idx="' + idx + '" title="删除这条对话" aria-label="删除这条对话"><span class="material-symbols-rounded">delete</span></button>';
-html += '</div>';
-html += '<div class="ai-history-preview">' + escapeHTML(preview || '点击继续对话。') + '</div>';
-html += '<div class="ai-history-date">' + escapeHTML(conv.date) + '</div>';
-html += '</div>';
-    });
-    listEl.innerHTML = html;
-    
-    listEl.querySelectorAll('.ai-history-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('.ai-history-del-btn')) return;
-            Hardware.vibrate(15);
-            let idx = parseInt(card.dataset.idx);
-            Controller.openAIChatFromTab(idx);
-        });
-    });
-    listEl.querySelectorAll('.ai-history-del-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            Hardware.vibrate(20);
-            let idx = parseInt(btn.dataset.idx);
-            showConfirm('删除对话', '确定要删除这条对话记录吗？', () => {
-                Model.aiConversations.splice(idx, 1);
-                Controller._persistConversations();
-                Controller.renderAIHistory();
-                showToast('已删除');
-            });
-        });
-    });
-},
-
-openAIHistoryDetail(idx) {
-    this.openAIChatFromTab(idx);
-},
-
 openAIChatFromTab(idx) {
     let conv = Model.aiConversations[idx];
     if (!conv) return;
@@ -14052,17 +13962,6 @@ sendAITabMessage() {
     messagesEl.appendChild(aiBubble);
     this._scrollTabChatToBottom();
     
-    let messagesToSend = [
-    {
-        role: 'system',
-        content: this.aiTabChat.lang === 'ja'
-    ? withJapaneseRubyInstruction(
-        this.aiTabChat.systemPrompt
-    )
-    : this.aiTabChat.systemPrompt
-    },
-            ...this.aiTabChat.messages
-];
     this._streamTabChatResponse(apiKey, aiBubble, sendBtn);
 },
 
@@ -14269,18 +14168,10 @@ sendAIMessage() {
     chatArea.appendChild(aiBubble);
     this._scrollChatToBottom();
     
-    let messagesToSend = [
-    {
-        role: 'system',
-        content: withJapaneseRubyInstruction(this.currentChat.systemPrompt)
-    },
-    ...this.currentChat.messages
-];
     this._streamChatResponse(apiKey, aiBubble, sendBtn);
 },
 
 _startChatStream(apiKey, chatArea, copyBtn, inputEl) {
-    let messagesToSend = [{ role: 'system', content: this.currentChat.systemPrompt }];
     let aiBubble = chatArea.querySelector('.ai-chat-bubble-ai');
     if (!aiBubble) {
         aiBubble =
@@ -14498,145 +14389,6 @@ this._scrollChatToBottom();
     }
 },
 
-async callDeepSeekStream(
-    sentence,
-    word,
-    lang,
-    apiKey,
-    container,
-    cacheKey,
-    copyBtn
-) {
-    const isEnglish = lang === 'en';
-
-    const prompt = isEnglish
-        ? `你是精通英语教学的私人外教。请解析以下英文例句。
-
-目标词汇：${word}
-例句：${sentence}
-
-语言规则：
-1. 除中文讲解和中文翻译外，只能输出英语。
-2. 禁止输出日语、日语假名或日语例句。
-3. 举一反三只能生成英语例句和中文翻译。
-
-请严格按以下结构输出：
-
-### 🔪 骨架拆解
-（用中文简明拆解英文句子的语法结构。）
-
-### 💡 核心亮点
-（用中文指出英文中的地道表达、搭配或语法特点。）
-
-### ✍️ 举一反三
-（使用目标词汇 "${word}" 生成2个简短、常用的英语生活例句。每条例句单独占一行，并严格写成“英语例句 / 中文翻译”。不要编号，禁止出现日语。）`
-        : `你是精通日语教学的私人外教。请解析以下日语例句。
-
-目标词汇：${word}
-例句：${sentence}
-
-语言规则：
-1. 讲解和翻译使用中文。
-2. 举一反三只能生成日语例句和中文翻译。
-3. 日语汉字必须按系统规则标注假名。
-
-请严格按以下结构输出：
-
-### 🔪 骨架拆解
-（用中文简明拆解日语句子的语法结构。）
-
-### 💡 核心亮点
-（用中文指出地道表达、搭配或语法特点。）
-
-### ✍️ 举一反三
-（使用目标词汇 "${word}" 生成2个简短、常用的日语生活例句。每条例句单独占一行，并严格写成“日语例句 / 中文翻译”。不要编号。）`;
-    try {
-        const response = await fetch('https://api.deepseek.com/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-    model: 'deepseek-chat',
-    messages: [
-        {
-            role: 'user',
-            content: isEnglish
-                ? prompt
-                : withJapaneseRubyInstruction(prompt)
-        }
-    ],
-    stream: true
-})
-        });
-        
-        if (!response.ok) {
-            if (response.status === 401) {
-                container.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: var(--accent-red);"><span class="material-symbols-rounded" style="font-size:3rem; opacity:0.5;">key_off</span><div style="font-weight:800; margin-top:16px;">API Key 无效或余额不足</div><button id="ai-goto-settings" class="btn-outline" style="margin-top:20px; width:auto; display:inline-flex; padding:12px 28px; border-color:var(--tertiary) !important; color:var(--tertiary) !important;"><span class="material-symbols-rounded">settings</span> 前往设置修改</button></div>';
-                setTimeout(() => {
-                    let btn = document.getElementById('ai-goto-settings');
-                    if (btn) btn.onclick = () => {
-                        window.toggleModal('ai-sheet-overlay', false);
-                        Nav.switchTab('tab-settings', 'settings|環境設定', document.querySelector('[data-target="tab-settings"]'));
-                    };
-                }, 100);
-                return;
-            }
-            throw new Error('网络请求失败: 错误码 ' + response.status);
-        }
-        
-        container.innerHTML = '<div class="ai-response-box"></div>';
-        let box = container.querySelector('.ai-response-box');
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let fullText = "";
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            let chunkStr = decoder.decode(value, {stream: true});
-            let lines = chunkStr.split('\n');
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        let data = JSON.parse(line.slice(6));
-                        let chunk = data.choices[0].delta.content;
-                        if (chunk) {
-                            fullText += chunk;
-                            box.innerHTML = renderAIMessageHTML(fullText, word || '');
-container.scrollTop = container.scrollHeight;
-                        }
-                    } catch (e) {}
-                }
-            }
-        }
-
-        /*
-         * 流式输出结束后，
-         * 使用完整文本再渲染一次。
-         *
-         * 防止最后一个注音刚好跨越两个数据片段，
-         * 导致页面停留在半完成状态。
-         */
-        box.innerHTML =
-            renderAIMessageHTML(
-                fullText,
-                word || ''
-            );
-
-        container.scrollTop =
-            container.scrollHeight;
-
-        if (cacheKey && fullText) {
-            Controller.aiCache[cacheKey] =
-                container.innerHTML;
-        }
-        if (copyBtn) {
-            copyBtn.style.display = 'flex';
-        }
-    } catch (err) {
-        container.innerHTML = '<div style="text-align:center; padding: 40px 20px; color: var(--accent-red);"><span class="material-symbols-rounded" style="font-size:3rem; opacity:0.5;">wifi_off</span><div style="font-weight:800; margin-top:16px;">连接失败</div><div style="opacity:0.7; margin-top:8px;">' + escapeHTML(err.message) + '</div></div>';
-    }
-}
 };
 
 /* ==========================================

@@ -12,17 +12,18 @@
     const STORAGE_KEY = 'hapticsEnabled';
     const DEDUPE_WINDOW_MS = 140;
     const PROFILES = Object.freeze({
-        tap: Object.freeze([8]),
-        focus: Object.freeze([6]),
-        selection: Object.freeze([10]),
-        navigation: Object.freeze([12, 18, 12]),
-        toggle: Object.freeze([10, 18, 16]),
-        confirm: Object.freeze([14, 22, 28]),
-        success: Object.freeze([18, 24, 18, 24, 36]),
-        warning: Object.freeze([28, 24, 28]),
-        error: Object.freeze([45, 30, 45]),
-        delete: Object.freeze([35, 25, 50]),
-        longPress: Object.freeze([12, 20, 55])
+        tap: Object.freeze([22]),
+        focus: Object.freeze([18]),
+        selection: Object.freeze([28]),
+        navigation: Object.freeze([28, 34, 28]),
+        toggle: Object.freeze([24, 34, 42]),
+        confirm: Object.freeze([30, 38, 58]),
+        success: Object.freeze([38, 44, 38, 44, 85]),
+        warning: Object.freeze([65, 48, 65]),
+        error: Object.freeze([95, 62, 95]),
+        delete: Object.freeze([75, 55, 120]),
+        longPress: Object.freeze([35, 42, 110]),
+        diagnostic: Object.freeze([220, 120, 220])
     });
     const PRIORITIES = Object.freeze({
         tap: 1,
@@ -35,7 +36,8 @@
         warning: 4,
         delete: 5,
         success: 5,
-        error: 6
+        error: 6,
+        diagnostic: 7
     });
 
     let installedDocument = null;

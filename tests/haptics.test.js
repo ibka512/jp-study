@@ -31,16 +31,17 @@ const haptics = require('../haptics.js');
 assert.equal(Object.isFrozen(haptics), true);
 assert.equal(Object.isFrozen(haptics.PROFILES), true);
 assert.equal(haptics.isSupported(), true);
-assert.deepEqual(haptics.getPattern('navigation'), [12, 18, 12]);
-assert.deepEqual(haptics.getPattern('unknown'), [8]);
+assert.deepEqual(haptics.getPattern('navigation'), [28, 34, 28]);
+assert.deepEqual(haptics.getPattern('diagnostic'), [220, 120, 220]);
+assert.deepEqual(haptics.getPattern('unknown'), [22]);
 
 haptics.setEnabled(true);
 assert.equal(haptics.isEnabled(), true);
 assert.equal(haptics.trigger('tap', { force: true }), true);
-assert.equal(calls.at(-1), 8);
+assert.equal(calls.at(-1), 22);
 
 haptics.trigger('success', { force: true });
-assert.deepEqual(calls.at(-1), [18, 24, 18, 24, 36]);
+assert.deepEqual(calls.at(-1), [38, 44, 38, 44, 85]);
 
 const callCount = calls.length;
 haptics.setEnabled(false);
@@ -50,6 +51,9 @@ assert.equal(calls.length, callCount + 1, '关闭时只应发送一次停止震�
 assert.equal(calls.at(-1), 0);
 
 haptics.trigger('toggle', { force: true });
-assert.deepEqual(calls.at(-1), [10, 18, 16]);
+assert.deepEqual(calls.at(-1), [24, 34, 42]);
+
+haptics.trigger('diagnostic', { force: true });
+assert.deepEqual(calls.at(-1), [220, 120, 220]);
 
 console.log('场景化触感模块测试通过');

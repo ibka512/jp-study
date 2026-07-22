@@ -73,15 +73,11 @@
   <div id="tab-home" class="tab-content active">
     <div class="home-layout-container">
       <div class="home-left-col">
-        <div class="card-panel" id="stats-panel">
-          <div class="stats-grid" style="flex-wrap: nowrap; margin-bottom: 0;">
-            <div class="stat-item" style="flex: 1;"><div class="stat-number" id="total-days">0</div><div class="stat-label">学习天数</div></div>
-            <div class="stat-item" style="flex: 1;"><div class="stat-number" id="streak-days">0</div><div class="stat-label">连续打卡</div></div>
-            <div class="stat-item stat-item-accent" style="flex: 2; display: flex; flex-direction: column; justify-content: center;">
-              <div class="stat-number" id="db-total-count" style="color: var(--tertiary); font-size: 1.6rem;">0</div>
-              <div class="stat-label" style="color: var(--tertiary); font-weight: 800;">词库词汇</div>
-            </div>
-          </div>
+        <div class="card-panel fsrs-home-card" id="stats-panel">
+          <div class="fsrs-home-heading"><span class="material-symbols-rounded">event_repeat</span><div><h3>今日复习</h3><p id="fsrs-streak-text">连续学习 0 天</p></div></div>
+          <div class="fsrs-home-count"><strong id="fsrs-due-count">0</strong><span>个待复习维度</span></div>
+          <p class="fsrs-home-detail" id="fsrs-due-detail">完成一次复习后，FSRS 会自动安排下一次时间</p>
+          <button id="btn-start-fsrs-review" class="primary-action-btn" type="button"><span class="material-symbols-rounded">play_arrow</span>开始今日复习</button>
         </div>
         <div id="total-words" style="display:none;"></div>
       </div>
@@ -822,6 +818,11 @@
       <div id="capsule-filter-judge" class="action-flex hidden" style="margin-bottom: var(--space-md); margin-top: auto;">
         <button id="ft-wrong" class="btn-action btn-ft-red"><span class="material-symbols-rounded">close</span> 错误 <kbd class="kbd-hint">←</kbd></button>
         <button id="ft-correct" class="btn-action btn-ft-green"><span class="material-symbols-rounded">check</span> 正确 <kbd class="kbd-hint">→</kbd></button>
+      </div>
+      <div id="capsule-fsrs-review" class="fsrs-review-panel hidden" aria-label="今日复习选项">
+        <div class="fsrs-review-heading"><span id="fsrs-review-dimension">复习维度</span><span id="fsrs-review-progress">1 / 1</span></div>
+        <p class="fsrs-review-tip">先回忆答案，再按实际感受选择：</p>
+        <div id="fsrs-rating-buttons" class="fsrs-rating-grid"></div>
       </div>
     </div>
   </div>

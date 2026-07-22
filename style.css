@@ -10169,3 +10169,25 @@ button.import-mode-btn.active > .material-symbols-rounded {
         line-height: 1.38;
     }
 }
+.fsrs-home-card { display: flex; flex-direction: column; gap: 12px; }
+.fsrs-home-heading { display:flex; align-items:center; gap:10px; color:var(--tertiary); }
+.fsrs-home-heading .material-symbols-rounded { font-size:2rem; }
+.fsrs-home-heading h3 { margin:0; font-size:1.1rem; }
+.fsrs-home-heading p { margin:3px 0 0; color:var(--outline); font-size:.8rem; }
+.fsrs-home-count { display:flex; align-items:baseline; gap:8px; }
+.fsrs-home-count strong { font-size:2.5rem; line-height:1; color:var(--tertiary); }
+.fsrs-home-count span,.fsrs-home-detail { color:var(--outline); font-size:.82rem; }
+.fsrs-home-detail { margin:0; min-height:2.4em; }
+.fsrs-home-card .primary-action-btn { width:100%; justify-content:center; }
+.fsrs-review-panel { display:flex; flex-direction:column; gap:10px; width:100%; }
+.fsrs-review-heading { display:flex; justify-content:space-between; color:var(--tertiary); font-weight:800; font-size:.9rem; }
+.fsrs-review-tip { margin:0; color:var(--outline); font-size:.78rem; }
+.fsrs-rating-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.fsrs-rating-btn { border:1px solid var(--outline-variant); border-radius:16px; padding:11px 10px; background:var(--surface-container-low); color:var(--on-surface); text-align:left; cursor:pointer; }
+.fsrs-rating-btn strong,.fsrs-rating-btn small { display:block; }
+.fsrs-rating-btn strong { font-size:.95rem; }
+.fsrs-rating-btn small { margin-top:4px; color:var(--outline); line-height:1.35; font-size:.7rem; }
+.fsrs-rating-btn em { display:block; margin-top:5px; color:var(--tertiary); font-size:.72rem; font-style:normal; font-weight:700; }
+.fsrs-rating-btn[data-rating="again"] { border-color:color-mix(in srgb,#d66 45%,var(--outline-variant)); }
+.fsrs-rating-btn[data-rating="easy"] { border-color:color-mix(in srgb,var(--tertiary) 55%,var(--outline-variant)); }
+@media (max-width: 640px) { .fsrs-rating-grid { gap:8px; } .fsrs-rating-btn { padding:10px 8px; } }

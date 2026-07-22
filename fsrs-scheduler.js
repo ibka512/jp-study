@@ -1,8 +1,12 @@
 (function (global) {
   'use strict';
 
-  const lib = global.tsfsrs || global.tsFsrs || (typeof module !== 'undefined' ? require('./vendor/ts-fsrs.umd.js') : null);
-  if (!lib) throw new Error('FSRS library is not loaded');
+  const lib = global.FSRS || global.tsfsrs || global.tsFsrs || (typeof module !== 'undefined' ? require('./vendor/ts-fsrs.umd.js') : null);
+  if (!lib) {
+    console.error('[FSRS] 调度库未加载，已跳过长期复习功能');
+    global.ZhongriFsrsScheduler = null;
+    return;
+  }
 
   const DIMENSIONS = Object.freeze({
     ja: Object.freeze(['kanji', 'reading', 'meaning']),

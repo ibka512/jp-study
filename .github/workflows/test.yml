@@ -71,6 +71,7 @@ jobs:
           node tests/wordbank-data.test.js
           node tests/app-shell-safety.test.js
           node tests/fsrs-scheduler.test.js
+          node tests/fsrs-browser-load.test.js
 
       - name: 检查空白错误
         run: git diff --check HEAD^

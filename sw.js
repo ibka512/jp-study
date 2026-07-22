@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v2';
+const CACHE_NAME = 'zhongri-shell-v3';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const LOCAL_ASSETS = [
   './data.js',
   './english-data.js',
   ...WORD_BANK_ASSETS,
+  './release-info.js',
   './core-utils.js',
   './haptics.js',
   './rote-learning-core.js',
@@ -30,6 +31,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
   './style.css',
+  './release-info.js',
   './core-utils.js',
   './haptics.js',
   './rote-learning-core.js',
@@ -66,25 +68,31 @@ async function networkFirst(request, cacheKey = request) {
   }
 }
 
-async function cacheFirst(request) {
+async function staleWhileRevalidate(request, event) {
   const cachedResponse = await caches.match(request);
-  if (cachedResponse) {
-    return cachedResponse;
-  }
 
-  try {
-    const response = await fetch(request);
+  const refresh = fetch(request).then(async response => {
     if (isCacheableResponse(response)) {
       const cache = await caches.open(CACHE_NAME);
       await cache.put(request, response.clone());
     }
     return response;
-  } catch (_error) {
-    return new Response('离线模式无法获取此资源', {
-      status: 503,
-      statusText: 'Service Unavailable'
-    });
+  }).catch(() => null);
+
+  if (cachedResponse) {
+    event.waitUntil(refresh);
+    return cachedResponse;
   }
+
+  const response = await refresh;
+  if (response) {
+    return response;
+  }
+
+  return new Response('离线模式无法获取此资源', {
+    status: 503,
+    statusText: 'Service Unavailable'
+  });
 }
 
 self.addEventListener('install', event => {
@@ -144,11 +152,11 @@ self.addEventListener('fetch', event => {
   }
 
   if (isSameOrigin && PRECACHE_URLS.has(requestUrl.href)) {
-    event.respondWith(cacheFirst(event.request));
+    event.respondWith(staleWhileRevalidate(event.request, event));
     return;
   }
 
   if (isAllowedCDN) {
-    event.respondWith(cacheFirst(event.request));
+    event.respondWith(staleWhileRevalidate(event.request, event));
   }
 });

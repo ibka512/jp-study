@@ -18,6 +18,7 @@ assert.match(
 );
 assert.match(index, /updateViaCache:\s*['"]none['"]/);
 assert.match(index, /registration\.update\(\)/);
+assert.match(index, /zhongri-update-ready/);
 assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.match(app, /const loadMathJax = \(\) =>/);
 assert.match(app, /document\.head\.appendChild\(script\)/);
@@ -26,6 +27,8 @@ assert.match(app, /'diagnostic',[\s\S]*\{ force: true \}/);
 assert.match(app, /Hardware\.playSound\('click', \{ haptic: false \}\)/);
 assert.match(index, /id="setting-haptics-enabled"/);
 assert.match(index, /data-haptic="none"/);
+assert.match(index, /id="settings-app-version"/);
+assert.match(index, /id="settings-app-published"/);
 assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.equal(
     (app.match(/Controller\.renderAIHistory\s*=\s*function/g) || []).length,
@@ -42,6 +45,7 @@ assert.equal(
 );
 assert.match(serviceWorker, /request\.mode === ['"]navigate['"]/);
 assert.match(serviceWorker, /NETWORK_FIRST_ASSETS/);
+assert.match(serviceWorker, /staleWhileRevalidate/);
 assert.match(serviceWorker, /event\.request\.method !== ['"]GET['"]/);
 assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);

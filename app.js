@@ -15,15 +15,28 @@ const WORD_STORAGE_VERSION_KEY = 'wordStorageVersion';
 const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
+const CORE_UTILS = globalThis.ZhongriCoreUtils;
 const ROTE_CORE = globalThis.RoteLearningCore;
 const MATHJAX_SOURCE =
     'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
 
 let mathJaxLoadPromise = null;
 
+if (!CORE_UTILS) {
+    throw new Error('钟日公共工具模块加载失败');
+}
+
 if (!ROTE_CORE) {
     throw new Error('循环强记核心模块加载失败');
 }
+
+const {
+    cloneDataValue,
+    escapeHTML,
+    escapeRegExp,
+    hashStableText,
+    normalizeEntryText
+} = CORE_UTILS;
 
 const loadMathJax = () => {
     if (window.MathJax?.typesetPromise) {
@@ -88,40 +101,6 @@ const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'lastTestDisplay',
     'lastTestRange'
 ]);
-const escapeHTML = (str) => {
-    if (!str) return '';
-    return String(str).replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[tag]));
-};
-
-const escapeRegExp = (str) => {
-    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
-
-
-const cloneDataValue = value => {
-    if (typeof structuredClone === 'function') {
-        try {
-            return structuredClone(value);
-        } catch (error) {}
-    }
-
-    return JSON.parse(JSON.stringify(value));
-};
-
-const hashStableText = value => {
-    let hash = 2166136261;
-    const text = String(value ?? '');
-
-    for (let index = 0; index < text.length; index++) {
-        hash ^= text.charCodeAt(index);
-        hash = Math.imul(hash, 16777619);
-    }
-
-    return (hash >>> 0).toString(36);
-};
-
 const createRandomWordId = () => {
     if (
         typeof crypto !== 'undefined' &&
@@ -227,17 +206,6 @@ const normalizeWordSources = value => {
                 .filter(Boolean)
         )
     ].slice(0, 20);
-};
-
-const normalizeEntryText = (value, useCompatibility = true) => {
-    const source = String(value ?? '');
-
-    return source
-        .normalize(useCompatibility ? 'NFKC' : 'NFC')
-        .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
-        .replace(/\u00A0/g, ' ')
-        .replace(/[ \t]+/g, ' ')
-        .trim();
 };
 
 const normalizeHeadword = (value, lang = 'ja') => {

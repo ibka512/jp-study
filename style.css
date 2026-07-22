@@ -11032,3 +11032,259 @@ button.import-mode-btn.active > .material-symbols-rounded {
         min-height: 82px !important;
     }
 }
+
+
+/* ===== 第一轮统一动效（motion-v1） ===== */
+:root {
+    --motion-press: 120ms;
+    --motion-component: 220ms;
+    --motion-page: 320ms;
+    --motion-standard: cubic-bezier(0.2, 0, 0, 1);
+    --motion-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* 统一触控沉降：只动画 transform/opacity/阴影，避免移动端重排 */
+.home-mode-card,
+.home-filter-card button,
+.home-range-button,
+.btn-action,
+.dt-choice-btn,
+.fsrs-rating-button,
+.glass-icon-btn,
+.bs-facade,
+.wordbank-manage-toggle {
+    transform: translateZ(0);
+    transform-origin: center;
+    will-change: transform;
+    transition:
+        transform var(--motion-press) var(--motion-standard),
+        opacity var(--motion-press) linear,
+        box-shadow var(--motion-component) var(--motion-standard),
+        background-color var(--motion-component) var(--motion-standard) !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.home-mode-card:active,
+.home-filter-card button:active,
+.home-range-button:active,
+.btn-action:active,
+.dt-choice-btn:active,
+.fsrs-rating-button:active,
+.glass-icon-btn:active,
+.bs-facade:active,
+.wordbank-manage-toggle:active {
+    transform: translateY(1px) scale(0.975) !important;
+    opacity: 0.92;
+}
+
+/* 底栏使用同一个滑动胶囊，不再让四个背景分别闪现 */
+.bottom-nav {
+    --nav-indicator-left: 12.5%;
+    isolation: isolate;
+}
+
+.bottom-nav::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 10px;
+    left: var(--nav-indicator-left);
+    width: 64px;
+    height: 34px;
+    border-radius: var(--radius-full);
+    background: var(--primary-container);
+    transform: translateX(-50%) translateZ(0);
+    transition:
+        left var(--motion-page) var(--motion-emphasized),
+        width var(--motion-component) var(--motion-standard),
+        background-color var(--motion-component) var(--motion-standard);
+    pointer-events: none;
+}
+
+.bottom-nav .nav-item {
+    position: relative;
+    z-index: 1;
+    transition:
+        color var(--motion-component) var(--motion-standard),
+        opacity var(--motion-component) linear,
+        transform var(--motion-press) var(--motion-standard);
+}
+
+.bottom-nav .nav-item .nav-icon,
+.bottom-nav .nav-item.active .nav-icon {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 4px 20px !important;
+}
+
+.bottom-nav .nav-item.active .nav-icon {
+    transform: translateY(-1px) scale(1.04) !important;
+}
+
+.bottom-nav .nav-item:active {
+    transform: translateY(1px) scale(0.94) !important;
+}
+
+[data-theme="dark"] .bottom-nav::before {
+    background: rgba(214, 195, 176, 0.15);
+}
+
+/* 页面进入方向与底栏选择方向保持一致 */
+.tab-content.active.tab-enter-forward {
+    animation: tab-enter-forward var(--motion-page) var(--motion-emphasized) both !important;
+}
+
+.tab-content.active.tab-enter-backward {
+    animation: tab-enter-backward var(--motion-page) var(--motion-emphasized) both !important;
+}
+
+@keyframes tab-enter-forward {
+    from {
+        opacity: 0;
+        transform: translateX(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes tab-enter-backward {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* 学习卡像和纸一样横向交接，取消旋转以避免手机端眩晕 */
+@keyframes study-card-exit-next {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to { opacity: 0; transform: translateX(-26px) scale(0.985); }
+}
+
+@keyframes study-card-exit-prev {
+    from { opacity: 1; transform: translateX(0) scale(1); }
+    to { opacity: 0; transform: translateX(26px) scale(0.985); }
+}
+
+@keyframes study-card-enter-next {
+    0% { opacity: 0; transform: translateX(28px) scale(0.98); }
+    72% { opacity: 1; transform: translateX(-2px) scale(1.003); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes study-card-enter-prev {
+    0% { opacity: 0; transform: translateX(-28px) scale(0.98); }
+    72% { opacity: 1; transform: translateX(2px) scale(1.003); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* 揭晓只使用透明度与位移，避免大面积 blur 导致掉帧 */
+@keyframes answer-reveal {
+    0% {
+        opacity: 0;
+        filter: none;
+        transform: translateY(5px) scale(0.99);
+    }
+    72% {
+        opacity: 1;
+        filter: none;
+        transform: translateY(-1px) scale(1.002);
+    }
+    100% {
+        opacity: 1;
+        filter: none;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 朱印式答题标记 */
+.study-feedback-mark {
+    position: absolute;
+    z-index: 8;
+    top: 18px;
+    left: 18px;
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    opacity: 0;
+    transform: rotate(-8deg) scale(1.35);
+    pointer-events: none;
+    font-size: 1.65rem;
+    font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;
+}
+
+.study-feedback-mark.is-correct {
+    color: #657e72;
+}
+
+.study-feedback-mark.is-wrong {
+    color: #a45f5d;
+}
+
+.study-feedback-mark.is-visible {
+    animation: study-stamp var(--motion-page) var(--motion-emphasized) both;
+}
+
+@keyframes study-stamp {
+    0% {
+        opacity: 0;
+        transform: rotate(-8deg) scale(1.35);
+    }
+    58% {
+        opacity: 0.92;
+        transform: rotate(-8deg) scale(0.94);
+    }
+    100% {
+        opacity: 0.78;
+        transform: rotate(-8deg) scale(1);
+    }
+}
+
+[data-theme="dark"] .study-feedback-mark.is-correct {
+    color: #a4c7b6;
+}
+
+[data-theme="dark"] .study-feedback-mark.is-wrong {
+    color: #e0a09b;
+}
+
+@media (max-width: 600px) {
+    .bottom-nav::before {
+        top: 10px;
+        width: 58px;
+        height: 34px;
+    }
+
+    .study-feedback-mark {
+        top: 14px;
+        left: 14px;
+        width: 42px;
+        height: 42px;
+        font-size: 1.4rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bottom-nav::before {
+        transition: none !important;
+    }
+
+    .tab-content.active.tab-enter-forward,
+    .tab-content.active.tab-enter-backward,
+    .study-feedback-mark.is-visible {
+        animation: none !important;
+    }
+
+    .study-feedback-mark.is-visible {
+        opacity: 0.78;
+        transform: none;
+    }
+}

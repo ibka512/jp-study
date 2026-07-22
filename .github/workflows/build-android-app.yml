@@ -1,4 +1,4 @@
-name: 构建钟日 Android 测试版
+name: 构建钟日 Android 安装包
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
       - "style.css"
       - "sw.js"
       - "*.js"
+      - "native-app.css"
       - "manifest.json"
       - "logo.png"
       - "vendor/**"
@@ -17,8 +18,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - "capacitor.config.json"
-      - "scripts/build-capacitor-web.mjs"
-      - "scripts/prepare-android-icon.mjs"
+      - "scripts/**"
       - ".github/workflows/build-android-app.yml"
 
 permissions:
@@ -30,9 +30,11 @@ concurrency:
 
 jobs:
   build-debug-apk:
-    name: 生成可安装 APK
+    name: 生成安装包（测试版 + 发布版）
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
 
     steps:
       - name: 获取代码
@@ -58,19 +60,23 @@ jobs:
       - name: 安装依赖
         run: npm ci --no-audit --no-fund
 
-      - name: 生成 Web 资源
+      - name: 生成 Web 资源（含离线字体与原生适配）
         run: npm run build:web
 
       - name: 创建 Android 工程
         run: npx cap add android
 
-      - name: 生成 Android 应用图标
+      - name: 生成 Android 应用图标与启动画面
         run: |
           node scripts/prepare-android-icon.mjs
           npx capacitor-assets generate --android
           test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
           test -f android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          test -f android/app/src/main/res/drawable/splash.png
+
+      - name: 适配状态栏主题
+        run: node scripts/patch-android-theme.mjs
 
       - name: 更新测试版版本号
         run: |
@@ -86,10 +92,42 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: 上传 APK
+      - name: 上传测试版 APK
         uses: actions/upload-artifact@v4
         with:
           name: zhongri-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: 解码发布密钥库
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        working-directory: android/app
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: 配置发布签名
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: node scripts/configure-android-signing.mjs
+
+      - name: 构建发布版 APK 与 AAB
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        working-directory: android
+        run: ./gradlew assembleRelease bundleRelease
+        env:
+          ANDROID_KEYSTORE_PATH: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: 上传发布版安装包
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhongri-android-release
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30

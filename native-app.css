@@ -1,0 +1,36 @@
+/*
+ * 钟日 · Android 原生端安全区适配
+ *
+ * 只在 Capacitor 原生环境生效：index.html 里的脚本会为原生环境
+ * 自动添加 html.native-app 类，网页版永远不会命中这些规则，
+ * 因此 PWA 的显示效果不受任何影响。
+ *
+ * 这里统一使用 margin 而不是 padding，避免覆盖 style.css 中
+ * 已有的内边距设置。
+ */
+
+/* 顶部：避开状态栏 */
+html.native-app .global-header {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+
+html.native-app #study-top-bar {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+
+html.native-app .root-review-header {
+  margin-top: env(safe-area-inset-top, 0px);
+}
+
+/* 底部：避开全面屏手势条 */
+html.native-app .bottom-nav {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.native-app .bottom-sheet {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.native-app #batch-bar {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}

@@ -9,6 +9,7 @@ const runtimeEntries = [
   'manifest.json',
   'logo.png',
   'style.css',
+  'native-app.css',
   'sw.js',
   'data.js',
   'english-data.js',

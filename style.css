@@ -11590,3 +11590,18 @@ button.import-mode-btn.active > .material-symbols-rounded {
         background: currentColor;
     }
 }
+
+
+/* ===== 答题印章位置修复（motion-v2-fix1） ===== */
+.study-feedback-mark {
+    top: 16px !important;
+    left: 50% !important;
+    margin-left: -24px;
+}
+
+@media (max-width: 600px) {
+    .study-feedback-mark {
+        top: 14px !important;
+        margin-left: -21px;
+    }
+}

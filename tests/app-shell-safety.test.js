@@ -30,6 +30,13 @@ assert.match(index, /data-haptic="none"/);
 assert.match(index, /id="settings-app-version"/);
 assert.match(index, /id="settings-app-published"/);
 assert.match(index, /wordbank-loader\.js/);
+assert.match(index, /setting-item-vertical ai-key-setting/);
+assert.match(index, /ai-capability-list/);
+assert.doesNotMatch(index, /ai-capability-panel/);
+assert.match(
+    fs.readFileSync('style.css', 'utf8'),
+    /\.settings-key-wrapper\s*\{\s*width:\s*100%/
+);
 assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.equal(
     (app.match(/Controller\.renderAIHistory\s*=\s*function/g) || []).length,

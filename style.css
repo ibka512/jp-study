@@ -6359,13 +6359,6 @@ button.ai-chat-quick-chip:active:not(:disabled) {
 }
 
 @media (max-width: 560px) {
-    .ai-capability-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ai-capability-card {
-        min-height: 0;
-    }
 }
 
 @media (max-width: 420px) {
@@ -7941,10 +7934,14 @@ span:not(.ai-quiz-missing-tag) {
 }
 
 .settings-key-wrapper {
-    width: min(44%, 220px);
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .settings-key-wrapper input {
+    display: block;
+    box-sizing: border-box;
     width: 100%;
     min-height: 42px;
     margin: 0;
@@ -8001,36 +7998,21 @@ span:not(.ai-quiz-missing-tag) {
     max-width: 100%;
 }
 
-.ai-capability-panel {
+.ai-capability-list {
     width: 100%;
     min-width: 0;
     max-width: 100%;
-    padding: 16px !important;
-    overflow: hidden;
-}
-
-.ai-capability-grid {
     display: grid;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
+    margin-top: 16px;
 }
 
 .ai-capability-card {
     display: flex;
     min-width: 0;
     max-width: 100%;
-    min-height: 130px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 7px;
-    overflow: hidden;
-    padding: 14px;
-    border: 1px solid var(--outline-soft, var(--outline));
-    border-radius: 17px;
-    background: var(--surface-container-high, var(--surface-container));
+    margin: 0;
+    padding: 16px 17px;
 }
 
 .ai-capability-card > .material-symbols-rounded {
@@ -8048,8 +8030,6 @@ span:not(.ai-quiz-missing-tag) {
     color: var(--on-surface);
     font-size: 0.7rem;
     line-height: 1.55;
-    overflow-wrap: anywhere;
-    word-break: break-word;
     opacity: 0.56;
 }
 
@@ -8323,14 +8303,6 @@ span:not(.ai-quiz-missing-tag) {
         display: none;
     }
 
-    .ai-capability-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ai-capability-card {
-        min-height: 0;
-    }
-
     .recycle-item {
         grid-template-columns: 38px minmax(0, 1fr);
     }
@@ -8348,9 +8320,7 @@ span:not(.ai-quiz-missing-tag) {
         gap: 12px;
     }
 
-    .settings-key-wrapper {
-        width: 44%;
-    }
+    .settings-key-wrapper { width: 100%; }
 }
 
 /* ==========================================

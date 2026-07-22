@@ -50,10 +50,17 @@ jobs:
       - name: 生成 Web 资源
         run: npm run build:web
 
-      - name: 创建并同步 Android 工程
+      - name: 创建 Android 工程
+        run: npx cap add android
+
+      - name: 生成 Android 应用图标
         run: |
-          npx cap add android
-          npx cap sync android
+          mkdir -p assets
+          cp logo.png assets/icon-only.png
+          npx capacitor-assets generate --android
+
+      - name: 同步原生插件
+        run: npx cap sync android
 
       - name: 构建 Debug APK
         working-directory: android

@@ -10713,7 +10713,7 @@ if (aiCloseBtn) {
 
       showConfirm(
           '删除文件夹',
-          `确定要删除「${filter}」吗？里面的 ${folderWords.length} 个单词会自动移至同语言的默认词库「${mainFallbackFolder}」。`,
+          `确定要删除「${escapeHTML(filter)}」吗？里面的 ${folderWords.length} 个单词会自动移至同语言的默认词库「${escapeHTML(mainFallbackFolder)}」。`,
           () => {
               if (Model.state.batchMode) {
                   this.toggleBatchMode();

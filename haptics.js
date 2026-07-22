@@ -44,10 +44,31 @@
     let lastTriggerAt = -Infinity;
     let lastPriority = 0;
 
+    const getNativeHaptics = () => {
+        const capacitor = root.Capacitor;
+        const plugin = capacitor?.Plugins?.Haptics;
+
+        if (!plugin) {
+            return null;
+        }
+
+        if (
+            typeof capacitor.isNativePlatform === 'function' &&
+            !capacitor.isNativePlatform()
+        ) {
+            return null;
+        }
+
+        return plugin;
+    };
+
     const isSupported = () => {
         return Boolean(
-            root.navigator &&
-            typeof root.navigator.vibrate === 'function'
+            getNativeHaptics() ||
+            (
+                root.navigator &&
+                typeof root.navigator.vibrate === 'function'
+            )
         );
     };
 
@@ -81,11 +102,8 @@
         return normalized.length ? normalized : [0];
     };
 
-    const vibratePattern = (
-        pattern,
-        { force = false, priority = 1 } = {}
-    ) => {
-        if ((!force && !isEnabled()) || !isSupported()) {
+    const canTrigger = ({ force = false, priority = 1 } = {}) => {
+        if (!force && !isEnabled()) {
             return false;
         }
 
@@ -98,9 +116,18 @@
             return false;
         }
 
-        const normalized = normalizePattern(pattern);
         lastTriggerAt = now;
         lastPriority = priority;
+        return true;
+    };
+
+    const vibrateInBrowser = normalized => {
+        if (
+            !root.navigator ||
+            typeof root.navigator.vibrate !== 'function'
+        ) {
+            return false;
+        }
 
         try {
             return root.navigator.vibrate(
@@ -113,6 +140,66 @@
         }
     };
 
+    const runNativeProfile = (type, normalized) => {
+        const nativeHaptics = getNativeHaptics();
+        if (!nativeHaptics) {
+            return false;
+        }
+
+        let task;
+        if (type === 'success') {
+            task = nativeHaptics.notification({ type: 'SUCCESS' });
+        } else if (type === 'warning') {
+            task = nativeHaptics.notification({ type: 'WARNING' });
+        } else if (type === 'error' || type === 'delete') {
+            task = nativeHaptics.notification({ type: 'ERROR' });
+        } else if (type === 'diagnostic') {
+            task = nativeHaptics.vibrate({ duration: 300 });
+        } else {
+            const style =
+                type === 'tap' || type === 'focus'
+                    ? 'LIGHT'
+                    : type === 'confirm' || type === 'longPress'
+                        ? 'HEAVY'
+                        : 'MEDIUM';
+            task = nativeHaptics.impact({ style });
+        }
+
+        Promise.resolve(task).catch(() => {
+            vibrateInBrowser(normalized);
+        });
+        return true;
+    };
+
+    const vibratePattern = (
+        pattern,
+        { force = false, priority = 1 } = {}
+    ) => {
+        if (!isSupported() || !canTrigger({ force, priority })) {
+            return false;
+        }
+
+        const normalized = normalizePattern(pattern);
+        const nativeHaptics = getNativeHaptics();
+        if (nativeHaptics) {
+            const activePulses = normalized.filter(
+                (_value, index) => index % 2 === 0
+            );
+            const duration = Math.max(
+                35,
+                Math.min(180, Math.max(...activePulses))
+            );
+            Promise.resolve(
+                nativeHaptics.vibrate({ duration })
+            ).catch(() => {
+                vibrateInBrowser(normalized);
+            });
+            return true;
+        }
+
+        return vibrateInBrowser(normalized);
+    };
+
     const getPattern = type => {
         const profile = PROFILES[type] || PROFILES.tap;
         return [...profile];
@@ -120,10 +207,21 @@
 
     const trigger = (type = 'tap', options = {}) => {
         const safeType = PROFILES[type] ? type : 'tap';
-        return vibratePattern(PROFILES[safeType], {
+        const triggerOptions = {
             ...options,
             priority: options.priority ?? PRIORITIES[safeType]
-        });
+        };
+
+        if (!isSupported() || !canTrigger(triggerOptions)) {
+            return false;
+        }
+
+        const normalized = normalizePattern(PROFILES[safeType]);
+        if (runNativeProfile(safeType, normalized)) {
+            return true;
+        }
+
+        return vibrateInBrowser(normalized);
     };
 
     const triggerLegacy = (pattern, options = {}) => {

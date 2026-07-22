@@ -31,11 +31,23 @@ assert.match(index, /id="settings-app-version"/);
 assert.match(index, /id="settings-app-published"/);
 assert.match(index, /wordbank-loader\.js/);
 assert.match(index, /setting-item-vertical ai-key-setting/);
+assert.match(
+    index,
+    /AI 引擎（DeepSeek）[\s\S]*?setting-key-wrapper/
+);
+assert.match(
+    index,
+    /智能跳过已亮维度[\s\S]*?<div class="setting-item"/
+);
 assert.match(index, /ai-capability-list/);
 assert.doesNotMatch(index, /ai-capability-panel/);
 assert.match(
     fs.readFileSync('style.css', 'utf8'),
     /\.settings-key-wrapper\s*\{\s*width:\s*100%/
+);
+assert.match(
+    fs.readFileSync('style.css', 'utf8'),
+    /\.ai-key-setting\s*\{[\s\S]*?flex-direction:\s*column\s*!important/
 );
 assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.equal(

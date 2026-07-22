@@ -63,17 +63,7 @@ jobs:
           for file in wordbanks/*.js; do node --check "$file"; done
 
       - name: 运行前端与词库测试
-        run: |
-          node tests/core-utils.test.js
-          node tests/release-info.test.js
-          node tests/haptics.test.js
-          node tests/wordbank-loader.test.js
-          node tests/rote-learning-core.test.js
-          node tests/rote-learning-integration.test.js
-          node tests/wordbank-data.test.js
-          node tests/app-shell-safety.test.js
-          node tests/fsrs-scheduler.test.js
-          node tests/fsrs-browser-load.test.js
+        run: npm test
 
       - name: 检查空白错误
         run: git diff --check HEAD^

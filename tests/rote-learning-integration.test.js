@@ -15,25 +15,20 @@ const serviceWorker = read('sw.js');
 const wordbankLoader = read('wordbank-loader.js');
 const { WORD_BANK_ASSETS } = require('../wordbanks/assets.js');
 
-const releaseInfoPosition = index.indexOf(
-    '<script src="release-info.js"></script>'
-);
-const coreUtilsPosition = index.indexOf(
-    '<script src="core-utils.js"></script>'
-);
-const hapticsPosition = index.indexOf(
-    '<script src="haptics.js"></script>'
-);
-const coreScriptPosition = index.indexOf(
-    '<script src="rote-learning-core.js"></script>'
-);
-const appScriptPosition = index.indexOf('<script src="app.js"></script>');
-const wordbankAssetsPosition = index.indexOf(
-    '<script src="wordbanks/assets.js"></script>'
-);
-const wordbankLoaderPosition = index.indexOf(
-    '<script src="wordbank-loader.js"></script>'
-);
+const scriptPosition = source => {
+    const escaped = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return index.search(
+        new RegExp(`<script\\s+src=["']${escaped}(?:\\?[^"']*)?["'][^>]*><\\/script>`)
+    );
+};
+
+const releaseInfoPosition = scriptPosition('release-info.js');
+const coreUtilsPosition = scriptPosition('core-utils.js');
+const hapticsPosition = scriptPosition('haptics.js');
+const coreScriptPosition = scriptPosition('rote-learning-core.js');
+const appScriptPosition = scriptPosition('app.js');
+const wordbankAssetsPosition = scriptPosition('wordbanks/assets.js');
+const wordbankLoaderPosition = scriptPosition('wordbank-loader.js');
 
 assert.ok(coreUtilsPosition >= 0, '页面没有加载公共工具模块');
 assert.ok(releaseInfoPosition >= 0, '页面没有加载发布信息模块');
@@ -63,7 +58,7 @@ assert.ok(
 );
 assert.match(serviceWorker, /'\.\/rote-learning-core\.js'/);
 assert.match(serviceWorker, /'\.\/core-utils\.js'/);
-assert.match(serviceWorker, /'\.\/haptics\.js'/);
+assert.match(serviceWorker, /'\.\/haptics\.js(?:\?[^']*)?'/);
 assert.match(serviceWorker, /'\.\/release-info\.js'/);
 assert.match(serviceWorker, /staleWhileRevalidate/);
 assert.match(serviceWorker, /importScripts\('\.\/wordbanks\/assets\.js'\)/);

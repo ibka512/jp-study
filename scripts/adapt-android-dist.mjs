@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
  * 2. 把在线加载的 idb-keyval 下载到本地，APK 首次离线打开也能运行；
  * 3. 注入全屏视口（viewport-fit=cover）与原生安全区样式，避免内容被状态栏挡住。
  *
- * 任何一步失败都只警告、不中断构建（退回在线加载，与打包前效果一致）。
+ * 这些资源是 APK 离线可用性的必要条件；任何一步失败都会中断构建。
  */
 
 const root = resolve(import.meta.dirname, '..');
@@ -43,10 +43,9 @@ const fetchChecked = async url => {
   return response;
 };
 
-const replaceOnce = (text, search, replacement, label, warnings) => {
+const replaceOnce = (text, search, replacement, label) => {
   if (!text.includes(search)) {
-    warnings.push(`未找到「${label}」的原始写法，已保持原样（不影响本次构建）`);
-    return text;
+    throw new Error(`未找到「${label}」的原始写法，无法安全生成 Android 资源`);
   }
   return text.replace(search, replacement);
 };
@@ -68,6 +67,9 @@ const localizeFonts = async () => {
           .map(match => match[1])
       )
     ];
+    if (!fontUrls.length) {
+      throw new Error(`字体样式表没有返回可下载的字体文件：${stylesheetUrl}`);
+    }
 
     let rewritten = cssText;
     for (const fontUrl of fontUrls) {
@@ -92,32 +94,23 @@ const localizeIdbKeyval = async () => {
   return buffer.length;
 };
 
-const warnings = [];
 let html = await readFile(indexPath, 'utf8');
 
-try {
-  const { fileCount, totalBytes } = await localizeFonts();
-  html = replaceOnce(html, FONT_LINK_TAGS[0], LOCAL_FONTS_TAG, '界面字体', warnings);
-  html = replaceOnce(html, FONT_LINK_TAGS[1], '', '图标字体', warnings);
-  console.log(`字体已内置：${fileCount} 个字体文件，约 ${(totalBytes / 1024 / 1024).toFixed(1)} MB`);
-} catch (error) {
-  warnings.push(`字体本地化失败，APK 将退回在线加载字体：${error.message}`);
-}
+const { fileCount, totalBytes } = await localizeFonts();
+html = replaceOnce(html, FONT_LINK_TAGS[0], LOCAL_FONTS_TAG, '界面字体');
+html = replaceOnce(html, FONT_LINK_TAGS[1], '', '图标字体');
+console.log(`字体已内置：${fileCount} 个字体文件，约 ${(totalBytes / 1024 / 1024).toFixed(1)} MB`);
 
-try {
-  const size = await localizeIdbKeyval();
-  html = replaceOnce(html, IDB_KEYVAL_REMOTE_TAG, IDB_KEYVAL_LOCAL_TAG, 'idb-keyval', warnings);
-  console.log(`idb-keyval 已内置（${(size / 1024).toFixed(1)} KB）`);
-} catch (error) {
-  warnings.push(`idb-keyval 本地化失败，APK 将退回在线加载：${error.message}`);
-}
+const size = await localizeIdbKeyval();
+html = replaceOnce(html, IDB_KEYVAL_REMOTE_TAG, IDB_KEYVAL_LOCAL_TAG, 'idb-keyval');
+console.log(`idb-keyval 已内置（${(size / 1024).toFixed(1)} KB）`);
 
-html = replaceOnce(html, VIEWPORT_REMOTE, VIEWPORT_NATIVE, '全屏视口', warnings);
-html = replaceOnce(html, STYLE_LINK, STYLE_LINK_WITH_NATIVE, '原生样式表', warnings);
+html = replaceOnce(html, VIEWPORT_REMOTE, VIEWPORT_NATIVE, '全屏视口');
+html = replaceOnce(html, STYLE_LINK, STYLE_LINK_WITH_NATIVE, '原生样式表');
+
+if (/fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/idb-keyval/.test(html)) {
+  throw new Error('Android 首页仍包含必须本地化的远程运行时资源');
+}
 
 await writeFile(indexPath, html);
-
-for (const warning of warnings) {
-  console.warn(`⚠ ${warning}`);
-}
 console.log('dist/ 安卓适配完成');

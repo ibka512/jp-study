@@ -15,6 +15,7 @@ on:
       - "logo.png"
       - "vendor/**"
       - "wordbanks/**"
+      - "reports/**"
       - "package.json"
       - "package-lock.json"
       - "capacitor.config.json"
@@ -52,14 +53,11 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: 固定测试版签名
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: zhongri-android-debug-keystore-v1
-
       - name: 安装依赖
         run: npm ci --no-audit --no-fund 2>&1 | tee npm-ci.log
+
+      - name: 运行前端测试
+        run: npm test 2>&1 | tee test-js.log
 
       - name: 生成 Web 资源（含离线字体与原生适配）
         run: npm run build:web 2>&1 | tee build-web.log
@@ -81,6 +79,9 @@ jobs:
       - name: 适配状态栏主题
         run: node scripts/patch-android-theme.mjs 2>&1 | tee theme-patch.log
 
+      - name: 配置 Android 安全与提醒权限
+        run: node scripts/patch-android-manifest.mjs 2>&1 | tee manifest-patch.log
+
       - name: 更新版本号（读取 release-info.js）
         run: |
           APP_VERSION=$(node -p "String(require('./release-info.js').version).replace(/^V/, '')")
@@ -90,30 +91,65 @@ jobs:
       - name: 同步原生插件
         run: npx cap sync android 2>&1 | tee cap-sync.log
 
+      - name: 说明未配置签名时的行为
+        if: ${{ env.HAS_KEYSTORE != 'true' }}
+        run: |
+          {
+            echo "### 未生成可分发安装包"
+            echo ""
+            echo "仓库尚未配置持久 Android keystore。本次只验证 Debug 编译，"
+            echo "不会上传每次签名都不同、无法覆盖升级的临时 APK。"
+            echo "请按 docs/ANDROID_BUILD.md 配置 4 个签名 Secrets。"
+          } | tee unsigned-build-notice.log | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: 解码持久密钥库
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        working-directory: android/app
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
+          test -s release.keystore
+          keytool -list \
+            -keystore release.keystore \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" >/dev/null
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: 配置 Debug 与 Release 持久签名
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
+        run: node scripts/configure-android-signing.mjs 2>&1 | tee signing-config.log
+        env:
+          ANDROID_KEYSTORE_PATH: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: 校验 Android 工程
+        run: node scripts/verify-android-project.mjs 2>&1 | tee android-verify.log
+        env:
+          REQUIRE_ANDROID_SIGNING: ${{ env.HAS_KEYSTORE }}
+
       - name: 构建 Debug APK
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace 2>&1 | tee ../debug-build.log
+        env:
+          ANDROID_KEYSTORE_PATH: release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: 上传测试版 APK
+        if: ${{ env.HAS_KEYSTORE == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: zhongri-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: 解码发布密钥库
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        working-directory: android/app
-        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > release.keystore
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-
-      - name: 配置发布签名
-        if: ${{ env.HAS_KEYSTORE == 'true' }}
-        run: node scripts/configure-android-signing.mjs
 
       - name: 构建发布版 APK 与 AAB
         if: ${{ env.HAS_KEYSTORE == 'true' }}
@@ -148,7 +184,7 @@ jobs:
             echo "- 时间（UTC）：$(date -u '+%Y-%m-%d %H:%M:%S')"
             echo ""
             echo "> 这份报告由构建流程自动创建，供 AI 助手读取定位问题，修复后可关闭。"
-            for log in npm-ci.log build-web.log cap-add.log icons.log theme-patch.log cap-sync.log debug-build.log release-build.log; do
+            for log in npm-ci.log test-js.log build-web.log cap-add.log icons.log theme-patch.log manifest-patch.log cap-sync.log signing-config.log android-verify.log debug-build.log release-build.log; do
               if [ -f "$log" ]; then
                 echo ""
                 echo "### ${log}（末尾 150 行）"

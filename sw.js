@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v13';
+const CACHE_NAME = 'zhongri-shell-v14';
 const LOCAL_ASSETS = [
   './',
   './index.html',

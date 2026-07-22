@@ -21,6 +21,10 @@ assert.match(index, /registration\.update\(\)/);
 assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.match(app, /const loadMathJax = \(\) =>/);
 assert.match(app, /document\.head\.appendChild\(script\)/);
+assert.match(app, /HAPTICS\.install\(\)/);
+assert.match(app, /Hardware\.haptic\('success', \{ force: true \}\)/);
+assert.match(index, /id="setting-haptics-enabled"/);
+assert.match(index, /data-haptic="none"/);
 assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
 assert.equal(
     (app.match(/Controller\.renderAIHistory\s*=\s*function/g) || []).length,

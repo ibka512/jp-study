@@ -17,15 +17,23 @@ const wordbankAssets = read('wordbanks/assets.js');
 const coreUtilsPosition = index.indexOf(
     '<script src="core-utils.js"></script>'
 );
+const hapticsPosition = index.indexOf(
+    '<script src="haptics.js"></script>'
+);
 const coreScriptPosition = index.indexOf(
     '<script src="rote-learning-core.js"></script>'
 );
 const appScriptPosition = index.indexOf('<script src="app.js"></script>');
 
 assert.ok(coreUtilsPosition >= 0, '页面没有加载公共工具模块');
+assert.ok(hapticsPosition >= 0, '页面没有加载场景化触感模块');
 assert.ok(
     coreUtilsPosition < appScriptPosition,
     '公共工具模块必须先于 app.js 加载'
+);
+assert.ok(
+    hapticsPosition < appScriptPosition,
+    '场景化触感模块必须先于 app.js 加载'
 );
 assert.ok(coreScriptPosition >= 0, '页面没有加载循环强记核心模块');
 assert.ok(
@@ -34,6 +42,7 @@ assert.ok(
 );
 assert.match(serviceWorker, /'\.\/rote-learning-core\.js'/);
 assert.match(serviceWorker, /'\.\/core-utils\.js'/);
+assert.match(serviceWorker, /'\.\/haptics\.js'/);
 assert.match(serviceWorker, /importScripts\('\.\/wordbanks\/assets\.js'\)/);
 assert.match(serviceWorker, /\.\.\.WORD_BANK_ASSETS/);
 assert.doesNotMatch(serviceWorker, /wordbank-builder\.html/);
@@ -107,6 +116,7 @@ for (const asset of [
     'data.js',
     'english-data.js',
     'core-utils.js',
+    'haptics.js',
     'rote-learning-core.js',
     'app.js'
 ]) {

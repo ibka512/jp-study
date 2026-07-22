@@ -16,6 +16,7 @@ const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const CORE_UTILS = globalThis.ZhongriCoreUtils;
+const HAPTICS = globalThis.ZhongriHaptics;
 const ROTE_CORE = globalThis.RoteLearningCore;
 const MATHJAX_SOURCE =
     'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
@@ -24,6 +25,10 @@ let mathJaxLoadPromise = null;
 
 if (!CORE_UTILS) {
     throw new Error('钟日公共工具模块加载失败');
+}
+
+if (!HAPTICS) {
+    throw new Error('钟日触感模块加载失败');
 }
 
 if (!ROTE_CORE) {
@@ -87,6 +92,7 @@ const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'theme',
     'langMode',
     'autoSpeak',
+    'hapticsEnabled',
     'showRoots',
         'darkBtnStyle',
     'postponeTested',
@@ -4109,6 +4115,7 @@ const Model = {
 const Hardware = {
   audioCtx: null, jaVoiceCache: null, enVoiceCache: null, chargeOsc: null, chargeGain: null, _currentAudio: null,
   init() {
+    HAPTICS.install();
     try {
         if (window.speechSynthesis) {
           let loadVoice = () => { this.jaVoiceCache = window.speechSynthesis.getVoices().find(v => v.lang.includes('ja') || v.lang.includes('JP')); };
@@ -4117,17 +4124,18 @@ const Hardware = {
         }
     } catch(e) {}
   },
-  vibrate(pattern) { 
-  try { 
-    if (navigator.vibrate) {
-      return navigator.vibrate(pattern);
-    }
-    return false;
-  } catch(e) {
-    return false;
-  }
-},
+  haptic(type, options) {
+    return HAPTICS.trigger(type, options);
+  },
+  vibrate(pattern, options) {
+    return HAPTICS.triggerLegacy(pattern, options);
+  },
   playSound(type) {
+    this.haptic(
+        type === 'success' || type === 'error'
+            ? type
+            : 'tap'
+    );
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
@@ -7355,6 +7363,9 @@ const Controller = {
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if(autoSpeakCheck) autoSpeakCheck.checked = autoSpeak;
+
+    let hapticsCheck = View.getEl('setting-haptics-enabled');
+    if (hapticsCheck) hapticsCheck.checked = HAPTICS.isEnabled();
     
     let showRoots = localStorage.getItem('showRoots') !== 'false'; 
     let showRootsCheckEl = View.getEl('setting-show-roots');
@@ -7728,6 +7739,21 @@ setupVirtualScroll() {
 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读"); }); }
+
+    let hapticsCheck = View.getEl('setting-haptics-enabled');
+    if (hapticsCheck) {
+        hapticsCheck.addEventListener('change', event => {
+            HAPTICS.setEnabled(event.target.checked);
+            if (event.target.checked) {
+                Hardware.haptic('toggle', { force: true });
+            }
+            showToast(
+                event.target.checked
+                    ? '已开启场景化触感反馈'
+                    : '已关闭触感反馈'
+            );
+        });
+    }
 
 
     let darkBtnCheck = View.getEl('setting-dark-btn');
@@ -8159,9 +8185,9 @@ let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
         Hardware.playSound('click');
-        const vibrated = Hardware.vibrate(300);
-        if (navigator.vibrate) {
-            showToast('震动测试已触发，请感受设备震动');
+        Hardware.haptic('success', { force: true });
+        if (HAPTICS.isSupported()) {
+            showToast('已播放“成功”触感，请感受震动节奏');
         } else {
             showToast('您的浏览器不支持震动 API（iOS 系统或桌面浏览器）');
         }

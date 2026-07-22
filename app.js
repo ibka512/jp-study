@@ -17,6 +17,11 @@ const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
 
 const CORE_UTILS = globalThis.ZhongriCoreUtils;
 const HAPTICS = globalThis.ZhongriHaptics;
+const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
+    version: '未知版本',
+    build: '本地缓存',
+    publishedAt: null
+});
 const ROTE_CORE = globalThis.RoteLearningCore;
 const MATHJAX_SOURCE =
     'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
@@ -7445,12 +7450,37 @@ const Controller = {
 
 let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
 
+  const appVersion = View.getEl('settings-app-version');
+  const appPublished = View.getEl('settings-app-published');
+  if (appVersion) {
+      appVersion.textContent = `${RELEASE_INFO.version} · ${RELEASE_INFO.build}`;
+  }
+  if (appPublished) {
+      const publishedAt = new Date(RELEASE_INFO.publishedAt);
+      appPublished.textContent = Number.isNaN(publishedAt.getTime())
+          ? '当前缓存版本'
+          : new Intl.DateTimeFormat('zh-CN', {
+              dateStyle: 'medium',
+              timeStyle: 'short'
+          }).format(publishedAt);
+  }
+
+  let updatePromptShown = false;
+  const promptForUpdate = () => {
+      if (updatePromptShown) return;
+      updatePromptShown = true;
+      showConfirm('版本更新', '应用已有新版本，是否立即刷新以体验最新功能？', () => {
+          window.location.reload();
+      });
+  };
+
+  window.addEventListener('zhongri-update-ready', promptForUpdate);
+  if (window.__zhongriUpdateReady) promptForUpdate();
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'SW_UPDATED') {
-        showConfirm('版本更新', '应用已有新版本，是否立即刷新以体验最新功能？', () => {
-          window.location.reload();
-        });
+        promptForUpdate();
       }
     });
   }

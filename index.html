@@ -7,10 +7,26 @@
 <link rel="manifest" href="manifest.json">
 <script>
   if ('serviceWorker' in navigator) {
+    const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
+    const signalUpdateReady = () => {
+      if (!hadServiceWorkerController) return;
+      window.__zhongriUpdateReady = true;
+      window.dispatchEvent(new Event('zhongri-update-ready'));
+    };
+
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js', {
         updateViaCache: 'none'
       }).then(registration => {
+        if (registration.waiting) signalUpdateReady();
+        registration.addEventListener('updatefound', () => {
+          const installing = registration.installing;
+          if (!installing) return;
+          installing.addEventListener('statechange', () => {
+            if (installing.state === 'installed') signalUpdateReady();
+          });
+        });
+        navigator.serviceWorker.addEventListener('controllerchange', signalUpdateReady);
         registration.update().catch(error => {
           console.warn('Service Worker 更新检查失败', error);
         });
@@ -701,7 +717,8 @@
 
         <div class="card-panel app-status-card">
           <h3><span class="material-symbols-rounded">info</span> 应用状态</h3>
-          <div class="app-status-row"><span>版本</span><strong>V7 · 第三轮</strong></div>
+          <div class="app-status-row"><span>版本</span><strong id="settings-app-version">正在读取</strong></div>
+          <div class="app-status-row"><span>最近发布</span><strong id="settings-app-published">正在读取</strong></div>
           <div class="app-status-row"><span>网络</span><strong id="settings-online-status-detail">跟随系统</strong></div>
           <div class="app-status-row"><span>离线学习</span><strong>词库与学习可用</strong></div>
           <div class="app-status-row"><span>AI 功能</span><strong>需要联网</strong></div>
@@ -1627,6 +1644,7 @@
 <script src="wordbanks/en-005.js"></script>
 <script src="wordbanks/finalize.js"></script>
 <!-- WORDBANK_CHUNKS_END -->
+<script src="release-info.js"></script>
 <script src="core-utils.js"></script>
 <script src="haptics.js"></script>
 <script src="rote-learning-core.js"></script>

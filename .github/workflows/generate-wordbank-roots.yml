@@ -108,10 +108,12 @@ jobs:
           node --check data.js
           node --check english-data.js
           for file in wordbanks/*.js; do node --check "$file"; done
+          node --check release-info.js
           node --check core-utils.js
           node --check haptics.js
           node --check app.js
           node tests/core-utils.test.js
+          node tests/release-info.test.js
           node tests/haptics.test.js
           node tests/rote-learning-core.test.js
           node tests/rote-learning-integration.test.js

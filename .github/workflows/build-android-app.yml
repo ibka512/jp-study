@@ -23,6 +23,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: zhongri-android-debug
+  cancel-in-progress: true
+
 jobs:
   build-debug-apk:
     name: 生成可安装 APK
@@ -43,6 +47,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+
+      - name: 固定测试版签名
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: zhongri-android-debug-keystore-v1
 
       - name: 安装依赖
         run: npm ci --no-audit --no-fund

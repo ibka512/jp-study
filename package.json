@@ -4,7 +4,7 @@
   "private": true,
   "description": "钟日学习应用的 Android Capacitor 包装",
   "scripts": {
-    "build:web": "node scripts/build-capacitor-web.mjs",
+    "build:web": "node scripts/build-capacitor-web.mjs && node scripts/adapt-android-dist.mjs",
     "android:prepare": "npm run build:web && npx cap add android && npx cap sync android",
     "android:debug": "npm run android:prepare && cd android && ./gradlew assembleDebug"
   },

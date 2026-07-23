@@ -233,6 +233,7 @@
     state.index = state.items.findIndex(item => !state.decisions[item.id]);
     if (state.index < 0) state.index = state.items.length;
     $('root-review-overlay').classList.add('active');
+    $('root-review-overlay').removeAttribute('inert');
     $('root-review-overlay').setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
     render();
@@ -241,6 +242,7 @@
 
   function close() {
     $('root-review-overlay').classList.remove('active');
+    $('root-review-overlay').setAttribute('inert', '');
     $('root-review-overlay').setAttribute('aria-hidden', 'true');
     if (!document.querySelector('.modal-overlay.active')) document.body.classList.remove('modal-open');
     vibrate(12);

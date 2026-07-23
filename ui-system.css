@@ -439,9 +439,13 @@ body[data-lang="en"] .wb-c-word {
   min-width: 64px;
   min-height: 58px;
   max-width: 88px;
+  padding: 0;
   color: var(--on-surface-variant);
+  background: transparent !important;
+  border: 0 !important;
   opacity: 1;
   border-radius: var(--radius-md);
+  box-shadow: none !important;
 }
 
 .nav-item .nav-icon,
@@ -971,6 +975,8 @@ select:focus,
 #wb-grid .wb-card.is-english-word .wb-c-word {
   align-items: center;
   padding: 4px 12px 0;
+  font-family: var(--font-word-en) !important;
+  font-weight: 700;
 }
 
 #wb-grid[data-cols="3"] .wb-card.is-english-word .wb-c-word {
@@ -1120,7 +1126,10 @@ select:focus,
   place-items: center;
   margin: 0;
   padding: 0;
+  background: transparent;
+  border: 0;
   border-radius: 50%;
+  box-shadow: none;
 }
 
 .speaker-icon {

@@ -1605,6 +1605,59 @@ window.createStarParticles = (el) => {
 // 新增：用于记录打开弹窗前最后操作的 DOM 元素
 let previousFocusElement = null;
 
+const syncModalAccessibility = (overlay, isOpen) => {
+    if (!overlay) return;
+
+    overlay.setAttribute('role', 'dialog');
+
+    if (!overlay.hasAttribute('aria-labelledby') &&
+        !overlay.hasAttribute('aria-label')) {
+        const heading = overlay.querySelector('h2, h3');
+
+        if (heading) {
+            if (!heading.id) {
+                heading.id = `${overlay.id || 'modal'}-title`;
+            }
+
+            heading
+                .querySelectorAll('.material-symbols-rounded')
+                .forEach(icon => icon.setAttribute('aria-hidden', 'true'));
+            overlay.setAttribute('aria-labelledby', heading.id);
+        } else {
+            overlay.setAttribute(
+                'aria-label',
+                overlay.id === 'detail-overlay'
+                    ? '单词详情'
+                    : '对话框'
+            );
+        }
+    }
+
+    if (isOpen) {
+        overlay.removeAttribute('inert');
+        overlay.setAttribute('aria-hidden', 'false');
+        overlay.setAttribute('aria-modal', 'true');
+    } else {
+        /*
+         * 关闭的抽屉仍保留在 DOM 中以支持动画和快速复用。
+         * inert 同时移除其点击、键盘焦点与无障碍树暴露，
+         * 防止 Tab 键进入屏幕外的控件。
+         */
+        overlay.setAttribute('inert', '');
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.removeAttribute('aria-modal');
+    }
+};
+
+document
+    .querySelectorAll('.modal-overlay')
+    .forEach(overlay => {
+        syncModalAccessibility(
+            overlay,
+            overlay.classList.contains('active')
+        );
+    });
+
 window.toggleModal = (id, show) => {
     let el = document.getElementById(id);
     if (!el) return;
@@ -1629,6 +1682,7 @@ window.toggleModal = (id, show) => {
         if (document.querySelectorAll('.modal-overlay.active').length === 0) {
             previousFocusElement = document.activeElement;
         }
+        syncModalAccessibility(el, true);
         el.classList.add('active');
         
         // 2. 焦点入场：延迟等待 CSS 动画生效后，自动聚焦弹窗内第一个可交互元素
@@ -1643,6 +1697,7 @@ window.toggleModal = (id, show) => {
         
     } else {
         el.classList.remove('active');
+        syncModalAccessibility(el, false);
         
         // 3. 焦点归还：当所有弹窗都关闭时，将焦点还给触发弹窗的原元素
         if (document.querySelectorAll('.modal-overlay.active').length === 0 && previousFocusElement) {
@@ -7243,7 +7298,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           if (Model.state.batchMode) {
               topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
           } else {
-              topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}" role="button" tabindex="0" aria-label="${starFilled ? '取消收藏' : '收藏单词'}" aria-pressed="${Boolean(starFilled)}"><span class="material-symbols-rounded" aria-hidden="true" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
+              topRightHTML = `<button type="button" class="wb-c-star btn-wb-star ${starClass}" aria-label="${starFilled ? '取消收藏' : '收藏单词'}" aria-pressed="${Boolean(starFilled)}"><span class="material-symbols-rounded" aria-hidden="true" style="font-variation-settings: 'FILL' ${starFilled};">star</span></button>`;
           }
 
           let safeWord = escapeHTML(w.word); 
@@ -7259,7 +7314,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
             ${hankoHTML}
             <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
             ${topRightHTML}
-            ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak" role="button" tabindex="0" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></div>` : ''}
+            ${cols !== '4' && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
             <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
             ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
             <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
@@ -7280,15 +7335,13 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
               JSON.stringify(w.specialTags || []);
       }
 
+      let card;
+
       if (index < existingCards.length) {
-          let card = existingCards[index];
+          card = existingCards[index];
           card.classList.toggle(
               'is-selected',
               !isHintCard && isChecked
-          );
-          card.setAttribute(
-              'aria-pressed',
-              String(!isHintCard && isChecked)
           );
           if (card.dataset.fingerprint !== renderFingerprint) {
               card.style.background = bgStyle;
@@ -7299,18 +7352,12 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
               card.innerHTML = contentHTML;
           }
       } else {
-          let card = document.createElement('div');
+          card = document.createElement('div');
           card.className =
               'wb-card' +
               (!isHintCard && isChecked
                   ? ' is-selected'
                   : '');
-          card.setAttribute('tabindex', '0');
-          card.setAttribute('role', 'button');
-          card.setAttribute(
-              'aria-pressed',
-              String(!isHintCard && isChecked)
-          );
           card.style.background = bgStyle;
           card.style.boxShadow = isHintCard ? 'none' : '';
           card.style.border = isHintCard ? 'none' : '';
@@ -7319,6 +7366,39 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           card.style.opacity = '1';
           card.innerHTML = contentHTML;
           grid.appendChild(card);
+      }
+
+      card.removeAttribute('aria-pressed');
+      card.removeAttribute('aria-checked');
+
+      if (isHintCard) {
+          card.removeAttribute('tabindex');
+          card.setAttribute('role', 'note');
+          card.setAttribute(
+              'aria-label',
+              '操作提示：长按单词卡片查看详细释义'
+          );
+      } else {
+          card.setAttribute('tabindex', '0');
+          card.setAttribute(
+              'role',
+              Model.state.batchMode
+                  ? 'checkbox'
+                  : 'group'
+          );
+          card.setAttribute(
+              'aria-label',
+              Model.state.batchMode
+                  ? '选择单词卡片'
+                  : '单词卡片，按回车查看详细释义'
+          );
+
+          if (Model.state.batchMode) {
+              card.setAttribute(
+                  'aria-checked',
+                  String(isChecked)
+              );
+          }
       }
     });
 
@@ -8795,6 +8875,23 @@ if (aiCloseBtn) {
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
     grid.addEventListener('contextmenu', (e) => { if(e.target.closest('.wb-card') && !e.target.closest('.btn-wb-star')) e.preventDefault(); });
+    grid.addEventListener('keydown', (e) => {
+      const card = e.target.closest('.wb-card');
+      if (!card || e.target !== card || !['Enter', ' '].includes(e.key)) return;
+
+      const idx = parseInt(card.dataset.idx);
+      if (idx === -999) return;
+
+      e.preventDefault();
+
+      if (Model.state.batchMode) {
+          card.click();
+          return;
+      }
+
+      Hardware.vibrate(15);
+      Controller.openDetailModal(idx);
+    });
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
       if (e.target.closest('.btn-wb-star')) {
@@ -8848,7 +8945,7 @@ if (aiCloseBtn) {
               isSelected
           );
           card.setAttribute(
-              'aria-pressed',
+              'aria-checked',
               String(isSelected)
           );
 

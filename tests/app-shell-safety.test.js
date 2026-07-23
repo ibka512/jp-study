@@ -83,8 +83,8 @@ assert.doesNotMatch(
 assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
-assert.match(index, /style\.css\?v=mobile-polish-v1/);
-assert.match(index, /ui-system\.css\?v=mobile-polish-v1/);
+assert.match(index, /style\.css\?v=ui-density-v1/);
+assert.match(index, /ui-system\.css\?v=ui-density-v1/);
 assert.match(index, /M\+PLUS\+Rounded\+1c/);
 assert.match(index, /family=Nunito/);
 assert.match(uiStyles, /--font-title:/);
@@ -116,6 +116,21 @@ assert.doesNotMatch(index, /id="prompt-visibility"/);
 assert.doesNotMatch(app, /prompt-visibility/);
 assert.doesNotMatch(styles, /prompt-visibility-btn/);
 assert.doesNotMatch(index, /分阶段重复强化记忆|连续三轮检验掌握程度|自由翻看，不记录答题结果|正反方向交替检验记忆|先找出已认识的词/);
+assert.doesNotMatch(index, /class="home-study-eyebrow"[\s\S]*?>开始学习</);
+assert.doesNotMatch(
+    index,
+    /class="home-section-label"[\s\S]*?>(?:[\s\S]*?学习前筛选|[\s\S]*?选择学习方式)/
+);
+assert.match(
+    index,
+    /id="btn-start-filter-test"[\s\S]*?material-symbols-rounded">content_cut</
+);
+assert.match(index, /<strong>往复检验<\/strong>/);
+assert.doesNotMatch(index, /道場|語彙|対話|設定|環境設定|全景語彙|AI対話|道场/);
+assert.match(index, /<span class="nav-label">学习<\/span>/);
+assert.match(index, /<span class="nav-label">词库<\/span>/);
+assert.match(index, /<span class="nav-label">对话<\/span>/);
+assert.match(index, /<span class="nav-label">设置<\/span>/);
 assert.equal(
     (index.match(/class="kbd-hint home-shortcut-hint">[A-G]</g) || []).length,
     7,
@@ -139,6 +154,16 @@ assert.match(
 assert.match(app, /const center =[\s\S]*?itemRect\.left - navRect\.left/);
 assert.match(app, /--nav-indicator-top/);
 assert.match(uiStyles, /top:\s*var\(--nav-indicator-top,\s*7px\)/);
+assert.match(uiStyles, /\.settings-category-icon\s*\{[\s\S]*?width:\s*40px\s*!important/);
+assert.match(uiStyles, /\.bottom-nav\s*\{[\s\S]*?min-height:\s*62px\s*!important/);
+assert.match(
+    uiStyles,
+    /\.home-filter-card\.filter-test-btn-group,\s*\.home-mode-card\s*\{[\s\S]*?box-shadow:/
+);
+assert.match(
+    uiStyles,
+    /@media \(max-width:\s*600px\)[\s\S]*?\.home-mode-card\s*\{[\s\S]*?min-height:\s*70px\s*!important/
+);
 assert.match(app, /if \(didRender !== false\)\s*\{\s*decorateWordbankCards\(\)/);
 assert.match(index, /id="root-review-overlay"[\s\S]*?aria-hidden="true" inert/);
 assert.match(
@@ -147,7 +172,7 @@ assert.match(
 );
 assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.match(index, /core-utils\.js\?v=sse-buffer-v1/);
-assert.match(index, /app\.js\?v=mobile-polish-v1/);
+assert.match(index, /app\.js\?v=ui-density-v1/);
 assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
 assert.ok(
     index.indexOf('notification-planner.js') < index.indexOf('native-app.js'),
@@ -156,10 +181,10 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v28/);
+assert.match(serviceWorker, /zhongri-shell-v29/);
 assert.match(serviceWorker, /core-utils\.js\?v=sse-buffer-v1/);
-assert.match(serviceWorker, /app\.js\?v=mobile-polish-v1/);
-assert.match(serviceWorker, /ui-system\.css\?v=mobile-polish-v1/);
+assert.match(serviceWorker, /app\.js\?v=ui-density-v1/);
+assert.match(serviceWorker, /ui-system\.css\?v=ui-density-v1/);
 assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.match(
     index,

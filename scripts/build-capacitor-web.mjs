@@ -19,6 +19,7 @@ const runtimeEntries = [
   'haptics.js',
   'rote-learning-core.js',
   'fsrs-scheduler.js',
+  'notification-planner.js',
   'app.js',
   'native-app.js',
   'root-review.js',

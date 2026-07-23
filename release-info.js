@@ -10,8 +10,8 @@
     'use strict';
 
     return Object.freeze({
-        version: 'V9',
-        build: '2026.07.23.1',
-        publishedAt: '2026-07-22T21:32:00Z'
+        version: 'V9.1',
+        build: '2026.07.23.2',
+        publishedAt: '2026-07-23T04:55:00Z'
     });
 });

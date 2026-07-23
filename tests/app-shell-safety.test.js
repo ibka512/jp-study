@@ -77,9 +77,19 @@ assert.doesNotMatch(
 assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
-assert.match(index, /style\.css\?v=layout-progress-v1/);
-assert.match(index, /app\.js\?v=layout-progress-v1/);
-assert.match(serviceWorker, /zhongri-shell-v22/);
+assert.match(index, /style\.css\?v=smart-reminder-v1/);
+assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
+assert.match(index, /app\.js\?v=smart-reminder-v1/);
+assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
+assert.ok(
+    index.indexOf('notification-planner.js') < index.indexOf('native-app.js'),
+    '提醒规划器必须先于原生提醒桥加载'
+);
+assert.match(index, /id="setting-study-reminder-mode"/);
+assert.match(index, /id="setting-study-reminder-exact"/);
+assert.match(index, /name="study-reminder-weekday"/);
+assert.match(serviceWorker, /zhongri-shell-v23/);
+assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);
 assert.equal(logo.readUInt32BE(20), 512);

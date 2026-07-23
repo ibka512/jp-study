@@ -57,7 +57,7 @@ assert.ok(
     '循环强记核心模块必须先于 app.js 加载'
 );
 assert.match(serviceWorker, /'\.\/rote-learning-core\.js'/);
-assert.match(serviceWorker, /'\.\/core-utils\.js'/);
+assert.match(serviceWorker, /'\.\/core-utils\.js(?:\?[^']*)?'/);
 assert.match(serviceWorker, /'\.\/haptics\.js(?:\?[^']*)?'/);
 assert.match(serviceWorker, /'\.\/release-info\.js'/);
 assert.match(serviceWorker, /staleWhileRevalidate/);

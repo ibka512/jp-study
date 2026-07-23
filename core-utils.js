@@ -60,8 +60,60 @@
             .trim();
     };
 
+    const createSSEDataParser = onData => {
+        if (typeof onData !== 'function') {
+            throw new TypeError('SSE 数据处理器必须是函数');
+        }
+
+        let buffer = '';
+
+        const dispatchEvent = block => {
+            const data = String(block || '')
+                .split(/\r?\n/)
+                .filter(line => line === 'data' || line.startsWith('data:'))
+                .map(line => {
+                    return line === 'data'
+                        ? ''
+                        : line.slice(5).replace(/^ /, '');
+                })
+                .join('\n');
+
+            if (data) {
+                onData(data);
+            }
+        };
+
+        const drain = flush => {
+            let boundary = buffer.match(/\r?\n\r?\n/);
+
+            while (boundary) {
+                const index = boundary.index;
+                const separatorLength = boundary[0].length;
+                dispatchEvent(buffer.slice(0, index));
+                buffer = buffer.slice(index + separatorLength);
+                boundary = buffer.match(/\r?\n\r?\n/);
+            }
+
+            if (flush && buffer.trim()) {
+                dispatchEvent(buffer);
+                buffer = '';
+            }
+        };
+
+        return Object.freeze({
+            push(chunk) {
+                buffer += String(chunk ?? '');
+                drain(false);
+            },
+            finish() {
+                drain(true);
+            }
+        });
+    };
+
     return Object.freeze({
         cloneDataValue,
+        createSSEDataParser,
         escapeHTML,
         escapeRegExp,
         hashStableText,

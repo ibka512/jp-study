@@ -22,7 +22,12 @@ assert.match(index, /updateViaCache:\s*['"]none['"]/);
 assert.match(index, /registration\.update\(\)/);
 assert.match(index, /zhongri-update-ready/);
 assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
+assert.doesNotMatch(app, /mathjax@3\/es5\/tex-mml-chtml\.js/);
+assert.match(app, /mathjax@3\.2\.2\/es5\/tex-mml-chtml\.js/);
+assert.match(app, /const MATHJAX_INTEGRITY =\s*'sha384-[A-Za-z0-9+/=]+'/);
 assert.match(app, /const loadMathJax = \(\) =>/);
+assert.match(app, /script\.integrity = MATHJAX_INTEGRITY/);
+assert.match(app, /script\.crossOrigin = 'anonymous'/);
 assert.match(app, /document\.head\.appendChild\(script\)/);
 assert.match(app, /HAPTICS\.install\(\)/);
 assert.match(app, /'diagnostic',[\s\S]*\{ force: true \}/);
@@ -78,8 +83,8 @@ assert.doesNotMatch(
 assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
-assert.match(index, /style\.css\?v=smart-reminder-v1/);
-assert.match(index, /ui-system\.css\?v=ui-system-v4/);
+assert.match(index, /style\.css\?v=mobile-polish-v1/);
+assert.match(index, /ui-system\.css\?v=mobile-polish-v1/);
 assert.match(index, /M\+PLUS\+Rounded\+1c/);
 assert.match(index, /family=Nunito/);
 assert.match(uiStyles, /--font-title:/);
@@ -102,13 +107,47 @@ assert.match(app, /grid\.addEventListener\('keydown'/);
 assert.match(app, /<button type="button" class="wb-c-star btn-wb-star/);
 assert.match(app, /<button type="button" class="wb-c-speaker btn-wb-speak/);
 assert.match(index, /<button type="button" class="nav-item active"/);
+assert.equal(
+    (index.match(/class="nav-item(?: active)?"/g) || []).length,
+    4,
+    '非学习界面必须常驻四个底部导航入口'
+);
+assert.doesNotMatch(index, /id="prompt-visibility"/);
+assert.doesNotMatch(app, /prompt-visibility/);
+assert.doesNotMatch(styles, /prompt-visibility-btn/);
+assert.doesNotMatch(index, /分阶段重复强化记忆|连续三轮检验掌握程度|自由翻看，不记录答题结果|正反方向交替检验记忆|先找出已认识的词/);
+assert.equal(
+    (index.match(/class="kbd-hint home-shortcut-hint">[A-G]</g) || []).length,
+    7,
+    '首页 A-G 快捷键提示应使用横屏专属样式'
+);
+assert.match(uiStyles, /\.home-shortcut-hint\s*\{\s*display:\s*none\s*!important/);
+assert.match(
+    uiStyles,
+    /@media \(orientation:\s*landscape\)[\s\S]*?\.home-shortcut-hint\s*\{[\s\S]*?display:\s*inline-flex\s*!important/
+);
+assert.doesNotMatch(styles, /content:\s*["']済["']/);
+assert.match(styles, /@keyframes checkin-hold-shake/);
+assert.match(styles, /\.btn-long-press\.pressing\s*\{[\s\S]*?animation:\s*checkin-hold-shake/);
+assert.match(uiStyles, /#dt-star-btn\s*\{[\s\S]*?top:\s*auto\s*!important[\s\S]*?bottom:\s*14px\s*!important/);
+assert.match(uiStyles, /#detail-prev\s*\{\s*left:\s*-8px\s*!important/);
+assert.match(uiStyles, /#detail-next\s*\{\s*right:\s*-8px\s*!important/);
+assert.match(
+    uiStyles,
+    /@media \(max-width:\s*760px\), \(pointer:\s*coarse\)[\s\S]*?backdrop-filter:\s*none\s*!important/
+);
+assert.match(app, /const center =[\s\S]*?itemRect\.left - navRect\.left/);
+assert.match(app, /--nav-indicator-top/);
+assert.match(uiStyles, /top:\s*var\(--nav-indicator-top,\s*7px\)/);
+assert.match(app, /if \(didRender !== false\)\s*\{\s*decorateWordbankCards\(\)/);
 assert.match(index, /id="root-review-overlay"[\s\S]*?aria-hidden="true" inert/);
 assert.match(
     fs.readFileSync('root-review.js', 'utf8'),
     /root-review-overlay'\)\.setAttribute\('inert', ''\)/
 );
 assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
-assert.match(index, /app\.js\?v=wcag-acceptance-v2/);
+assert.match(index, /core-utils\.js\?v=sse-buffer-v1/);
+assert.match(index, /app\.js\?v=mobile-polish-v1/);
 assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
 assert.ok(
     index.indexOf('notification-planner.js') < index.indexOf('native-app.js'),
@@ -117,10 +156,35 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v26/);
-assert.match(serviceWorker, /app\.js\?v=wcag-acceptance-v2/);
-assert.match(serviceWorker, /ui-system\.css\?v=ui-system-v4/);
+assert.match(serviceWorker, /zhongri-shell-v28/);
+assert.match(serviceWorker, /core-utils\.js\?v=sse-buffer-v1/);
+assert.match(serviceWorker, /app\.js\?v=mobile-polish-v1/);
+assert.match(serviceWorker, /ui-system\.css\?v=mobile-polish-v1/);
 assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
+assert.match(
+    index,
+    /idb-keyval@6\.2\.2\/dist\/umd\.js[\s\S]*?integrity="sha384-[A-Za-z0-9+/=]+"/
+);
+assert.doesNotMatch(index, /idb-keyval@6\/dist\/umd\.js/);
+assert.match(
+    fs.readFileSync('scripts/adapt-android-dist.mjs', 'utf8'),
+    /createHash\('sha384'\)[\s\S]*?digest\('base64'\)[\s\S]*?IDB_KEYVAL_SHA384/
+);
+assert.match(
+    app,
+    /fsrsCards:\s*rawData\.data\.fsrsCards[\s\S]*?fsrsReviewLogs:\s*Array\.isArray\(rawData\.data\.fsrsReviewLogs\)/
+);
+assert.match(app, /folderNameElement\.textContent = folderName/);
+assert.doesNotMatch(
+    app,
+    /<span class="folder-name">\$\{folderName\}<\/span>/
+);
+assert.match(app, /const readDeepSeekTextStream = async \(response, onText\) =>/);
+assert.equal(
+    (app.match(/response\.body\.getReader\(\)/g) || []).length,
+    1,
+    'AI 流式响应必须统一经过带跨分块缓冲的解析器'
+);
 assert.match(index, /id="action-toast"[\s\S]*?aria-hidden="true" inert/);
 assert.match(app, /const setActionToastAccessibility = \(toast, actionBtn, isOpen\) =>/);
 assert.match(app, /setActionToastAccessibility\(toast, actionBtn, false\)/);

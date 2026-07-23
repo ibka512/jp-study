@@ -25,7 +25,9 @@ const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
 });
 const ROTE_CORE = globalThis.RoteLearningCore;
 const MATHJAX_SOURCE =
-    'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+    'https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js';
+const MATHJAX_INTEGRITY =
+    'sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei';
 
 let mathJaxLoadPromise = null;
 
@@ -43,11 +45,56 @@ if (!ROTE_CORE) {
 
 const {
     cloneDataValue,
+    createSSEDataParser,
     escapeHTML,
     escapeRegExp,
     hashStableText,
     normalizeEntryText
 } = CORE_UTILS;
+
+const readDeepSeekTextStream = async (response, onText) => {
+    if (!response?.body?.getReader) {
+        throw new Error('当前环境不支持流式响应');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    const parser = createSSEDataParser(data => {
+        if (data === '[DONE]') {
+            return;
+        }
+
+        try {
+            const payload = JSON.parse(data);
+            const chunk = payload.choices?.[0]?.delta?.content;
+
+            if (chunk) {
+                onText(chunk);
+            }
+        } catch (error) {
+            console.warn('[AI Stream] 忽略无法解析的完整 SSE 事件', error);
+        }
+    });
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            parser.push(
+                decoder.decode(value, { stream: true })
+            );
+        }
+
+        parser.push(decoder.decode());
+        parser.finish();
+    } finally {
+        reader.releaseLock?.();
+    }
+};
 
 const loadMathJax = () => {
     if (window.MathJax?.typesetPromise) {
@@ -87,6 +134,8 @@ const loadMathJax = () => {
             script.id = 'MathJax-script';
             script.async = true;
             script.src = MATHJAX_SOURCE;
+            script.integrity = MATHJAX_INTEGRITY;
+            script.crossOrigin = 'anonymous';
             document.head.appendChild(script);
         }
     });
@@ -113,6 +162,25 @@ const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'lastTestDisplay',
     'lastTestRange'
 ]);
+
+const normalizeFolderName = value => {
+    return normalizeEntryText(value);
+};
+
+const isValidFolderName = value => {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalized = normalizeFolderName(value);
+
+    return Boolean(
+        normalized &&
+        normalized.length <= 80 &&
+        !/[<>|\u0000-\u001F\u007F]/.test(normalized)
+    );
+};
+
 const createRandomWordId = () => {
     if (
         typeof crypto !== 'undefined' &&
@@ -1732,7 +1800,6 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     const titleEl = document.getElementById('prompt-title');
     const helperEl = document.getElementById('prompt-helper');
     const iconEl = document.getElementById('prompt-icon');
-    const visibilityBtn = document.getElementById('prompt-visibility');
     const input = document.getElementById('prompt-input');
 
     titleEl.textContent = title;
@@ -1745,8 +1812,6 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     input.autocomplete = 'off';
     input.placeholder = '请输入内容';
     input.value = defaultVal || '';
-
-    visibilityBtn.hidden = true;
 
     window.toggleModal('prompt-overlay', true);
 
@@ -1797,18 +1862,6 @@ const Nav = {
         });
 
 
-        let inputs = document.querySelectorAll('input[type="text"], textarea');
-let nav = document.getElementById('bottom-nav');
-inputs.forEach(el => {
-    el.addEventListener('focus', () => {
-        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
-        if(nav) nav.style.transform = 'translateY(150%)';
-    });
-    el.addEventListener('blur', () => {
-        if (el.closest('#ai-chat-view') || el.closest('#ai-sheet-overlay')) return;
-        if(nav) nav.style.transform = 'translateY(0)';
-    });
-});
     },
         switchTab(targetId, titleData, navItemEl) {
         if (Model.state.batchMode || Model.state.manageMode) {
@@ -7157,7 +7210,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
   renderVirtualGrid() {
     const grid = this.getEl('wb-grid'); 
     const container = this.getEl('wb-grid-container');
-    if(!grid || !container) return;
+    if(!grid || !container) return false;
 
         const colsStr = this.getEl('wb-col-select').value;
     const requestedCols =
@@ -7196,7 +7249,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
             <div style="font-size: 0.95rem; margin-top: 12px; opacity: 0.5; color: var(--on-surface);">缘分未到，换个关键词再试一次吧</div>
         </div>`;
         grid.style.paddingTop = '0px'; grid.style.paddingBottom = '0px';
-        return;
+        return true;
     }
 
     const stableRowHeights = {
@@ -7226,7 +7279,9 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     let startIndex = startRow * cols;
     let endIndex = endRow * cols;
 
-    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) { return; }
+    if (Model.state.renderedStartIndex === startIndex && Model.state.renderedEndIndex === endIndex) {
+        return false;
+    }
     Model.state.renderedStartIndex = startIndex;
     Model.state.renderedEndIndex = endIndex;
 
@@ -7409,6 +7464,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
 
     let sentinel = this.getEl('wb-scroll-sentinel');
     if (sentinel) sentinel.style.display = 'none';
+    return true;
   },
 
   simulateKeyPress(keyStr) {
@@ -7909,16 +7965,18 @@ setupVirtualScroll() {
   setupHeaderScrollShadow() {
       const header = View.getEl('global-header');
       if (!header) return;
+      let ticking = false;
 
       const updateHeaderStatus = () => {
-          if (window.scrollY > 10) {
-              header.classList.add('scrolled');
-          } else {
-              header.classList.remove('scrolled');
-          }
+          header.classList.toggle('scrolled', window.scrollY > 10);
+          ticking = false;
       };
 
-      window.addEventListener('scroll', updateHeaderStatus, { passive: true });
+      window.addEventListener('scroll', () => {
+          if (ticking) return;
+          ticking = true;
+          window.requestAnimationFrame(updateHeaderStatus);
+      }, { passive: true });
       updateHeaderStatus();
   },
 
@@ -9653,6 +9711,16 @@ if (aiCloseBtn) {
                           rawData.data.aiConversations
                       )
                           ? rawData.data.aiConversations
+                          : null,
+                  fsrsCards:
+                      rawData.data.fsrsCards &&
+                      typeof rawData.data.fsrsCards === 'object' &&
+                      !Array.isArray(rawData.data.fsrsCards)
+                          ? rawData.data.fsrsCards
+                          : null,
+                  fsrsReviewLogs:
+                      Array.isArray(rawData.data.fsrsReviewLogs)
+                          ? rawData.data.fsrsReviewLogs
                           : null
               },
 
@@ -9732,6 +9800,17 @@ if (aiCloseBtn) {
 
       if (!Array.isArray(payload.data.folders)) {
           throw new Error('备份中缺少文件夹数据');
+      }
+
+      const invalidFolder =
+          payload.data.folders.find(folder => {
+              return !isValidFolderName(folder);
+          });
+
+      if (invalidFolder !== undefined) {
+          throw new Error(
+              '备份中的词库名称包含不支持的字符或长度超过 80 个字符'
+          );
       }
 
       const invalidWord = payload.data.db.find(word => {
@@ -11196,10 +11275,14 @@ if (aiCloseBtn) {
   createFolder() { 
     Hardware.vibrate(20); 
     showPrompt("请输入新文件夹名称", "", (name) => { 
-      if(Model.folders.includes(name)) return showToast("文件夹已存在"); 
+      const folderName = normalizeFolderName(name);
+      if (!isValidFolderName(folderName)) {
+          return showToast('文件夹名称不能包含 <、>、| 或控制字符，且最多 80 个字符');
+      }
+      if(Model.folders.includes(folderName)) return showToast("文件夹已存在");
       const lang = Model.state.currentLangMode; // 强绑定为当前所处语言
-      Model.folders.push(name); 
-      Model.folderLangs[name] = lang;
+      Model.folders.push(folderName);
+      Model.folderLangs[folderName] = lang;
       Model.saveFolders(); 
       Model.saveFolderLangs();
       View.updateWordbankUI(); 
@@ -11364,10 +11447,18 @@ if (aiCloseBtn) {
           item.className = 'move-folder-item';
           item.setAttribute('tabindex', '0');
           item.setAttribute('role', 'button');
-          item.innerHTML = `
-              <span class="material-symbols-rounded folder-icon">folder</span>
-              <span class="folder-name">${folderName}</span>
-          `;
+
+              const icon = document.createElement('span');
+              icon.className =
+                  'material-symbols-rounded folder-icon';
+              icon.textContent = 'folder';
+
+              const folderNameElement =
+                  document.createElement('span');
+              folderNameElement.className = 'folder-name';
+              folderNameElement.textContent = folderName;
+
+              item.append(icon, folderNameElement);
           
           item.onclick = () => {
               Hardware.playSound('success');
@@ -12225,10 +12316,9 @@ openAISheet(sentence, word, lang, wordIndex = -1) {
     if (!apiKey) {
         let self = this;
         Hardware.vibrate(20);
-        const promptTitle = document.getElementById('prompt-title');
+const promptTitle = document.getElementById('prompt-title');
 const promptHelper = document.getElementById('prompt-helper');
 const promptIcon = document.getElementById('prompt-icon');
-const visibilityBtn = document.getElementById('prompt-visibility');
 let input = document.getElementById('prompt-input');
 
 promptTitle.textContent = '配置 DeepSeek API Key';
@@ -12239,21 +12329,10 @@ promptHelper.hidden = false;
 
 promptIcon.textContent = 'vpn_key';
 
-input.type = 'password';
-input.autocomplete = 'new-password';
+input.type = 'text';
+input.autocomplete = 'off';
 input.placeholder = '粘贴 API Key（sk-…）';
 input.value = '';
-
-visibilityBtn.hidden = false;
-visibilityBtn.title = '显示密钥';
-visibilityBtn.setAttribute('aria-label', '显示密钥');
-
-const visibilityIcon =
-    visibilityBtn.querySelector('.material-symbols-rounded');
-
-if (visibilityIcon) {
-    visibilityIcon.textContent = 'visibility';
-}
         window.toggleModal('prompt-overlay', true);
         setTimeout(() => input.focus(), 100);
         document.getElementById('prompt-confirm').onclick = () => { 
@@ -14326,9 +14405,6 @@ sendAITabMessage() {
         const promptIcon =
             document.getElementById('prompt-icon');
 
-        const visibilityBtn =
-            document.getElementById('prompt-visibility');
-
         const promptInput =
             document.getElementById('prompt-input');
 
@@ -14342,29 +14418,12 @@ sendAITabMessage() {
 
         promptIcon.textContent = 'vpn_key';
 
-        promptInput.type = 'password';
-        promptInput.autocomplete = 'new-password';
+        promptInput.type = 'text';
+        promptInput.autocomplete = 'off';
         promptInput.placeholder =
             '粘贴 API Key（sk-…）';
 
         promptInput.value = '';
-
-        visibilityBtn.hidden = false;
-        visibilityBtn.title = '显示密钥';
-
-        visibilityBtn.setAttribute(
-            'aria-label',
-            '显示密钥'
-        );
-
-        const visibilityIcon =
-            visibilityBtn.querySelector(
-                '.material-symbols-rounded'
-            );
-
-        if (visibilityIcon) {
-            visibilityIcon.textContent = 'visibility';
-        }
 
         window.toggleModal(
             'prompt-overlay',
@@ -14507,58 +14566,20 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } =
-                await reader.read();
+        await readDeepSeekTextStream(
+            response,
+            chunk => {
+                fullText += chunk;
 
-            if (done) {
-                break;
+                textDiv.innerHTML =
+                    renderAIMessageHTML(
+                        fullText,
+                        this.aiTabChat.word || ''
+                    );
+
+                this._scrollTabChatToBottom();
             }
-
-            let chunkStr =
-                decoder.decode(
-                    value,
-                    { stream: true }
-                );
-
-            let lines =
-                chunkStr.split('\n');
-
-            for (let line of lines) {
-                line = line.trim();
-
-                if (
-                    line.startsWith('data: ') &&
-                    line !== 'data: [DONE]'
-                ) {
-                    try {
-                        let data =
-                            JSON.parse(
-                                line.slice(6)
-                            );
-
-                        let chunk =
-                            data.choices[0]
-                                .delta.content;
-
-                        if (chunk) {
-                            fullText += chunk;
-
-                            textDiv.innerHTML =
-                                renderAIMessageHTML(
-                                    fullText,
-                                    this.aiTabChat.word || ''
-                                );
-
-                            this._scrollTabChatToBottom();
-                        }
-                    } catch (e) {}
-                }
-            }
-        }
+        );
 
         /*
          * 主 AI 对话结束后，
@@ -14723,10 +14744,9 @@ async _streamChatResponse(
         if (btn) btn.onclick = () => {
             let self = this;
             Hardware.vibrate(15);
-            const promptTitle = document.getElementById('prompt-title');
+const promptTitle = document.getElementById('prompt-title');
 const promptHelper = document.getElementById('prompt-helper');
 const promptIcon = document.getElementById('prompt-icon');
-const visibilityBtn = document.getElementById('prompt-visibility');
 let pInput = document.getElementById('prompt-input');
 
 promptTitle.textContent = '重新输入 API Key';
@@ -14737,21 +14757,10 @@ promptHelper.hidden = false;
 
 promptIcon.textContent = 'vpn_key';
 
-pInput.type = 'password';
-pInput.autocomplete = 'new-password';
+pInput.type = 'text';
+pInput.autocomplete = 'off';
 pInput.placeholder = '粘贴新的 API Key（sk-…）';
 pInput.value = '';
-
-visibilityBtn.hidden = false;
-visibilityBtn.title = '显示密钥';
-visibilityBtn.setAttribute('aria-label', '显示密钥');
-
-const visibilityIcon =
-    visibilityBtn.querySelector('.material-symbols-rounded');
-
-if (visibilityIcon) {
-    visibilityIcon.textContent = 'visibility';
-}
             window.toggleModal('prompt-overlay', true);
             setTimeout(() => pInput.focus(), 100);
             document.getElementById('prompt-confirm').onclick = () => { 
@@ -14794,29 +14803,18 @@ if (visibilityIcon) {
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            let chunkStr = decoder.decode(value, {stream: true});
-            let lines = chunkStr.split('\n');
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        let data = JSON.parse(line.slice(6));
-                        let chunk = data.choices[0].delta.content;
-                        if (chunk) {
-                            fullText += chunk;
-                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.currentChat.word || '');
-this._scrollChatToBottom();
-                        }
-                    } catch (e) {}
-                }
+        await readDeepSeekTextStream(
+            response,
+            chunk => {
+                fullText += chunk;
+                textDiv.innerHTML =
+                    renderAIMessageHTML(
+                        fullText,
+                        this.currentChat.word || ''
+                    );
+                this._scrollChatToBottom();
             }
-        }
+        );
 
         /*
          * 例句继续追问结束后，
@@ -18656,9 +18654,11 @@ ${JSON.stringify(candidates.map(item => ({
         View.renderVirtualGrid.bind(View);
 
     View.renderVirtualGrid = function() {
-        const result = originalRenderVirtualGrid();
-        decorateWordbankCards();
-        return result;
+        const didRender = originalRenderVirtualGrid();
+        if (didRender !== false) {
+            decorateWordbankCards();
+        }
+        return didRender;
     };
 
     const originalUpdateDetailContent =
@@ -18912,53 +18912,6 @@ ${JSON.stringify(candidates.map(item => ({
 
 
 window.onload = () => {
-    const visibilityBtn =
-        document.getElementById('prompt-visibility');
-
-    const input =
-        document.getElementById('prompt-input');
-
-    if (visibilityBtn && input) {
-        visibilityBtn.addEventListener('click', () => {
-            Hardware.vibrate(10);
-
-            const shouldShow =
-                input.type === 'password';
-
-            input.type =
-                shouldShow ? 'text' : 'password';
-
-            const icon =
-                visibilityBtn.querySelector(
-                    '.material-symbols-rounded'
-                );
-
-            if (icon) {
-                icon.textContent =
-                    shouldShow
-                        ? 'visibility_off'
-                        : 'visibility';
-            }
-
-            visibilityBtn.title =
-                shouldShow ? '隐藏密钥' : '显示密钥';
-
-            visibilityBtn.setAttribute(
-                'aria-label',
-                shouldShow ? '隐藏密钥' : '显示密钥'
-            );
-
-            input.focus();
-
-            try {
-                input.setSelectionRange(
-                    input.value.length,
-                    input.value.length
-                );
-            } catch (error) {}
-        });
-    }
-
     window.ZhongriAppReady = Promise.resolve(Controller.init());
 };
 
@@ -18978,12 +18931,29 @@ window.onload = () => {
         const item = activeItem || items.find(entry =>
             entry.classList.contains('active')
         );
-        const index = Math.max(0, items.indexOf(item));
-        const count = Math.max(1, items.length);
+        if (!item) return;
+        const navRect = nav.getBoundingClientRect();
+        const itemRect = item.getBoundingClientRect();
+        const iconRect =
+            item.querySelector('.nav-icon')?.getBoundingClientRect();
+        const center =
+            itemRect.left - navRect.left + (itemRect.width / 2);
         nav.style.setProperty(
             '--nav-indicator-left',
-            `${((index + 0.5) / count) * 100}%`
+            `${center}px`
         );
+        if (iconRect) {
+            const indicatorHeight = Number.parseFloat(
+                window.getComputedStyle(nav, '::before').height
+            ) || 36;
+            const top =
+                iconRect.top - navRect.top +
+                ((iconRect.height - indicatorHeight) / 2);
+            nav.style.setProperty(
+                '--nav-indicator-top',
+                `${top}px`
+            );
+        }
     };
 
     if (typeof Nav !== 'undefined' && Nav.switchTab) {
@@ -19079,6 +19049,16 @@ window.onload = () => {
             attributes: true,
             attributeFilter: ['class']
         });
+
+        if ('ResizeObserver' in window) {
+            new ResizeObserver(() => {
+                syncNavIndicator();
+            }).observe(nav);
+        } else {
+            window.addEventListener('resize', () => {
+                syncNavIndicator();
+            }, { passive: true });
+        }
     }
 })();
 

@@ -1823,3 +1823,118 @@ html.native-app .modal-overlay {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+
+/* Mobile polish: keep shortcuts contextual and navigation geometry stable. */
+.home-shortcut-hint {
+  display: none !important;
+}
+
+@media (orientation: landscape) {
+  .home-shortcut-hint {
+    display: inline-flex !important;
+  }
+}
+
+.bottom-nav .nav-item {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: var(--on-surface-variant) !important;
+}
+
+.bottom-nav .nav-item .nav-icon,
+.bottom-nav .nav-item .nav-label {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: inherit !important;
+}
+
+.bottom-nav .nav-item.active {
+  color: var(--primary) !important;
+}
+
+.bottom-nav::before {
+  top: var(--nav-indicator-top, 7px);
+}
+
+/* The word-card star inherits a top-right rule from grid cards; pin it here. */
+#dt-star-btn {
+  position: absolute !important;
+  top: auto !important;
+  right: 14px !important;
+  bottom: 14px !important;
+}
+
+@media (max-width: 600px) {
+  #detail-close {
+    top: 12px !important;
+    right: 12px !important;
+  }
+
+  #dt-star-btn {
+    right: 12px !important;
+    bottom: 12px !important;
+  }
+
+  #detail-prev {
+    left: -8px !important;
+  }
+
+  #detail-next {
+    right: -8px !important;
+  }
+
+  .detail-nav-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+}
+
+/*
+ * Mobile Safari/Chrome repaint full-screen blur layers while scrolling.
+ * Opaque chrome preserves contrast and avoids those repeated GPU passes.
+ */
+@media (max-width: 760px), (pointer: coarse) {
+  body::after {
+    display: none !important;
+  }
+
+  .global-header,
+  .bottom-nav,
+  .study-header {
+    background: var(--surface-container) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .modal-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  body.modal-open .app-container,
+  body.modal-open .global-header,
+  body.modal-open .bottom-nav {
+    filter: none !important;
+  }
+
+  .home-mode-card,
+  .home-filter-card button,
+  .home-range-button,
+  .btn-action,
+  .dt-choice-btn,
+  .fsrs-rating-button,
+  .glass-icon-btn,
+  .bs-facade,
+  .wordbank-manage-toggle,
+  .home-progress-details .home-sub-progress-group {
+    will-change: auto !important;
+  }
+
+  .tab-content {
+    animation-duration: 160ms !important;
+  }
+}

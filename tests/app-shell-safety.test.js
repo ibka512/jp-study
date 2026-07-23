@@ -79,7 +79,7 @@ assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
 assert.match(index, /style\.css\?v=smart-reminder-v1/);
-assert.match(index, /ui-system\.css\?v=ui-system-v3/);
+assert.match(index, /ui-system\.css\?v=ui-system-v4/);
 assert.match(index, /M\+PLUS\+Rounded\+1c/);
 assert.match(index, /family=Nunito/);
 assert.match(uiStyles, /--font-title:/);
@@ -88,6 +88,25 @@ assert.match(uiStyles, /--font-number:/);
 assert.match(uiStyles, /--secondary:\s*#345f8c/);
 assert.match(uiStyles, /--tertiary:\s*#675585/);
 assert.match(uiStyles, /prefers-reduced-motion:\s*reduce/);
+assert.match(
+    uiStyles,
+    /#wb-grid \.wb-card\.is-english-word \.wb-c-word[\s\S]*?font-family:\s*var\(--font-word-en\)\s*!important/
+);
+assert.match(app, /const syncModalAccessibility = \(overlay, isOpen\) =>/);
+assert.match(app, /overlay\.removeAttribute\('inert'\)/);
+assert.match(app, /overlay\.setAttribute\('inert', ''\)/);
+assert.match(app, /overlay\.setAttribute\('aria-hidden', 'true'\)/);
+assert.match(app, /role',\s*Model\.state\.batchMode[\s\S]*?'checkbox'[\s\S]*?'group'/);
+assert.match(app, /card\.setAttribute\([\s\S]*?'aria-checked'/);
+assert.match(app, /grid\.addEventListener\('keydown'/);
+assert.match(app, /<button type="button" class="wb-c-star btn-wb-star/);
+assert.match(app, /<button type="button" class="wb-c-speaker btn-wb-speak/);
+assert.match(index, /<button type="button" class="nav-item active"/);
+assert.match(index, /id="root-review-overlay"[\s\S]*?aria-hidden="true" inert/);
+assert.match(
+    fs.readFileSync('root-review.js', 'utf8'),
+    /root-review-overlay'\)\.setAttribute\('inert', ''\)/
+);
 assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.match(index, /app\.js\?v=smart-reminder-v1/);
 assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
@@ -98,8 +117,8 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v24/);
-assert.match(serviceWorker, /ui-system\.css\?v=ui-system-v3/);
+assert.match(serviceWorker, /zhongri-shell-v25/);
+assert.match(serviceWorker, /ui-system\.css\?v=ui-system-v4/);
 assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);

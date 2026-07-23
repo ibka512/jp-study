@@ -39,7 +39,7 @@ const IDB_KEYVAL_LOCAL_TAG = '<script src="vendor/idb-keyval.umd.js"></script>';
 const VIEWPORT_REMOTE = '<meta name="viewport" content="width=device-width, initial-scale=1.0">';
 const VIEWPORT_NATIVE = '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">';
 
-const STYLE_LINK = '<link rel="stylesheet" href="style.css?v=mobile-polish-v1">';
+const STYLE_LINK = '<link rel="stylesheet" href="style.css?v=ui-density-v1">';
 const STYLE_LINK_WITH_NATIVE = `${STYLE_LINK}\n<link rel="stylesheet" href="native-app.css">`;
 
 const fetchChecked = async url => {

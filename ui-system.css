@@ -1938,3 +1938,160 @@ html.native-app .modal-overlay {
     animation-duration: 160ms !important;
   }
 }
+
+/* Compact home, settings and navigation surfaces (ui-density-v1). */
+.settings-category-card {
+  grid-template-columns: 40px minmax(0, 1fr) auto !important;
+  gap: 12px !important;
+  min-height: 76px !important;
+  padding: 11px 14px !important;
+}
+
+.settings-category-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 12px !important;
+}
+
+.settings-category-icon .material-symbols-rounded {
+  font-size: 1.25rem !important;
+}
+
+.settings-category-copy {
+  gap: 2px !important;
+}
+
+.settings-category-copy strong {
+  font-size: 0.92rem !important;
+  line-height: 1.25 !important;
+}
+
+.settings-category-copy small {
+  font-size: 0.7rem !important;
+  line-height: 1.35 !important;
+}
+
+.home-filter-card.filter-test-btn-group,
+.home-mode-card {
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--outline-variant)) !important;
+  box-shadow:
+    0 4px 0 color-mix(in srgb, var(--primary) 17%, var(--outline-variant)),
+    0 9px 18px rgba(35, 50, 46, 0.11) !important;
+}
+
+.home-mode-card {
+  min-height: 78px !important;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--surface) 96%, var(--primary-container)),
+      color-mix(in srgb, var(--primary-container) 32%, var(--surface-container))
+    ) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+.home-filter-card.filter-test-btn-group:active,
+.home-mode-card:active {
+  transform: translateY(3px) scale(0.99) !important;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--primary) 17%, var(--outline-variant)),
+    0 4px 10px rgba(35, 50, 46, 0.09) !important;
+}
+
+[data-theme="dark"] .home-filter-card.filter-test-btn-group,
+[data-theme="dark"] .home-mode-card {
+  box-shadow:
+    0 4px 0 color-mix(in srgb, var(--primary) 24%, #101614),
+    0 9px 18px rgba(0, 0, 0, 0.28) !important;
+}
+
+.bottom-nav {
+  min-height: 62px !important;
+  padding-top: 5px !important;
+  padding-bottom: max(5px, calc(5px + env(safe-area-inset-bottom))) !important;
+}
+
+.bottom-nav::before {
+  width: 56px !important;
+  height: 30px !important;
+}
+
+.bottom-nav .nav-item {
+  min-height: 48px !important;
+}
+
+.bottom-nav .nav-item .nav-icon,
+.bottom-nav .nav-item.active .nav-icon {
+  padding: 2px 16px !important;
+  font-size: 1.4rem !important;
+}
+
+.bottom-nav .nav-item .nav-label {
+  font-size: 0.66rem !important;
+  line-height: 1.1 !important;
+}
+
+.app-container {
+  padding-bottom: max(calc(78px + env(safe-area-inset-bottom)), 88px) !important;
+}
+
+@media (max-width: 600px) {
+  .home-study-section {
+    margin-top: 14px !important;
+  }
+
+  .home-filter-card.filter-test-btn-group {
+    grid-template-columns: minmax(0, 1fr) 52px 52px !important;
+    min-height: 68px !important;
+  }
+
+  .home-filter-card .ft-main,
+  .home-filter-card .ft-sub {
+    min-height: 68px !important;
+  }
+
+  .home-filter-card .ft-main {
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    padding: 10px 12px !important;
+  }
+
+  .home-filter-card .home-action-icon {
+    font-size: 1.35rem !important;
+  }
+
+  .home-mode-grid {
+    gap: 12px !important;
+  }
+
+  .home-mode-card {
+    display: grid !important;
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    min-height: 70px !important;
+    align-items: center !important;
+    justify-content: initial !important;
+    gap: 9px !important;
+    padding: 11px 12px !important;
+  }
+
+  .home-mode-card .home-mode-icon {
+    font-size: 1.35rem !important;
+  }
+
+  .home-mode-copy strong {
+    font-size: 0.86rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .settings-category-card {
+    grid-template-columns: 38px minmax(0, 1fr) auto !important;
+    gap: 11px !important;
+    min-height: 72px !important;
+    padding: 10px 12px !important;
+  }
+
+  .settings-category-icon {
+    width: 38px !important;
+    height: 38px !important;
+  }
+}

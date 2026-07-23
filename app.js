@@ -9386,7 +9386,7 @@ if (aiCloseBtn) {
             }
         }
 
-        // 🔵 首页（道場）特定快捷键
+        // 🔵 首页（学习）特定快捷键
         if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden') && !isAnyModalOpen) {
             if (keyLower === 'a') { e.preventDefault(); View.getEl('btn-start-pendulum').click(); return; }
             if (keyLower === 'b') { e.preventDefault(); View.getEl('btn-start-dual-track').click(); return; }
@@ -10754,7 +10754,7 @@ if (aiCloseBtn) {
       
       if (sourceWords.length === 0) {
           return showConfirm('此维度已圆满', '当前范围内该模式对应的「维度杠」已全部点亮。是否前往设置关闭「智能跳过」？', () => {
-              Nav.switchTab('tab-settings', ' |【環境設定】', document.querySelector('[data-target="tab-settings"]'));
+              Nav.switchTab('tab-settings', 'settings|应用设置', document.querySelector('[data-target="tab-settings"]'));
           });
       }
       Hardware.playSound('click'); 
@@ -16324,7 +16324,7 @@ ${sourceText.slice(0, 9000)}
         );
         Nav.switchTab(
             'tab-wordbank',
-            'grid_view|全景語彙',
+            'grid_view|全景词库',
             navItem
         );
         const filter = View.getEl('wb-folder-filter');

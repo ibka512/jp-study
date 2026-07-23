@@ -76,8 +76,8 @@
     chtml: { scale: 1.1 } 
   };
 </script>
-<link rel="stylesheet" href="style.css?v=smart-reminder-v1">
-<link rel="stylesheet" href="ui-system.css?v=ui-system-v4">
+<link rel="stylesheet" href="style.css?v=mobile-polish-v1">
+<link rel="stylesheet" href="ui-system.css?v=mobile-polish-v1">
 </head>
 <body>
 
@@ -197,19 +197,18 @@
                 <span class="home-action-icon material-symbols-rounded">psychology_alt</span>
                 <span class="home-action-copy">
                   <strong>筛选检验</strong>
-                  <small>先找出已认识的词，减少重复学习</small>
                 </span>
-                <kbd class="kbd-hint">E</kbd>
+                <kbd class="kbd-hint home-shortcut-hint">E</kbd>
               </button>
               <button id="btn-test-range-trigger" class="ft-sub" type="button" title="选择筛选范围 (F)" aria-label="选择筛选范围">
                 <span class="material-symbols-rounded">format_list_numbered</span>
                 <small>范围</small>
-                <kbd class="kbd-hint">F</kbd>
+                <kbd class="kbd-hint home-shortcut-hint">F</kbd>
               </button>
               <button id="btn-test-display-trigger" class="ft-sub" type="button" title="选择检验内容 (G)" aria-label="选择检验内容">
                 <span class="material-symbols-rounded">visibility</span>
                 <small>内容</small>
-                <kbd class="kbd-hint">G</kbd>
+                <kbd class="kbd-hint home-shortcut-hint">G</kbd>
               </button>
             </div>
           </div>
@@ -222,23 +221,23 @@
             <div class="home-mode-grid">
               <button id="btn-start-pendulum" class="home-mode-card mode-btn-classic" type="button">
                 <span class="home-mode-icon material-symbols-rounded">explore</span>
-                <span class="home-mode-copy"><strong>自由浏览</strong><small>自由翻看，不记录答题结果</small></span>
-                <kbd class="kbd-hint">A</kbd>
+                <span class="home-mode-copy"><strong>自由浏览</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">A</kbd>
               </button>
               <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
                 <span class="home-mode-icon material-symbols-rounded">sync_alt</span>
-                <span class="home-mode-copy"><strong>往复测验</strong><small>正反方向交替检验记忆</small></span>
-                <kbd class="kbd-hint">B</kbd>
+                <span class="home-mode-copy"><strong>往复测验</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">B</kbd>
               </button>
               <button id="btn-start-rote-learning" class="home-mode-card mode-btn-rote" type="button">
                 <span class="home-mode-icon material-symbols-rounded">menu_book</span>
-                <span class="home-mode-copy"><strong>循环强记</strong><small>分阶段重复强化记忆</small></span>
-                <kbd class="kbd-hint">C</kbd>
+                <span class="home-mode-copy"><strong>循环强记</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">C</kbd>
               </button>
               <button id="btn-start-memory-test" class="home-mode-card mode-btn-test" type="button">
                 <span class="home-mode-icon material-symbols-rounded">workspace_premium</span>
-                <span class="home-mode-copy"><strong>三轮通关</strong><small>连续三轮检验掌握程度</small></span>
-                <kbd class="kbd-hint">D</kbd>
+                <span class="home-mode-copy"><strong>三轮通关</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">D</kbd>
               </button>
             </div>
           </div>
@@ -1575,19 +1574,6 @@
                 autocomplete="off"
                 spellcheck="false"
             />
-
-            <button
-                type="button"
-                id="prompt-visibility"
-                class="glass-icon-btn prompt-visibility-btn"
-                title="显示密钥"
-                aria-label="显示密钥"
-                hidden
-            >
-                <span class="material-symbols-rounded">
-                    visibility
-                </span>
-            </button>
         </div>
 
         <div class="prompt-actions">
@@ -1820,7 +1806,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=stability-fixes-v1"></script>
+<script src="app.js?v=mobile-polish-v1"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

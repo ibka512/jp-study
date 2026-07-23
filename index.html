@@ -76,7 +76,7 @@
     chtml: { scale: 1.1 } 
   };
 </script>
-<link rel="stylesheet" href="style.css?v=layout-progress-v1">
+<link rel="stylesheet" href="style.css?v=smart-reminder-v1">
 </head>
 <body>
 
@@ -776,29 +776,92 @@
 
         <div class="card-panel settings-detail-card native-reminder-card" id="native-reminder-card">
           <div class="native-reminder-heading">
-            <h3><span class="material-symbols-rounded">notifications_active</span> 每日学习提醒</h3>
+            <h3><span class="material-symbols-rounded">notifications_active</span> 智能学习提醒</h3>
             <span class="native-platform-badge" id="native-platform-badge">检测中</span>
           </div>
-          <div class="setting-desc settings-section-intro">由 Android 系统在后台提醒，不需要让网页一直保持打开。</div>
+          <div class="setting-desc settings-section-intro">根据 FSRS 到期内容和当天学习状态，由 Android 在后台安排提醒。</div>
           <label class="native-reminder-toggle" for="setting-study-reminder-enabled">
             <span>
-              <strong>开启每日提醒</strong>
+              <strong>开启学习提醒</strong>
               <small id="study-reminder-status">正在检测运行环境</small>
             </span>
             <input type="checkbox" id="setting-study-reminder-enabled">
             <span class="native-switch" aria-hidden="true"></span>
           </label>
-          <div class="native-reminder-time-row">
-            <label for="setting-study-reminder-time">
-              <span>提醒时间</span>
-              <input type="time" id="setting-study-reminder-time" value="20:00">
+
+          <div class="native-reminder-settings">
+            <label class="native-reminder-field native-reminder-mode-field" for="setting-study-reminder-mode">
+              <span>提醒方式</span>
+              <select id="setting-study-reminder-mode">
+                <option value="smart">智能提醒</option>
+                <option value="fixed">固定时间</option>
+              </select>
             </label>
-            <button type="button" id="btn-test-study-reminder" class="btn-outline icon-text-gap">
+
+            <div class="native-reminder-time-grid">
+              <label class="native-reminder-field" for="setting-study-reminder-time">
+                <span>主要提醒</span>
+                <input type="time" id="setting-study-reminder-time" value="20:00">
+              </label>
+              <label class="native-reminder-field native-smart-only native-rescue-only" for="setting-study-rescue-time">
+                <span>未学习补救</span>
+                <input type="time" id="setting-study-rescue-time" value="21:30">
+              </label>
+            </div>
+
+            <div class="native-reminder-option-grid native-smart-only">
+              <label class="native-reminder-mini-toggle" for="setting-study-due-enabled">
+                <span><strong>到期复习</strong><small>有 FSRS 到期内容时提醒</small></span>
+                <input type="checkbox" id="setting-study-due-enabled" checked>
+                <span class="native-mini-switch" aria-hidden="true"></span>
+              </label>
+              <label class="native-reminder-mini-toggle" for="setting-study-rescue-enabled">
+                <span><strong>未学习提醒</strong><small>当天无学习记录时补一次</small></span>
+                <input type="checkbox" id="setting-study-rescue-enabled" checked>
+                <span class="native-mini-switch" aria-hidden="true"></span>
+              </label>
+            </div>
+
+            <fieldset class="native-reminder-weekdays">
+              <legend>提醒日期</legend>
+              <div>
+                <label><input type="checkbox" name="study-reminder-weekday" value="1" checked><span>一</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="2" checked><span>二</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="3" checked><span>三</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="4" checked><span>四</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="5" checked><span>五</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="6" checked><span>六</span></label>
+                <label><input type="checkbox" name="study-reminder-weekday" value="0" checked><span>日</span></label>
+              </div>
+            </fieldset>
+
+            <div class="native-reminder-quiet-row">
+              <label class="native-reminder-mini-toggle native-reminder-quiet-toggle" for="setting-study-quiet-enabled">
+                <span><strong>免打扰</strong><small>此时段内不安排提醒</small></span>
+                <input type="checkbox" id="setting-study-quiet-enabled" checked>
+                <span class="native-mini-switch" aria-hidden="true"></span>
+              </label>
+              <div class="native-reminder-quiet-times">
+                <input type="time" id="setting-study-quiet-start" value="22:30" aria-label="免打扰开始时间">
+                <span>至</span>
+                <input type="time" id="setting-study-quiet-end" value="07:30" aria-label="免打扰结束时间">
+              </div>
+            </div>
+
+            <label class="native-reminder-mini-toggle native-reminder-exact-toggle" for="setting-study-reminder-exact">
+              <span><strong>准时提醒（可选）</strong><small>更准时，但需要额外系统权限并可能增加耗电</small></span>
+              <input type="checkbox" id="setting-study-reminder-exact">
+              <span class="native-mini-switch" aria-hidden="true"></span>
+            </label>
+
+            <div class="native-reminder-next" id="study-reminder-next">正在计算下一次提醒</div>
+
+            <button type="button" id="btn-test-study-reminder" class="btn-outline icon-text-gap native-reminder-test-button">
               <span class="material-symbols-rounded">notification_add</span>
-              5 秒测试
+              5 秒测试通知
             </button>
           </div>
-          <div class="setting-desc native-reminder-note"><span class="material-symbols-rounded">info</span> Android 13 及以上首次开启时会请求通知权限；系统可能让提醒有几分钟偏差。</div>
+          <div class="setting-desc native-reminder-note"><span class="material-symbols-rounded">info</span> 通知内可直接“开始复习”或“30 分钟后提醒”；完成学习后，后续提醒会自动重排。</div>
         </div>
 
         <div class="card-panel settings-detail-card">
@@ -1751,8 +1814,9 @@
 <script src="rote-learning-core.js"></script>
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
-<script src="app.js?v=layout-progress-v1"></script>
-<script src="native-app.js?v=native-back-v2"></script>
+<script src="notification-planner.js?v=smart-reminder-v1"></script>
+<script src="app.js?v=smart-reminder-v1"></script>
+<script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>
 </html>

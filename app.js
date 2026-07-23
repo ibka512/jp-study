@@ -7854,6 +7854,9 @@ setupVirtualScroll() {
                 View.updateWordbankUI();
                 View.resetWordbankRenderer();
                 View.renderDashboard();
+                window.dispatchEvent(
+                    new CustomEvent('zhongri-study-data-changed')
+                );
                 Hardware.playSound('success');
                 Hardware.vibrate(35);
                 showToast(`已切换至${targetLang === 'en' ? '英语' : '日语'}词书`);
@@ -18619,6 +18622,97 @@ ${JSON.stringify(candidates.map(item => ({
 })();
 
 
+/* ===== 原生智能学习提醒数据桥 ===== */
+(() => {
+    if (window.ZhongriReminderData) return;
+
+    const planner = window.ZhongriNotificationPlanner;
+    const studyRecordTypes = new Set(['daily_punch', 'pendulum']);
+    const toDateKey = value => {
+        if (!value) return '';
+        if (planner?.dateKey) {
+            const direct = planner.dateKey(value);
+            if (direct) return direct;
+        }
+
+        const match = String(value).match(
+            /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/
+        );
+        if (!match) return '';
+        return [
+            match[1],
+            match[2].padStart(2, '0'),
+            match[3].padStart(2, '0')
+        ].join('-');
+    };
+
+    const dispatchReminderDataChanged = () => {
+        window.dispatchEvent(
+            new CustomEvent('zhongri-study-data-changed')
+        );
+    };
+
+    ['saveRecords', 'saveFsrs'].forEach(methodName => {
+        const original = Model[methodName];
+        if (typeof original !== 'function') return;
+        Model[methodName] = function (...args) {
+            const result = original.apply(this, args);
+            Promise.resolve(result).then(
+                dispatchReminderDataChanged,
+                () => {}
+            );
+            return result;
+        };
+    });
+
+    window.ZhongriReminderData = Object.freeze({
+        getSnapshot() {
+            const language = Model.getCurrentLang();
+            const cards = Object.entries(Model.fsrsCards || {})
+                .map(([key, card]) => {
+                    const parts = key.split(':');
+                    const word = Model.getWordById(parts[1]);
+                    if (
+                        !word ||
+                        (word.lang || 'ja') !== language ||
+                        !card?.due
+                    ) {
+                        return null;
+                    }
+                    return {
+                        due: card.due,
+                        dimension: parts.slice(2).join(':')
+                    };
+                })
+                .filter(Boolean);
+
+            const studyDates = new Set();
+            (Model.records || []).forEach(record => {
+                if (!studyRecordTypes.has(record?.type)) return;
+                const key = toDateKey(record.date);
+                if (key) studyDates.add(key);
+            });
+            (Model.fsrsReviewLogs || []).forEach(log => {
+                const key = toDateKey(log?.review);
+                if (key) studyDates.add(key);
+            });
+
+            return {
+                language,
+                cards,
+                studyDates: [...studyDates],
+                streak: Number(Model.calculateStats?.().streak || 0)
+            };
+        },
+        startReview() {
+            document
+                .getElementById('btn-start-fsrs-review')
+                ?.click();
+        }
+    });
+})();
+
+
 
 window.onload = () => {
     const visibilityBtn =
@@ -18668,7 +18762,7 @@ window.onload = () => {
         });
     }
 
-    Controller.init();
+    window.ZhongriAppReady = Promise.resolve(Controller.init());
 };
 
 

@@ -11644,7 +11644,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
 }
 
 .native-reminder-heading,
-.native-reminder-time-row,
 .native-reminder-toggle {
     display: flex;
     align-items: center;
@@ -11744,14 +11743,14 @@ button.import-mode-btn.active > .material-symbols-rounded {
     outline-offset: 3px;
 }
 
-.native-reminder-time-row {
+.native-reminder-settings {
+    display: grid;
     gap: 12px;
-    margin-top: 12px;
+    margin-top: 14px;
 }
 
-.native-reminder-time-row > label {
+.native-reminder-field {
     display: flex;
-    flex: 1;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
@@ -11759,11 +11758,14 @@ button.import-mode-btn.active > .material-symbols-rounded {
     padding: 8px 10px 8px 16px;
     border: 1.5px solid var(--outline);
     border-radius: var(--radius-md);
+    background: var(--surface);
     font-size: 0.86rem;
     font-weight: 800;
 }
 
-.native-reminder-time-row input[type="time"] {
+.native-reminder-field input[type="time"],
+.native-reminder-field select,
+.native-reminder-quiet-times input[type="time"] {
     width: auto;
     min-width: 112px;
     margin: 0;
@@ -11776,11 +11778,201 @@ button.import-mode-btn.active > .material-symbols-rounded {
     text-align: center;
 }
 
-.native-reminder-time-row button {
+.native-reminder-field select {
+    min-width: 132px;
+    appearance: auto;
+}
+
+.native-reminder-time-grid,
+.native-reminder-option-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.native-reminder-mini-toggle {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    min-height: 64px;
+    padding: 12px 14px;
+    border: 1.5px solid var(--outline);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.native-reminder-mini-toggle > span:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.native-reminder-mini-toggle strong {
+    font-size: 0.86rem;
+}
+
+.native-reminder-mini-toggle small {
+    color: var(--on-surface-variant);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.native-reminder-mini-toggle input,
+.native-reminder-weekdays input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.native-mini-switch {
+    position: relative;
     flex: none;
-    min-height: 50px;
+    width: 40px;
+    height: 24px;
+    border: 1.5px solid var(--outline);
+    border-radius: var(--radius-full);
+    background: var(--surface-container);
+    transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.native-mini-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--outline);
+    transition: transform 180ms ease, background-color 180ms ease;
+}
+
+.native-reminder-mini-toggle input:checked + .native-mini-switch {
+    border-color: var(--tertiary);
+    background: var(--tertiary);
+}
+
+.native-reminder-mini-toggle input:checked + .native-mini-switch::after {
+    background: var(--surface);
+    transform: translateX(16px);
+}
+
+.native-reminder-mini-toggle input:focus-visible + .native-mini-switch {
+    outline: 3px solid color-mix(in srgb, var(--tertiary) 28%, transparent);
+    outline-offset: 3px;
+}
+
+.native-reminder-weekdays {
+    min-width: 0;
     margin: 0;
-    padding-inline: 16px;
+    padding: 12px 14px 14px;
+    border: 1.5px solid var(--outline);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.native-reminder-weekdays legend {
+    padding: 0 4px;
+    color: var(--on-surface-variant);
+    font-size: 0.76rem;
+    font-weight: 800;
+}
+
+.native-reminder-weekdays > div {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.native-reminder-weekdays label {
+    position: relative;
+    cursor: pointer;
+}
+
+.native-reminder-weekdays label span {
+    display: grid;
+    min-height: 36px;
+    place-items: center;
+    border: 1.5px solid var(--outline);
+    border-radius: 11px;
+    color: var(--on-surface-variant);
+    font-size: 0.8rem;
+    font-weight: 800;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.native-reminder-weekdays input:checked + span {
+    border-color: color-mix(in srgb, var(--tertiary) 58%, var(--outline));
+    background: color-mix(in srgb, var(--tertiary) 14%, var(--surface));
+    color: var(--tertiary);
+}
+
+.native-reminder-weekdays input:focus-visible + span {
+    outline: 3px solid color-mix(in srgb, var(--tertiary) 28%, transparent);
+    outline-offset: 2px;
+}
+
+.native-reminder-quiet-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+}
+
+.native-reminder-quiet-toggle {
+    min-height: 70px;
+}
+
+.native-reminder-quiet-times {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1.5px solid var(--outline);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--on-surface-variant);
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.native-reminder-quiet-times input[type="time"] {
+    min-width: 96px;
+    padding-inline: 6px;
+}
+
+.native-reminder-exact-toggle {
+    min-height: 70px;
+}
+
+.native-reminder-next {
+    display: flex;
+    align-items: center;
+    min-height: 42px;
+    padding: 10px 13px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--tertiary) 10%, var(--surface));
+    color: var(--tertiary);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.native-reminder-test-button {
+    width: 100%;
+    min-height: 48px;
+    margin: 0;
+}
+
+.native-reminder-card[data-mode="fixed"] .native-smart-only,
+.native-reminder-card[data-rescue-enabled="false"] .native-rescue-only {
+    display: none;
 }
 
 .native-reminder-note {
@@ -11796,27 +11988,42 @@ button.import-mode-btn.active > .material-symbols-rounded {
 }
 
 .native-reminder-card.is-web .native-reminder-toggle,
-.native-reminder-card.is-web .native-reminder-time-row {
+.native-reminder-card.is-web .native-reminder-settings {
     opacity: 0.58;
 }
 
 .native-reminder-card button:disabled,
-.native-reminder-card input:disabled {
+.native-reminder-card input:disabled,
+.native-reminder-card select:disabled {
     cursor: not-allowed;
 }
 
 @media (max-width: 600px) {
-    .native-reminder-time-row {
-        align-items: stretch;
-        flex-direction: column;
+    .native-reminder-time-grid,
+    .native-reminder-option-grid,
+    .native-reminder-quiet-row {
+        grid-template-columns: 1fr;
     }
 
-    .native-reminder-time-row button {
-        width: 100%;
+    .native-reminder-quiet-times {
+        justify-content: space-between;
     }
 
     .native-reminder-heading {
         align-items: flex-start;
+    }
+
+    .native-reminder-weekdays {
+        padding-inline: 10px;
+    }
+
+    .native-reminder-weekdays > div {
+        gap: 4px;
+    }
+
+    .native-reminder-weekdays label span {
+        min-height: 34px;
+        border-radius: 9px;
     }
 }
 

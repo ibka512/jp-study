@@ -1,6 +1,6 @@
 {
   "name": "zhongri-app",
-  "version": "9.0.0",
+  "version": "9.1.0",
   "private": true,
   "description": "钟日学习应用的 Android Capacitor 包装",
   "scripts": {

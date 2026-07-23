@@ -1,13 +1,13 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v22';
+const CACHE_NAME = 'zhongri-shell-v23';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './logo.png',
-  './style.css?v=layout-progress-v1',
+  './style.css?v=smart-reminder-v1',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -18,8 +18,9 @@ const LOCAL_ASSETS = [
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=layout-progress-v1',
-  './native-app.js?v=native-back-v2',
+  './notification-planner.js?v=smart-reminder-v1',
+  './app.js?v=smart-reminder-v1',
+  './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ];
 
@@ -35,14 +36,16 @@ const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
-  './style.css?v=layout-progress-v1',
+  './style.css?v=smart-reminder-v1',
   './release-info.js',
   './core-utils.js',
   './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
-  './app.js?v=layout-progress-v1',
+  './notification-planner.js?v=smart-reminder-v1',
+  './app.js?v=smart-reminder-v1',
+  './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ].map(toAbsoluteUrl));
 

@@ -5450,7 +5450,11 @@ const View = {
     // 英语模式下显示三杠（听力杠替代读音杠），标签文字动态切换
     const currentLang = Model.getCurrentLang();
     const kanaRow = this.getEl('prog-row-kana');
-    if (kanaRow) kanaRow.style.display = 'flex';
+    if (kanaRow) {
+        // 保持 CSS 的三列网格；此前写入 flex 会让中间的进度轨道被压缩掉。
+        kanaRow.hidden = false;
+        kanaRow.style.removeProperty('display');
+    }
     const kanaBarLabel = document.getElementById('kana-bar-label');
     if (kanaBarLabel) kanaBarLabel.innerText = currentLang === 'en' ? '听力' : '读音';
 
@@ -5517,10 +5521,19 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
     
     setTimeout(() => {
         if (this.getEl('mastery-bar')) this.getEl('mastery-bar').style.width = `${masteryPercent}%`;
-        
-        if (this.getEl('prog-bar-kanji')) this.getEl('prog-bar-kanji').style.width = `${pKanji}%`;
-        if (this.getEl('prog-bar-kana')) this.getEl('prog-bar-kana').style.width = `${pKana}%`;
-        if (this.getEl('prog-bar-meaning')) this.getEl('prog-bar-meaning').style.width = `${pMeaning}%`;
+
+        const setSubProgress = (id, percent) => {
+            const bar = this.getEl(id);
+            if (!bar) return;
+
+            bar.style.width = `${percent}%`;
+            // 0.1% 在手机上不到 1px，保留一个最小可见长度提示已有进度。
+            bar.classList.toggle('has-progress', Number(percent) > 0);
+        };
+
+        setSubProgress('prog-bar-kanji', pKanji);
+        setSubProgress('prog-bar-kana', pKana);
+        setSubProgress('prog-bar-meaning', pMeaning);
         
         if (this.getEl('prog-txt-kanji')) this.getEl('prog-txt-kanji').innerHTML = `${kanjiCount} <span style="font-size:0.85em; opacity:0.6;">(${pKanji}%)</span>`;
         if (this.getEl('prog-txt-kana')) this.getEl('prog-txt-kana').innerHTML = `${kanaCount} <span style="font-size:0.85em; opacity:0.6;">(${pKana}%)</span>`;
@@ -18357,16 +18370,26 @@ ${JSON.stringify(candidates.map(item => ({
                     isEnglish
                 );
 
+                const englishWordThresholds = columns >= 4
+                    ? { long: 5, veryLong: 8 }
+                    : columns === 3
+                        ? { long: 6, veryLong: 9 }
+                        : { long: 10, veryLong: 15 };
+
                 card.classList.toggle(
                     'is-word-long',
                     wordLength >
-                        (isEnglish ? 10 : 4)
+                        (isEnglish
+                            ? englishWordThresholds.long
+                            : 4)
                 );
 
                 card.classList.toggle(
                     'is-word-very-long',
                     wordLength >
-                        (isEnglish ? 15 : 6)
+                        (isEnglish
+                            ? englishWordThresholds.veryLong
+                            : 6)
                 );
 
                 card.classList.toggle(

@@ -8777,7 +8777,7 @@ button.import-mode-btn.active > .material-symbols-rounded {
     white-space: normal;
 
     word-break: normal !important;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 
     line-height: 1.12 !important;
 }
@@ -8831,6 +8831,33 @@ button.import-mode-btn.active > .material-symbols-rounded {
 .wb-card.is-word-very-long
 .wb-c-word {
     font-size: 0.98rem !important;
+}
+
+/* 三列英文词卡：让收藏按钮拥有独立的顶部空间，并提前缩小常见长词。 */
+#wb-grid[data-cols="3"]
+.wb-card.is-english-word
+.wb-c-star {
+    top: 8px;
+    right: 8px;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-english-word
+.wb-c-word {
+    align-items: flex-end;
+    padding: 0 2px 2px;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-english-word.is-word-long
+.wb-c-word {
+    font-size: 1.08rem !important;
+}
+
+#wb-grid[data-cols="3"]
+.wb-card.is-english-word.is-word-very-long
+.wb-c-word {
+    font-size: 0.92rem !important;
 }
 
 
@@ -10479,6 +10506,10 @@ button.import-mode-btn.active > .material-symbols-rounded {
     height: 100%;
     border-radius: inherit;
     transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.home-sub-progress-track > div.has-progress {
+    min-width: 3px;
 }
 
 .home-sub-progress-value {

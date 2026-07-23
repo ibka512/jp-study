@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const app = fs.readFileSync('app.js', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const serviceWorker = fs.readFileSync('sw.js', 'utf8');
+const styles = fs.readFileSync('style.css', 'utf8');
 const logo = fs.readFileSync('logo.png');
 
 assert.match(
@@ -42,7 +43,7 @@ assert.match(
 assert.match(index, /ai-capability-list/);
 assert.doesNotMatch(index, /ai-capability-panel/);
 assert.match(
-    fs.readFileSync('style.css', 'utf8'),
+    styles,
     /\.settings-key-wrapper\s*\{\s*width:\s*100%/
 );
 assert.match(
@@ -68,6 +69,17 @@ assert.match(serviceWorker, /NETWORK_FIRST_ASSETS/);
 assert.match(serviceWorker, /staleWhileRevalidate/);
 assert.match(serviceWorker, /WORD_BANK_BASE_URL/);
 assert.match(serviceWorker, /event\.request\.method !== ['"]GET['"]/);
+assert.doesNotMatch(
+    app,
+    /kanaRow\)\s*kanaRow\.style\.display\s*=\s*['"]flex['"]/,
+    '读音行必须保留网格布局，不能压缩进度轨道'
+);
+assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
+assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
+assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
+assert.match(index, /style\.css\?v=layout-progress-v1/);
+assert.match(index, /app\.js\?v=layout-progress-v1/);
+assert.match(serviceWorker, /zhongri-shell-v22/);
 assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);
 assert.equal(logo.readUInt32BE(20), 512);

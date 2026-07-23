@@ -1731,7 +1731,9 @@ const Nav = {
             
             // 2. 保留 click 用于兼容：拦截真实的物理抬手点击(防重复执行)，但放行代码级别的虚拟点击(如使用电脑键盘左右方向键切换 Tab)
             item.addEventListener('click', (e) => {
-                if (e.isTrusted) return; 
+                // 触摸/鼠标已在 pointerdown 中响应；键盘生成的 click
+                // detail 为 0，必须保留，确保 Enter/Space 可以切换页面。
+                if (e.isTrusted && e.detail !== 0) return;
                 Hardware.playSound('click'); Hardware.vibrate(25);
                 let targetId = e.currentTarget.getAttribute('data-target');
                 let titleData = e.currentTarget.getAttribute('data-title');
@@ -1763,8 +1765,14 @@ inputs.forEach(el => {
             Model.state.renderedStartIndex = -1; 
         }
 
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        if(navItemEl) navItemEl.classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.classList.remove('active');
+            el.removeAttribute('aria-current');
+        });
+        if(navItemEl) {
+            navItemEl.classList.add('active');
+            navItemEl.setAttribute('aria-current', 'page');
+        }
 
 
         document.querySelectorAll('.tab-content').forEach(el => {
@@ -4532,13 +4540,52 @@ const View = {
       }
   },
   
+  syncThemeUI() {
+    const isDark =
+        document.body.getAttribute('data-theme') === 'dark';
+    const nextLabel = isDark
+        ? '切换到日间模式'
+        : '切换到夜间模式';
+
+    document.querySelectorAll('.theme-toggle-btn').forEach(button => {
+        button.setAttribute('aria-label', nextLabel);
+        button.setAttribute('title', nextLabel);
+        button.setAttribute('aria-pressed', String(isDark));
+    });
+
+    document.querySelectorAll('.theme-icon').forEach(icon => {
+        icon.innerText = isDark ? 'light_mode' : 'dark_mode';
+    });
+
+    const themeColor = document.querySelector(
+        'meta[name="theme-color"]'
+    );
+    if (themeColor) {
+        themeColor.content = isDark ? '#111820' : '#356f66';
+    }
+  },
+
   toggleTheme(e) {
-    let isDark = document.body.getAttribute('data-theme') === 'dark';
-    let toggleAction = () => {
-        if (isDark) { document.body.removeAttribute('data-theme'); localStorage.setItem('theme', 'light'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); } 
-        else { document.body.setAttribute('data-theme', 'dark'); localStorage.setItem('theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'dark_mode'); }
+    const isDark =
+        document.body.getAttribute('data-theme') === 'dark';
+    const toggleAction = () => {
+        if (isDark) {
+            document.body.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+        } else {
+            document.body.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+        }
+
+        this.syncThemeUI();
     };
-    if (!document.startViewTransition) { toggleAction(); return; }
+    const reducedMotion = window.matchMedia(
+        '(prefers-reduced-motion: reduce)'
+    ).matches;
+    if (!document.startViewTransition || reducedMotion) {
+        toggleAction();
+        return;
+    }
     const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
     const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
     const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
@@ -6071,6 +6118,11 @@ void card.offsetWidth;
         starIcon.style.fontVariationSettings = isStarred ? "'FILL' 1" : "'FILL' 0";
         if (isStarred) starBtn.classList.add('active');
         else starBtn.classList.remove('active');
+        starBtn.setAttribute('aria-pressed', String(isStarred));
+        starBtn.setAttribute(
+            'aria-label',
+            isStarred ? '取消收藏' : '收藏单词'
+        );
         starBtn.style.display = 'block';
     }
 
@@ -7191,7 +7243,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           if (Model.state.batchMode) {
               topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
           } else {
-              topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}"><span class="material-symbols-rounded" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
+              topRightHTML = `<div class="wb-c-star btn-wb-star ${starClass}" role="button" tabindex="0" aria-label="${starFilled ? '取消收藏' : '收藏单词'}" aria-pressed="${Boolean(starFilled)}"><span class="material-symbols-rounded" aria-hidden="true" style="font-variation-settings: 'FILL' ${starFilled};">star</span></div>`;
           }
 
           let safeWord = escapeHTML(w.word); 
@@ -7207,7 +7259,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
             ${hankoHTML}
             <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
             ${topRightHTML}
-            ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak"><span class="material-symbols-rounded">volume_up</span></div>` : ''}
+            ${cols !== '4' && !Model.state.batchMode ? `<div class="wb-c-speaker btn-wb-speak" role="button" tabindex="0" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></div>` : ''}
             <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
             ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
             <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
@@ -7544,7 +7596,10 @@ const Controller = {
     this.setupVirtualScroll();
     this.setupHeaderScrollShadow();
     
-    if(localStorage.getItem('theme') === 'dark') { document.body.setAttribute('data-theme', 'dark'); document.querySelectorAll('.theme-icon').forEach(icon => icon.innerText = 'light_mode'); }
+    if(localStorage.getItem('theme') === 'dark') {
+        document.body.setAttribute('data-theme', 'dark');
+    }
+    View.syncThemeUI();
     
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
@@ -8569,6 +8624,12 @@ if (testVibrateBtn) {
             Hardware.vibrate(20);
         }
 
+        const isStarred = index === -1;
+        button.setAttribute('aria-pressed', String(isStarred));
+        button.setAttribute(
+            'aria-label',
+            isStarred ? '取消收藏' : '收藏单词'
+        );
         Model.saveStars();
     });
 
@@ -8597,6 +8658,12 @@ if (testVibrateBtn) {
                 window.createStarParticles(starButton);
             }
 
+            const isStarred = starIndex === -1;
+            starButton.setAttribute('aria-pressed', String(isStarred));
+            starButton.setAttribute(
+                'aria-label',
+                isStarred ? '取消收藏' : '收藏单词'
+            );
             Model.saveStars();
             Model.state.renderedStartIndex = -1;
         });
@@ -8751,6 +8818,12 @@ if (aiCloseBtn) {
               window.createStarParticles(starButton);
           }
 
+          const isStarred = starIndex === -1;
+          starButton.setAttribute('aria-pressed', String(isStarred));
+          starButton.setAttribute(
+              'aria-label',
+              isStarred ? '取消收藏' : '收藏单词'
+          );
           Model.saveStars();
           return;
       }
@@ -12040,6 +12113,11 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
       if (starBtn && starIcon) { 
           if (isStarred) { starBtn.classList.add('active'); starIcon.style.fontVariationSettings = "'FILL' 1"; } 
           else { starBtn.classList.remove('active'); starIcon.style.fontVariationSettings = "'FILL' 0"; } 
+          starBtn.setAttribute('aria-pressed', String(isStarred));
+          starBtn.setAttribute(
+              'aria-label',
+              isStarred ? '取消收藏' : '收藏单词'
+          );
       } 
       if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
   },

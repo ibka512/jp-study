@@ -7,6 +7,7 @@ const app = fs.readFileSync('app.js', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const serviceWorker = fs.readFileSync('sw.js', 'utf8');
 const styles = fs.readFileSync('style.css', 'utf8');
+const uiStyles = fs.readFileSync('ui-system.css', 'utf8');
 const logo = fs.readFileSync('logo.png');
 
 assert.match(
@@ -78,6 +79,15 @@ assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
 assert.match(index, /style\.css\?v=smart-reminder-v1/);
+assert.match(index, /ui-system\.css\?v=ui-system-v3/);
+assert.match(index, /M\+PLUS\+Rounded\+1c/);
+assert.match(index, /family=Nunito/);
+assert.match(uiStyles, /--font-title:/);
+assert.match(uiStyles, /--font-body:/);
+assert.match(uiStyles, /--font-number:/);
+assert.match(uiStyles, /--secondary:\s*#345f8c/);
+assert.match(uiStyles, /--tertiary:\s*#675585/);
+assert.match(uiStyles, /prefers-reduced-motion:\s*reduce/);
 assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.match(index, /app\.js\?v=smart-reminder-v1/);
 assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
@@ -88,7 +98,8 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v23/);
+assert.match(serviceWorker, /zhongri-shell-v24/);
+assert.match(serviceWorker, /ui-system\.css\?v=ui-system-v3/);
 assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);

@@ -11,8 +11,8 @@ const buildScript = fs.readFileSync(
   'scripts/build-capacitor-web.mjs',
   'utf8'
 );
-const manifest = fs.readFileSync(
-  'android/app/src/main/AndroidManifest.xml',
+const manifestPatch = fs.readFileSync(
+  'scripts/patch-android-manifest.mjs',
   'utf8'
 );
 
@@ -37,7 +37,7 @@ test('准时权限为可选项且 Android 构建包含提醒规划器', () => {
   assert.match(nativeApp, /settings\.exact/);
   assert.match(nativeApp, /schedule\.allowWhileIdle = true/);
   assert.match(
-    manifest,
+    manifestPatch,
     /android\.permission\.SCHEDULE_EXACT_ALARM/
   );
   assert.match(buildScript, /notification-planner\.js/);

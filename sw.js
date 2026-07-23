@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v26';
+const CACHE_NAME = 'zhongri-shell-v27';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -14,19 +14,19 @@ const LOCAL_ASSETS = [
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
-  './core-utils.js',
+  './core-utils.js?v=sse-buffer-v1',
   './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=wcag-acceptance-v2',
+  './app.js?v=stability-fixes-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ];
 
 const OPTIONAL_EXTERNAL_ASSETS = [
-  'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js',
+  'https://cdn.jsdelivr.net/npm/idb-keyval@6.2.2/dist/umd.js',
   'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap',
   'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0'
 ];
@@ -40,13 +40,13 @@ const NETWORK_FIRST_ASSETS = new Set([
   './style.css?v=smart-reminder-v1',
   './ui-system.css?v=ui-system-v4',
   './release-info.js',
-  './core-utils.js',
+  './core-utils.js?v=sse-buffer-v1',
   './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=wcag-acceptance-v2',
+  './app.js?v=stability-fixes-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ].map(toAbsoluteUrl));

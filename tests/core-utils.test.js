@@ -28,4 +28,22 @@ assert.equal(
 );
 assert.equal(utils.normalizeEntryText('Ａ', false), 'Ａ');
 
+const sseEvents = [];
+const sseParser = utils.createSSEDataParser(data => {
+    sseEvents.push(data);
+});
+
+sseParser.push('data: {"choices":[{"delta":{"cont');
+sseParser.push('ent":"钟"}}]}\n\ndata: {"choices":');
+sseParser.push('[{"delta":{"content":"日"}}]}\r\n\r\n');
+sseParser.push('data: first line\ndata: second');
+sseParser.push(' line');
+sseParser.finish();
+
+assert.deepEqual(sseEvents, [
+    '{"choices":[{"delta":{"content":"钟"}}]}',
+    '{"choices":[{"delta":{"content":"日"}}]}',
+    'first line\nsecond line'
+]);
+
 console.log('公共工具模块测试通过');

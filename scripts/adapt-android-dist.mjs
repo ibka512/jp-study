@@ -25,8 +25,15 @@ const FONT_LINK_TAGS = [
 ];
 const LOCAL_FONTS_TAG = '<link href="vendor/fonts/fonts.css" rel="stylesheet">';
 
-const IDB_KEYVAL_REMOTE_URL = 'https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js';
-const IDB_KEYVAL_REMOTE_TAG = `<script src="${IDB_KEYVAL_REMOTE_URL}"></script>`;
+const IDB_KEYVAL_REMOTE_URL =
+  'https://cdn.jsdelivr.net/npm/idb-keyval@6.2.2/dist/umd.js';
+const IDB_KEYVAL_SHA384 =
+  'WotV0hDwz0BelkTLz9FqRezk+eN54lVOKmyOw6HIcWwvJIu8unb2UFl4mE2Ssfxw';
+const IDB_KEYVAL_REMOTE_TAG = `<script
+  src="${IDB_KEYVAL_REMOTE_URL}"
+  integrity="sha384-${IDB_KEYVAL_SHA384}"
+  crossorigin="anonymous"
+></script>`;
 const IDB_KEYVAL_LOCAL_TAG = '<script src="vendor/idb-keyval.umd.js"></script>';
 
 const VIEWPORT_REMOTE = '<meta name="viewport" content="width=device-width, initial-scale=1.0">';
@@ -89,6 +96,10 @@ const localizeFonts = async () => {
 
 const localizeIdbKeyval = async () => {
   const buffer = Buffer.from(await (await fetchChecked(IDB_KEYVAL_REMOTE_URL)).arrayBuffer());
+  const digest = createHash('sha384').update(buffer).digest('base64');
+  if (digest !== IDB_KEYVAL_SHA384) {
+    throw new Error('idb-keyval 完整性校验失败，已中止 Android 构建');
+  }
   await mkdir(join(dist, 'vendor'), { recursive: true });
   await writeFile(join(dist, 'vendor', 'idb-keyval.umd.js'), buffer);
   return buffer.length;

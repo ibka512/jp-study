@@ -22,7 +22,12 @@ assert.match(index, /updateViaCache:\s*['"]none['"]/);
 assert.match(index, /registration\.update\(\)/);
 assert.match(index, /zhongri-update-ready/);
 assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
+assert.doesNotMatch(app, /mathjax@3\/es5\/tex-mml-chtml\.js/);
+assert.match(app, /mathjax@3\.2\.2\/es5\/tex-mml-chtml\.js/);
+assert.match(app, /const MATHJAX_INTEGRITY =\s*'sha384-[A-Za-z0-9+/=]+'/);
 assert.match(app, /const loadMathJax = \(\) =>/);
+assert.match(app, /script\.integrity = MATHJAX_INTEGRITY/);
+assert.match(app, /script\.crossOrigin = 'anonymous'/);
 assert.match(app, /document\.head\.appendChild\(script\)/);
 assert.match(app, /HAPTICS\.install\(\)/);
 assert.match(app, /'diagnostic',[\s\S]*\{ force: true \}/);
@@ -108,7 +113,8 @@ assert.match(
     /root-review-overlay'\)\.setAttribute\('inert', ''\)/
 );
 assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
-assert.match(index, /app\.js\?v=wcag-acceptance-v2/);
+assert.match(index, /core-utils\.js\?v=sse-buffer-v1/);
+assert.match(index, /app\.js\?v=stability-fixes-v1/);
 assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
 assert.ok(
     index.indexOf('notification-planner.js') < index.indexOf('native-app.js'),
@@ -117,10 +123,35 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v26/);
-assert.match(serviceWorker, /app\.js\?v=wcag-acceptance-v2/);
+assert.match(serviceWorker, /zhongri-shell-v27/);
+assert.match(serviceWorker, /core-utils\.js\?v=sse-buffer-v1/);
+assert.match(serviceWorker, /app\.js\?v=stability-fixes-v1/);
 assert.match(serviceWorker, /ui-system\.css\?v=ui-system-v4/);
 assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
+assert.match(
+    index,
+    /idb-keyval@6\.2\.2\/dist\/umd\.js[\s\S]*?integrity="sha384-[A-Za-z0-9+/=]+"/
+);
+assert.doesNotMatch(index, /idb-keyval@6\/dist\/umd\.js/);
+assert.match(
+    fs.readFileSync('scripts/adapt-android-dist.mjs', 'utf8'),
+    /createHash\('sha384'\)[\s\S]*?digest\('base64'\)[\s\S]*?IDB_KEYVAL_SHA384/
+);
+assert.match(
+    app,
+    /fsrsCards:\s*rawData\.data\.fsrsCards[\s\S]*?fsrsReviewLogs:\s*Array\.isArray\(rawData\.data\.fsrsReviewLogs\)/
+);
+assert.match(app, /folderNameElement\.textContent = folderName/);
+assert.doesNotMatch(
+    app,
+    /<span class="folder-name">\$\{folderName\}<\/span>/
+);
+assert.match(app, /const readDeepSeekTextStream = async \(response, onText\) =>/);
+assert.equal(
+    (app.match(/response\.body\.getReader\(\)/g) || []).length,
+    1,
+    'AI 流式响应必须统一经过带跨分块缓冲的解析器'
+);
 assert.match(index, /id="action-toast"[\s\S]*?aria-hidden="true" inert/);
 assert.match(app, /const setActionToastAccessibility = \(toast, actionBtn, isOpen\) =>/);
 assert.match(app, /setActionToastAccessibility\(toast, actionBtn, false\)/);

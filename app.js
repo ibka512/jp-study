@@ -25,7 +25,9 @@ const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
 });
 const ROTE_CORE = globalThis.RoteLearningCore;
 const MATHJAX_SOURCE =
-    'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+    'https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js';
+const MATHJAX_INTEGRITY =
+    'sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei';
 
 let mathJaxLoadPromise = null;
 
@@ -43,11 +45,56 @@ if (!ROTE_CORE) {
 
 const {
     cloneDataValue,
+    createSSEDataParser,
     escapeHTML,
     escapeRegExp,
     hashStableText,
     normalizeEntryText
 } = CORE_UTILS;
+
+const readDeepSeekTextStream = async (response, onText) => {
+    if (!response?.body?.getReader) {
+        throw new Error('当前环境不支持流式响应');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    const parser = createSSEDataParser(data => {
+        if (data === '[DONE]') {
+            return;
+        }
+
+        try {
+            const payload = JSON.parse(data);
+            const chunk = payload.choices?.[0]?.delta?.content;
+
+            if (chunk) {
+                onText(chunk);
+            }
+        } catch (error) {
+            console.warn('[AI Stream] 忽略无法解析的完整 SSE 事件', error);
+        }
+    });
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            parser.push(
+                decoder.decode(value, { stream: true })
+            );
+        }
+
+        parser.push(decoder.decode());
+        parser.finish();
+    } finally {
+        reader.releaseLock?.();
+    }
+};
 
 const loadMathJax = () => {
     if (window.MathJax?.typesetPromise) {
@@ -87,6 +134,8 @@ const loadMathJax = () => {
             script.id = 'MathJax-script';
             script.async = true;
             script.src = MATHJAX_SOURCE;
+            script.integrity = MATHJAX_INTEGRITY;
+            script.crossOrigin = 'anonymous';
             document.head.appendChild(script);
         }
     });
@@ -113,6 +162,25 @@ const BACKUP_PREFERENCE_KEYS = Object.freeze([
     'lastTestDisplay',
     'lastTestRange'
 ]);
+
+const normalizeFolderName = value => {
+    return normalizeEntryText(value);
+};
+
+const isValidFolderName = value => {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalized = normalizeFolderName(value);
+
+    return Boolean(
+        normalized &&
+        normalized.length <= 80 &&
+        !/[<>|\u0000-\u001F\u007F]/.test(normalized)
+    );
+};
+
 const createRandomWordId = () => {
     if (
         typeof crypto !== 'undefined' &&
@@ -9653,6 +9721,16 @@ if (aiCloseBtn) {
                           rawData.data.aiConversations
                       )
                           ? rawData.data.aiConversations
+                          : null,
+                  fsrsCards:
+                      rawData.data.fsrsCards &&
+                      typeof rawData.data.fsrsCards === 'object' &&
+                      !Array.isArray(rawData.data.fsrsCards)
+                          ? rawData.data.fsrsCards
+                          : null,
+                  fsrsReviewLogs:
+                      Array.isArray(rawData.data.fsrsReviewLogs)
+                          ? rawData.data.fsrsReviewLogs
                           : null
               },
 
@@ -9732,6 +9810,17 @@ if (aiCloseBtn) {
 
       if (!Array.isArray(payload.data.folders)) {
           throw new Error('备份中缺少文件夹数据');
+      }
+
+      const invalidFolder =
+          payload.data.folders.find(folder => {
+              return !isValidFolderName(folder);
+          });
+
+      if (invalidFolder !== undefined) {
+          throw new Error(
+              '备份中的词库名称包含不支持的字符或长度超过 80 个字符'
+          );
       }
 
       const invalidWord = payload.data.db.find(word => {
@@ -11196,10 +11285,14 @@ if (aiCloseBtn) {
   createFolder() { 
     Hardware.vibrate(20); 
     showPrompt("请输入新文件夹名称", "", (name) => { 
-      if(Model.folders.includes(name)) return showToast("文件夹已存在"); 
+      const folderName = normalizeFolderName(name);
+      if (!isValidFolderName(folderName)) {
+          return showToast('文件夹名称不能包含 <、>、| 或控制字符，且最多 80 个字符');
+      }
+      if(Model.folders.includes(folderName)) return showToast("文件夹已存在");
       const lang = Model.state.currentLangMode; // 强绑定为当前所处语言
-      Model.folders.push(name); 
-      Model.folderLangs[name] = lang;
+      Model.folders.push(folderName);
+      Model.folderLangs[folderName] = lang;
       Model.saveFolders(); 
       Model.saveFolderLangs();
       View.updateWordbankUI(); 
@@ -11364,10 +11457,18 @@ if (aiCloseBtn) {
           item.className = 'move-folder-item';
           item.setAttribute('tabindex', '0');
           item.setAttribute('role', 'button');
-          item.innerHTML = `
-              <span class="material-symbols-rounded folder-icon">folder</span>
-              <span class="folder-name">${folderName}</span>
-          `;
+
+              const icon = document.createElement('span');
+              icon.className =
+                  'material-symbols-rounded folder-icon';
+              icon.textContent = 'folder';
+
+              const folderNameElement =
+                  document.createElement('span');
+              folderNameElement.className = 'folder-name';
+              folderNameElement.textContent = folderName;
+
+              item.append(icon, folderNameElement);
           
           item.onclick = () => {
               Hardware.playSound('success');
@@ -14507,58 +14608,20 @@ async _streamTabChatResponse(apiKey, aiBubble, sendBtn) {
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } =
-                await reader.read();
+        await readDeepSeekTextStream(
+            response,
+            chunk => {
+                fullText += chunk;
 
-            if (done) {
-                break;
+                textDiv.innerHTML =
+                    renderAIMessageHTML(
+                        fullText,
+                        this.aiTabChat.word || ''
+                    );
+
+                this._scrollTabChatToBottom();
             }
-
-            let chunkStr =
-                decoder.decode(
-                    value,
-                    { stream: true }
-                );
-
-            let lines =
-                chunkStr.split('\n');
-
-            for (let line of lines) {
-                line = line.trim();
-
-                if (
-                    line.startsWith('data: ') &&
-                    line !== 'data: [DONE]'
-                ) {
-                    try {
-                        let data =
-                            JSON.parse(
-                                line.slice(6)
-                            );
-
-                        let chunk =
-                            data.choices[0]
-                                .delta.content;
-
-                        if (chunk) {
-                            fullText += chunk;
-
-                            textDiv.innerHTML =
-                                renderAIMessageHTML(
-                                    fullText,
-                                    this.aiTabChat.word || ''
-                                );
-
-                            this._scrollTabChatToBottom();
-                        }
-                    } catch (e) {}
-                }
-            }
-        }
+        );
 
         /*
          * 主 AI 对话结束后，
@@ -14794,29 +14857,18 @@ if (visibilityIcon) {
         aiBubble.innerHTML = '';
         aiBubble.appendChild(textDiv);
         
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            let chunkStr = decoder.decode(value, {stream: true});
-            let lines = chunkStr.split('\n');
-            for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    try {
-                        let data = JSON.parse(line.slice(6));
-                        let chunk = data.choices[0].delta.content;
-                        if (chunk) {
-                            fullText += chunk;
-                            textDiv.innerHTML = renderAIMessageHTML(fullText, this.currentChat.word || '');
-this._scrollChatToBottom();
-                        }
-                    } catch (e) {}
-                }
+        await readDeepSeekTextStream(
+            response,
+            chunk => {
+                fullText += chunk;
+                textDiv.innerHTML =
+                    renderAIMessageHTML(
+                        fullText,
+                        this.currentChat.word || ''
+                    );
+                this._scrollChatToBottom();
             }
-        }
+        );
 
         /*
          * 例句继续追问结束后，

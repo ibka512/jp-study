@@ -76,8 +76,8 @@
     chtml: { scale: 1.1 } 
   };
 </script>
-<link rel="stylesheet" href="style.css?v=mobile-polish-v1">
-<link rel="stylesheet" href="ui-system.css?v=mobile-polish-v1">
+<link rel="stylesheet" href="style.css?v=ui-density-v1">
+<link rel="stylesheet" href="ui-system.css?v=ui-density-v1">
 </head>
 <body>
 
@@ -121,7 +121,6 @@
         <section class="card-panel home-study-panel" aria-labelledby="home-study-title">
           <header class="home-study-header">
             <div>
-              <span class="home-study-eyebrow">开始学习</span>
               <h3 id="home-study-title">
                 <span class="material-symbols-rounded">school</span>
                 学习模式
@@ -188,13 +187,9 @@
           </select>
 
           <div class="home-study-section">
-            <div class="home-section-label">
-              <span class="material-symbols-rounded">filter_alt</span>
-              学习前筛选
-            </div>
             <div class="filter-test-btn-group home-filter-card">
               <button id="btn-start-filter-test" class="ft-main" type="button">
-                <span class="home-action-icon material-symbols-rounded">psychology_alt</span>
+                <span class="home-action-icon material-symbols-rounded">content_cut</span>
                 <span class="home-action-copy">
                   <strong>筛选检验</strong>
                 </span>
@@ -214,10 +209,6 @@
           </div>
 
           <div class="home-study-section">
-            <div class="home-section-label">
-              <span class="material-symbols-rounded">apps</span>
-              选择学习方式
-            </div>
             <div class="home-mode-grid">
               <button id="btn-start-pendulum" class="home-mode-card mode-btn-classic" type="button">
                 <span class="home-mode-icon material-symbols-rounded">explore</span>
@@ -226,7 +217,7 @@
               </button>
               <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
                 <span class="home-mode-icon material-symbols-rounded">sync_alt</span>
-                <span class="home-mode-copy"><strong>往复测验</strong></span>
+                <span class="home-mode-copy"><strong>往复检验</strong></span>
                 <kbd class="kbd-hint home-shortcut-hint">B</kbd>
               </button>
               <button id="btn-start-rote-learning" class="home-mode-card mode-btn-rote" type="button">
@@ -415,7 +406,7 @@
             <div>
               <span class="settings-eyebrow">学习环境</span>
               <h3><span class="material-symbols-rounded">library_books</span> 学习语言</h3>
-              <p class="book-selector-intro">切换后，道场、词库和复习计划会同步切换</p>
+              <p class="book-selector-intro">切换后，学习、词库和复习计划会同步切换</p>
             </div>
           </div>
 
@@ -1006,19 +997,19 @@
 <nav id="bottom-nav" class="bottom-nav" aria-label="主导航">
   <button type="button" class="nav-item active" data-target="tab-home" data-title="home|钟日" aria-label="主页" aria-current="page">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
-    <span class="nav-label">道場</span>
+    <span class="nav-label">学习</span>
   </button>
-  <button type="button" class="nav-item" data-target="tab-wordbank" data-title="grid_view|全景語彙" aria-label="全景词库">
+  <button type="button" class="nav-item" data-target="tab-wordbank" data-title="grid_view|全景词库" aria-label="全景词库">
   <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
-  <span class="nav-label">語彙</span>
+  <span class="nav-label">词库</span>
 </button>
-<button type="button" class="nav-item" data-target="tab-ai-history" data-title="auto_awesome|AI対話" aria-label="AI对话记录">
+<button type="button" class="nav-item" data-target="tab-ai-history" data-title="auto_awesome|AI 对话" aria-label="AI对话记录">
   <span class="material-symbols-rounded nav-icon" aria-hidden="true">auto_awesome</span>
-  <span class="nav-label">対話</span>
+  <span class="nav-label">对话</span>
 </button>
-<button type="button" class="nav-item" data-target="tab-settings" data-title="settings|環境設定" aria-label="应用设置">
+<button type="button" class="nav-item" data-target="tab-settings" data-title="settings|应用设置" aria-label="应用设置">
   <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
-  <span class="nav-label">設定</span>
+  <span class="nav-label">设置</span>
 </button>
 </nav>
 
@@ -1806,7 +1797,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=mobile-polish-v1"></script>
+<script src="app.js?v=ui-density-v1"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

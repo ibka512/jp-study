@@ -14973,6 +14973,20 @@ this._scrollChatToBottom();
     let actionToastTimer = null;
     let actionToastCallback = null;
 
+    const setActionToastAccessibility = (toast, actionBtn, isOpen) => {
+        if (!toast || !actionBtn) return;
+
+        if (isOpen) {
+            toast.removeAttribute('inert');
+            toast.setAttribute('aria-hidden', 'false');
+            return;
+        }
+
+        actionBtn.hidden = true;
+        toast.setAttribute('inert', '');
+        toast.setAttribute('aria-hidden', 'true');
+    };
+
     window.showActionToast = (
         message,
         actionLabel = '',
@@ -15005,10 +15019,12 @@ this._scrollChatToBottom();
         messageEl.textContent = message;
         actionBtn.textContent = actionLabel;
         actionBtn.hidden = !actionLabel || !actionToastCallback;
+        setActionToastAccessibility(toast, actionBtn, true);
         toast.classList.add('show');
 
         actionToastTimer = window.setTimeout(() => {
             toast.classList.remove('show');
+            setActionToastAccessibility(toast, actionBtn, false);
             actionToastCallback = null;
             actionToastTimer = null;
         }, duration);
@@ -17038,7 +17054,13 @@ ${sourceText.slice(0, 9000)}
             actionButton.addEventListener('click', () => {
                 const callback = actionToastCallback;
                 actionToastCallback = null;
-                View.getEl('action-toast')?.classList.remove('show');
+                const toast = View.getEl('action-toast');
+                toast?.classList.remove('show');
+                setActionToastAccessibility(
+                    toast,
+                    actionButton,
+                    false
+                );
                 if (actionToastTimer) {
                     window.clearTimeout(actionToastTimer);
                     actionToastTimer = null;

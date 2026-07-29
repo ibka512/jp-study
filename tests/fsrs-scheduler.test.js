@@ -6,6 +6,11 @@ const card = scheduler.hydrate(null, now);
 assert.strictEqual(scheduler.key('word-1', 'ja', 'reading'), 'ja:word-1:reading');
 assert.deepStrictEqual(scheduler.DIMENSIONS.en, ['spelling', 'listening', 'meaning']);
 assert.strictEqual(scheduler.rating('again'), scheduler.RATING.again);
+assert.strictEqual(scheduler.dimensionFor('ja', 'word'), 'kanji');
+assert.strictEqual(scheduler.dimensionFor('ja', 'audio'), 'reading');
+assert.strictEqual(scheduler.dimensionFor('en', 'spell'), 'spelling');
+assert.strictEqual(scheduler.dimensionFor('en', 'audio'), 'listening');
+assert.strictEqual(scheduler.key('word-2', 'en', 'spell'), 'en:word-2:spelling');
 
 const preview = scheduler.preview(card, now);
 for (const name of ['again', 'hard', 'good', 'easy']) {

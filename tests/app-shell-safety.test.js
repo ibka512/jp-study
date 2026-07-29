@@ -145,6 +145,44 @@ assert.doesNotMatch(styles, /content:\s*["']済["']/);
 assert.match(styles, /@keyframes checkin-hold-shake/);
 assert.match(styles, /\.btn-long-press\.pressing\s*\{[\s\S]*?animation:\s*checkin-hold-shake/);
 assert.match(uiStyles, /#dt-star-btn\s*\{[\s\S]*?top:\s*auto\s*!important[\s\S]*?bottom:\s*14px\s*!important/);
+assert.match(
+    uiStyles,
+    /\.speaker-icon,\s*\.star-btn\s*\{[\s\S]*?width:\s*48px/,
+    '答题卡的发音与收藏按钮必须保持固定触控宽度'
+);
+assert.match(
+    styles,
+    /button:not\(\.glass-icon-btn\):not\(\.speaker-icon\):not\(\.star-btn\)/,
+    '全局全宽按钮规则不能覆盖答题卡的图标按钮'
+);
+assert.match(
+    uiStyles,
+    /button:not\(\.glass-icon-btn\):not\(\.speaker-icon\):not\(\.star-btn\)/,
+    'UI 系统的通用按钮皮肤不能覆盖答题卡的图标按钮'
+);
+assert.doesNotMatch(
+    styles,
+    /button:not\(\.glass-icon-btn\)(?!:not\(\.speaker-icon\):not\(\.star-btn\))/
+);
+assert.doesNotMatch(
+    uiStyles,
+    /button:not\(\.glass-icon-btn\)(?!:not\(\.speaker-icon\):not\(\.star-btn\))/
+);
+assert.equal(
+    (app.match(/Controller\.registerInitExtension\(/g) || []).length,
+    3,
+    '附加功能应通过初始化扩展注册，不能反复覆盖 Controller.init'
+);
+assert.doesNotMatch(app, /Controller\.init\s*=\s*async function/);
+assert.doesNotMatch(app, /getEl\(['"]mt-warning['"]\)/);
+assert.doesNotMatch(app, /fsrs-rating-\$\{rating\}/);
+assert.doesNotMatch(app, /study-feedback-mark/);
+assert.doesNotMatch(styles, /study-feedback-mark|@keyframes study-stamp/);
+assert.doesNotMatch(uiStyles, /study-feedback-mark/);
+assert.doesNotMatch(
+    app,
+    /getEl\(['"](?:db-total-count|total-days|streak-days)['"]\)/
+);
 assert.match(uiStyles, /#detail-prev\s*\{\s*left:\s*-8px\s*!important/);
 assert.match(uiStyles, /#detail-next\s*\{\s*right:\s*-8px\s*!important/);
 assert.match(
@@ -181,7 +219,8 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v29/);
+assert.match(serviceWorker, /zhongri-shell-v30/);
+assert.match(serviceWorker, /ZhongriWordbankAssets\.WORD_BANK_ASSETS/);
 assert.match(serviceWorker, /core-utils\.js\?v=sse-buffer-v1/);
 assert.match(serviceWorker, /app\.js\?v=ui-density-v1/);
 assert.match(serviceWorker, /ui-system\.css\?v=ui-density-v1/);
@@ -199,6 +238,12 @@ assert.match(
     app,
     /fsrsCards:\s*rawData\.data\.fsrsCards[\s\S]*?fsrsReviewLogs:\s*Array\.isArray\(rawData\.data\.fsrsReviewLogs\)/
 );
+assert.match(index, /id="fsrs-reveal-answer"/);
+assert.match(app, /fsrsAnswerRevealed:\s*false/);
+assert.match(app, /word:\s*word\?\.lang === 'en' \? 'spelling' : 'kanji'/);
+assert.match(app, /dtWordAppearanceMap\[item\.index\]\s*=\s*2/);
+assert.match(index, /id="wb-result-count"/);
+assert.match(app, /点击或按回车查看详细释义/);
 assert.match(app, /folderNameElement\.textContent = folderName/);
 assert.doesNotMatch(
     app,

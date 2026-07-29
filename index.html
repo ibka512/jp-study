@@ -250,8 +250,9 @@
 
   <div id="tab-wordbank" class="tab-content hidden">
     <div class="search-bar-wrapper" style="position: relative; margin-bottom: 16px;">
-      <span class="material-symbols-rounded" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--primary); opacity: 0.6; font-size: 1.4rem;">search</span>
-      <input type="text" id="wb-search-input" placeholder="搜索汉字、假名或释义..." style="margin-bottom: 0; padding-left: 48px; border-radius: var(--radius-full); background: var(--surface-container); border: 2px solid var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); height: 52px; font-size: 1rem;">
+      <label class="sr-only" for="wb-search-input">搜索词库</label>
+      <span class="material-symbols-rounded" aria-hidden="true" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--primary); opacity: 0.6; font-size: 1.4rem;">search</span>
+      <input type="search" id="wb-search-input" placeholder="搜索汉字、假名或释义..." autocomplete="off" enterkeyhint="search" style="margin-bottom: 0; padding-left: 48px; border-radius: var(--radius-full); background: var(--surface-container); border: 2px solid var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); height: 52px; font-size: 1rem;">
     </div>
 
     <div class="flex-row" style="justify-content: space-between; margin-bottom: 16px; flex-wrap: nowrap; gap: 12px;">
@@ -263,8 +264,9 @@
         id="btn-view-settings"
         class="glass-icon-btn"
         title="视图与排版设置"
+        aria-label="打开视图与排版设置"
       >
-          <span class="material-symbols-rounded">pageview</span>
+          <span class="material-symbols-rounded" aria-hidden="true">pageview</span>
       </button>
     </div>
 
@@ -285,6 +287,11 @@
           <option value="__unassigned__">难度未定</option>
         </select>
       </div>
+    </div>
+
+    <div id="wordbank-result-bar" class="wordbank-result-bar" role="status" aria-live="polite">
+      <span><strong id="wb-result-count">0</strong> 个词条</span>
+      <span id="wb-result-context">轻触卡片查看详情</span>
     </div>
 
     <div
@@ -979,8 +986,13 @@
       </div>
       <div id="capsule-fsrs-review" class="fsrs-review-panel hidden" aria-label="今日复习选项">
         <div class="fsrs-review-heading"><span id="fsrs-review-dimension">复习维度</span><span id="fsrs-review-progress">1 / 1</span></div>
-        <p class="fsrs-review-tip">先回忆答案，再按实际感受选择：</p>
-        <div id="fsrs-rating-buttons" class="fsrs-rating-grid"></div>
+        <p id="fsrs-review-tip" class="fsrs-review-tip">先在心里作答，再揭晓答案。</p>
+        <button type="button" id="fsrs-reveal-answer" class="fsrs-reveal-button">
+          <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+          显示答案
+          <kbd class="kbd-hint">Space</kbd>
+        </button>
+        <div id="fsrs-rating-buttons" class="fsrs-rating-grid hidden" aria-hidden="true"></div>
       </div>
     </div>
   </div>

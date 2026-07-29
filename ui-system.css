@@ -510,7 +510,7 @@ h3 {
 }
 
 /* Buttons and fields */
-button:not(.glass-icon-btn),
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn),
 .btn-action,
 .bs-facade,
 .vs-btn,
@@ -532,7 +532,7 @@ button:not(.glass-icon-btn),
     box-shadow var(--motion-component) var(--motion-standard) !important;
 }
 
-button:not(.glass-icon-btn):active:not(:disabled),
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn):active:not(:disabled),
 .btn-action:active:not(:disabled),
 .bs-facade:active,
 .vs-btn:active,
@@ -884,14 +884,51 @@ select:focus,
 }
 
 /* Wordbank */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .search-bar-wrapper input {
+  width: 100% !important;
+  box-sizing: border-box;
   height: 52px !important;
   padding-left: 48px !important;
+  color: var(--on-surface);
   border-radius: var(--radius-md) !important;
 }
 
 .wordbank-meta-filters {
   gap: 12px;
+}
+
+.wordbank-result-bar {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 2px 14px;
+  color: var(--on-surface-variant);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.wordbank-result-bar strong {
+  color: var(--secondary);
+  font-family: var(--font-number);
+  font-size: 1rem;
+}
+
+#wb-grid .wb-card:not([role="note"]) {
+  cursor: pointer;
 }
 
 #wb-grid {
@@ -1123,6 +1160,7 @@ select:focus,
   height: 48px;
   min-width: 48px;
   min-height: 48px;
+  flex: 0 0 48px;
   place-items: center;
   margin: 0;
   padding: 0;
@@ -1212,6 +1250,65 @@ body[data-lang="en"] .word-main {
   border-radius: var(--radius-md);
 }
 
+.fsrs-reveal-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 12px 18px;
+  color: var(--on-secondary-container);
+  background: var(--secondary-container);
+  border: 1px solid color-mix(in srgb, var(--secondary) 28%, transparent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ui-card-shadow);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.fsrs-reveal-button .material-symbols-rounded {
+  font-size: 1.25rem;
+}
+
+.fsrs-reveal-button .kbd-hint {
+  margin-left: auto;
+}
+
+.fsrs-rating-btn {
+  min-height: 82px;
+}
+
+.fsrs-rating-btn:focus-visible,
+.fsrs-reveal-button:focus-visible,
+#wb-grid .wb-card:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.move-folder-item {
+  width: 100%;
+  min-height: 48px;
+  text-align: left;
+}
+
+.move-folder-empty {
+  margin: 0;
+  padding: 20px;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .wordbank-result-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+}
+
 .study-audio-hint {
   width: auto !important;
   min-height: 44px !important;
@@ -1261,14 +1358,6 @@ body[data-lang="en"] .word-main {
   color: var(--error) !important;
   background: var(--error-container) !important;
   border-color: var(--error) !important;
-}
-
-.study-feedback-mark.is-correct {
-  color: var(--success);
-}
-
-.study-feedback-mark.is-wrong {
-  color: var(--error);
 }
 
 /* AI — iris purple is a special-function accent, not a separate brand */

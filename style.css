@@ -524,7 +524,7 @@ h3 { font-size: 1.05rem; font-weight: 800; color: var(--on-surface); margin-top:
 }
 
 /* 基础公共样式池：高密度哑光硅胶质感 (High-Density Matte Silicone) */
-button:not(.glass-icon-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn {
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .dt-choice-btn {
     background: var(--primary); color: var(--on-primary); font-family: var(--font-ui); 
     font-weight: 800; font-size: 1.05rem; cursor: pointer; 
     display: flex; align-items: center; justify-content: center; gap: var(--space-xs);
@@ -538,14 +538,14 @@ button:not(.glass-icon-btn), .btn-action, .bs-facade, .vs-btn, .dt-spell-key, .d
 
 /* MD3 形态家族 (Shape Families) 强语义收束 */
 /* 1. 基础操作指令 -> 药丸全圆角 (Pill Shape)，强力引导点击 */
-button:not(.glass-icon-btn) { border-radius: var(--radius-full); }
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) { border-radius: var(--radius-full); }
 /* 2. 核心功能矩阵 (学习四大模式、排版视图选项) -> 大圆角容器，传达“包裹区块”概念 */
 .btn-action, .vs-btn { border-radius: var(--radius-lg) !important; }
 /* 3. 键盘与答题卡 -> 中度圆角，维持实体打字机按键的段落感 */
 .dt-spell-key, .dt-choice-btn { border-radius: var(--radius-md); }
 
 /* 统一深陷物理引擎：摒弃冲突的 active 状态，打造极致单一点按沉降 */
-button:not(.glass-icon-btn):active:not(:disabled), .btn-action:active:not(:disabled), .bs-facade:active, .vs-btn:active, .dt-spell-key:active, .dt-choice-btn:active {
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn):active:not(:disabled), .btn-action:active:not(:disabled), .bs-facade:active, .vs-btn:active, .dt-spell-key:active, .dt-choice-btn:active {
     transform: scale(0.92); /* 极端物理体积坍缩 */
     /* 阴影极速收束：光晕瞬间消失，化为一道深沉的死黑压痕 */
     box-shadow: 0 1px 2px rgba(115, 102, 88, 0.12);
@@ -555,7 +555,7 @@ button:not(.glass-icon-btn):active:not(:disabled), .btn-action:active:not(:disab
 
 
 /* 极夜墨迹：高密度哑光硅胶 (Dark Mode High-Density Silicone) */
-[data-theme="dark"] button:not(.glass-icon-btn), 
+[data-theme="dark"] button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn),
 [data-theme="dark"] .btn-action, 
 [data-theme="dark"] .dt-spell-key, 
 [data-theme="dark"] .dt-choice-btn {
@@ -565,7 +565,7 @@ button:not(.glass-icon-btn):active:not(:disabled), .btn-action:active:not(:disab
 }
 
 /* 极夜物理坍缩：深渊压痕与切边反光 */
-[data-theme="dark"] button:not(.glass-icon-btn):active:not(:disabled), 
+[data-theme="dark"] button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn):active:not(:disabled),
 [data-theme="dark"] .btn-action:active:not(:disabled), 
 [data-theme="dark"] .dt-choice-btn:active,
 [data-theme="dark"] .dt-spell-key:active {
@@ -5680,7 +5680,7 @@ h3 {
 }
 
 /* 按钮 */
-button:not(.glass-icon-btn),
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn),
 .btn-action,
 .bs-facade,
 .vs-btn,
@@ -5695,7 +5695,7 @@ button:not(.glass-icon-btn),
         border-color 0.2s var(--spring-smooth);
 }
 
-button:not(.glass-icon-btn):active:not(:disabled),
+button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn):active:not(:disabled),
 .btn-action:active:not(:disabled),
 .bs-facade:active,
 .vs-btn:active,
@@ -11202,60 +11202,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
     }
 }
 
-/* 朱印式答题标记 */
-.study-feedback-mark {
-    position: absolute;
-    z-index: 8;
-    top: 18px;
-    left: 18px;
-    display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    border: 2px solid currentColor;
-    border-radius: 50%;
-    opacity: 0;
-    transform: rotate(-8deg) scale(1.35);
-    pointer-events: none;
-    font-size: 1.65rem;
-    font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;
-}
-
-.study-feedback-mark.is-correct {
-    color: #657e72;
-}
-
-.study-feedback-mark.is-wrong {
-    color: #a45f5d;
-}
-
-.study-feedback-mark.is-visible {
-    animation: study-stamp var(--motion-page) var(--motion-emphasized) both;
-}
-
-@keyframes study-stamp {
-    0% {
-        opacity: 0;
-        transform: rotate(-8deg) scale(1.35);
-    }
-    58% {
-        opacity: 0.92;
-        transform: rotate(-8deg) scale(0.94);
-    }
-    100% {
-        opacity: 0.78;
-        transform: rotate(-8deg) scale(1);
-    }
-}
-
-[data-theme="dark"] .study-feedback-mark.is-correct {
-    color: #a4c7b6;
-}
-
-[data-theme="dark"] .study-feedback-mark.is-wrong {
-    color: #e0a09b;
-}
-
 @media (max-width: 600px) {
     .bottom-nav::before {
         top: 10px;
@@ -11263,13 +11209,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
         height: 34px;
     }
 
-    .study-feedback-mark {
-        top: 14px;
-        left: 14px;
-        width: 42px;
-        height: 42px;
-        font-size: 1.4rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -11278,14 +11217,8 @@ button.import-mode-btn.active > .material-symbols-rounded {
     }
 
     .tab-content.active.tab-enter-forward,
-    .tab-content.active.tab-enter-backward,
-    .study-feedback-mark.is-visible {
+    .tab-content.active.tab-enter-backward {
         animation: none !important;
-    }
-
-    .study-feedback-mark.is-visible {
-        opacity: 0.78;
-        transform: none;
     }
 }
 
@@ -11555,21 +11488,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
     .lp-text > .material-symbols-rounded::before {
         opacity: 0.9;
         background: currentColor;
-    }
-}
-
-
-/* ===== 答题印章位置修复（motion-v2-fix1） ===== */
-.study-feedback-mark {
-    top: 16px !important;
-    left: 50% !important;
-    margin-left: -24px;
-}
-
-@media (max-width: 600px) {
-    .study-feedback-mark {
-        top: 14px !important;
-        margin-left: -21px;
     }
 }
 

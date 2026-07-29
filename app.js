@@ -3019,6 +3019,7 @@ const Model = {
   state: {
     mode: 'none', studyQueue: [], currentIndex: 0, currentGroupLabel: '', currentGroupKey: '',
     dtWordAppearanceMap: {}, dtSubMode: '', dtSpellTarget: [], dtSpellCurrentIdx: 0,
+    fsrsReviewItems: [], fsrsAnswerRevealed: false,
     mtRound: 1, mtStep: 1, currentWordFailed: false, totalTestWords: 0, mtBaseQueue: [],
     ftState: 'A', ftHint: null, ftShowKanaHint: false,
         comboCount: 0,
@@ -5613,11 +5614,7 @@ const View = {
     const kanaBarLabel = document.getElementById('kana-bar-label');
     if (kanaBarLabel) kanaBarLabel.innerText = currentLang === 'en' ? '听力' : '读音';
 
-let dbTotalEl = this.getEl('db-total-count');
-    if (dbTotalEl) dbTotalEl.innerText = Model.db.filter(w => (w.lang || 'ja') === Model.state.currentLangMode).length;    
     let stats = Model.calculateStats();
-    this.getEl('total-days') && (this.getEl('total-days').innerText = stats.totalDays);
-    this.getEl('streak-days') && (this.getEl('streak-days').innerText = stats.streak);
     const dueItems = Model.getDueFsrsCards ? Model.getDueFsrsCards(new Date(), Model.getCurrentLang()) : [];
     const dueCountEl = this.getEl('fsrs-due-count');
     const dueDetailEl = this.getEl('fsrs-due-detail');
@@ -5871,6 +5868,20 @@ void card.offsetWidth;
     const triggerSRAnnouncement = () => {
         let announcer = document.getElementById('sr-announcer');
         if (announcer && w && w.word && w.word !== 'HINT_CARD') {
+            if (isFsrsReview && !Model.state.fsrsAnswerRevealed) {
+                const item =
+                    Model.state.fsrsReviewItems?.[Model.state.currentIndex];
+                const labels = {
+                    kanji: '拼写',
+                    spelling: '拼写',
+                    reading: '读音',
+                    listening: '听力',
+                    meaning: '释义'
+                };
+                announcer.innerText =
+                    `请回忆${labels[item?.dimension] || '答案'}，按空格揭晓。`;
+                return;
+            }
             const isEn = w.lang === 'en';
             if (isEn) {
                 announcer.innerText = `Current word: ${w.word}. Meaning: ${w.meaning}.`;
@@ -5942,13 +5953,14 @@ void card.offsetWidth;
     let hintBtn = this.getEl('btn-mt-show-hint');
     if (hintBtn) {
         hintBtn.innerText = isEnglish ? '听不清？点击朗读例句' : '听不清？显示假名';
+        hintBtn.style.display = '';
     }
 
     this.getEl('mt-blind-audio-ui').classList.add('hidden');
     this.getEl('capsule-fsrs-review')?.classList.add('hidden');
 
     this.getEl('w-word').style.display = 'block';
-        this.getEl('w-kana').style.display = isEnglish ? 'block' : 'block';
+    this.getEl('w-kana').style.display = 'block';
     this.getEl('w-meaning').style.display = 'block';
     this.getEl('w-type').style.display = 'flex';
     this.getEl('w-example-box').style.display = 'block';
@@ -5958,9 +5970,85 @@ void card.offsetWidth;
     let maskFixed = "■■■"; 
 
     if (isFsrsReview) {
-        ['word','kana','type','meaning'].forEach(k => { const el = this.getEl(`w-${k}`); if (el) { el.className = k === 'word' ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`); el.removeAttribute('aria-hidden'); } });
-        this.getEl('w-example-box').className = 'dt-example-box';
-        this.getEl('w-example-box').style.display = 'block';
+        const item =
+            Model.state.fsrsReviewItems?.[Model.state.currentIndex];
+        const dimension = item?.dimension || 'meaning';
+        const isRevealed = Model.state.fsrsAnswerRevealed === true;
+        const hideWord =
+            !isRevealed &&
+            ['kanji', 'spelling', 'listening'].includes(dimension);
+        const hideReading =
+            !isRevealed &&
+            ['reading', 'spelling', 'listening'].includes(dimension);
+        const hideMeaning =
+            !isRevealed &&
+            ['meaning', 'listening'].includes(dimension);
+        const wordEl = this.getEl('w-word');
+        const kanaEl = this.getEl('w-kana');
+        const meaningEl = this.getEl('w-meaning');
+        const typeEl = this.getEl('w-type');
+        const rootsEl = this.getEl('w-roots');
+        const exampleEl = this.getEl('w-example-box');
+        const blindAudioUi = this.getEl('mt-blind-audio-ui');
+
+        wordEl.innerText = hideWord ? maskFixed : (w.word || '');
+        wordEl.style.fontSize = hideWord ? '2.8rem' : '';
+        kanaEl.innerText = hideReading
+            ? maskFixed
+            : isEnglish
+                ? (w.phonetic || '')
+                : (w.kana || '').replace(/[【】\[\]()]/g, '');
+        meaningEl.innerText = hideMeaning ? maskFixed : (w.meaning || '');
+        typeEl.innerHTML = visuals.tagsHTML;
+        typeEl.style.display = isRevealed ? 'flex' : 'none';
+
+        if (
+            isRevealed &&
+            isEnglish &&
+            w.roots &&
+            localStorage.getItem('showRoots') !== 'false'
+        ) {
+            rootsEl.innerHTML = this.renderRoots(w.roots, false, false);
+            rootsEl.style.display = 'flex';
+        } else {
+            rootsEl.style.display = 'none';
+        }
+
+        this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
+        exampleEl.className = 'dt-example-box';
+        exampleEl.style.display = isRevealed && w.example ? 'block' : 'none';
+        exampleEl.toggleAttribute('aria-hidden', !isRevealed);
+
+        ['word', 'kana', 'type', 'meaning'].forEach(k => {
+            const el = this.getEl(`w-${k}`);
+            if (!el) return;
+            el.className =
+                k === 'word'
+                    ? 'word-main'
+                    : k === 'type'
+                        ? 'type-row'
+                        : `${k}-row`;
+            el.removeAttribute('aria-hidden');
+        });
+
+        const isListeningPrompt =
+            !isRevealed && dimension === 'listening';
+        blindAudioUi.classList.toggle('hidden', !isListeningPrompt);
+        this.getEl('btn-mt-show-hint').style.display = 'none';
+        wordEl.style.display = isListeningPrompt ? 'none' : 'block';
+        kanaEl.style.display = isListeningPrompt ? 'none' : 'block';
+        meaningEl.style.display = isListeningPrompt ? 'none' : 'block';
+        this.getEl('btn-speaker').style.display =
+            isRevealed ? 'block' : 'none';
+
+        const isStarred = Model.isStarred(w);
+        this.getEl('star-icon').style.fontVariationSettings =
+            isStarred ? "'FILL' 1" : "'FILL' 0";
+        this.getEl('star-btn').classList.toggle('active', isStarred);
+        this.getEl('star-btn').setAttribute(
+            'aria-pressed',
+            String(isStarred)
+        );
         this.getEl('capsule-pendulum').classList.add('hidden');
         this.getEl('capsule-filter-test').classList.add('hidden');
         this.getEl('capsule-filter-judge').classList.add('hidden');
@@ -5968,7 +6056,12 @@ void card.offsetWidth;
         this.getEl('memory-test-ui').classList.add('hidden');
         this.getEl('capsule-fsrs-review').classList.remove('hidden');
         this.getEl('btn-display-mode-trigger').style.display = 'none';
-        this.getEl('star-btn').style.display = 'block';
+        this.getEl('star-btn').style.display =
+            isRevealed ? 'block' : 'none';
+        this.syncRootsDisplay();
+        if (isListeningPrompt) {
+            window.setTimeout(() => Hardware.speakWord(w), 80);
+        }
         return;
     }
 
@@ -6653,9 +6746,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       const spellArea = this.getEl('mt-spell-area');
       const choiceArea = this.getEl('mt-choice-area');
       const blindAudioUi = this.getEl('mt-blind-audio-ui');
-      const mtWarning = this.getEl('mt-warning');
 
-      if (mtWarning) mtWarning.classList.add('hidden');
       if (spellArea) spellArea.classList.add('hidden');
       if (choiceArea) choiceArea.classList.add('hidden');
       if (blindAudioUi) blindAudioUi.classList.add('hidden');
@@ -6725,7 +6816,6 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
   },
 
   renderEnglishRoteUI(wObj, displayMode) {
-      const mtWarning = this.getEl('mt-warning');
       const spellArea = this.getEl('mt-spell-area');
       const choiceArea = this.getEl('mt-choice-area');
       const blindAudioUi = this.getEl('mt-blind-audio-ui');
@@ -6737,7 +6827,6 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       const exampleEl = this.getEl('w-example-box');
       const speakerEl = this.getEl('btn-speaker');
 
-      if (mtWarning) mtWarning.classList.add('hidden');
       if (spellArea) spellArea.classList.add('hidden');
       if (choiceArea) choiceArea.classList.add('hidden');
       if (blindAudioUi) blindAudioUi.classList.add('hidden');
@@ -6921,9 +7010,6 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
   },
 
   renderMemoryTestUI(wObj, displayMode) {
-      let mtWarning = this.getEl('mt-warning');
-      if (mtWarning) mtWarning.classList.add('hidden');
-
       this.getEl('mt-spell-area').classList.add('hidden');
       this.getEl('mt-choice-area').classList.add('hidden');
 
@@ -7196,6 +7282,20 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let currentFilter = this.getEl('wb-folder-filter').value;
       
       Model.updateFilteredDb(searchQuery, currentFilter);
+      const resultCount = Math.max(
+          0,
+          Model.state.filteredDb.filter(item => item.idx !== -999).length
+      );
+      const countEl = this.getEl('wb-result-count');
+      const contextEl = this.getEl('wb-result-context');
+      if (countEl) countEl.innerText = resultCount.toLocaleString('zh-CN');
+      if (contextEl) {
+          contextEl.innerText = resultCount
+              ? (Model.state.batchMode
+                  ? '轻触卡片进行选择'
+                  : '轻触卡片查看详情')
+              : '没有符合条件的词条';
+      }
       window.scrollTo({
           top: 0,
           behavior: 'auto'
@@ -7315,13 +7415,16 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let isChecked = false;
 
       if (isHintCard) {
+          const hasResults = filteredData.some(item => item.idx !== -999);
           bgStyle = 'transparent';
-          renderFingerprint = 'hint-card';
+          renderFingerprint = hasResults
+              ? 'hint-card-results'
+              : 'hint-card-empty';
           contentHTML = `
             <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; border: 2px dashed var(--outline); border-radius: inherit; width: 100%; position: absolute; inset: 0;">
-                <span class="material-symbols-rounded" style="font-size:2rem; margin-bottom:8px; color:var(--tertiary);">touch_app</span>
-                <div style="font-size:1rem; font-weight:800; margin-bottom:4px; color:var(--on-surface);">长按卡片</div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">查看详细释义</div>
+                <span class="material-symbols-rounded" style="font-size:2rem; margin-bottom:8px; color:var(--tertiary);">${hasResults ? 'touch_app' : 'search_off'}</span>
+                <div style="font-size:1rem; font-weight:800; margin-bottom:4px; color:var(--on-surface);">${hasResults ? '轻触卡片' : '没有匹配词条'}</div>
+                <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">${hasResults ? '查看详细释义' : '请调整搜索或筛选条件'}</div>
             </div>`;
       } else {
           let visuals = this.getCardVisuals(w.type, w.lang);
@@ -7431,7 +7534,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           card.setAttribute('role', 'note');
           card.setAttribute(
               'aria-label',
-              '操作提示：长按单词卡片查看详细释义'
+              '操作提示：轻触单词卡片查看详细释义'
           );
       } else {
           card.setAttribute('tabindex', '0');
@@ -7445,7 +7548,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
               'aria-label',
               Model.state.batchMode
                   ? '选择单词卡片'
-                  : '单词卡片，按回车查看详细释义'
+                  : '单词卡片，点击或按回车查看详细释义'
           );
 
           if (Model.state.batchMode) {
@@ -7693,6 +7796,23 @@ const Controller = {
   aiCache: {},
   aiActionPayloads: {},
   aiActionSerial: 0,
+  initExtensions: [],
+  registerInitExtension(name, callback) {
+      if (
+          !name ||
+          typeof callback !== 'function' ||
+          this.initExtensions.some(extension => extension.name === name)
+      ) {
+          return;
+      }
+
+      this.initExtensions.push({ name, callback });
+  },
+  async runInitExtensions() {
+      for (const extension of this.initExtensions) {
+          await extension.callback.call(this);
+      }
+  },
   pendingWordDraft: null,
   aiWordCollection: {
       sourcePayload: null,
@@ -7854,6 +7974,8 @@ let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-d
       }
     });
   }
+
+  await this.runInitExtensions();
 },
 
 setupVirtualScroll() {
@@ -8093,9 +8215,7 @@ setupVirtualScroll() {
     
     View.getEl('btn-start-filter-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startFilterTest(); });
     View.getEl('btn-start-fsrs-review')?.addEventListener('click', () => { Hardware.unlockSpeech(); this.startFsrsReview(); });
-    ['again', 'hard', 'good', 'easy'].forEach(rating => {
-        View.getEl(`fsrs-rating-${rating}`)?.addEventListener('click', () => this.applyFsrsRating(rating));
-    });
+    View.getEl('fsrs-reveal-answer')?.addEventListener('click', () => this.revealFsrsAnswer());
     View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
@@ -8926,9 +9046,9 @@ if (aiCloseBtn) {
     });
 
 
-    let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0;
+    let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0; let suppressCardClickUntil = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { suppressCardClickUntil = Date.now() + 700; Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
@@ -9020,7 +9140,19 @@ if (aiCloseBtn) {
           }
 
           View.updateWordbankManagementUI();
+          return;
       }
+
+      if (
+          e.target.closest('.blur-text') ||
+          Date.now() < suppressCardClickUntil
+      ) {
+          return;
+      }
+
+      Hardware.playSound('click');
+      Hardware.vibrate(15);
+      Controller.openDetailModal(idx);
     });
 
     View.getEl('wb-manage-toggle').addEventListener(
@@ -9414,7 +9546,9 @@ if (aiCloseBtn) {
             let mode = Model.state.mode;
             if (mode === 'fsrs-review' && /^[1-4]$/.test(key)) {
                 e.preventDefault();
-                ['again', 'hard', 'good', 'easy'][Number(key) - 1] && Controller.applyFsrsRating(['again', 'hard', 'good', 'easy'][Number(key) - 1]);
+                if (Model.state.fsrsAnswerRevealed) {
+                    ['again', 'hard', 'good', 'easy'][Number(key) - 1] && Controller.applyFsrsRating(['again', 'hard', 'good', 'easy'][Number(key) - 1]);
+                }
                 return;
             }
             let dtSpellArea = View.getEl('dt-spell-area');
@@ -9534,6 +9668,13 @@ if (aiCloseBtn) {
             // 5. 空格键：万能揭晓/发音
             else if (key === ' ') {
                 e.preventDefault();
+                if (
+                    mode === 'fsrs-review' &&
+                    !Model.state.fsrsAnswerRevealed
+                ) {
+                    Controller.revealFsrsAnswer();
+                    return;
+                }
                 let blurTarget = document.querySelector('.blur-text');
                 if (blurTarget) {
                     blurTarget.click();
@@ -10778,6 +10919,7 @@ if (aiCloseBtn) {
         Model.state.mode = 'fsrs-review';
         Model.state.studyQueue = items.map(item => Model.db.indexOf(item.word));
         Model.state.fsrsReviewItems = items;
+        Model.state.fsrsAnswerRevealed = false;
         Model.state.currentIndex = 0;
         Model.state.initialQueueLength = items.length;
         View.getEl('capsule-pendulum')?.classList.add('hidden');
@@ -10806,15 +10948,47 @@ if (aiCloseBtn) {
         const labels = { kanji: '拼写', spelling: '拼写', reading: '读音', listening: '听力', meaning: '释义' };
         View.getEl('fsrs-review-dimension').innerText = `复习${labels[item.dimension] || item.dimension}`;
         View.getEl('fsrs-review-progress').innerText = `${Model.state.currentIndex + 1} / ${Model.state.fsrsReviewItems.length}`;
-        container.innerHTML = options.map(([rating, title, tip]) => `<button type="button" class="fsrs-rating-btn" data-rating="${rating}"><strong>${title}</strong><small>${tip}</small><em>${preview[rating].label}</em></button>`).join('');
+        const isRevealed = Model.state.fsrsAnswerRevealed === true;
+        const revealButton = View.getEl('fsrs-reveal-answer');
+        const tip = View.getEl('fsrs-review-tip');
+        revealButton?.classList.toggle('hidden', isRevealed);
+        container.classList.toggle('hidden', !isRevealed);
+        container.setAttribute('aria-hidden', String(!isRevealed));
+        if (tip) {
+            tip.innerText = isRevealed
+                ? '按实际回忆难度评分，系统会安排下次复习。'
+                : '先在心里作答，再揭晓答案。';
+        }
+        container.innerHTML = options.map(([rating, title, optionTip], index) => `<button type="button" class="fsrs-rating-btn" data-rating="${rating}"><strong>${title}</strong><small>${optionTip}</small><em>${preview[rating].label} · ${index + 1}</em></button>`).join('');
         container.onclick = event => {
             const button = event.target.closest('.fsrs-rating-btn');
             if (button) this.applyFsrsRating(button.dataset.rating);
         };
     },
 
+    revealFsrsAnswer() {
+        if (
+            Model.state.mode !== 'fsrs-review' ||
+            Model.state.fsrsAnswerRevealed
+        ) {
+            return;
+        }
+        Model.state.fsrsAnswerRevealed = true;
+        Hardware.playSound('click');
+        Hardware.vibrate(15);
+        View.renderStudyCard('none');
+        this.renderFsrsReviewControls();
+        View.getEl('fsrs-rating-buttons')
+            ?.querySelector('.fsrs-rating-btn')
+            ?.focus({ preventScroll: true });
+    },
+
     applyFsrsRating(rating) {
-        if (Model.state.mode !== 'fsrs-review' || Model.state.isAnimating) return;
+        if (
+            Model.state.mode !== 'fsrs-review' ||
+            Model.state.isAnimating ||
+            !Model.state.fsrsAnswerRevealed
+        ) return;
         const item = Model.state.fsrsReviewItems?.[Model.state.currentIndex];
         if (!item) return;
         Model.state.isAnimating = true;
@@ -10828,6 +11002,7 @@ if (aiCloseBtn) {
                 showToast('今日复习完成');
                 View.getEl('btn-exit-study')?.click();
             } else {
+                Model.state.fsrsAnswerRevealed = false;
                 View.renderStudyCard('next');
                 this.renderFsrsReviewControls();
             }
@@ -11441,12 +11616,30 @@ if (aiCloseBtn) {
       
       const container = View.getEl('move-folder-list');
       container.innerHTML = '';
-      
-      Model.folders.forEach(folderName => {
-          const item = document.createElement('div');
+
+      const sourceIndexes = idx === -2
+          ? Array.from(Model.state.selectedSet)
+          : [idx];
+      const sourceLanguages = new Set(
+          sourceIndexes
+              .map(sourceIdx => Model.db[sourceIdx]?.lang || 'ja')
+              .filter(Boolean)
+      );
+
+      if (sourceLanguages.size !== 1) {
+          showToast('不能同时移动不同语言的词条');
+          return;
+      }
+
+      const [sourceLanguage] = sourceLanguages;
+      const targetFolders = Model.folders.filter(folderName => {
+          return Model.getFolderLang(folderName) === sourceLanguage;
+      });
+
+      targetFolders.forEach(folderName => {
+          const item = document.createElement('button');
+          item.type = 'button';
           item.className = 'move-folder-item';
-          item.setAttribute('tabindex', '0');
-          item.setAttribute('role', 'button');
 
               const icon = document.createElement('span');
               icon.className =
@@ -11467,11 +11660,34 @@ if (aiCloseBtn) {
           };
           container.appendChild(item);
       });
+
+      if (targetFolders.length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'move-folder-empty';
+          empty.textContent = '当前词书还没有可用文件夹';
+          container.appendChild(empty);
+      }
       
       window.toggleModal('move-overlay', true); 
   },
 
   executeMove(destFolder) {
+      const sourceIndexes = Model.state.moveTargetIdx === -2
+          ? Array.from(Model.state.selectedSet)
+          : [Model.state.moveTargetIdx];
+      const destinationLanguage = Model.getFolderLang(destFolder);
+      const isValidDestination =
+          Model.folders.includes(destFolder) &&
+          sourceIndexes.every(idx => {
+              const word = Model.db[idx];
+              return word && (word.lang || 'ja') === destinationLanguage;
+          });
+
+      if (!isValidDestination) {
+          showToast('目标文件夹与词条语言不一致');
+          return;
+      }
+
       if (Model.state.moveTargetIdx === -2) { 
           Model.state.selectedSet.forEach(idx => Model.db[idx].folder = destFolder); 
           this.toggleBatchMode(); 
@@ -15635,9 +15851,9 @@ pInput.value = '';
         }
 
         const dimension = {
-            word: word?.lang === 'en' ? 'spell' : 'reading',
-            kana: word?.lang === 'en' ? 'spell' : 'reading',
-            audio: 'listening',
+            word: word?.lang === 'en' ? 'spelling' : 'kanji',
+            kana: word?.lang === 'en' ? 'spelling' : 'reading',
+            audio: word?.lang === 'en' ? 'listening' : 'reading',
             meaning: 'meaning'
         }[mode] || 'meaning';
 
@@ -15808,6 +16024,7 @@ pInput.value = '';
         Model.state.studyQueue = [];
 
         selected.forEach(item => {
+            Model.state.dtWordAppearanceMap[item.index] = 2;
             Model.state.studyQueue.push(item.index, item.index);
         });
 
@@ -17038,10 +17255,7 @@ ${sourceText.slice(0, 9000)}
         return result;
     };
 
-    const originalControllerInit = Controller.init.bind(Controller);
-    Controller.init = async function() {
-        await originalControllerInit();
-
+    Controller.registerInitExtension('wrongbook-and-settings', async function() {
         ensureWrongBookOptions();
         updateWrongToolbar();
         this.renderRecycleBin();
@@ -17223,7 +17437,7 @@ ${sourceText.slice(0, 9000)}
 
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
-    };
+    });
 })();
 
 
@@ -17248,9 +17462,6 @@ ${sourceText.slice(0, 9000)}
 
     const originalSaveAIWordDrafts =
         Controller._saveAIWordDrafts.bind(Controller);
-
-    const originalControllerInit =
-        Controller.init.bind(Controller);
 
     Controller.importMode =
         localStorage.getItem('importMode') === 'ai'
@@ -18342,9 +18553,7 @@ ${JSON.stringify(candidates.map(item => ({
         }
     };
 
-    Controller.init = async function() {
-        await originalControllerInit();
-
+    Controller.registerInitExtension('ai-import', async function() {
         document
             .querySelectorAll('[data-import-mode]')
             .forEach(button => {
@@ -18391,7 +18600,7 @@ ${JSON.stringify(candidates.map(item => ({
             this.importMode,
             false
         );
-    };
+    });
 })();
 
 
@@ -18766,12 +18975,7 @@ ${JSON.stringify(candidates.map(item => ({
         );
     };
 
-    const originalControllerInit =
-        Controller.init.bind(Controller);
-
-    Controller.init = async function() {
-        await originalControllerInit();
-
+    Controller.registerInitExtension('wordbank-metadata', async function() {
         syncWordbankMetadataFilters();
         this.updateImportMetadataOptions();
 
@@ -18815,7 +19019,7 @@ ${JSON.stringify(candidates.map(item => ({
         });
 
         decorateWordbankCards();
-    };
+    });
 })();
 
 
@@ -19003,39 +19207,6 @@ window.onload = () => {
             }
 
             return result;
-        };
-    }
-
-    if (typeof View !== 'undefined' && View.playStudyFeedback) {
-        const originalStudyFeedback =
-            View.playStudyFeedback.bind(View);
-
-        View.playStudyFeedback = function(type) {
-            originalStudyFeedback(type);
-
-            const mark =
-                document.getElementById('study-feedback-mark');
-
-            if (!mark) return;
-
-            mark.classList.remove(
-                'is-correct',
-                'is-wrong',
-                'is-visible'
-            );
-            mark.textContent =
-                type === 'correct' ? 'done' : 'close';
-
-            void mark.offsetWidth;
-
-            mark.classList.add(
-                type === 'correct' ? 'is-correct' : 'is-wrong',
-                'is-visible'
-            );
-
-            window.setTimeout(() => {
-                mark.classList.remove('is-visible');
-            }, 430);
         };
     }
 

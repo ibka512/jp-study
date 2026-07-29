@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v29';
+const CACHE_NAME = 'zhongri-shell-v30';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -12,6 +12,9 @@ const LOCAL_ASSETS = [
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
+  ...self.ZhongriWordbankAssets.WORD_BANK_ASSETS.filter(
+    asset => asset !== './wordbanks/assets.js'
+  ),
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',

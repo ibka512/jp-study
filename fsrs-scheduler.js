@@ -18,8 +18,28 @@
 
   function dimensionFor(language, dimension) {
     const list = DIMENSIONS[language] || DIMENSIONS.ja;
-    if (list.includes(dimension)) {
-      return dimension;
+    const normalizedLanguage = language === 'en' ? 'en' : 'ja';
+    const normalizedDimension = String(dimension || '').toLowerCase();
+    const aliases = normalizedLanguage === 'en'
+      ? {
+          spell: 'spelling',
+          word: 'spelling',
+          kanji: 'spelling',
+          audio: 'listening',
+          kana: 'listening',
+          reading: 'listening'
+        }
+      : {
+          word: 'kanji',
+          spell: 'kanji',
+          spelling: 'kanji',
+          kana: 'reading',
+          audio: 'reading',
+          listening: 'reading'
+        };
+    const canonicalDimension = aliases[normalizedDimension] || normalizedDimension;
+    if (list.includes(canonicalDimension)) {
+      return canonicalDimension;
     }
     console.warn(`[FSRS] 未认识的复习维度「${language}:${dimension}」，已按「${list[list.length - 1]}」记录`);
     return list[list.length - 1];

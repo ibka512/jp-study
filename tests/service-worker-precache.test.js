@@ -24,15 +24,14 @@ test('首次安装会预缓存全部词库分片', async () => {
         addEventListener(type, listener) {
             listeners[type] = listener;
         },
-        ZhongriWordbankAssets: manifest
     };
     const context = {
         URL,
         Response,
         console,
-        self: workerGlobal,
         importScripts(asset) {
             assert.equal(asset, './wordbanks/assets.js');
+            vm.runInContext(fs.readFileSync(asset, 'utf8'), context, { filename: asset });
         },
         caches: {
             async open() {
@@ -62,7 +61,11 @@ test('首次安装会预缓存全部词库分片', async () => {
         }
     };
 
-    vm.runInNewContext(
+    Object.assign(context, workerGlobal);
+    context.self = context;
+    vm.createContext(context);
+
+    vm.runInContext(
         fs.readFileSync('sw.js', 'utf8'),
         context,
         { filename: 'sw.js' }
@@ -82,4 +85,14 @@ test('首次安装会预缓存全部词库分片', async () => {
             `${asset} 应在首次安装时进入缓存`
         );
     });
+
+    // Compare real HTML resource URLs with the installed cache, including their
+    // current query parameters, instead of pinning a particular release string.
+    const html = fs.readFileSync('index.html', 'utf8');
+    const resources = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^"]+)"/g)]
+        .map(match => match[1])
+        .filter(url => !url.startsWith('https:') && !url.includes('${'));
+    for (const resource of resources) {
+        assert.ok(cachedAssets.includes(`./${resource.replace(/^\.\//, '')}`), `${resource} 应随首页预缓存`);
+    }
 });

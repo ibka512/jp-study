@@ -1,6 +1,7 @@
 import argparse
 import json
 import shutil
+import subprocess
 import sqlite3
 import tempfile
 import unittest
@@ -121,6 +122,12 @@ class WordbankCompilerTests(unittest.TestCase):
             generated = compiler.load_js_words(repo / "data.js", "DefaultWords")
             report_json = json.loads((repo / "reports" / "wordbank-latest.json").read_text(encoding="utf-8"))
             service_worker = (repo / "sw.js").read_text(encoding="utf-8")
+            runtime = subprocess.run(
+                ["node", "--test", "tests/wordbank-loader.test.js",
+                 "tests/wordbank-runtime.test.js", "tests/service-worker-precache.test.js"],
+                cwd=repo, capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(runtime.returncode, 0, runtime.stdout + runtime.stderr)
         self.assertEqual(report.added, 2)
         self.assertEqual(len(generated), existing_count + 2)
         self.assertEqual(generated[-1]["word"], "鐘日試験語乙")

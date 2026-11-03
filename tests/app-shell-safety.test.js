@@ -83,8 +83,6 @@ assert.doesNotMatch(
 assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
-assert.match(index, /style\.css\?v=ui-density-v2/);
-assert.match(index, /ui-system\.css\?v=ui-density-v2/);
 assert.match(index, /M\+PLUS\+Rounded\+1c/);
 assert.match(index, /family=Nunito/);
 assert.match(uiStyles, /--font-title:/);
@@ -208,10 +206,6 @@ assert.match(
     fs.readFileSync('root-review.js', 'utf8'),
     /root-review-overlay'\)\.setAttribute\('inert', ''\)/
 );
-assert.match(index, /notification-planner\.js\?v=smart-reminder-v1/);
-assert.match(index, /core-utils\.js\?v=sse-buffer-v1/);
-assert.match(index, /app\.js\?v=ui-density-v2/);
-assert.match(index, /native-app\.js\?v=smart-reminder-v1/);
 assert.ok(
     index.indexOf('notification-planner.js') < index.indexOf('native-app.js'),
     '提醒规划器必须先于原生提醒桥加载'
@@ -219,12 +213,7 @@ assert.ok(
 assert.match(index, /id="setting-study-reminder-mode"/);
 assert.match(index, /id="setting-study-reminder-exact"/);
 assert.match(index, /name="study-reminder-weekday"/);
-assert.match(serviceWorker, /zhongri-shell-v31/);
 assert.match(serviceWorker, /ZhongriWordbankAssets\.WORD_BANK_ASSETS/);
-assert.match(serviceWorker, /core-utils\.js\?v=sse-buffer-v1/);
-assert.match(serviceWorker, /app\.js\?v=ui-density-v2/);
-assert.match(serviceWorker, /ui-system\.css\?v=ui-density-v2/);
-assert.match(serviceWorker, /notification-planner\.js\?v=smart-reminder-v1/);
 assert.match(
     index,
     /idb-keyval@6\.2\.2\/dist\/umd\.js[\s\S]*?integrity="sha384-[A-Za-z0-9+/=]+"/

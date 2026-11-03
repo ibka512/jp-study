@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v31';
+const CACHE_NAME = 'zhongri-shell-v32';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -23,7 +23,7 @@ const LOCAL_ASSETS = [
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=ui-density-v2',
+  './app.js?v=data-integrity-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ];
@@ -49,7 +49,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=ui-density-v2',
+  './app.js?v=data-integrity-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ].map(toAbsoluteUrl));

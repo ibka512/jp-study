@@ -14,6 +14,7 @@ const LEGACY_WORD_DB_STORAGE_KEY = 'myWordDB_v3';
 const WORD_STORAGE_VERSION_KEY = 'wordStorageVersion';
 const WORD_STORAGE_VERSION = 1;
 const PRE_IMPORT_RESTORE_KEY = 'preImportRestorePoint_v1';
+const PENDING_STORAGE_PREFIX = 'zhongriPendingStorage_v1:';
 
 const CORE_UTILS = globalThis.ZhongriCoreUtils;
 const HAPTICS = globalThis.ZhongriHaptics;
@@ -3492,6 +3493,13 @@ const Model = {
   idbAvailable: true,
 
   async readStorageValue(key) {
+      // A fallback write is newer than IndexedDB until a later successful save.
+      // Keep it authoritative across restarts; reads do not mutate either copy.
+      const pending = localStorage.getItem(PENDING_STORAGE_PREFIX + key);
+      if (pending !== null) {
+          return JSON.parse(pending);
+      }
+
       if (
           this.idbAvailable &&
           typeof idbKeyval !== 'undefined'
@@ -3530,6 +3538,7 @@ const Model = {
       ) {
           try {
               await idbKeyval.set(key, value);
+              localStorage.removeItem(PENDING_STORAGE_PREFIX + key);
               return;
           } catch (error) {
               console.warn(
@@ -3540,7 +3549,7 @@ const Model = {
       }
 
       localStorage.setItem(
-          key,
+          PENDING_STORAGE_PREFIX + key,
           JSON.stringify(value)
       );
   },
@@ -3822,6 +3831,12 @@ const Model = {
                   ...(direct || []),
                   ...(normalized || [])
               ];
+          }
+
+          // The other language may not have been loaded yet. Only explicit
+          // deletion may remove an unresolved reference (as with clear states).
+          if (targetIds.length === 0 && key) {
+              targetIds = [key];
           }
 
           targetIds.forEach(wordId => {
@@ -4143,7 +4158,13 @@ const Model = {
       );
       const currentById = new Map();
       const userWords = [];
-      const overrides = {};
+      // Recalculate only loaded built-ins; retain edits/deletions belonging to
+      // languages which are still lazy-loaded.
+      const overrides = Object.fromEntries(
+          Object.entries(this.wordOverrides).filter(([wordId]) => {
+              return !canonicalMap.has(wordId);
+          })
+      );
 
       this.db.forEach(rawWord => {
           Object.assign(
@@ -4206,20 +4227,16 @@ const Model = {
       return this.persistSeparatedWordData();
   },
   saveFolders() {
-      if (!this.idbAvailable) { localStorage.setItem('myFolders_v3', JSON.stringify(this.folders)); return Promise.resolve(); }
-      return idbKeyval.set('myFolders_v3', this.folders);
+      return this.writeStorageValue('myFolders_v3', this.folders);
   },
   saveFolderLangs() {
-      if (!this.idbAvailable) { localStorage.setItem('myFolderLangs', JSON.stringify(this.folderLangs)); return Promise.resolve(); }
-      return idbKeyval.set('myFolderLangs', this.folderLangs);
+      return this.writeStorageValue('myFolderLangs', this.folderLangs);
   },
   saveStars() {
-      if (!this.idbAvailable) { localStorage.setItem('starredWords', JSON.stringify(this.stars)); return Promise.resolve(); }
-      return idbKeyval.set('starredWords', this.stars);
+      return this.writeStorageValue('starredWords', this.stars);
   },
   saveRecords() {
-      if (!this.idbAvailable) { localStorage.setItem('studyRecords', JSON.stringify(this.records)); return Promise.resolve(); }
-      return idbKeyval.set('studyRecords', this.records);
+      return this.writeStorageValue('studyRecords', this.records);
   },
   saveFsrs() {
       return Promise.all([
@@ -4283,14 +4300,9 @@ const Model = {
   },
 
   saveClears() {
-      if (!this.idbAvailable) {
-          localStorage.setItem('mtGroupClears_v3', JSON.stringify(this.mtGroupClears));
-          localStorage.setItem('mtWordClears_v3', JSON.stringify(this.mtWordClears));
-          return Promise.resolve();
-      }
       return Promise.all([
-          idbKeyval.set('mtGroupClears_v3', this.mtGroupClears),
-          idbKeyval.set('mtWordClears_v3', this.mtWordClears)
+          this.writeStorageValue('mtGroupClears_v3', this.mtGroupClears),
+          this.writeStorageValue('mtWordClears_v3', this.mtWordClears)
       ]);
   },
   
@@ -10081,24 +10093,9 @@ if (aiCloseBtn) {
   },
 
   async removePreImportRestorePoint() {
-      try {
-          if (
-              typeof idbKeyval !== 'undefined'
-          ) {
-              await idbKeyval.del(
-                  PRE_IMPORT_RESTORE_KEY
-              );
-          }
-      } catch (error) {
-          console.warn(
-              '[Backup] 删除 IndexedDB 恢复点失败',
-              error
-          );
-      }
-
-      localStorage.removeItem(
-          PRE_IMPORT_RESTORE_KEY
-      );
+      // Persist the cleared state through the same fallback path so an older
+      // restore point cannot reappear when IndexedDB becomes available again.
+      await Model.writeStorageValue(PRE_IMPORT_RESTORE_KEY, null);
 
       await this.updateRestorePointUI();
   },
@@ -14156,18 +14153,7 @@ _saveCurrentChat() {
 },
 
 _persistConversations() {
-    if (!Model.idbAvailable) {
-        localStorage.setItem(
-            'aiConversations',
-            JSON.stringify(
-                Model.aiConversations
-            )
-        );
-
-        return Promise.resolve();
-    }
-
-    return idbKeyval.set(
+    return Model.writeStorageValue(
         'aiConversations',
         Model.aiConversations
     );
@@ -15514,7 +15500,11 @@ pInput.value = '';
                 }
             }
 
-            delete this.wrongBook[wordId];
+            // An unmatched word may belong to an unloaded language. Retain the
+            // record unless it was actually remapped to a known word.
+            if (matchedWord) {
+                delete this.wrongBook[wordId];
+            }
         });
 
         this.cleanupRecycleBin();

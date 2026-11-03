@@ -733,43 +733,51 @@ const DefaultEnglishWords = [];
 
 
 def render_finalize() -> str:
-    return """/** 钟日词库统一收尾。 */
-if (typeof DefaultWords !== 'undefined') {
-  DefaultWords.forEach((word, index) => {
-    word._id = word._id || `ja-built-in-${String(index + 1).padStart(6, '0')}`;
-    word.level = word.level || '';
-    word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
-    word.tags = Array.isArray(word.tags) ? word.tags : [];
-    word.builtIn = true;
-  });
-}
-
-if (typeof DefaultEnglishWords !== 'undefined') {
-  DefaultEnglishWords.forEach((word, index) => {
-    word._id = word._id || `en-built-in-${String(index + 1).padStart(6, '0')}`;
-    word.level = word.level || '';
-    word.difficulty = Number.isInteger(word.difficulty) ? word.difficulty : 0;
-    word.tags = Array.isArray(word.tags) ? word.tags : [];
-    word.builtIn = true;
-  });
-}
-"""
+    # Reuse the runtime implementation rather than maintaining a second copy.
+    runtime = Path(__file__).resolve().parents[1] / "wordbanks" / "finalize.js"
+    return runtime.read_text(encoding="utf-8")
 
 
 def sync_index_wordbank_scripts(path: Path, assets: list[str]) -> None:
     source = path.read_text(encoding="utf-8")
-    block = "<!-- WORDBANK_CHUNKS_START -->\n" + "\n".join(
-        f'<script src="{asset}"></script>' for asset in assets if asset != "wordbanks/assets.js"
-    ) + "\n<!-- WORDBANK_CHUNKS_END -->"
-    pattern = re.compile(r"<!-- WORDBANK_CHUNKS_START -->.*?<!-- WORDBANK_CHUNKS_END -->", re.S)
-    if pattern.search(source):
-        source = pattern.sub(block, source)
-    else:
-        marker = '<script src="rote-learning-core.js"></script>'
-        if marker not in source:
-            raise CompilerError("index.html 中找不到循环强记脚本标记")
-        source = source.replace(marker, block + "\n" + marker, 1)
+    if 'src="wordbank-loader.js"' not in source or "__zhongriInitialWordbankLanguage" not in source:
+        raise CompilerError("index.html 缺少按语言词库加载入口，请先更新应用外壳")
+    # The application owns its bootstrap. Remove only an obsolete eager-load
+    # block, never inject a second set of scripts beside the lazy loader.
+    source = re.sub(
+        r"<!-- WORDBANK_CHUNKS_START -->.*?<!-- WORDBANK_CHUNKS_END -->\n?",
+        "", source, flags=re.S,
+    )
     path.write_text(source, encoding="utf-8")
+
+
+def render_wordbank_manifest(assets: list[str]) -> str:
+    groups = {
+        language: [f"./{asset}" for asset in assets if asset.startswith(f"wordbanks/{language}-")]
+        for language in ("ja", "en")
+    }
+    lines = ["const WORD_BANK_LANG_ASSETS = Object.freeze({"]
+    for language, paths in groups.items():
+        lines.append(f"  {language}: Object.freeze({json.dumps(paths, ensure_ascii=False, indent=2)}),")
+    lines.append("});")
+    lines.append('const WORD_BANK_FINALIZER = "./wordbanks/finalize.js";')
+    lines.append("""const WORD_BANK_ASSETS = Object.freeze([
+  "./wordbanks/assets.js",
+  ...WORD_BANK_LANG_ASSETS.ja,
+  ...WORD_BANK_LANG_ASSETS.en,
+  WORD_BANK_FINALIZER
+]);
+const WORD_BANK_MANIFEST = Object.freeze({
+  WORD_BANK_ASSETS, WORD_BANK_FINALIZER, WORD_BANK_LANG_ASSETS
+});
+if (typeof globalThis !== 'undefined') {
+  globalThis.ZhongriWordbankAssets = WORD_BANK_MANIFEST;
+}
+if (typeof module === 'object' && module.exports) {
+  module.exports = WORD_BANK_MANIFEST;
+}
+""")
+    return "\n".join(lines)
 
 
 def write_wordbank_assets(repo: Path, ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]]) -> None:
@@ -790,7 +798,7 @@ def write_wordbank_assets(repo: Path, ja_words: list[dict[str, Any]], en_words: 
             assets.append(f"wordbanks/{name}")
     (directory / "finalize.js").write_text(render_finalize(), encoding="utf-8")
     assets.append("wordbanks/finalize.js")
-    manifest = "const WORD_BANK_ASSETS = " + json.dumps([f"./{asset}" for asset in assets], ensure_ascii=False, indent=2) + ";\n"
+    manifest = render_wordbank_manifest(assets)
     (directory / "assets.js").write_text(manifest, encoding="utf-8")
     (repo / "data.js").write_text(render_wordbank_base("ja"), encoding="utf-8")
     (repo / "english-data.js").write_text(render_wordbank_base("en"), encoding="utf-8")

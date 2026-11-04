@@ -76,8 +76,8 @@
     chtml: { scale: 1.1 } 
   };
 </script>
-<link rel="stylesheet" href="style.css?v=responsive-v1">
-<link rel="stylesheet" href="ui-system.css?v=responsive-v1">
+<link rel="stylesheet" href="style.css?v=study-ui-v1">
+<link rel="stylesheet" href="ui-system.css?v=study-ui-v1">
 </head>
 <body>
 
@@ -125,13 +125,80 @@
                 <span class="material-symbols-rounded">school</span>
                 学习模式
               </h3>
-              <p>先确认学习范围，再选择适合当前状态的方式</p>
+              <p>选择范围，开始一组练习</p>
             </div>
             <div class="home-mastery-number" aria-label="总体掌握进度">
               <strong id="mastery-percent">(0%)</strong>
               <span>总体掌握</span>
             </div>
           </header>
+
+          <div class="home-study-section home-range-section">
+            <div class="home-section-label">
+              <span class="material-symbols-rounded">library_books</span>
+              分组练习范围
+            </div>
+            <button id="btn-custom-group-select" class="bs-facade home-range-button" type="button">
+              <span class="bs-facade-text" id="custom-group-text">默认词库 (第 1-10 词)</span>
+              <span class="material-symbols-rounded">keyboard_arrow_down</span>
+            </button>
+            <p id="group-study-summary" class="ui-context"></p>
+          </div>
+
+          <select id="test-range-select" style="display:none;" class="no-bs"></select>
+          <select id="test-display-select" style="display:none;" class="no-bs">
+            <option value="word">专攻汉字辨认 (点亮黄杠)</option>
+            <option value="kana">专攻假名辨认 (点亮红杠)</option>
+            <option value="audio">专攻听力辨音 (点亮红杠)</option>
+            <option value="meaning">专攻释义默写 (点亮白杠)</option>
+          </select>
+
+          <div class="home-study-section">
+            <div class="home-mode-grid">
+              <button id="btn-start-pendulum" class="home-mode-card mode-btn-classic" type="button">
+                <span class="home-mode-icon material-symbols-rounded">explore</span>
+                <span class="home-mode-copy"><strong>自由浏览</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">A</kbd>
+              </button>
+              <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
+                <span class="home-mode-icon material-symbols-rounded">sync_alt</span>
+                <span class="home-mode-copy"><strong>往复检验</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">B</kbd>
+              </button>
+              <button id="btn-start-rote-learning" class="home-mode-card mode-btn-rote" type="button">
+                <span class="home-mode-icon material-symbols-rounded">menu_book</span>
+                <span class="home-mode-copy"><strong>循环强记</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">C</kbd>
+              </button>
+              <button id="btn-start-memory-test" class="home-mode-card mode-btn-test" type="button">
+                <span class="home-mode-icon material-symbols-rounded">workspace_premium</span>
+                <span class="home-mode-copy"><strong>三轮通关</strong></span>
+                <kbd class="kbd-hint home-shortcut-hint">D</kbd>
+              </button>
+            </div>
+          </div>
+
+          <div class="home-study-section">
+            <div class="filter-test-btn-group home-filter-card">
+              <button id="btn-start-filter-test" class="ft-main" type="button">
+                <span class="home-action-icon material-symbols-rounded">content_cut</span>
+                <span class="home-action-copy">
+                  <strong>筛选检验</strong><small id="filter-study-summary" class="ui-context"></small>
+                </span>
+                <kbd class="kbd-hint home-shortcut-hint">E</kbd>
+              </button>
+              <button id="btn-test-range-trigger" class="ft-sub" type="button" title="选择筛选范围 (F)" aria-label="选择筛选范围">
+                <span class="material-symbols-rounded">format_list_numbered</span>
+                <small>范围</small>
+                <kbd class="kbd-hint home-shortcut-hint">F</kbd>
+              </button>
+              <button id="btn-test-display-trigger" class="ft-sub" type="button" title="选择检验内容 (G)" aria-label="选择检验内容">
+                <span class="material-symbols-rounded">visibility</span>
+                <small>内容</small>
+                <kbd class="kbd-hint home-shortcut-hint">G</kbd>
+              </button>
+            </div>
+          </div>
 
           <div class="mastery-progress-container home-mastery-progress">
             <div class="home-mastery-meta">
@@ -167,72 +234,6 @@
             </details>
           </div>
 
-          <div class="home-study-section home-range-section">
-            <div class="home-section-label">
-              <span class="material-symbols-rounded">library_books</span>
-              当前学习范围
-            </div>
-            <button id="btn-custom-group-select" class="bs-facade home-range-button" type="button">
-              <span class="bs-facade-text" id="custom-group-text">默认词库 (第 1-10 词)</span>
-              <span class="material-symbols-rounded">keyboard_arrow_down</span>
-            </button>
-          </div>
-
-          <select id="test-range-select" style="display:none;" class="no-bs"></select>
-          <select id="test-display-select" style="display:none;" class="no-bs">
-            <option value="word">专攻汉字辨认 (点亮黄杠)</option>
-            <option value="kana">专攻假名辨认 (点亮红杠)</option>
-            <option value="audio">专攻听力辨音 (点亮红杠)</option>
-            <option value="meaning">专攻释义默写 (点亮白杠)</option>
-          </select>
-
-          <div class="home-study-section">
-            <div class="filter-test-btn-group home-filter-card">
-              <button id="btn-start-filter-test" class="ft-main" type="button">
-                <span class="home-action-icon material-symbols-rounded">content_cut</span>
-                <span class="home-action-copy">
-                  <strong>筛选检验</strong>
-                </span>
-                <kbd class="kbd-hint home-shortcut-hint">E</kbd>
-              </button>
-              <button id="btn-test-range-trigger" class="ft-sub" type="button" title="选择筛选范围 (F)" aria-label="选择筛选范围">
-                <span class="material-symbols-rounded">format_list_numbered</span>
-                <small>范围</small>
-                <kbd class="kbd-hint home-shortcut-hint">F</kbd>
-              </button>
-              <button id="btn-test-display-trigger" class="ft-sub" type="button" title="选择检验内容 (G)" aria-label="选择检验内容">
-                <span class="material-symbols-rounded">visibility</span>
-                <small>内容</small>
-                <kbd class="kbd-hint home-shortcut-hint">G</kbd>
-              </button>
-            </div>
-          </div>
-
-          <div class="home-study-section">
-            <div class="home-mode-grid">
-              <button id="btn-start-pendulum" class="home-mode-card mode-btn-classic" type="button">
-                <span class="home-mode-icon material-symbols-rounded">explore</span>
-                <span class="home-mode-copy"><strong>自由浏览</strong></span>
-                <kbd class="kbd-hint home-shortcut-hint">A</kbd>
-              </button>
-              <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
-                <span class="home-mode-icon material-symbols-rounded">sync_alt</span>
-                <span class="home-mode-copy"><strong>往复检验</strong></span>
-                <kbd class="kbd-hint home-shortcut-hint">B</kbd>
-              </button>
-              <button id="btn-start-rote-learning" class="home-mode-card mode-btn-rote" type="button">
-                <span class="home-mode-icon material-symbols-rounded">menu_book</span>
-                <span class="home-mode-copy"><strong>循环强记</strong></span>
-                <kbd class="kbd-hint home-shortcut-hint">C</kbd>
-              </button>
-              <button id="btn-start-memory-test" class="home-mode-card mode-btn-test" type="button">
-                <span class="home-mode-icon material-symbols-rounded">workspace_premium</span>
-                <span class="home-mode-copy"><strong>三轮通关</strong></span>
-                <kbd class="kbd-hint home-shortcut-hint">D</kbd>
-              </button>
-            </div>
-          </div>
-
           <div class="home-checkin-area">
             <button id="btn-long-press" class="btn-long-press" type="button">
               <span class="lp-bg"></span>
@@ -249,44 +250,63 @@
   </div>
 
   <div id="tab-wordbank" class="tab-content hidden">
-    <div class="search-bar-wrapper" style="position: relative; margin-bottom: 16px;">
-      <label class="sr-only" for="wb-search-input">搜索词库</label>
-      <span class="material-symbols-rounded" aria-hidden="true" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--primary); opacity: 0.6; font-size: 1.4rem;">search</span>
-      <input type="search" id="wb-search-input" placeholder="搜索汉字、假名或释义..." autocomplete="off" enterkeyhint="search" style="margin-bottom: 0; padding-left: 48px; border-radius: var(--radius-full); background: var(--surface-container); border: 2px solid var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); height: 52px; font-size: 1rem;">
-    </div>
-
-    <div class="flex-row" style="justify-content: space-between; margin-bottom: 16px; flex-wrap: nowrap; gap: 12px;">
-      <div class="custom-select-wrapper" style="flex: 1;">
-          <select id="wb-folder-filter" style="display:none;"></select>
+    <div class="wordbank-tools">
+      <div class="search-bar-wrapper" style="position: relative; margin-bottom: 16px;">
+        <label class="sr-only" for="wb-search-input">搜索词库</label>
+        <span class="material-symbols-rounded" aria-hidden="true" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--primary); opacity: 0.6; font-size: 1.4rem;">search</span>
+        <input type="search" id="wb-search-input" placeholder="搜索汉字、假名或释义..." autocomplete="off" enterkeyhint="search" style="margin-bottom: 0; padding-left: 48px; border-radius: var(--radius-full); background: var(--surface-container); border: 2px solid var(--outline); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); height: 52px; font-size: 1rem;">
       </div>
 
-      <button type="button"
-        id="btn-view-settings"
-        class="glass-icon-btn"
-        title="视图与排版设置"
-        aria-label="打开视图与排版设置"
-      >
-          <span class="material-symbols-rounded" aria-hidden="true">pageview</span>
-      </button>
-    </div>
+      <div class="wordbank-scope-tools">
+        <div class="custom-select-wrapper" style="flex: 1;">
+            <select id="wb-folder-filter" style="display:none;"></select>
+        </div>
 
-    <div class="wordbank-meta-filters" aria-label="级别与难度筛选">
-      <div class="custom-select-wrapper">
-        <select id="wb-level-filter">
-          <option value="">全部级别</option>
-        </select>
+        <button type="button"
+          id="btn-view-settings"
+          class="glass-icon-btn"
+          title="视图与排版设置"
+          aria-label="打开视图与排版设置"
+        >
+            <span class="material-symbols-rounded" aria-hidden="true">pageview</span>
+        </button>
+        <details class="wordbank-management">
+          <summary>管理</summary>
+          <div class="wordbank-management-actions">
+          <button type="button"
+            id="wb-manage-toggle"
+            class="wordbank-manage-toggle icon-text-gap"
+            title="管理词汇"
+            aria-pressed="false"
+          >
+            <span class="material-symbols-rounded" id="manage-icon">edit_note</span>
+            <span id="manage-label">选择词条</span>
+          </button>
+           <button type="button" id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--on-surface); padding: 12px; font-size: 0.95rem; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">create_new_folder</span> 新建夹</button>
+           <button type="button" id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--accent-red); padding: 12px; font-size: 0.95rem; box-shadow: none;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.1rem;">delete</span> 删除夹</button>
+          </div>
+        </details>
       </div>
-      <div class="custom-select-wrapper">
-        <select id="wb-difficulty-filter">
-          <option value="">全部难度</option>
-          <option value="1">1 · 入门</option>
-          <option value="2">2 · 较易</option>
-          <option value="3">3 · 中等</option>
-          <option value="4">4 · 较难</option>
-          <option value="5">5 · 困难</option>
-          <option value="__unassigned__">难度未定</option>
-        </select>
+
+      <div class="wordbank-meta-filters" aria-label="级别与难度筛选">
+        <div class="custom-select-wrapper">
+          <select id="wb-level-filter">
+            <option value="">全部级别</option>
+          </select>
+        </div>
+        <div class="custom-select-wrapper">
+          <select id="wb-difficulty-filter">
+            <option value="">全部难度</option>
+            <option value="1">1 · 入门</option>
+            <option value="2">2 · 较易</option>
+            <option value="3">3 · 中等</option>
+            <option value="4">4 · 较难</option>
+            <option value="5">5 · 困难</option>
+            <option value="__unassigned__">难度未定</option>
+          </select>
+        </div>
       </div>
+
     </div>
 
     <div id="wordbank-result-bar" class="wordbank-result-bar" role="status" aria-live="polite">
@@ -316,25 +336,6 @@
         <span class="material-symbols-rounded">school</span>
         开始专项
       </button>
-    </div>
-
-    <div class="card-panel wordbank-management" style="margin-bottom: 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--outline); padding-bottom: 12px; margin-bottom: 16px;">
-        <h3 style="margin: 0; border: none; padding: 0;"><span class="material-symbols-rounded">folder_managed</span> 词汇与文件管理</h3>
-        <button type="button"
-          id="wb-manage-toggle"
-          class="wordbank-manage-toggle icon-text-gap"
-          title="管理词汇"
-          aria-pressed="false"
-        >
-          <span class="material-symbols-rounded" id="manage-icon">edit_note</span>
-          <span id="manage-label">管理</span>
-        </button>
-      </div>
-      <div class="flex-row" style="margin-bottom: 0; gap: 12px;">
-         <button type="button" id="btn-new-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--on-surface); padding: 12px; font-size: 0.95rem; box-shadow: none;"><span class="material-symbols-rounded" style="font-size:1.1rem;">create_new_folder</span> 新建夹</button>
-         <button type="button" id="btn-del-folder" class="btn-outline icon-text-gap" style="flex: 1; border-color: var(--outline); color: var(--accent-red); padding: 12px; font-size: 0.95rem; box-shadow: none;" title="删除当前文件夹"><span class="material-symbols-rounded" style="font-size:1.1rem;">delete</span> 删除夹</button>
-      </div>
     </div>
 
     <select id="wb-col-select" style="display:none;" class="no-bs">
@@ -644,77 +645,85 @@
         </div>
 
         <div class="card-panel import-card">
-          <h3><span class="material-symbols-rounded">playlist_add</span> 批量导入词汇</h3>
-          <div id="import-section-desc" class="setting-desc import-section-desc">先检查可导入词、重复词与错误行，再确认写入。</div>
+          <div class="import-intro">
+            <h3><span class="material-symbols-rounded">playlist_add</span> 批量导入词汇</h3>
+            <div id="import-section-desc" class="setting-desc import-section-desc">先检查可导入词、重复词与错误行，再确认写入。</div>
 
-          <div class="import-mode-switch" role="group" aria-label="导入方式">
-            <button type="button" class="import-mode-btn active" data-import-mode="manual" aria-pressed="true">
-              <span class="material-symbols-rounded">description</span>
-              <span><strong>普通导入</strong><small>粘贴完整词条</small></span>
-            </button>
-            <button type="button" class="import-mode-btn" data-import-mode="ai" aria-pressed="false">
-              <span class="material-symbols-rounded">auto_fix_high</span>
-              <span><strong>AI 智能补全</strong><small>只输入单词</small></span>
-            </button>
+            <div class="import-mode-switch" role="group" aria-label="导入方式">
+              <button type="button" class="import-mode-btn active" data-import-mode="manual" aria-pressed="true">
+                <span class="material-symbols-rounded">description</span>
+                <span><strong>普通导入</strong><small>粘贴完整词条</small></span>
+              </button>
+              <button type="button" class="import-mode-btn" data-import-mode="ai" aria-pressed="false">
+                <span class="material-symbols-rounded">auto_fix_high</span>
+                <span><strong>AI 智能补全</strong><small>只输入单词</small></span>
+              </button>
+            </div>
+
           </div>
 
-          <div class="import-control-grid">
-            <div class="import-control-item">
-              <label for="import-lang-select">词汇语言</label>
-              <div class="custom-select-wrapper"><select id="import-lang-select"><option value="ja">日语</option><option value="en">英语</option></select></div>
+          <div class="import-entry">
+            <label for="custom-input" class="import-input-label">粘贴词汇</label>
+            <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
+            <div id="ai-import-input-note" class="ai-import-input-note" hidden>
+              <span class="material-symbols-rounded">info</span>
+              <span>每行一个词，一次最多处理 100 个；系统会自动按每批 20 个调用 AI。</span>
             </div>
-            <div class="import-control-item">
-              <label for="import-folder-select">目标词库</label>
-              <div class="custom-select-wrapper"><select id="import-folder-select"><option value="">正在读取词库…</option></select></div>
-            </div>
-            <div class="import-control-item">
-              <label for="import-level-select">批次级别</label>
-              <div class="custom-select-wrapper"><select id="import-level-select"><option value="">未分级</option></select></div>
-            </div>
-            <div class="import-control-item">
-              <label for="import-difficulty-select">批次难度</label>
-              <div class="custom-select-wrapper">
-                <select id="import-difficulty-select">
-                  <option value="0">难度未定</option>
-                  <option value="1">1 · 入门</option>
-                  <option value="2">2 · 较易</option>
-                  <option value="3">3 · 中等</option>
-                  <option value="4">4 · 较难</option>
-                  <option value="5">5 · 困难</option>
-                </select>
-              </div>
-            </div>
+            <button type="button" id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span><span id="btn-import-label">检查并导入</span></button>
           </div>
-
-          <div class="import-control-item import-tags-control">
-            <label for="import-tags-input">批次标签</label>
-            <input id="import-tags-input" type="text" placeholder="如：高频、口语、多义">
-            <small>使用顿号或逗号分隔；保存后仍可逐词修改。</small>
-          </div>
-
-          <div class="import-control-item import-duplicate-control">
-            <label id="import-duplicate-label" for="import-duplicate-mode">遇到同词库内的重复词</label>
-            <div class="custom-select-wrapper"><select id="import-duplicate-mode"><option value="skip">跳过重复词</option><option value="overwrite">用新内容覆盖</option><option value="keep">保留两个词条</option></select></div>
-          </div>
-
-          <label id="import-ai-star-option" class="import-ai-star-option" hidden>
-            <input type="checkbox" id="import-ai-add-star">
-            <span class="import-ai-star-check"><span class="material-symbols-rounded">star</span></span>
-            <span><strong>AI 补全后同时加入收藏</strong><small>保存前仍可在预览页修改</small></span>
-          </label>
-
-          <div class="import-format-box">
-            <div class="import-format-heading"><span class="material-symbols-rounded">description</span> 当前格式</div>
+          <details class="import-format-box">
+            <summary>查看输入格式</summary>
             <div id="import-format-text" class="import-format-code">单词,假名,词性,释义,例句</div>
             <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。</div>
-          </div>
+          </details>
+          <details class="import-options">
+            <summary>导入选项 <span id="import-target-summary" class="ui-context"></span></summary>
+            <div class="import-control-grid">
+              <div class="import-control-item">
+                <label for="import-lang-select">词汇语言</label>
+                <div class="custom-select-wrapper"><select id="import-lang-select"><option value="ja">日语</option><option value="en">英语</option></select></div>
+              </div>
+              <div class="import-control-item">
+                <label for="import-folder-select">目标词库</label>
+                <div class="custom-select-wrapper"><select id="import-folder-select"><option value="">正在读取词库…</option></select></div>
+              </div>
+              <div class="import-control-item">
+                <label for="import-level-select">批次级别</label>
+                <div class="custom-select-wrapper"><select id="import-level-select"><option value="">未分级</option></select></div>
+              </div>
+              <div class="import-control-item">
+                <label for="import-difficulty-select">批次难度</label>
+                <div class="custom-select-wrapper">
+                  <select id="import-difficulty-select">
+                    <option value="0">难度未定</option>
+                    <option value="1">1 · 入门</option>
+                    <option value="2">2 · 较易</option>
+                    <option value="3">3 · 中等</option>
+                    <option value="4">4 · 较难</option>
+                    <option value="5">5 · 困难</option>
+                  </select>
+                </div>
+              </div>
+            </div>
 
-          <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
-          <div id="ai-import-input-note" class="ai-import-input-note" hidden>
-            <span class="material-symbols-rounded">info</span>
-            <span>每行一个词，一次最多处理 100 个；系统会自动按每批 20 个调用 AI。</span>
-          </div>
-          <button type="button" id="btn-import" class="icon-text-gap"><span class="material-symbols-rounded">fact_check</span><span id="btn-import-label">检查并导入</span></button>
+            <div class="import-control-item import-tags-control">
+              <label for="import-tags-input">批次标签</label>
+              <input id="import-tags-input" type="text" placeholder="如：高频、口语、多义">
+              <small>使用顿号或逗号分隔；保存后仍可逐词修改。</small>
+            </div>
+
+            <div class="import-control-item import-duplicate-control">
+              <label id="import-duplicate-label" for="import-duplicate-mode">遇到同词库内的重复词</label>
+              <div class="custom-select-wrapper"><select id="import-duplicate-mode"><option value="skip">跳过重复词</option><option value="overwrite">用新内容覆盖</option><option value="keep">保留两个词条</option></select></div>
+            </div>
+
+            <label id="import-ai-star-option" class="import-ai-star-option" hidden>
+              <input type="checkbox" id="import-ai-add-star">
+              <span class="import-ai-star-check"><span class="material-symbols-rounded">star</span></span>
+              <span><strong>AI 补全后同时加入收藏</strong><small>保存前仍可在预览页修改</small></span>
+            </label>
+
+          </details>
         </div>
 
         <div class="card-panel library-audit-card">
@@ -772,12 +781,25 @@
           <div><span>备份与应用</span><small>保护数据，并查看当前运行状态</small></div>
         </div>
 
+        <div class="card-panel settings-detail-card">
+          <h3><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
+          <div class="setting-desc settings-section-intro">导出词库、学习记录、错题本、AI 小测、AI 对话和偏好设置。DeepSeek API Key 不会写入备份。</div>
+          <div class="backup-action-grid">
+            <button type="button" id="btn-export-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">download</span> 导出备份</button>
+            <button type="button" id="btn-import-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">upload</span> 导入恢复</button>
+            <input type="file" id="file-import-backup" accept=".json,application/json" hidden>
+          </div>
+          <button type="button" id="btn-undo-import" class="btn-outline icon-text-gap settings-full-button" style="display:none;"><span class="material-symbols-rounded">restore</span> 撤销上次数据操作</button>
+          <div id="backup-restore-note" class="setting-desc settings-center-note" style="display:none;">已保存上次数据操作前的恢复点</div>
+        </div>
+
         <div class="card-panel settings-detail-card native-reminder-card" id="native-reminder-card">
           <div class="native-reminder-heading">
             <h3><span class="material-symbols-rounded">notifications_active</span> 智能学习提醒</h3>
             <span class="native-platform-badge" id="native-platform-badge">检测中</span>
           </div>
           <div class="setting-desc settings-section-intro">根据 FSRS 到期内容和当天学习状态，由 Android 在后台安排提醒。</div>
+          <p class="web-reminder-summary">后台提醒可在 Android 应用中使用。</p>
           <label class="native-reminder-toggle" for="setting-study-reminder-enabled">
             <span>
               <strong>开启学习提醒</strong>
@@ -862,18 +884,6 @@
           <div class="setting-desc native-reminder-note"><span class="material-symbols-rounded">info</span> 通知内可直接“开始复习”或“30 分钟后提醒”；完成学习后，后续提醒会自动重排。</div>
         </div>
 
-        <div class="card-panel settings-detail-card">
-          <h3><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
-          <div class="setting-desc settings-section-intro">导出词库、学习记录、错题本、AI 小测、AI 对话和偏好设置。DeepSeek API Key 不会写入备份。</div>
-          <div class="backup-action-grid">
-            <button type="button" id="btn-export-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">download</span> 导出备份</button>
-            <button type="button" id="btn-import-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">upload</span> 导入恢复</button>
-            <input type="file" id="file-import-backup" accept=".json,application/json" hidden>
-          </div>
-          <button type="button" id="btn-undo-import" class="btn-outline icon-text-gap settings-full-button" style="display:none;"><span class="material-symbols-rounded">restore</span> 撤销上次数据操作</button>
-          <div id="backup-restore-note" class="setting-desc settings-center-note" style="display:none;">已保存上次数据操作前的恢复点</div>
-        </div>
-
         <div class="card-panel app-status-card">
           <h3><span class="material-symbols-rounded">info</span> 应用状态</h3>
           <div class="app-status-row"><span>版本</span><strong id="settings-app-version">正在读取</strong></div>
@@ -892,7 +902,7 @@
           </div>
           <div class="data-action-row">
             <div class="data-action-copy"><div class="setting-title">恢复内置词库</div><div class="setting-desc">移除个人导入词汇与自建词库，重新载入内置词。</div></div>
-            <button type="button" id="btn-remove-imported" class="btn-outline data-action-btn">恢复词库</button>
+            <button type="button" id="btn-remove-imported" class="btn-outline data-action-btn">移除个人导入与词库</button>
           </div>
           <div class="danger-zone full-reset-zone">
             <div class="setting-title">完全重置应用</div>
@@ -1052,7 +1062,8 @@
         <div class="bs-handle"></div>
         <div class="bs-scrollable-content">
             <h3 style="text-align:center; margin-bottom: 24px; border:none; justify-content:center; color: var(--on-surface);">视图与排版设置</h3>
-            <div style="font-size:0.95rem; font-weight:800; margin-bottom:12px; color:var(--primary);">视图列数</div>
+            <div style="font-size:0.95rem; font-weight:800; margin-bottom:12px; color:var(--primary);">偏好列数</div>
+            <p id="wb-actual-columns" class="ui-context" aria-live="polite"></p>
             <div class="flex-row" style="gap:12px; margin-bottom: 28px; flex-wrap: nowrap;">
                 <button type="button" class="vs-col-btn vs-btn selected" data-val="3" style="flex:1;">3列</button>
                 <button type="button" class="vs-col-btn vs-btn" data-val="2" style="flex:1;">2列</button>
@@ -1217,7 +1228,7 @@
 
             <button
                 type="button"
-                id="ai-word-collector-close"
+                id="ai-word-collector-close" data-sheet-close
                 class="glass-icon-btn"
                 title="关闭"
                 aria-label="关闭词汇提取"
@@ -1373,7 +1384,7 @@
       </div>
 
       <button
-        id="ai-quiz-close"
+        id="ai-quiz-close" data-sheet-close aria-label="关闭"
         class="glass-icon-btn"
         type="button"
         title="关闭小测"
@@ -1541,7 +1552,7 @@
         <h3 id="dialog-title" style="border:none; margin-bottom:12px; justify-content:center;">提示</h3>
         <p id="dialog-msg" style="font-size:1rem; opacity:0.8; margin-bottom:24px; line-height:1.5;">内容</p>
         <div class="flex-row" style="margin-bottom:0;">
-            <button type="button" id="dialog-confirm" style="flex:1;">确定</button>
+            <button type="button" id="dialog-confirm" class="ui-primary-action" style="flex:1;">确定</button>
             <button type="button" id="dialog-cancel" class="btn-outline" style="flex:1;">取消</button>
         </div>
     </div>
@@ -1618,9 +1629,9 @@
         </div>
         <div class="edit-input-group"><label for="edit-tags">标签</label><input type="text" id="edit-tags" placeholder="如：高频、口语、多义"></div>
         <div class="edit-input-group en-only" id="edit-roots-group" style="display: none;"><label for="edit-roots">词根拆解</label><input type="text" id="edit-roots" placeholder="如：in(否定)-vis(看)-ible(形)"></div>
-        <div class="flex-row" style="margin-top: 24px; margin-bottom: 0;">
+        <div class="flex-row edit-actions">
             <button type="button" id="btn-save-edit" style="flex: 1; background: var(--tertiary);">保存修改</button>
-            <button type="button" id="btn-cancel-edit" class="btn-outline" style="flex: 1;">放弃</button>
+            <button type="button" id="btn-cancel-edit" class="btn-outline" style="flex: 1;">取消编辑</button>
         </div>
     </div>
 </div>
@@ -1809,7 +1820,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=responsive-v1"></script>
+<script src="app.js?v=study-ui-v1"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

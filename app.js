@@ -1759,7 +1759,7 @@ window.toggleModal = (id, show) => {
             let focusable = Array.from(el.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
                                  .filter(node => node.offsetParent !== null);
             
-            if (focusable.length > 0 && !el.contains(document.activeElement)) {
+            if (el.classList.contains('active') && focusable.length > 0 && !el.contains(document.activeElement)) {
                 focusable[0].focus();
             }
         }, 100);
@@ -1789,12 +1789,17 @@ window.showToast = (msg) => {
     setTimeout(() => t.classList.remove('show'), 2000);
 };
 
-window.showConfirm = (title, msg, onConfirm) => {
+window.showConfirm = (title, msg, onConfirm, { confirmLabel = '确定', danger = false } = {}) => {
     document.getElementById('dialog-title').innerHTML = title;
     document.getElementById('dialog-msg').innerHTML = msg;
+    const confirm = document.getElementById('dialog-confirm');
+    confirm.textContent = confirmLabel;
+    confirm.classList.toggle('ui-danger-action', danger);
+    confirm.onclick = () => { Hardware.vibrate(15); window.toggleModal('dialog-overlay', false); onConfirm(); };
+    const cancel = document.getElementById('dialog-cancel');
+    cancel.onclick = () => { Hardware.vibrate(10); window.toggleModal('dialog-overlay', false); };
     window.toggleModal('dialog-overlay', true);
-    document.getElementById('dialog-confirm').onclick = () => { Hardware.vibrate(15); window.toggleModal('dialog-overlay', false); onConfirm(); };
-    document.getElementById('dialog-cancel').onclick = () => { Hardware.vibrate(10); window.toggleModal('dialog-overlay', false); };
+    if (danger) cancel.focus({ preventScroll: true });
 };
 
 window.showPrompt = (title, defaultVal, onConfirm) => {
@@ -1995,7 +2000,7 @@ const BottomSheet = {
                 const overlay =
                     sheet.closest('.modal-overlay');
 
-                if (!overlay?.id) {
+                if (!overlay?.id || sheet.querySelector('[data-sheet-close]')) {
                     return;
                 }
 
@@ -2004,11 +2009,11 @@ const BottomSheet = {
 
                 button.type = 'button';
                 button.className = 'sheet-collapse-btn';
-                button.title = '收起抽屉';
-                button.setAttribute('aria-label', '收起抽屉');
+                button.title = '关闭';
+                button.setAttribute('aria-label', '关闭');
                 button.innerHTML = `
                     <span class="material-symbols-rounded">
-                        keyboard_arrow_down
+                        close
                     </span>
                 `;
 
@@ -4316,7 +4321,6 @@ const Model = {
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
-      this.state.filteredDb.unshift({ w: { word: 'HINT_CARD', type: 'hint' }, idx: -999 });
   },
 
 
@@ -5382,6 +5386,7 @@ const View = {
                           displayText
                       );
 
+                      this.renderStudyScope();
                       window.toggleModal(
                           'group-select-overlay',
                           false
@@ -5515,8 +5520,8 @@ const View = {
 
     if (manageLabel) {
         manageLabel.innerText = isManaging
-            ? '完成'
-            : '管理';
+            ? '完成选择'
+            : '选择词条';
     }
 
     if (grid) {
@@ -5614,6 +5619,24 @@ const View = {
     }
   },
 
+  renderStudyScope() {
+    const groupSummary = this.getEl('group-study-summary');
+    if (groupSummary) {
+        const { sourceWords, groupLabel } = Controller.getStudyGroup();
+        this.getEl('custom-group-text').textContent = groupLabel;
+        groupSummary.textContent = sourceWords.length
+            ? `${sourceWords.length} 个词 · 浏览、往复和强记会重复呈现词条`
+            : '此分组暂无词条';
+    }
+
+    const filterSummary = this.getEl('filter-study-summary');
+    const range = this.getEl('test-range-select');
+    if (filterSummary && range?.value) {
+        const count = Controller.getFilterTestWords().length;
+        filterSummary.textContent = `${range.selectedOptions[0]?.text || '所选范围'} · ${count.toLocaleString('zh-CN')} 词`;
+    }
+  },
+
   renderDashboard() {
     // 英语模式下显示三杠（听力杠替代读音杠），标签文字动态切换
     const currentLang = Model.getCurrentLang();
@@ -5643,13 +5666,15 @@ const View = {
         dueDetailEl.innerHTML = summary || '<span class="fsrs-empty-copy"><span class="material-symbols-rounded">task_alt</span>今天没有到期项目，继续保持节奏</span>';
     }
     const fsrsStartButton = this.getEl('btn-start-fsrs-review');
+    this.getEl('stats-panel')?.classList.toggle('has-due', dueItems.length > 0);
     if (fsrsStartButton) {
         fsrsStartButton.disabled = dueItems.length === 0;
         fsrsStartButton.innerHTML = dueItems.length
             ? '<span>开始复习</span><span class="material-symbols-rounded">arrow_forward</span>'
-            : '<span>今日已完成</span><span class="material-symbols-rounded">check</span>';
+            : '<span>暂无到期复习</span>';
     }
     this.renderBookSelector();
+    this.renderStudyScope();
 
     let clearedWordsCount = 0, kanjiCount = 0, kanaCount = 0, meaningCount = 0;
     
@@ -5800,7 +5825,9 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
 
 if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.value = currentTest;
       else if (testSel.options.length > 0) testSel.value = testSel.options[0].value;
-      testSel.dispatchEvent(new Event('facade-update'));  },
+      testSel.dispatchEvent(new Event('facade-update'));
+      this.renderStudyScope();
+  },
 
     renderStudyCard(anim = 'none') {
     let idx = Model.state.studyQueue[Model.state.currentIndex];
@@ -7294,10 +7321,7 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let currentFilter = this.getEl('wb-folder-filter').value;
       
       Model.updateFilteredDb(searchQuery, currentFilter);
-      const resultCount = Math.max(
-          0,
-          Model.state.filteredDb.filter(item => item.idx !== -999).length
-      );
+      const resultCount = Model.state.filteredDb.length;
       const countEl = this.getEl('wb-result-count');
       const contextEl = this.getEl('wb-result-context');
       if (countEl) countEl.innerText = resultCount.toLocaleString('zh-CN');
@@ -7348,17 +7372,25 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
     const cols =
         actualCols || requestedCols;
 
+    const columnsStatus = this.getEl('wb-actual-columns');
+    if (columnsStatus) {
+        columnsStatus.textContent = cols === requestedCols
+            ? `当前显示 ${cols} 列`
+            : `当前屏幕显示 ${cols} 列 · 偏好 ${requestedCols} 列`;
+    }
+
     const blurMode =
         this.getEl('wb-blur-select').value; 
     
     const filteredData = Model.state.filteredDb;
 
     if (filteredData.length === 0) {
-        grid.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; padding: 100px 20px;">
-            <span class="material-symbols-rounded" style="font-size: 5rem; margin-bottom: 24px; color: #8F9779; opacity: 0.4;">spa</span>
-            <div style="font-size: 1.3rem; font-weight: 800; color: var(--on-surface); opacity: 0.7; font-family: var(--font-jp-serif), serif; letter-spacing: 2px;">【 一期一会 】</div>
-            <div style="font-size: 0.95rem; margin-top: 12px; opacity: 0.5; color: var(--on-surface);">缘分未到，换个关键词再试一次吧</div>
+        grid.innerHTML = `<div class="wordbank-empty">
+            <strong>没有匹配的词条</strong>
+            <span>试试其他关键词，或调整上方筛选。</span>
         </div>`;
+        Model.state.renderedStartIndex = -1;
+        Model.state.renderedEndIndex = -1;
         grid.style.paddingTop = '0px'; grid.style.paddingBottom = '0px';
         return true;
     }
@@ -7419,87 +7451,73 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       let contentHTML = '';
       let renderFingerprint = '';
       let bgStyle = '';
-      let isHintCard = (idx === -999);
       let isChecked = false;
 
-      if (isHintCard) {
-          const hasResults = filteredData.some(item => item.idx !== -999);
-          bgStyle = 'transparent';
-          renderFingerprint = hasResults
-              ? 'hint-card-results'
-              : 'hint-card-empty';
-          contentHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; border: 2px dashed var(--outline); border-radius: inherit; width: 100%; position: absolute; inset: 0;">
-                <span class="material-symbols-rounded" style="font-size:2rem; margin-bottom:8px; color:var(--tertiary);">${hasResults ? 'touch_app' : 'search_off'}</span>
-                <div style="font-size:1rem; font-weight:800; margin-bottom:4px; color:var(--on-surface);">${hasResults ? '轻触卡片' : '没有匹配词条'}</div>
-                <div style="font-size:0.75rem; font-weight:700; color:var(--on-surface);">${hasResults ? '查看详细释义' : '请调整搜索或筛选条件'}</div>
-            </div>`;
-      } else {
-          let visuals = this.getCardVisuals(w.type, w.lang);
-          const isEnglishWord = w.lang === 'en';
-          bgStyle = visuals.bg;
-          let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : ''; 
-          let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : ''; 
-          let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
-          isChecked = Model.state.selectedSet.has(idx);
+      let visuals = this.getCardVisuals(w.type, w.lang);
+      const isEnglishWord = w.lang === 'en';
+      bgStyle = visuals.bg;
+      let blurW = (blurMode !== 'all' && blurMode !== 'word') ? 'blur-text' : '';
+      let blurK = (blurMode !== 'all' && blurMode !== 'kana') ? 'blur-text' : '';
+      let blurM = (blurMode !== 'all' && blurMode !== 'meaning') ? 'blur-text' : '';
+      isChecked = Model.state.selectedSet.has(idx);
 
-          // 统一三杠体系：兼容旧英语 {word, meaning} 格式
-          let st = Model.getClearState(w);
-          if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
-          if (isEnglishWord && st.word !== undefined) {
-            st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
-          }
-          // 统一三杠缩略图
-          let hankoHTML = `
-            <div class="card-tri-bar">
-              <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
-              <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
-              <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
-            </div>`;
-
-          let starFilled = Model.isStarred(w) ? 1 : 0;
-          let starClass = starFilled ? 'active' : '';
-
-          let topRightHTML = '';
-          if (Model.state.batchMode) {
-              topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
-          } else {
-              topRightHTML = `<button type="button" class="wb-c-star btn-wb-star ${starClass}" aria-label="${starFilled ? '取消收藏' : '收藏单词'}" aria-pressed="${Boolean(starFilled)}"><span class="material-symbols-rounded" aria-hidden="true" style="font-variation-settings: 'FILL' ${starFilled};">star</span></button>`;
-          }
-
-          let safeWord = escapeHTML(w.word); 
-          let safeKana = isEnglishWord ? (w.phonetic || '') : escapeHTML(w.kana || ''); 
-          let safeMean = escapeHTML(w.meaning);
-          const safePitch = !isEnglishWord
-              ? escapeHTML(formatWordPitchDisplay(w.pitch))
-              : '';
-          const pitchHTML = safePitch
-              ? `<span class="wb-c-pitch">${safePitch}</span>`
-              : '';
-          contentHTML = `
-            ${hankoHTML}
-            <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
-            ${topRightHTML}
-            ${cols !== '4' && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
-            <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-            ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
-            <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
-
-          renderFingerprint =
-              String(idx) +
-              blurMode +
-              Model.state.batchMode +
-              isChecked +
-              starFilled +
-              st.kanji +
-              st.kana +
-              st.meaning +
-              String(w.pitch || '') +
-              String(w.level || '') +
-              String(w.frequency || '') +
-              String(w.difficulty || '') +
-              JSON.stringify(w.specialTags || []);
+      // 统一三杠体系：兼容旧英语 {word, meaning} 格式
+      let st = Model.getClearState(w);
+      if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
+      if (isEnglishWord && st.word !== undefined) {
+        st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
       }
+      // 统一三杠缩略图
+      let hankoHTML = `
+        <div class="card-tri-bar">
+          <div class="tri-bar-segment bar-y ${st.kanji ? 'active' : ''}"></div>
+          <div class="tri-bar-segment bar-r ${st.kana ? 'active' : ''}"></div>
+          <div class="tri-bar-segment bar-w ${st.meaning ? 'active' : ''}"></div>
+        </div>`;
+
+      let starFilled = Model.isStarred(w) ? 1 : 0;
+      let starClass = starFilled ? 'active' : '';
+
+      let topRightHTML = '';
+      if (Model.state.batchMode) {
+          topRightHTML = `<div class="wb-checkbox ${isChecked ? 'checked' : ''}">${isChecked ? '✓' : ''}</div>`;
+      } else {
+          topRightHTML = `<button type="button" class="wb-c-star btn-wb-star ${starClass}" aria-label="${starFilled ? '取消收藏' : '收藏单词'}" aria-pressed="${Boolean(starFilled)}"><span class="material-symbols-rounded" aria-hidden="true" style="font-variation-settings: 'FILL' ${starFilled};">star</span></button>`;
+      }
+
+      let safeWord = escapeHTML(w.word);
+      let safeKana = isEnglishWord ? (w.phonetic || '') : escapeHTML(w.kana || '');
+      let safeMean = escapeHTML(w.meaning);
+      const safePitch = !isEnglishWord
+          ? escapeHTML(formatWordPitchDisplay(w.pitch))
+          : '';
+      const pitchHTML = safePitch
+          ? `<span class="wb-c-pitch">${safePitch}</span>`
+          : '';
+      contentHTML = `
+        ${hankoHTML}
+        <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
+        ${topRightHTML}
+        ${cols !== '4' && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
+        <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
+        ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
+        <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
+
+      renderFingerprint =
+          String(idx) +
+          blurMode +
+          Model.state.batchMode +
+          isChecked +
+          starFilled +
+          st.kanji +
+          st.kana +
+          st.meaning +
+          String(w.pitch || '') +
+          String(w.level || '') +
+          String(w.frequency || '') +
+          String(w.difficulty || '') +
+          JSON.stringify(w.specialTags || []);
+
 
       let card;
 
@@ -7507,12 +7525,10 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           card = existingCards[index];
           card.classList.toggle(
               'is-selected',
-              !isHintCard && isChecked
+              isChecked
           );
           if (card.dataset.fingerprint !== renderFingerprint) {
               card.style.background = bgStyle;
-              card.style.boxShadow = isHintCard ? 'none' : '';
-              card.style.border = isHintCard ? 'none' : '';
               card.dataset.idx = idx;
               card.dataset.fingerprint = renderFingerprint;
               card.innerHTML = contentHTML;
@@ -7521,12 +7537,10 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
           card = document.createElement('div');
           card.className =
               'wb-card' +
-              (!isHintCard && isChecked
+              (isChecked
                   ? ' is-selected'
                   : '');
           card.style.background = bgStyle;
-          card.style.boxShadow = isHintCard ? 'none' : '';
-          card.style.border = isHintCard ? 'none' : '';
           card.dataset.idx = idx;
           card.dataset.fingerprint = renderFingerprint;
           card.style.opacity = '1';
@@ -7537,35 +7551,27 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
       card.removeAttribute('aria-pressed');
       card.removeAttribute('aria-checked');
 
-      if (isHintCard) {
-          card.removeAttribute('tabindex');
-          card.setAttribute('role', 'note');
-          card.setAttribute(
-              'aria-label',
-              '操作提示：轻触单词卡片查看详细释义'
-          );
-      } else {
-          card.setAttribute('tabindex', '0');
-          card.setAttribute(
-              'role',
-              Model.state.batchMode
-                  ? 'checkbox'
-                  : 'group'
-          );
-          card.setAttribute(
-              'aria-label',
-              Model.state.batchMode
-                  ? '选择单词卡片'
-                  : '单词卡片，点击或按回车查看详细释义'
-          );
+      card.setAttribute('tabindex', '0');
+      card.setAttribute(
+          'role',
+          Model.state.batchMode
+              ? 'checkbox'
+              : 'group'
+      );
+      card.setAttribute(
+          'aria-label',
+          Model.state.batchMode
+              ? '选择单词卡片'
+              : '单词卡片，点击或按回车查看详细释义'
+      );
 
-          if (Model.state.batchMode) {
-              card.setAttribute(
-                  'aria-checked',
-                  String(isChecked)
-              );
-          }
+      if (Model.state.batchMode) {
+          card.setAttribute(
+              'aria-checked',
+              String(isChecked)
+          );
       }
+
     });
 
     while (grid.children.length > neededCount) {
@@ -8235,6 +8241,9 @@ setupVirtualScroll() {
     View.getEl('btn-start-filter-test').addEventListener('click', () => { Hardware.unlockSpeech(); this.startFilterTest(); });
     View.getEl('btn-start-fsrs-review')?.addEventListener('click', () => { Hardware.unlockSpeech(); this.startFsrsReview(); });
     View.getEl('fsrs-reveal-answer')?.addEventListener('click', () => this.revealFsrsAnswer());
+    for (const id of ['test-range-select', 'test-display-select']) {
+        View.getEl(id)?.addEventListener('change', () => View.renderStudyScope());
+    }
     View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
     View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
@@ -8376,6 +8385,7 @@ setupVirtualScroll() {
         skipCheck.addEventListener('change', (e) => {
             Hardware.playSound('click'); Hardware.vibrate(15);
             localStorage.setItem('skipMastered', e.target.checked);
+            View.renderStudyScope();
             showToast(e.target.checked ? "已开启智能跳过已亮维度" : "已关闭智能跳过已亮维度");
         });
     }
@@ -9067,7 +9077,7 @@ if (aiCloseBtn) {
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0; let suppressCardClickUntil = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode || parseInt(card.dataset.idx) === -999) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { suppressCardClickUntil = Date.now() + 700; Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { suppressCardClickUntil = Date.now() + 700; Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
@@ -9077,7 +9087,6 @@ if (aiCloseBtn) {
       if (!card || e.target !== card || !['Enter', ' '].includes(e.key)) return;
 
       const idx = parseInt(card.dataset.idx);
-      if (idx === -999) return;
 
       e.preventDefault();
 
@@ -9090,7 +9099,7 @@ if (aiCloseBtn) {
       Controller.openDetailModal(idx);
     });
     grid.addEventListener('click', (e) => {
-      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx); if (idx === -999) return;
+      let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-star')) {
           Hardware.playSound('click');
           Hardware.vibrate(10);
@@ -9174,10 +9183,12 @@ if (aiCloseBtn) {
       Controller.openDetailModal(idx);
     });
 
-    View.getEl('wb-manage-toggle').addEventListener(
-        'click',
-        () => this.toggleBatchMode()
-    );
+    View.getEl('wb-manage-toggle').addEventListener('click', event => {
+        const menu = event.currentTarget.closest('details');
+        menu.open = false;
+        menu.querySelector('summary').focus();
+        this.toggleBatchMode();
+    });
     View.getEl('btn-batch-cancel').addEventListener(
         'click',
         () => this.toggleBatchMode(false)
@@ -9210,6 +9221,7 @@ if (aiCloseBtn) {
     );
     View.getEl('btn-cancel-move').addEventListener('click', () => { Hardware.vibrate(10); window.toggleModal('move-overlay', false); });
     View.getEl('btn-import').addEventListener('click', () => this.importWords());
+    View.getEl('import-folder-select')?.addEventListener('change', () => this.updateImportTargetSummary());
     View.getEl('import-lang-select').addEventListener('change', () => {
         this.updateImportFormatUI();
         this.updateImportFolderOptions();
@@ -9221,23 +9233,26 @@ if (aiCloseBtn) {
         showConfirm(
             '清空学习进度？',
             '词库、收藏、AI 对话和设置都会保留；掌握度、通关与学习记录将归零。',
-            () => this.clearLearningProgress()
+            () => this.clearLearningProgress(),
+            { confirmLabel: '清空进度', danger: true }
         );
     });
     View.getEl('btn-remove-imported').addEventListener('click', () => {
         Hardware.vibrate(20);
         showConfirm(
-            '恢复内置词库？',
+            '移除个人导入和自建词库？',
             '个人导入词汇和自建词库将被移除，内置日语与英语词库会重新载入。',
-            () => this.restoreBuiltInLibrary()
+            () => this.restoreBuiltInLibrary(),
+            { confirmLabel: '移除并恢复', danger: true }
         );
     });
     View.getEl('btn-reset').addEventListener('click', () => {
         Hardware.vibrate(30);
         showConfirm(
             '完全重置应用？',
-            '<strong style="color: var(--accent-red);">此操作会删除词库改动、收藏、学习记录、AI 对话和偏好设置。</strong><br><br>DeepSeek API Key 会保留，执行前会自动建立恢复点。',
-            () => this.fullResetApp()
+            '<strong style="color: var(--accent-red);">此操作会删除词库改动、收藏、学习记录、错题、AI 小测、AI 对话和偏好设置。</strong><br><br>DeepSeek API Key 会保留，执行前会自动建立恢复点。',
+            () => this.fullResetApp(),
+            { confirmLabel: '完全重置', danger: true }
         );
     });
     View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
@@ -9407,9 +9422,25 @@ if (aiCloseBtn) {
     document.addEventListener('keydown', (e) => {
 
         
+        const activeModal = [...document.querySelectorAll('.modal-overlay.active')]
+            .reduce((top, modal) => {
+                const z = Number.parseInt(getComputedStyle(modal).zIndex, 10) || 0;
+                const topZ = top ? Number.parseInt(getComputedStyle(top).zIndex, 10) || 0 : 0;
+                return !top || z >= topZ ? modal : top;
+            }, null);
+
+        if (e.key === 'Escape' && activeModal) {
+            e.preventDefault();
+            const close = activeModal.querySelector(
+                '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #detail-close'
+            );
+            if (close) close.click();
+            else window.toggleModal(activeModal.id, false);
+            return;
+        }
+
         // 🟢 WCAG 焦点陷阱 (Focus Trap) - 必须置于最顶层防线之前
         if (e.key === 'Tab') {
-            let activeModal = document.querySelector('.modal-overlay.active');
             if (activeModal) {
                 // 筛选出弹窗内所有物理可见的、可聚焦的元素
                 let focusable = Array.from(activeModal.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
@@ -9460,14 +9491,9 @@ if (aiCloseBtn) {
         let keyLower = key.toLowerCase();
 
         // 🟢 全局通用快捷键：Esc 退出与关闭
-        if (key === 'Escape') {
-            if (View.getEl('bs-overlay').classList.contains('active')) { window.toggleModal('bs-overlay', false); return; }
-            if (View.getEl('view-settings-overlay').classList.contains('active')) { window.toggleModal('view-settings-overlay', false); return; }
-            if (View.getEl('group-select-overlay').classList.contains('active')) { window.toggleModal('group-select-overlay', false); return; }
-            if (View.getEl('dialog-overlay').classList.contains('active')) { window.toggleModal('dialog-overlay', false); return; }
-            if (View.getEl('move-overlay').classList.contains('active')) { window.toggleModal('move-overlay', false); return; }
-            if (View.getEl('detail-overlay').classList.contains('active')) { Controller.closeDetailIfOpen(); return; }
-            if (!View.getEl('study-area').classList.contains('hidden')) { View.getEl('btn-exit-study').click(); return; }
+        if (key === 'Escape' && !View.getEl('study-area').classList.contains('hidden')) {
+            View.getEl('btn-exit-study').click();
+            return;
         }
 
         // 🟡 底部下拉菜单（Bottom Sheet）的键盘接管
@@ -10655,7 +10681,7 @@ if (aiCloseBtn) {
       );
   },
 
-    startPendulum(launchMode = 'pendulum') {
+    getStudyGroup() {
     const currentLang = Model.state.currentLangMode;
 
     const defFolder =
@@ -10706,10 +10732,6 @@ if (aiCloseBtn) {
         groupRange.end
     );
 
-    if (sourceWords.length === 0) {
-        return showToast('所选范围内暂无词汇哦');
-    }
-
     const virtualLabels = {
         virtual_cleared: '完全通关',
         virtual_uncleared: '所有未通关',
@@ -10730,8 +10752,18 @@ if (aiCloseBtn) {
             ? '默认词库'
             : (virtualLabels[catName] || catName);
 
-    const groupLabel =
-        `${categoryLabel} (第 ${groupRange.labelStart}-${groupRange.labelEnd} 词)`;
+    const groupLabel = groupRange.hasWords
+        ? `${categoryLabel}（第 ${groupRange.labelStart}–${groupRange.labelEnd} 词）`
+        : categoryLabel;
+
+    return { currentLang, groupKey, groupLabel, sourceWords };
+    },
+
+    startPendulum(launchMode = 'pendulum') {
+    const { currentLang, groupKey, groupLabel, sourceWords } = this.getStudyGroup();
+    if (!sourceWords.length) {
+        return showToast('所选范围内暂无词汇哦');
+    }
 
     Model.state.currentGroupKey = groupKey;
     Model.state.currentGroupLabel = groupLabel;
@@ -10865,12 +10897,13 @@ if (aiCloseBtn) {
       ];
   },
 
-  startFilterTest() {
-      let sel = View.getEl('test-range-select'); let cat = sel.value; if (!cat) return;
+  getFilterTestWords() {
+      const cat = View.getEl('test-range-select')?.value;
+      if (!cat) return [];
       let displayMode = View.getEl('test-display-select').value || 'kana';
       let isSkipEnabled = localStorage.getItem('skipMastered') === 'true';
 
-      let sourceWords = Model.db
+      return Model.db
           .map((w, i) => ({ w, i }))
           .filter(item => {
           let wordLang = item.w.lang || 'ja';
@@ -10897,6 +10930,10 @@ if (aiCloseBtn) {
           return true;
       });
       
+  },
+
+  startFilterTest() {
+      const sourceWords = this.getFilterTestWords();
       if (sourceWords.length === 0) {
           return showConfirm('此维度已圆满', '当前范围内该模式对应的「维度杠」已全部点亮。是否前往设置关闭「智能跳过」？', () => {
               Nav.switchTab('tab-settings', 'settings|应用设置', document.querySelector('[data-target="tab-settings"]'));
@@ -11611,7 +11648,8 @@ if (aiCloseBtn) {
               showToast(
                   '已删除，单词已按语言归档'
               );
-          }
+          },
+          { confirmLabel: '删除文件夹', danger: true }
       );
   },
     openMoveModal(idx) { 
@@ -11907,6 +11945,14 @@ deleteWord(idx) {
       );
   },
 
+  updateImportTargetSummary() {
+      const summary = View.getEl('import-target-summary');
+      if (!summary) return;
+      const language = View.getEl('import-lang-select')?.selectedOptions[0]?.text;
+      const folder = View.getEl('import-folder-select')?.selectedOptions[0]?.text;
+      summary.textContent = [language, folder].filter(Boolean).join(' · ');
+  },
+
   updateImportFolderOptions() {
       const lang = View.getEl('import-lang-select')?.value || 'ja';
       const select = View.getEl('import-folder-select');
@@ -11937,6 +11983,7 @@ deleteWord(idx) {
       }
 
       select.dispatchEvent(new Event('facade-update'));
+      this.updateImportTargetSummary();
   },
 
   getImportIdentity(word) {
@@ -12087,6 +12134,15 @@ deleteWord(idx) {
           return;
       }
 
+      const overwrite = duplicateMode === 'overwrite';
+      const newCount = overwrite
+          ? new Set(entries.map(entry => entry.identity).filter(id => !existingSet.has(id))).size
+          : actionableEntries.length;
+      const updateCount = overwrite ? actionableEntries.length - newCount : 0;
+      const importLabel = updateCount
+          ? `导入 ${newCount} 词，覆盖 ${updateCount} 项`
+          : `导入 ${newCount} 词`;
+
       showConfirm('确认导入这些词汇？', summary, async () => {
           let restorePoint = null;
 
@@ -12158,7 +12214,7 @@ deleteWord(idx) {
               Hardware.playSound('error');
               Hardware.vibrate(50);
           }
-      });
+      }, { confirmLabel: importLabel });
   },
 
   getDefaultLibraryState() {
@@ -12299,7 +12355,7 @@ deleteWord(idx) {
   },
   
   openDetailModal(idx) { 
-      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx).filter(id => id !== -999); 
+      Model.state.detailArray = Model.state.filteredDb.map(item => item.idx);
       Model.state.activeDetailIdx = Model.state.detailArray.indexOf(idx); 
       
       if (Model.state.activeDetailIdx === -1) {
@@ -15597,8 +15653,7 @@ pInput.value = '';
             return;
         }
 
-        const hint = this.state.filteredDb.find(item => item.idx === -999);
-        const words = this.state.filteredDb.filter(item => item.idx !== -999);
+        const words = this.state.filteredDb;
         const weight = {
             repeated: 4,
             new: 3,
@@ -15623,7 +15678,6 @@ pInput.value = '';
             );
         });
 
-        this.state.filteredDb = hint ? [hint, ...words] : words;
     };
 
     const ensureWrongBookOptions = () => {
@@ -17036,7 +17090,8 @@ ${sourceText.slice(0, 9000)}
                 this.renderRecycleBin();
                 updateSettingsStats();
                 showToast('回收站已清空');
-            }
+            },
+            { confirmLabel: '清空回收站', danger: true }
         );
     };
 
@@ -18681,15 +18736,7 @@ ${JSON.stringify(candidates.map(item => ({
         const difficultyFilter =
             View.getEl('wb-difficulty-filter')?.value || '';
 
-        const hint = this.state.filteredDb.find(item => {
-            return item.idx === -999;
-        });
-
-        const words = this.state.filteredDb.filter(item => {
-            if (item.idx === -999) {
-                return false;
-            }
-
+        this.state.filteredDb = this.state.filteredDb.filter(item => {
             const lang = item.w.lang === 'en' ? 'en' : 'ja';
             const level = normalizeWordLevel(item.w.level, lang);
             const difficulty = normalizeWordDifficulty(
@@ -18711,9 +18758,6 @@ ${JSON.stringify(candidates.map(item => ({
             return levelMatches && difficultyMatches;
         });
 
-        this.state.filteredDb = hint
-            ? [hint, ...words]
-            : words;
     };
 
     const decorateWordbankCards = () => {

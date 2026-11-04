@@ -2235,15 +2235,7 @@ html {
 .wordbank-meta-filters > * { min-width: 0; }
 .wordbank-meta-filters .bs-facade { padding-inline: 12px; }
 .wordbank-result-bar { flex-wrap: wrap; }
-.wordbank-management { padding: 16px !important; }
-.wordbank-management > div:first-child {
-  border-bottom: 0 !important;
-  padding-bottom: 0 !important;
-  margin-bottom: 12px !important;
-  gap: 8px;
-}
-.wordbank-management h3 { font-size: 1rem; }
-.wordbank-management .wordbank-manage-toggle { flex-shrink: 0; }
+
 
 .fullscreen-overlay {
   justify-content: flex-start;
@@ -2365,4 +2357,411 @@ html {
 
 @media (pointer: coarse) {
   .home-shortcut-hint, .keyboard-hint-bar, .kbd-hint { display: none !important; }
+}
+
+/* Shared action roles. Purple remains an accent for AI content. */
+button.ui-primary-action#dialog-confirm,
+#prompt-overlay #prompt-confirm,
+#ai-quiz-overlay :is(#ai-quiz-submit, #ai-quiz-next) {
+  min-height: 44px;
+  background: var(--primary) !important;
+  color: var(--on-primary) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#dialog-overlay #dialog-confirm.ui-danger-action {
+  background: var(--error) !important;
+  color: var(--on-error) !important;
+}
+
+#view-settings-overlay .vs-btn.selected,
+#ai-quiz-overlay .ai-quiz-option.selected {
+  background: var(--primary-container) !important;
+  color: var(--on-primary-container) !important;
+  border-color: var(--primary) !important;
+}
+
+#ai-quiz-overlay [hidden] {
+  display: none !important;
+}
+
+#ai-quiz-overlay .ai-quiz-option:not(.selected, .is-answer, .is-wrong),
+#capsule-fsrs-review button.fsrs-rating-btn {
+  background: var(--surface-container) !important;
+  color: var(--on-surface) !important;
+  border: 1px solid var(--outline-variant) !important;
+  box-shadow: none !important;
+}
+
+#capsule-fsrs-review button.fsrs-rating-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+  gap: 4px;
+  line-height: 1.35;
+  padding: 12px;
+}
+
+.fsrs-rating-btn strong { white-space: nowrap; }
+.fsrs-rating-btn small,
+.fsrs-rating-btn em {
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-size: .8rem;
+  text-align: start;
+}
+
+#capsule-fsrs-review button[data-rating="again"] strong { color: var(--error); }
+#capsule-fsrs-review button[data-rating="good"] strong { color: var(--primary); }
+#capsule-fsrs-review .fsrs-rating-grid.hidden { display: none !important; }
+
+.modal-overlay .bottom-sheet :is(.sheet-collapse-btn, [data-sheet-close]) {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  background: var(--surface-container-high) !important;
+  color: var(--on-surface) !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+
+#study-area .dt-choice-btn .choice-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  #study-area :is(#dt-choice-buttons, #mt-choice-buttons) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-height: 560px) and (orientation: landscape) {
+  #ai-preset-overlay .ai-preset-sheet { max-width: 700px; overflow-y: auto; }
+  #ai-preset-overlay .ai-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The first screen is for starting a task. Progress stays below the modes. */
+.ui-context {
+  margin: 5px 0 0;
+  color: var(--on-surface-variant);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+
+#stats-panel:not(.has-due) :is(.fsrs-home-main, .fsrs-home-divider) {
+  display: none;
+}
+
+#stats-panel:not(.has-due) {
+  gap: 8px;
+}
+
+.home-range-section { margin-top: 0 !important; }
+.home-mastery-progress { margin-top: 18px !important; }
+
+#tab-home .home-mode-card {
+  background: var(--surface-container-high) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--outline-soft) !important;
+}
+
+#tab-home .home-mode-card.mode-btn-classic {
+  color: var(--on-primary-container) !important;
+  background: var(--primary-container) !important;
+  border-color: var(--primary) !important;
+}
+
+#tab-home .home-filter-card {
+  box-shadow: none !important;
+}
+
+#tab-home .home-action-copy small {
+  color: inherit;
+  white-space: normal;
+}
+
+#group-list-container .group-range-copy strong {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+#group-list-container .group-range-option.selected {
+  color: var(--on-primary-container) !important;
+  background: var(--primary-container) !important;
+  border-color: var(--primary) !important;
+}
+
+.wordbank-tools {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+}
+
+.wordbank-tools .search-bar-wrapper { margin: 0 !important; }
+.wordbank-scope-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wordbank-scope-tools > .custom-select-wrapper { min-width: 0; }
+.wordbank-tools .wordbank-meta-filters { margin: 0; }
+.wordbank-management { position: relative; padding: 0 !important; }
+
+.wordbank-management > summary {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  padding-inline: 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.wordbank-management > summary::-webkit-details-marker { display: none; }
+
+.wordbank-management-actions {
+  position: absolute;
+  z-index: 30;
+  inset: calc(100% + 6px) 0 auto auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  width: max-content;
+  min-width: 150px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface-container);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ui-card-shadow);
+}
+
+#tab-wordbank .wordbank-management-actions button {
+  background: var(--surface-container-high) !important;
+  color: var(--on-surface) !important;
+  min-height: 44px;
+  box-shadow: none !important;
+}
+
+#tab-wordbank .wordbank-management-actions #btn-del-folder {
+  color: var(--error) !important;
+}
+
+.wordbank-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--on-surface-variant);
+  padding: 16px;
+}
+
+@media (min-width: 720px) {
+  .wordbank-tools {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  }
+  .wordbank-tools .wordbank-meta-filters { grid-column: 1 / -1; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (min-width: 650px) {
+  #tab-home .home-layout-container {
+    grid-template-columns: minmax(185px, .65fr) minmax(0, 1.35fr);
+    gap: 14px;
+  }
+
+  #tab-home .home-study-panel,
+  #tab-home .fsrs-home-card { padding: 14px !important; }
+
+  #tab-home .fsrs-home-card {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #tab-home .fsrs-home-topline { flex-wrap: wrap; gap: 6px; }
+  #tab-home .fsrs-home-main { gap: 8px; }
+  #tab-home .home-study-header { margin-bottom: 10px; }
+  #tab-home .home-study-header p { display: none; }
+  #tab-home .home-mode-card { min-height: 52px !important; padding-block: 8px !important; }
+  #tab-home .home-study-section { margin-top: 10px !important; }
+  #tab-home .home-range-section { margin-top: 0 !important; }
+  #tab-wordbank .wordbank-result-bar { margin-block: 4px 8px; }
+}
+
+#batch-bar .batch-action-label { display: inline; }
+#batch-bar .batch-action-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 7px;
+  gap: 4px;
+}
+
+@media (max-width: 420px) {
+  #batch-bar .batch-action-btn { flex-direction: column; font-size: .73rem; }
+}
+
+/* Settings keep frequent tasks in view and disclose optional controls. */
+.import-input-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 750;
+}
+
+.import-options { margin-top: 14px; }
+.import-options > summary {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--outline-soft);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.import-options .import-control-grid { margin-top: 14px; }
+#import-target-summary { margin-inline-start: 8px; }
+#tab-settings .import-card .import-textarea { min-height: 118px; margin-bottom: 12px; }
+#tab-settings .import-card .import-format-box { margin-block: 8px; }
+#tab-settings #btn-import {
+  background: var(--primary) !important;
+  color: var(--on-primary) !important;
+  box-shadow: none !important;
+}
+
+.web-reminder-summary { display: none; }
+.native-reminder-card.is-web > :not(.native-reminder-heading, .web-reminder-summary) { display: none; }
+.native-reminder-card.is-web .web-reminder-summary {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--on-surface-variant);
+  font-size: .85rem;
+}
+
+#edit-overlay .edit-actions {
+  position: sticky;
+  bottom: -1px;
+  margin: 12px 0 0;
+  padding: 10px 0 2px;
+  background: var(--surface-container);
+  z-index: 1;
+}
+
+#edit-overlay #btn-save-edit {
+  background: var(--primary) !important;
+  color: var(--on-primary) !important;
+  box-shadow: none !important;
+}
+
+#move-overlay .move-folder-item {
+  color: var(--on-surface) !important;
+  background: var(--surface-container-high) !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 900px) {
+  #settings-home .settings-mode-card .book-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #settings-home .settings-mode-card .book-card {
+    grid-template-columns: 32px minmax(0, 1fr);
+    min-height: 74px;
+    padding: 9px;
+    gap: 7px;
+  }
+  #settings-home .book-language-mark { width: 32px; height: 42px; font-size: 1.2rem; }
+  #settings-home .book-status { grid-column: 2; justify-self: start; padding: 2px 6px; }
+  #settings-home .book-title { margin: 0; font-size: .88rem; }
+  #settings-home :is(.book-card-kicker, .book-progress-track, .book-progress-copy) {
+    display: none;
+  }
+  #settings-home .book-card::after { display: none; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  #settings-home .settings-mode-card .book-card { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  #settings-home .book-status { grid-column: auto; }
+}
+
+#ai-quiz-overlay .ai-quiz-option.is-answer {
+  color: var(--on-primary-container) !important;
+  background: var(--primary-container) !important;
+  border-color: var(--primary) !important;
+  opacity: 1 !important;
+}
+
+#ai-quiz-overlay .ai-quiz-option.is-wrong {
+  color: var(--error) !important;
+  opacity: 1 !important;
+}
+
+@media (min-width: 720px) {
+  #ai-quiz-overlay .ai-quiz-sheet { width: min(640px, 100%); max-width: 640px; }
+  #ai-quiz-overlay .ai-quiz-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  #ai-quiz-overlay .ai-quiz-header { padding-block: 6px; }
+  #ai-quiz-overlay .ai-quiz-question-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding-top: 8px;
+  }
+  #ai-quiz-overlay :is(.ai-quiz-meta-row, .ai-quiz-prompt, .ai-quiz-options, .ai-quiz-input-wrap) {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  #ai-quiz-overlay .ai-quiz-feedback { margin-top: 0; padding: 8px 12px; }
+  #ai-quiz-overlay .ai-quiz-actions { grid-column: 2; align-self: end; margin-top: 0; }
+  #ai-quiz-overlay .ai-quiz-option { min-height: 44px; padding-block: 6px; }
+}
+
+#tab-settings .import-card .import-mode-switch {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+#tab-settings .import-card .import-mode-btn {
+  min-height: 44px !important;
+  padding: 7px !important;
+  gap: 6px !important;
+}
+
+#tab-settings .import-format-box > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+  font-weight: 700;
+}
+
+#tab-settings .import-card .import-format-box { padding-block: 0; }
+#tab-settings .import-format-box[open] { padding-bottom: 12px; }
+
+@media (max-width: 900px) {
+  #settings-home .settings-mode-card .book-card { display: grid !important; }
+  #settings-home .book-card-copy { width: auto; }
+  #settings-home .book-language-mark { grid-row: 1 / span 2; }
+}
+
+@media (orientation: landscape) and (max-height: 560px) and (min-width: 650px) {
+  #tab-settings .import-card {
+    display: grid;
+    grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+    gap: 8px 14px;
+    padding: 14px;
+  }
+  #tab-settings .import-card :is(.import-format-box, .import-options) { grid-column: 1 / -1; margin: 0; }
+  #tab-settings .import-card .import-mode-switch { margin-bottom: 0; }
+  #tab-settings .import-card .import-textarea { min-height: 84px; }
+  #settings-home .book-language-mark { grid-row: auto; }
 }

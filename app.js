@@ -5840,6 +5840,10 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
         return;
     }
 
+    const wordLanguage = w.lang === 'en' ? 'en' : 'ja';
+    this.getEl('w-word').lang = wordLanguage;
+    this.getEl('w-kana').lang = wordLanguage;
+
     let mode = this.getEl('next-display-mode').value;
     
     let isMemTest = (Model.state.mode === 'memory-test');
@@ -6518,10 +6522,10 @@ void card.offsetWidth;
 
         let safeCnPart = escapeHTML(cnPart);
         
-                let wordLang = targetWordObj ? (targetWordObj.lang || 'ja') : 'ja';
+        const wordLang = targetWordObj?.lang === 'en' ? 'en' : 'ja';
         let targetWordIndex = targetWordObj ? Model.db.indexOf(targetWordObj) : -1;
 let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-sentence="${escapeHTML(pureJpText)}" data-word="${targetWordObj ? escapeHTML(targetWordObj.word) : ''}" data-lang="${wordLang}" data-word-index="${targetWordIndex}">auto_awesome</span>`;
-        let jpBoxHTML = `<div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="display:flex; align-items:flex-start; gap:6px;"><span class="material-symbols-rounded ex-speaker" style="flex-shrink:0;">volume_up</span><span style="flex:1;">${safeJpPart}</span>${sparkBtnHTML}</div>`;
+        let jpBoxHTML = `<div class="dt-ex-jp" data-speak="${escapeHTML(pureJpText)}" style="display:flex; align-items:flex-start; gap:6px;"><span class="material-symbols-rounded ex-speaker" style="flex-shrink:0;">volume_up</span><span class="example-text" lang="${wordLang}" style="flex:1;">${safeJpPart}</span>${sparkBtnHTML}</div>`;
 
         if (mode === 'choice' && cnPart) { 
             return `<div class="ex-item">${jpBoxHTML}<div class="dt-ex-cn hidden-translation" data-text="${safeCnPart}"><span class="material-symbols-rounded" style="font-size:1.1rem;">lock</span> 答对选项后解密</div></div>`; 
@@ -7499,8 +7503,8 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
         <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
         ${topRightHTML}
         ${cols !== '4' && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
-        <div class="wb-c-word ${blurW}"><span class="wb-blur-trigger">${safeWord}</span></div>
-        ${isEnglishWord ? `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
+        <div class="wb-c-word ${blurW}" lang="${isEnglishWord ? 'en' : 'ja'}"><span class="wb-blur-trigger">${safeWord}</span></div>
+        ${isEnglishWord ? `<div class="wb-c-kana ${blurK}" lang="en"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}" lang="ja"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
         <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
 
       renderFingerprint =
@@ -12433,6 +12437,8 @@ if (dtAiPanel) dtAiPanel.classList.add('hidden');
       dtWordEl.innerText = w.word; 
       let dtLen = Array.from(w.word || '').length;
       const isEnDetail = w.lang === 'en';
+      dtWordEl.lang = isEnDetail ? 'en' : 'ja';
+      View.getEl('dt-kana').lang = dtWordEl.lang;
       
       if (isEnDetail) {
           if (dtLen >= 14) dtWordEl.style.fontSize = '1.8rem';

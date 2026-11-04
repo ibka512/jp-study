@@ -1,14 +1,14 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v34';
+const CACHE_NAME = 'zhongri-shell-v35';
 const LOCAL_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './logo.png',
   './style.css?v=study-ui-v1',
-  './ui-system.css?v=study-ui-v1',
+  './ui-system.css?v=locale-fonts-v1',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -23,7 +23,7 @@ const LOCAL_ASSETS = [
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=study-ui-v1',
+  './app.js?v=locale-fonts-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ];
@@ -41,7 +41,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
   './style.css?v=study-ui-v1',
-  './ui-system.css?v=study-ui-v1',
+  './ui-system.css?v=locale-fonts-v1',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
   './haptics.js?v=native-haptics-v1',
@@ -49,7 +49,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=study-ui-v1',
+  './app.js?v=locale-fonts-v1',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ].map(toAbsoluteUrl));

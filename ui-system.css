@@ -9,39 +9,30 @@
 :root {
   color-scheme: light;
 
-  /* Typography */
-  --font-title:
-    "Nunito",
-    "M PLUS Rounded 1c",
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Noto Sans CJK SC",
-    system-ui,
-    sans-serif;
+  /* Use locale-appropriate glyphs before falling back to system fonts. */
   --font-body:
-    "M PLUS Rounded 1c",
     "PingFang SC",
-    "Hiragino Sans GB",
+    "Microsoft YaHei",
     "Noto Sans CJK SC",
+    "Noto Sans SC",
     system-ui,
     sans-serif;
-  --font-number:
-    "Nunito",
-    "M PLUS Rounded 1c",
-    system-ui,
-    sans-serif;
+  --font-title: var(--font-body);
+  --font-number: "Nunito", var(--font-body);
   --font-word-ja:
     "Noto Serif JP",
     "Yu Mincho",
     "Hiragino Mincho ProN",
     serif;
-  --font-word-en:
-    Georgia,
-    "Times New Roman",
-    serif;
+  --font-word-en: Georgia, "Times New Roman", serif;
   --font-ui: var(--font-body);
   --font-jp-serif: var(--font-word-ja);
-  --font-jp-sans: var(--font-body);
+  --font-jp-sans:
+    "M PLUS Rounded 1c",
+    "Hiragino Sans",
+    "Yu Gothic",
+    "Noto Sans CJK JP",
+    sans-serif;
 
   /* Material 3 inspired color roles — day */
   --primary: #356f66;
@@ -341,10 +332,17 @@ h4,
   font-family: var(--font-word-ja);
 }
 
-body[data-lang="en"] .word-main,
-body[data-lang="en"] .dt-word,
-body[data-lang="en"] .wb-c-word {
+:is(.word-main, .dt-word, .book-language-mark)[lang="en"] {
   font-family: var(--font-word-en) !important;
+}
+
+/* Language tags apply to vocabulary text, leaving Chinese labels and icons in their own fonts. */
+:is(.kana-row, .dt-kana, #wb-grid .wb-c-kana, .example-text)[lang="ja"] {
+  font-family: var(--font-jp-sans);
+}
+
+:is(.dt-kana, #wb-grid .wb-c-kana, .example-text)[lang="en"] {
+  font-family: var(--font-body);
 }
 
 ::selection {
@@ -1209,7 +1207,7 @@ select:focus,
   text-shadow: none;
 }
 
-body[data-lang="en"] .word-main {
+.word-main[lang="en"] {
   letter-spacing: 0.005em !important;
   line-height: 1.08 !important;
 }
@@ -1221,7 +1219,7 @@ body[data-lang="en"] .word-main {
 
 .kana-row {
   color: var(--secondary);
-  font-family: var(--font-body) !important;
+  font-family: var(--font-body);
   font-weight: 700;
 }
 

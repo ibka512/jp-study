@@ -36,3 +36,13 @@ test('样式入口缺失或重复时明确失败', async () => {
     assert.throws(() => adaptAndroidHtml(missing), /style\.css/);
     assert.throws(() => adaptAndroidHtml(source + '<link href="style.css">'), /style\.css/);
 });
+
+
+test('网页已包含安全区域或使用旧视口时，原生构建均只保留一个 viewport-fit', async () => {
+    const { adaptAndroidHtml } = await import('../scripts/android-html.mjs');
+    const source = fs.readFileSync('index.html', 'utf8');
+    for (const input of [source, source.replace(', viewport-fit=cover', '')]) {
+        const html = adaptAndroidHtml(input);
+        assert.equal((html.match(/viewport-fit=cover/g) || []).length, 1);
+    }
+});

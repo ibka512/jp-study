@@ -7333,9 +7333,8 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
         String(requestedCols)
     );
 
-    const computedColumns =
-        window.getComputedStyle(grid)
-            .gridTemplateColumns;
+    const gridStyle = window.getComputedStyle(grid);
+    const computedColumns = gridStyle.gridTemplateColumns;
 
     const actualCols =
         computedColumns &&
@@ -7364,18 +7363,15 @@ let sparkBtnHTML = `<span class="material-symbols-rounded ai-sparkle-icon" data-
         return true;
     }
 
-    const stableRowHeights = {
-        2: 224,
-        3: 208,
-        4: 180
-    };
-
+    // Use the rendered track size: responsive CSS changes both rows and gaps.
     const rowHeight =
-        stableRowHeights[requestedCols] || 208;
+        (Number.parseFloat(gridStyle.gridAutoRows) || 196) +
+        (Number.parseFloat(gridStyle.rowGap) || 0);
 
     const totalRows = Math.ceil(filteredData.length / cols);
     const rect = container.getBoundingClientRect();
-    const gridTop = window.scrollY + rect.top; 
+    const gridTop = window.scrollY + rect.top;
+    this.wordbankLayout = { cols, rowHeight, gridTop, width: rect.width };
     let relativeScrollY = Math.max(0, window.scrollY - gridTop + 20);
 
     const viewportHeight = window.innerHeight;
@@ -8005,7 +8001,7 @@ setupVirtualScroll() {
     let resizeTimer = null;
 
     let lastLayoutWidth = Math.round(
-        window.visualViewport?.width ||
+        container.getBoundingClientRect().width ||
         window.innerWidth
     );
 
@@ -8027,7 +8023,12 @@ setupVirtualScroll() {
             ticking = true;
 
             window.requestAnimationFrame(() => {
-                View.renderVirtualGrid();
+                // A rotation can emit scroll before the resize debounce finishes.
+                // Keep the previous geometry until the resize handler restores its anchor.
+                const layout = View.wordbankLayout;
+                if (!layout || Math.abs(container.getBoundingClientRect().width - layout.width) < 1) {
+                    View.renderVirtualGrid();
+                }
                 ticking = false;
             });
         },
@@ -8049,7 +8050,7 @@ setupVirtualScroll() {
                 }
 
                 const nextLayoutWidth = Math.round(
-                    window.visualViewport?.width ||
+                    container.getBoundingClientRect().width ||
                     window.innerWidth
                 );
 
@@ -8057,7 +8058,7 @@ setupVirtualScroll() {
                     Math.abs(
                         nextLayoutWidth -
                         lastLayoutWidth
-                    ) >= 8;
+                    ) >= 1;
 
                 /*
                  * 手机浏览器收起或展开地址栏时，
@@ -8071,8 +8072,13 @@ setupVirtualScroll() {
                 lastLayoutWidth =
                     nextLayoutWidth;
 
-                const savedScrollY =
-                    window.scrollY;
+                const savedScrollY = window.scrollY;
+                const previous = View.wordbankLayout;
+                const relativeY = previous ? savedScrollY - previous.gridTop : -1;
+                const anchorIndex = relativeY >= 0
+                    ? Math.floor(relativeY / previous.rowHeight) * previous.cols
+                    : null;
+                const rowOffset = relativeY >= 0 ? relativeY % previous.rowHeight : 0;
 
                 Model.state.renderedStartIndex =
                     -1;
@@ -8083,11 +8089,12 @@ setupVirtualScroll() {
                 View.renderVirtualGrid();
 
                 window.requestAnimationFrame(() => {
-                    window.scrollTo({
-                        top: savedScrollY,
-                        behavior: 'auto'
-                    });
-
+                    const next = View.wordbankLayout;
+                    const targetY = anchorIndex !== null && next
+                        ? next.gridTop + Math.floor(anchorIndex / next.cols) * next.rowHeight +
+                            Math.min(rowOffset, next.rowHeight - 1)
+                        : savedScrollY;
+                    window.scrollTo({ top: targetY, behavior: 'instant' });
                     View.renderVirtualGrid();
                 });
             }, 140);

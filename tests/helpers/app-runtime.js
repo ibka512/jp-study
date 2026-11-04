@@ -67,7 +67,7 @@ function loadApp(storage = createStorage(), root = path.resolve(__dirname, '../.
         'core-utils.js', 'haptics.js', 'rote-learning-core.js',
         'vendor/ts-fsrs.umd.js', 'fsrs-scheduler.js', 'notification-planner.js', 'app.js'
     ]) run(file);
-    return { ...vm.runInContext('({ Model, Controller })', context), storage, events };
+    return { ...vm.runInContext('({ Model, Controller, View })', context), context, storage, events };
 }
 
 module.exports = { createStorage, loadApp };

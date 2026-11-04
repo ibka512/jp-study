@@ -132,12 +132,12 @@ assert.match(index, /<span class="nav-label">设置<\/span>/);
 assert.equal(
     (index.match(/class="kbd-hint home-shortcut-hint">[A-G]</g) || []).length,
     7,
-    '首页 A-G 快捷键提示应使用横屏专属样式'
+    '首页 A-G 快捷键提示应按输入设备显示'
 );
 assert.match(uiStyles, /\.home-shortcut-hint\s*\{\s*display:\s*none\s*!important/);
 assert.match(
     uiStyles,
-    /@media \(orientation:\s*landscape\)[\s\S]*?\.home-shortcut-hint\s*\{[\s\S]*?display:\s*inline-flex\s*!important/
+    /@media \(hover:\s*hover\) and \(pointer:\s*fine\)[\s\S]*?\.home-shortcut-hint\s*\{[\s\S]*?display:\s*inline-flex\s*!important/
 );
 assert.doesNotMatch(styles, /content:\s*["']済["']/);
 assert.match(styles, /@keyframes checkin-hold-shake/);

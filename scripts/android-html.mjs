@@ -30,7 +30,10 @@ export const adaptAndroidHtml = source => {
   let html = replaceOnce(source, FONT_LINK_TAGS[0], LOCAL_FONTS_TAG, '界面字体');
   html = replaceOnce(html, FONT_LINK_TAGS[1], '', '图标字体');
   html = replaceOnce(html, IDB_KEYVAL_REMOTE_TAG, IDB_KEYVAL_LOCAL_TAG, 'idb-keyval');
-  html = replaceOnce(html, VIEWPORT_REMOTE, VIEWPORT_NATIVE, '全屏视口');
+  // Web and native now share safe-area support; retain older HTML compatibility.
+  if (!html.includes(VIEWPORT_NATIVE)) {
+    html = replaceOnce(html, VIEWPORT_REMOTE, VIEWPORT_NATIVE, '全屏视口');
+  }
 
   const styles = [...html.matchAll(/<link\b[^>]*\bhref=(["'])(?:\.\/)?style\.css(?:\?[^"']*)?\1[^>]*>/g)];
   if (styles.length !== 1) {

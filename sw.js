@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v36';
+const CACHE_NAME = 'zhongri-shell-v37';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,7 @@ const LOCAL_ASSETS = [
   './vendor/material-symbols.css',
   './vendor/material-symbols-rounded.woff2',
   './style.css?v=design-v4',
-  './ui-system.css?v=design-v4',
+  './ui-system.css?v=uiux-v5',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -43,7 +43,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './index.html',
   './manifest.json',
   './style.css?v=design-v4',
-  './ui-system.css?v=design-v4',
+  './ui-system.css?v=uiux-v5',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
   './haptics.js?v=native-haptics-v1',

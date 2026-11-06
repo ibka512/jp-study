@@ -1672,6 +1672,17 @@ window.createStarParticles = (el) => {
 };
 
 // 新增：用于记录打开弹窗前最后操作的 DOM 元素
+const isMotionReduced = () =>
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    document.documentElement.dataset.input === 'keyboard';
+
+document.addEventListener('pointerdown', event => {
+    if (event.isTrusted) document.documentElement.dataset.input = 'pointer';
+}, { capture: true, passive: true });
+document.addEventListener('keydown', () => {
+    document.documentElement.dataset.input = 'keyboard';
+}, { capture: true });
+
 let previousFocusElement = null;
 
 const syncModalAccessibility = (overlay, isOpen) => {
@@ -4686,7 +4697,7 @@ const View = {
         'meta[name="theme-color"]'
     );
     if (themeColor) {
-        themeColor.content = isDark ? '#111820' : '#356f66';
+        themeColor.content = isDark ? '#111a16' : '#245c4f';
     }
   },
 
@@ -4704,23 +4715,13 @@ const View = {
 
         this.syncThemeUI();
     };
-    const reducedMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)'
-    ).matches;
-    if (!document.startViewTransition || reducedMotion) {
+    if (!document.startViewTransition || isMotionReduced()) {
         toggleAction();
         return;
     }
-    const x = e ? (e.clientX || (e.touches && e.touches[0].clientX)) : window.innerWidth / 2;
-    const y = e ? (e.clientY || (e.touches && e.touches[0].clientY)) : window.innerHeight / 2;
-    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
-    document.documentElement.classList.add('theme-switching');
     const transition = document.startViewTransition(toggleAction);
-    transition.ready.then(() => {
-        document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`], opacity: [0.5, 1] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-new(root)' });
-        document.documentElement.animate({ filter: ['brightness(1) blur(0px)', 'brightness(0.6) blur(4px)'] }, { duration: 400, easing: 'cubic-bezier(0.2, 0.0, 0, 1.0)', pseudoElement: '::view-transition-old(root)' });
-    });
-    transition.finished.then(() => { document.documentElement.classList.remove('theme-switching'); });
+    transition.finished.catch(() => {});
+
   },
   
       renderRoots(rootsStr, maskText = false, maskMean = false) {
@@ -5935,7 +5936,7 @@ void card.offsetWidth;
         }
     };
 
-    if (anim !== 'none') {
+    if (anim !== 'none' && !isMotionReduced()) {
         Model.state.isAnimating = true;
 
         const exitClass = anim === 'next'
@@ -5969,8 +5970,8 @@ void card.offsetWidth;
             window.setTimeout(() => {
                 card.classList.remove(enterClass);
                 Model.state.isAnimating = false;
-            }, 330);
-        }, 180);
+            }, 140);
+        }, 100);
     } else {
         this.updateCardContent(
             w,
@@ -12403,28 +12404,33 @@ deleteWord(idx) {
       // 切卡时自动收起详情卡 AI 面板
 let dtAiPanel = View.getEl('dt-ai-inline-panel');
 if (dtAiPanel) dtAiPanel.classList.add('hidden');
-      let wrapper = View.getEl('dt-anim-wrapper'); 
-      wrapper.className = 'detail-anim-wrapper'; 
-      void wrapper.offsetWidth; 
-      
-      if(anim !== 'none') { 
-          wrapper.classList.add(anim === 'next' ? 'anim-slide-out-left' : 'anim-slide-out-right'); 
-          setTimeout(() => { 
-              try {
-                  this.updateDetailContent(w, triggerTTS); 
-              } catch (err) {
-                  console.error('更新详情内容失败', err);
-                  wrapper.style.opacity = '1';
-                  wrapper.style.transform = 'none';
-              } finally {
-                  wrapper.className = 'detail-anim-wrapper'; 
-                  void wrapper.offsetWidth; 
-                  wrapper.classList.add(anim === 'next' ? 'anim-slide-in-right' : 'anim-slide-in-left'); 
-              }
-          }, 200); 
-      } else { 
-          this.updateDetailContent(w, triggerTTS); 
-      } 
+      const wrapper = View.getEl('dt-anim-wrapper');
+      const current = window.getComputedStyle(wrapper);
+      const start = { opacity: current.opacity, transform: current.transform };
+      this.detailCardAnimation?.cancel();
+      this.detailCardAnimation = null;
+      wrapper.className = 'detail-anim-wrapper';
+
+      if (anim !== 'none' && !isMotionReduced() && typeof wrapper.animate === 'function') {
+          const direction = anim === 'next' ? -1 : 1;
+          const options = { easing: 'cubic-bezier(0.23, 1, 0.32, 1)' };
+          const exit = wrapper.animate([
+              start,
+              { opacity: 0, transform: `translateX(${direction * 8}px)` }
+          ], { ...options, duration: 100 });
+          this.detailCardAnimation = exit;
+          exit.finished.then(() => {
+              this.updateDetailContent(w, triggerTTS);
+              this.detailCardAnimation = wrapper.animate([
+                  { opacity: 0, transform: `translateX(${-direction * 8}px)` },
+                  { opacity: 1, transform: 'translateX(0)' }
+              ], { ...options, duration: 140 });
+          }).catch(error => {
+              if (error.name !== 'AbortError') console.error('更新详情内容失败', error);
+          });
+      } else {
+          this.updateDetailContent(w, triggerTTS);
+      }
   },
 
       updateDetailContent(w, triggerTTS = false) {  
@@ -19167,228 +19173,65 @@ window.onload = () => {
 };
 
 
-/* ===== 第一轮统一动效（motion-v1） ===== */
+/* Navigation is interruptible; reading content is static once it arrives. */
 (() => {
-    if (window.__zhongriMotionV1) return;
-    window.__zhongriMotionV1 = true;
-
-    const nav = document.getElementById('bottom-nav');
-    const getNavItems = () =>
-        Array.from(document.querySelectorAll('#bottom-nav .nav-item'));
-
-    const syncNavIndicator = activeItem => {
-        if (!nav) return;
-        const items = getNavItems();
-        const item = activeItem || items.find(entry =>
-            entry.classList.contains('active')
-        );
-        if (!item) return;
-        const navRect = nav.getBoundingClientRect();
-        const itemRect = item.getBoundingClientRect();
-        const iconRect =
-            item.querySelector('.nav-icon')?.getBoundingClientRect();
-        const center =
-            itemRect.left - navRect.left + (itemRect.width / 2);
-        nav.style.setProperty(
-            '--nav-indicator-left',
-            `${center}px`
-        );
-        if (iconRect) {
-            const indicatorHeight = Number.parseFloat(
-                window.getComputedStyle(nav, '::before').height
-            ) || 36;
-            const top =
-                iconRect.top - navRect.top +
-                ((iconRect.height - indicatorHeight) / 2);
-            nav.style.setProperty(
-                '--nav-indicator-top',
-                `${top}px`
-            );
+    const originalSwitchTab = Nav.switchTab.bind(Nav);
+    let entrance = null;
+    Nav.switchTab = function(targetId, titleData, navItemEl) {
+        const previous = document.querySelector('.nav-item.active');
+        const target = document.getElementById(targetId);
+        const changed = previous?.dataset.target !== targetId;
+        if (entrance) {
+            entrance.cancel();
+            entrance = null;
         }
+        const result = originalSwitchTab(targetId, titleData, navItemEl);
+        if (changed && target && !isMotionReduced() && typeof target.animate === 'function') {
+            entrance = target.animate([
+                { opacity: 0, transform: 'translateY(6px)' },
+                { opacity: 1, transform: 'translateY(0)' }
+            ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+        }
+        return result;
     };
 
-    if (typeof Nav !== 'undefined' && Nav.switchTab) {
-        const originalSwitchTab = Nav.switchTab.bind(Nav);
-
-        Nav.switchTab = function(targetId, titleData, navItemEl) {
-            const items = getNavItems();
-            const oldItem = items.find(entry =>
-                entry.classList.contains('active')
-            );
-            const nextItem = navItemEl ||
-                items.find(entry => entry.dataset.target === targetId);
-            const oldIndex = items.indexOf(oldItem);
-            const nextIndex = items.indexOf(nextItem);
-            const target = document.getElementById(targetId);
-
-            if (target) {
-                target.classList.remove(
-                    'tab-enter-forward',
-                    'tab-enter-backward'
-                );
-
-                if (oldIndex >= 0 && nextIndex >= 0 && oldIndex !== nextIndex) {
-                    target.classList.add(
-                        nextIndex > oldIndex
-                            ? 'tab-enter-forward'
-                            : 'tab-enter-backward'
-                    );
-                }
-            }
-
-            const result = originalSwitchTab(
-                targetId,
-                titleData,
-                navItemEl
-            );
-
-            syncNavIndicator(nextItem);
-
-            if (target) {
-                window.setTimeout(() => {
-                    target.classList.remove(
-                        'tab-enter-forward',
-                        'tab-enter-backward'
-                    );
-                }, 360);
-            }
-
-            return result;
+    document.querySelectorAll('.home-progress-details').forEach(details => {
+        const summary = details.querySelector('summary');
+        const content = details.querySelector('.home-sub-progress-group');
+        if (!summary || !content) return;
+        let animation = null;
+        let targetOpen = details.open;
+        const clear = () => {
+            content.style.removeProperty('overflow');
+            animation = null;
         };
-    }
-
-    syncNavIndicator();
-
-    if (nav) {
-        new MutationObserver(() => {
-            syncNavIndicator();
-        }).observe(nav, {
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class']
-        });
-
-        if ('ResizeObserver' in window) {
-            new ResizeObserver(() => {
-                syncNavIndicator();
-            }).observe(nav);
-        } else {
-            window.addEventListener('resize', () => {
-                syncNavIndicator();
-            }, { passive: true });
-        }
-    }
-})();
-
-
-/* ===== 第二轮统一动效（motion-v2） ===== */
-(() => {
-    if (window.__zhongriMotionV2) return;
-    window.__zhongriMotionV2 = true;
-
-    const reducedMotion = window.matchMedia(
-        '(prefers-reduced-motion: reduce)'
-    );
-
-    const installProgressDetailsMotion = () => {
-        document
-            .querySelectorAll('.home-progress-details')
-            .forEach(details => {
-                if (details.dataset.motionReady === 'true') {
-                    return;
+        summary.addEventListener('click', event => {
+            if (isMotionReduced() || event.detail === 0 || typeof content.animate !== 'function') {
+                if (animation) {
+                    animation.onfinish = null;
+                    animation.cancel();
+                    clear();
                 }
-
-                const summary = details.querySelector('summary');
-                const content = details.querySelector(
-                    '.home-sub-progress-group'
-                );
-
-                if (!summary || !content) return;
-
-                details.dataset.motionReady = 'true';
-                let animation = null;
-
-                summary.addEventListener('click', event => {
-                    if (reducedMotion.matches) return;
-
-                    event.preventDefault();
-
-                    if (animation) {
-                        animation.cancel();
-                        animation = null;
-                    }
-
-                    const closing = details.open;
-
-                    if (!details.open) {
-                        details.open = true;
-                    }
-
-                    const startHeight = closing
-                        ? content.offsetHeight
-                        : 0;
-
-                    const endHeight = closing
-                        ? 0
-                        : content.scrollHeight;
-
-                    content.style.overflow = 'hidden';
-
-                    animation = content.animate(
-                        [
-                            {
-                                height: `${startHeight}px`,
-                                opacity: closing ? 1 : 0,
-                                transform: closing
-                                    ? 'translateY(0)'
-                                    : 'translateY(-4px)'
-                            },
-                            {
-                                height: `${endHeight}px`,
-                                opacity: closing ? 0 : 1,
-                                transform: closing
-                                    ? 'translateY(-4px)'
-                                    : 'translateY(0)'
-                            }
-                        ],
-                        {
-                            duration: closing ? 190 : 260,
-                            easing: closing
-                                ? 'cubic-bezier(0.4, 0, 1, 1)'
-                                : 'cubic-bezier(0.2, 0.8, 0.2, 1)'
-                        }
-                    );
-
-                    animation.onfinish = () => {
-                        if (closing) {
-                            details.open = false;
-                        }
-
-                        content.style.removeProperty('height');
-                        content.style.removeProperty('opacity');
-                        content.style.removeProperty('transform');
-                        content.style.removeProperty('overflow');
-                        animation = null;
-                    };
-
-                    animation.oncancel = () => {
-                        content.style.removeProperty('height');
-                        content.style.removeProperty('opacity');
-                        content.style.removeProperty('transform');
-                        content.style.removeProperty('overflow');
-                        animation = null;
-                    };
-                });
-            });
-    };
-
-    installProgressDetailsMotion();
-
-    /*
-     * 底部抽屉的结构可能由初始化过程补充，
-     * 因此在应用完成初始化后再做一次轻量检查。
-     */
-    window.addEventListener('load', () => {
-        installProgressDetailsMotion();
-    }, { once: true });
+                targetOpen = !details.open;
+                return;
+            }
+            event.preventDefault();
+            const startHeight = details.open ? content.getBoundingClientRect().height : 0;
+            targetOpen = !targetOpen;
+            if (animation) {
+                animation.onfinish = null;
+                animation.cancel();
+            }
+            details.open = true;
+            content.style.overflow = 'hidden';
+            animation = content.animate([
+                { height: startHeight + 'px', opacity: targetOpen ? 0.6 : 1 },
+                { height: (targetOpen ? content.scrollHeight : 0) + 'px', opacity: targetOpen ? 1 : 0 }
+            ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+            animation.onfinish = () => {
+                details.open = targetOpen;
+                clear();
+            };
+        });
+    });
 })();

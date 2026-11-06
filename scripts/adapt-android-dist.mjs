@@ -36,7 +36,7 @@ const localizeFonts = async () => {
   let fileCount = 0;
   const cssParts = [];
 
-  for (const tag of FONT_LINK_TAGS) {
+  for (const tag of FONT_LINK_TAGS.slice(0, 1)) {
     const stylesheetUrl = tag.match(/href="([^"]+)"/)[1];
     const cssText = await (await fetchChecked(stylesheetUrl)).text();
     const fontUrls = [

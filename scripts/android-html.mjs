@@ -28,7 +28,13 @@ const replaceOnce = (text, search, replacement, label) => {
 /** Adapt the current HTML before performing any external downloads. */
 export const adaptAndroidHtml = source => {
   let html = replaceOnce(source, FONT_LINK_TAGS[0], LOCAL_FONTS_TAG, '界面字体');
-  html = replaceOnce(html, FONT_LINK_TAGS[1], '', '图标字体');
+  // Icons are bundled for the website and already copied into the native bundle.
+  if (html.includes(FONT_LINK_TAGS[1])) {
+    html = html.replace(FONT_LINK_TAGS[1], '<link rel="stylesheet" href="vendor/material-symbols.css">');
+  }
+  if (!html.includes('href="vendor/material-symbols.css"')) {
+    throw new Error('缺少本地图标字体入口，无法安全生成 Android 资源');
+  }
   html = replaceOnce(html, IDB_KEYVAL_REMOTE_TAG, IDB_KEYVAL_LOCAL_TAG, 'idb-keyval');
   // Web and native now share safe-area support; retain older HTML compatibility.
   if (!html.includes(VIEWPORT_NATIVE)) {

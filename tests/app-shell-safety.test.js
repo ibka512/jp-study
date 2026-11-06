@@ -187,19 +187,6 @@ assert.match(
     uiStyles,
     /@media \(max-width:\s*760px\), \(pointer:\s*coarse\)[\s\S]*?backdrop-filter:\s*none\s*!important/
 );
-assert.match(app, /const center =[\s\S]*?itemRect\.left - navRect\.left/);
-assert.match(app, /--nav-indicator-top/);
-assert.match(uiStyles, /top:\s*var\(--nav-indicator-top,\s*7px\)/);
-assert.match(uiStyles, /\.settings-category-icon\s*\{[\s\S]*?width:\s*40px\s*!important/);
-assert.match(uiStyles, /\.bottom-nav\s*\{[\s\S]*?min-height:\s*62px\s*!important/);
-assert.match(
-    uiStyles,
-    /\.home-filter-card\.filter-test-btn-group,\s*\.home-mode-card\s*\{[\s\S]*?box-shadow:/
-);
-assert.match(
-    uiStyles,
-    /@media \(max-width:\s*600px\)[\s\S]*?\.home-mode-card\s*\{[\s\S]*?min-height:\s*70px\s*!important/
-);
 assert.match(app, /if \(didRender !== false\)\s*\{\s*decorateWordbankCards\(\)/);
 assert.match(index, /id="root-review-overlay"[\s\S]*?aria-hidden="true" inert/);
 assert.match(

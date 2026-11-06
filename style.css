@@ -6237,8 +6237,7 @@ button.ai-chat-quick-chip:active:not(:disabled) {
     box-shadow: none !important;
 }
 
-@media (max-width: 560px) {
-}
+
 
 @media (max-width: 420px) {
     .setting-choice-item,
@@ -10993,23 +10992,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
     isolation: isolate;
 }
 
-.bottom-nav::before {
-    content: "";
-    position: absolute;
-    z-index: 0;
-    top: 10px;
-    left: var(--nav-indicator-left);
-    width: 64px;
-    height: 34px;
-    border-radius: var(--radius-full);
-    background: var(--primary-container);
-    transform: translateX(-50%) translateZ(0);
-    transition:
-        left var(--motion-page) var(--motion-emphasized),
-        width var(--motion-component) var(--motion-standard),
-        background-color var(--motion-component) var(--motion-standard);
-    pointer-events: none;
-}
 
 .bottom-nav .nav-item {
     position: relative;
@@ -11035,9 +11017,6 @@ button.import-mode-btn.active > .material-symbols-rounded {
     transform: translateY(1px) scale(0.94) !important;
 }
 
-[data-theme="dark"] .bottom-nav::before {
-    background: rgba(214, 195, 176, 0.15);
-}
 
 /* 页面进入方向与底栏选择方向保持一致 */
 .tab-content.active.tab-enter-forward {
@@ -11112,19 +11091,9 @@ button.import-mode-btn.active > .material-symbols-rounded {
     }
 }
 
-@media (max-width: 600px) {
-    .bottom-nav::before {
-        top: 10px;
-        width: 58px;
-        height: 34px;
-    }
 
-}
 
 @media (prefers-reduced-motion: reduce) {
-    .bottom-nav::before {
-        transition: none !important;
-    }
 
     .tab-content.active.tab-enter-forward,
     .tab-content.active.tab-enter-backward {

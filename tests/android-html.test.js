@@ -15,6 +15,10 @@ test('实际首页适配为离线 Android 资源，并保留网页样式缓存�
     assert.match(html, /viewport-fit=cover/);
     assert.match(html, /src="vendor\/idb-keyval\.umd\.js"/);
     assert.match(html, /href="vendor\/fonts\/fonts\.css"/);
+    assert.match(html, /href="vendor\/material-symbols\.css"/);
+    const iconCss = fs.readFileSync('vendor/material-symbols.css', 'utf8');
+    const iconFile = iconCss.match(/url\('([^']+)'\)/)[1];
+    assert.equal(fs.readFileSync(`vendor/${iconFile}`).subarray(0, 4).toString(), 'wOF2');
     assert.doesNotMatch(html, /fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/idb-keyval/);
 });
 

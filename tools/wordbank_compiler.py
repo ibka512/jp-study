@@ -780,6 +780,57 @@ if (typeof module === 'object' && module.exports) {
     return "\n".join(lines)
 
 
+PROVENANCE_FIELDS = ("sourceName", "sourceVersion", "sourceLevels", "dataVersion")
+
+# 这些字段由 wordbanks/finalize.js 在收尾阶段补出来，逐条写进词库只是白占体积。
+NEUTRAL_DEFAULTS: dict[str, Any] = {"builtIn": True, "difficulty": 0}
+
+
+def is_neutral_field(key: str, value: Any) -> bool:
+    if key == "lang":
+        return isinstance(value, str) and bool(value)
+    if key == "tags":
+        return isinstance(value, list) and not value
+    return key in NEUTRAL_DEFAULTS and value == NEUTRAL_DEFAULTS[key]
+
+
+def slim_word_record(word: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in word.items()
+        if key not in PROVENANCE_FIELDS and not is_neutral_field(key, value)
+    }
+
+
+def render_provenance_header(chunk: list[dict[str, Any]], language: str, name: str) -> str:
+    lines: list[str] = []
+    for field in PROVENANCE_FIELDS:
+        values = {
+            json.dumps(word[field], ensure_ascii=False)
+            for word in chunk
+            if word.get(field) is not None
+        }
+        if len(values) != 1:
+            continue
+        lines.append(f" *   {field}: {next(iter(values))}")
+
+    if not lines:
+        return ""
+
+    title = "日语" if language == "ja" else "英语"
+    body = "\n".join(
+        [
+            "/**",
+            f" * 钟日 - {title}词库分片 {name}",
+            " *",
+            " * 以下来源信息全库一致，已从每条词条中提取；运行时不需要这些字段。",
+            *lines,
+            " */",
+        ]
+    )
+    return f"{body}\n\n"
+
+
 def write_wordbank_assets(repo: Path, ja_words: list[dict[str, Any]], en_words: list[dict[str, Any]]) -> None:
     directory = repo / "wordbanks"
     directory.mkdir(exist_ok=True)
@@ -793,8 +844,12 @@ def write_wordbank_assets(repo: Path, ja_words: list[dict[str, Any]], en_words: 
     ):
         for index, chunk in enumerate(split_word_chunks(words), 1):
             name = f"{language}-{index:03d}.js"
-            payload = json.dumps(chunk, ensure_ascii=False, separators=(",", ":"))
-            (directory / name).write_text(f"{variable}.push(...{payload});\n", encoding="utf-8")
+            slim = [slim_word_record(word) for word in chunk]
+            payload = json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
+            header = render_provenance_header(chunk, language, name[: -len(".js")])
+            (directory / name).write_text(
+                f"{header}{variable}.push(...{payload});\n", encoding="utf-8"
+            )
             assets.append(f"wordbanks/{name}")
     (directory / "finalize.js").write_text(render_finalize(), encoding="utf-8")
     assets.append("wordbanks/finalize.js")

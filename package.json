@@ -6,6 +6,8 @@
   "scripts": {
     "test": "npm run test:js",
     "test:js": "node --test --test-concurrency=1 tests/*.test.js",
+    "icons:build": "node scripts/build-icon-font.mjs",
+    "wordbanks:slim": "node scripts/slim-wordbanks.mjs",
     "build:web": "node scripts/build-capacitor-web.mjs && node scripts/adapt-android-dist.mjs",
     "android:prepare": "npm run build:web && npx cap add android && npx cap sync android",
     "android:debug": "npm run android:prepare && cd android && ./gradlew assembleDebug"

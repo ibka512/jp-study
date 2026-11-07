@@ -36,6 +36,8 @@ export const adaptAndroidHtml = source => {
     throw new Error('缺少本地图标字体入口，无法安全生成 Android 资源');
   }
   html = replaceOnce(html, IDB_KEYVAL_REMOTE_TAG, IDB_KEYVAL_LOCAL_TAG, 'idb-keyval');
+  // 网页端用 preconnect 抢跑跨域握手；离线包不发这些请求，直接去掉。
+  html = html.replace(/[ \t]*<link\b[^>]*\brel=["']preconnect["'][^>]*>\s*\n?/g, '');
   // Web and native now share safe-area support; retain older HTML compatibility.
   if (!html.includes(VIEWPORT_NATIVE)) {
     html = replaceOnce(html, VIEWPORT_REMOTE, VIEWPORT_NATIVE, '全屏视口');

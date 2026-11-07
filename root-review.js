@@ -229,15 +229,53 @@
     vibrate(30);
   }
 
-  function open() {
+  /*
+   * 审核报告接近 900 KB（gzip 后仍有 185 KB），只为填充设置页的两个统计数字
+   * 就在启动时拉取并不划算。改为首次打开审核面板时再加载。
+   */
+  let reportLoad = null;
+
+  function ensureReport() {
+    if (state.report) return Promise.resolve(true);
+    if (!reportLoad) {
+      reportLoad = loadReport()
+        .then(() => true)
+        .catch(() => {
+          reportLoad = null;
+          state.items = [];
+          updateEntrySummary();
+          return false;
+        });
+    }
+    return reportLoad;
+  }
+
+  function selectFirstPending() {
     state.index = state.items.findIndex(item => !state.decisions[item.id]);
     if (state.index < 0) state.index = state.items.length;
-    $('root-review-overlay').classList.add('active');
-    $('root-review-overlay').removeAttribute('inert');
-    $('root-review-overlay').setAttribute('aria-hidden', 'false');
+  }
+
+  function open() {
+    const overlay = $('root-review-overlay');
+    overlay.classList.add('active');
+    overlay.removeAttribute('inert');
+    overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    render();
     vibrate(18);
+
+    if (state.report) {
+      selectFirstPending();
+      render();
+      return;
+    }
+
+    $('root-review-loading').hidden = false;
+    $('root-review-card').hidden = true;
+    $('root-review-actions').hidden = true;
+    ensureReport().then(() => {
+      selectFirstPending();
+      render();
+    });
   }
 
   function close() {
@@ -282,14 +320,8 @@
     });
   }
 
-  async function init() {
+  function init() {
     bind();
-    try {
-      await loadReport();
-    } catch (_error) {
-      state.items = [];
-      updateEntrySummary();
-    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

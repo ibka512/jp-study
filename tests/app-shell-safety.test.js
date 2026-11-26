@@ -21,14 +21,14 @@ assert.match(
 assert.match(index, /updateViaCache:\s*['"]none['"]/);
 assert.match(index, /registration\.update\(\)/);
 assert.match(index, /zhongri-update-ready/);
-assert.doesNotMatch(index, /mathjax@3\/es5\/tex-mml-chtml\.js/);
-assert.doesNotMatch(app, /mathjax@3\/es5\/tex-mml-chtml\.js/);
-assert.match(app, /mathjax@3\.2\.2\/es5\/tex-mml-chtml\.js/);
-assert.match(app, /const MATHJAX_INTEGRITY =\s*'sha384-[A-Za-z0-9+/=]+'/);
-assert.match(app, /const loadMathJax = \(\) =>/);
-assert.match(app, /script\.integrity = MATHJAX_INTEGRITY/);
-assert.match(app, /script\.crossOrigin = 'anonymous'/);
-assert.match(app, /document\.head\.appendChild\(script\)/);
+
+// 前端 AI 与 MathJax 已彻底移除
+assert.doesNotMatch(index, /mathjax/i);
+assert.doesNotMatch(app, /mathjax/i);
+assert.doesNotMatch(serviceWorker, /mathjax/i);
+assert.doesNotMatch(index, /tab-ai-history|ai-sheet-overlay|ai-preset-overlay|ai-quiz-overlay|ai-word-collector-overlay|setting-ai-key/);
+assert.doesNotMatch(app, /openAISheet|renderAIHistory|readDeepSeekTextStream|deepseekApiKey|AI_CHAT_PRESETS|_startAIQuiz/);
+
 assert.match(app, /HAPTICS\.install\(\)/);
 assert.match(app, /'diagnostic',[\s\S]*\{ force: true \}/);
 assert.match(app, /Hardware\.playSound\('click', \{ haptic: false \}\)/);
@@ -37,39 +37,11 @@ assert.match(index, /data-haptic="none"/);
 assert.match(index, /id="settings-app-version"/);
 assert.match(index, /id="settings-app-published"/);
 assert.match(index, /wordbank-loader\.js/);
-assert.match(index, /setting-item-vertical ai-key-setting/);
-assert.match(
-    index,
-    /AI 引擎（DeepSeek）[\s\S]*?setting-key-wrapper/
-);
 assert.match(
     index,
     /智能跳过已亮维度[\s\S]*?<div class="setting-item"/
 );
-assert.match(index, /ai-capability-list/);
-assert.doesNotMatch(index, /ai-capability-panel/);
-assert.match(
-    styles,
-    /\.settings-key-wrapper\s*\{\s*width:\s*100%/
-);
-assert.match(
-    fs.readFileSync('style.css', 'utf8'),
-    /\.ai-key-setting\s*\{[\s\S]*?flex-direction:\s*column\s*!important/
-);
-assert.doesNotMatch(serviceWorker, /mathjax@3\/es5\/tex-mml-chtml\.js/);
-assert.equal(
-    (app.match(/Controller\.renderAIHistory\s*=\s*function/g) || []).length,
-    1,
-    'AI 历史记录应只保留增强后的渲染实现'
-);
-assert.doesNotMatch(app, /async callDeepSeekStream\s*\(/);
-assert.doesNotMatch(app, /openAIHistoryDetail\s*\(/);
-assert.doesNotMatch(index, /ai-history-detail-(?:overlay|title|copy|close|messages)/);
-assert.equal(
-    (app.match(/\blet messagesToSend\s*=/g) || []).length,
-    2,
-    '只应在两个实际发起请求的流式方法中组装消息'
-);
+
 assert.match(serviceWorker, /request\.mode === ['"]navigate['"]/);
 assert.match(serviceWorker, /NETWORK_FIRST_ASSETS/);
 assert.match(serviceWorker, /staleWhileRevalidate/);
@@ -89,7 +61,6 @@ assert.match(uiStyles, /--font-title:/);
 assert.match(uiStyles, /--font-body:/);
 assert.match(uiStyles, /--font-number:/);
 assert.match(uiStyles, /--secondary:\s*#345f8c/);
-assert.match(uiStyles, /--tertiary:\s*#675585/);
 assert.match(uiStyles, /prefers-reduced-motion:\s*reduce/);
 assert.match(
     uiStyles,
@@ -107,18 +78,13 @@ assert.match(app, /<button type="button" class="wb-c-speaker btn-wb-speak/);
 assert.match(index, /<button type="button" class="nav-item active"/);
 assert.equal(
     (index.match(/class="nav-item(?: active)?"/g) || []).length,
-    4,
-    '非学习界面必须常驻四个底部导航入口'
+    3,
+    '非学习界面应常驻三个主导航入口（学习、词库、设置）'
 );
 assert.doesNotMatch(index, /id="prompt-visibility"/);
 assert.doesNotMatch(app, /prompt-visibility/);
 assert.doesNotMatch(styles, /prompt-visibility-btn/);
 assert.doesNotMatch(index, /分阶段重复强化记忆|连续三轮检验掌握程度|自由翻看，不记录答题结果|正反方向交替检验记忆|先找出已认识的词/);
-assert.doesNotMatch(index, /class="home-study-eyebrow"[\s\S]*?>开始学习</);
-assert.doesNotMatch(
-    index,
-    /class="home-section-label"[\s\S]*?>(?:[\s\S]*?学习前筛选|[\s\S]*?选择学习方式)/
-);
 assert.match(
     index,
     /id="btn-start-filter-test"[\s\S]*?material-symbols-rounded">content_cut</
@@ -127,7 +93,6 @@ assert.match(index, /<strong>往复检验<\/strong>/);
 assert.doesNotMatch(index, /道場|語彙|対話|設定|環境設定|全景語彙|AI対話|道场/);
 assert.match(index, /<span class="nav-label">学习<\/span>/);
 assert.match(index, /<span class="nav-label">词库<\/span>/);
-assert.match(index, /<span class="nav-label">对话<\/span>/);
 assert.match(index, /<span class="nav-label">设置<\/span>/);
 assert.equal(
     (index.match(/class="kbd-hint home-shortcut-hint">[A-G]</g) || []).length,
@@ -151,12 +116,7 @@ assert.match(
 assert.match(
     styles,
     /button:not\(\.glass-icon-btn\):not\(\.speaker-icon\):not\(\.star-btn\)/,
-    '全局全宽按钮规则不能覆盖答题卡的图标按钮'
-);
-assert.match(
-    uiStyles,
-    /button:not\(\.glass-icon-btn\):not\(\.speaker-icon\):not\(\.star-btn\)/,
-    'UI 系统的通用按钮皮肤不能覆盖答题卡的图标按钮'
+    '全局按钮规则不能覆盖答题卡的图标按钮'
 );
 assert.doesNotMatch(
     styles,
@@ -168,7 +128,7 @@ assert.doesNotMatch(
 );
 assert.equal(
     (app.match(/Controller\.registerInitExtension\(/g) || []).length,
-    3,
+    2,
     '附加功能应通过初始化扩展注册，不能反复覆盖 Controller.init'
 );
 assert.doesNotMatch(app, /Controller\.init\s*=\s*async function/);
@@ -224,12 +184,6 @@ assert.match(app, /folderNameElement\.textContent = folderName/);
 assert.doesNotMatch(
     app,
     /<span class="folder-name">\$\{folderName\}<\/span>/
-);
-assert.match(app, /const readDeepSeekTextStream = async \(response, onText\) =>/);
-assert.equal(
-    (app.match(/response\.body\.getReader\(\)/g) || []).length,
-    1,
-    'AI 流式响应必须统一经过带跨分块缓冲的解析器'
 );
 assert.match(index, /id="action-toast"[\s\S]*?aria-hidden="true" inert/);
 assert.match(app, /const setActionToastAccessibility = \(toast, actionBtn, isOpen\) =>/);

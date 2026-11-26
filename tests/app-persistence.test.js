@@ -53,9 +53,9 @@ test('降级写入在重启和主存储恢复后仍为最新值，并可继续�
     assert.equal(storage.idb.get('studyRecords')[0].revision, 3);
 });
 
-test('各类保存与 AI 对话共用失败降级规则，旧 localStorage 数据继续可读', async () => {
+test('各类保存共用失败降级规则，旧 localStorage 数据继续可读', async () => {
     const storage = createStorage();
-    const { Model, Controller } = loadApp(storage);
+    const { Model } = loadApp(storage);
     storage.local.set('legacy', JSON.stringify({ retained: true }));
     assert.equal((await Model.readStorageValue('legacy')).retained, true);
     Model.folders = ['回归词库'];
@@ -63,11 +63,10 @@ test('各类保存与 AI 对话共用失败降级规则，旧 localStorage 数�
     Model.stars = ['user-1'];
     Model.records = [{ type: 'daily_punch', date: '2026/11/3' }];
     Model.mtWordClears = { 'user-1': { meaning: true } };
-    Model.aiConversations = [{ messages: [{ role: 'user', content: 'hello' }] }];
     storage.failWrites = true;
     await Promise.all([
         Model.saveFolders(), Model.saveFolderLangs(), Model.saveStars(),
-        Model.saveRecords(), Model.saveClears(), Controller._persistConversations()
+        Model.saveRecords(), Model.saveClears()
     ]);
     const fresh = loadApp(storage).Model;
     assert.equal((await fresh.readStorageValue('myFolders_v3'))[0], '回归词库');
@@ -75,7 +74,6 @@ test('各类保存与 AI 对话共用失败降级规则，旧 localStorage 数�
     assert.equal((await fresh.readStorageValue('starredWords'))[0], 'user-1');
     assert.equal((await fresh.readStorageValue('studyRecords'))[0].type, 'daily_punch');
     assert.equal((await fresh.readStorageValue('mtWordClears_v3'))['user-1'].meaning, true);
-    assert.equal((await fresh.readStorageValue('aiConversations'))[0].messages[0].content, 'hello');
 });
 
 test('初始化探测失败的会话写入，在下次正常启动读取时仍保留', async () => {

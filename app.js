@@ -4553,8 +4553,9 @@ const View = {
 
       this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
       exampleEl.className = 'dt-example-box';
-      exampleEl.style.display = vm.showExample ? 'block' : 'none';
-      exampleEl.toggleAttribute('aria-hidden', !vm.showExample);
+      const hasExampleContent = Boolean(exampleEl.innerHTML.trim());
+      exampleEl.style.display = (vm.showExample && hasExampleContent) ? '' : 'none';
+      exampleEl.toggleAttribute('aria-hidden', !(vm.showExample && hasExampleContent));
 
       ['word', 'kana', 'type', 'meaning'].forEach(k => {
           const el = this.getEl(`w-${k}`);
@@ -6255,6 +6256,7 @@ void card.offsetWidth;
     }
 
     exBox.innerHTML = htmlStr;
+    exBox.style.display = '';
   },
 
 
@@ -12738,6 +12740,18 @@ deleteWord(idx) {
         Controller.renderRecycleBin();
     };
 
+    const splitNormalizedExamples = (exampleStr) => {
+        let str = String(exampleStr || '').trim();
+        if (!str) return [];
+        if (str.includes('||') && !str.includes('/')) {
+            str = str.replace(/\|\|/g, '/');
+        }
+        return str
+            .split('||')
+            .map(example => example.trim())
+            .filter(Boolean);
+    };
+
     Controller.restoreTrashItem = async function(itemId, silent = false) {
         const index = Model.recycleBin.findIndex(item => item.id === itemId);
 
@@ -12749,6 +12763,7 @@ deleteWord(idx) {
         }
 
         const item = Model.recycleBin[index];
+        let restoredExampleWord = null;
 
         if (item.kind === 'word') {
             const snapshot = item.payload;
@@ -12824,16 +12839,14 @@ deleteWord(idx) {
                 });
 
             if (word) {
-                const examples = String(word.example || '')
-                    .split('||')
-                    .map(example => example.trim())
-                    .filter(Boolean);
+                const examples = splitNormalizedExamples(word.example);
                 const targetIndex = Math.min(
                     Math.max(Number(payload.originalIndex) || 0, 0),
                     examples.length
                 );
                 examples.splice(targetIndex, 0, payload.example);
                 word.example = examples.join(' || ');
+                restoredExampleWord = word;
             }
         }
 
@@ -12843,6 +12856,23 @@ deleteWord(idx) {
         View.resetWordbankRenderer();
         this.renderRecycleBin();
         updateSettingsStats();
+
+        if (restoredExampleWord) {
+            const detailOverlay = document.getElementById('detail-overlay');
+            if (detailOverlay?.classList.contains('active')) {
+                const activeRealIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+                const activeDetailWord = Model.db[activeRealIdx];
+                if (
+                    activeDetailWord &&
+                    (
+                        activeDetailWord === restoredExampleWord ||
+                        activeDetailWord._id === restoredExampleWord._id
+                    )
+                ) {
+                    this.updateDetailContent(activeDetailWord, false);
+                }
+            }
+        }
 
         if (!silent) {
             showToast('已恢复');
@@ -12937,10 +12967,7 @@ deleteWord(idx) {
             return;
         }
 
-        const examples = String(word.example || '')
-            .split('||')
-            .map(example => example.trim())
-            .filter(Boolean);
+        const examples = splitNormalizedExamples(word.example);
         const example = examples[exampleIndex];
 
         if (!example) {
@@ -12960,9 +12987,13 @@ deleteWord(idx) {
             },
             `${word.word} 的例句`
         );
-        await Model.saveDB();
+        await Promise.all([
+            Model.saveDB(),
+            Model.saveRecycleBin()
+        ]);
         this.updateDetailContent(word, false);
         this.renderRecycleBin();
+        updateSettingsStats();
         showActionToast(
             '已删除一条例句',
             '撤销',

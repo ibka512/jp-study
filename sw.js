@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v48';
+const CACHE_NAME = 'zhongri-shell-v49';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -10,8 +10,10 @@ const LOCAL_ASSETS = [
   './manifest.json',
   './vendor/material-symbols-rounded.woff2',
   './vendor/material-symbols.css',
-  './ui-system.css?v=modern-v9',
-  './style.css?v=modern-v10',
+  './vendor/lxgw-wenkai.css',
+  './vendor/lxgw-wenkai-subset.woff2',
+  './ui-system.css?v=modern-v10',
+  './style.css?v=modern-v11',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -49,8 +51,9 @@ const NETWORK_FIRST_ASSETS = new Set([
   './manifest.json',
   './vendor/material-symbols-rounded.woff2',
   './vendor/material-symbols.css',
-  './ui-system.css?v=modern-v9',
-  './style.css?v=modern-v10',
+  './vendor/lxgw-wenkai.css',
+  './ui-system.css?v=modern-v10',
+  './style.css?v=modern-v11',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',

@@ -9,6 +9,7 @@
     "sync:assets": "node scripts/sync-shell-assets.mjs",
     "check:assets": "node scripts/sync-shell-assets.mjs --check",
     "icons:build": "node scripts/build-icon-font.mjs",
+    "fonts:zh:build": "node scripts/build-chinese-font.mjs",
     "wordbanks:slim": "node scripts/slim-wordbanks.mjs",
     "build:web": "node scripts/build-capacitor-web.mjs && node scripts/adapt-android-dist.mjs",
     "android:prepare": "npm run build:web && npx cap add android && npx cap sync android",

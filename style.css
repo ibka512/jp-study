@@ -119,9 +119,10 @@ body[data-theme="dark"] .global-header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 1.04rem;
-  font-weight: 800;
-  letter-spacing: -0.015em;
+  font-family: var(--font-title);
+  font-size: 1.08rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: var(--on-surface);
 }
 
@@ -199,10 +200,11 @@ body[data-theme="dark"] .global-header {
 }
 
 .page-heading h1 {
-  font-size: clamp(1.45rem, 2.8vw, 1.8rem);
-  font-weight: 800;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
+  font-family: var(--font-title);
+  font-size: clamp(1.5rem, 2.8vw, 1.88rem);
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  line-height: 1.24;
   color: var(--on-surface);
 }
 
@@ -1441,8 +1443,10 @@ body[data-theme="dark"] .home-mode-featured .kbd-hint {
 .wb-c-mean {
   margin-top: 7px;
   width: 100%;
-  font-size: 0.8rem;
-  line-height: 1.38;
+  font-family: var(--font-zh-editorial);
+  font-size: 0.84rem;
+  line-height: 1.44;
+  line-break: strict;
   color: var(--on-surface-variant);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1926,9 +1930,10 @@ body[data-theme="dark"] .study-header {
 .root-capsule.capsule-2 { background: var(--accent-green-soft); color: var(--accent-green); border-color: transparent; }
 
 .root-capsule .r-mean {
+  font-family: var(--font-zh-editorial);
   font-weight: 500;
-  opacity: 0.85;
-  font-size: 0.76rem;
+  opacity: 0.88;
+  font-size: 0.78rem;
 }
 
 .root-plus {
@@ -1938,10 +1943,12 @@ body[data-theme="dark"] .study-header {
 
 .meaning-row {
   margin-top: 4px;
-  font-size: clamp(1.1rem, 3vw, 1.32rem);
-  font-weight: 700;
+  font-family: var(--font-zh-editorial);
+  font-size: clamp(1.16rem, 3.2vw, 1.38rem);
+  font-weight: 600;
   color: var(--on-surface);
-  line-height: 1.45;
+  line-height: 1.5;
+  line-break: strict;
   max-width: 540px;
 }
 
@@ -2075,14 +2082,17 @@ body[data-theme="dark"] .study-header {
 }
 
 .dt-ex-cn {
-  font-size: 0.84rem;
+  font-family: var(--font-zh-editorial);
+  font-size: 0.88rem;
   color: var(--on-surface-variant);
   padding-left: 27px;
-  line-height: 1.45;
+  line-height: 1.52;
+  line-break: strict;
   transition: transform var(--dur-med) ease, opacity var(--dur-med) ease;
 }
 
 .dt-ex-cn.hidden-translation {
+  font-family: var(--font-ui);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -2179,6 +2189,12 @@ body[data-theme="dark"] .study-header {
   background: var(--accent-green);
   color: var(--on-accent-green);
   border-color: transparent;
+}
+
+.dt-choice-btn .choice-text {
+  font-family: var(--font-zh-editorial);
+  font-size: 0.96rem;
+  line-height: 1.42;
 }
 
 .dt-choice-btn.wrong {
@@ -3956,8 +3972,10 @@ body[data-theme="dark"] .modal-overlay {
 .bottom-sheet h3,
 .sheet-center-title {
   text-align: center;
-  font-size: 1rem;
-  font-weight: 800;
+  font-family: var(--font-title);
+  font-size: 1.04rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   padding: 0 36px 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--divider);
@@ -4558,9 +4576,12 @@ body[data-theme="dark"] .edit-actions {
 }
 
 .dt-mean {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-family: var(--font-zh-editorial);
+  font-size: 1.2rem;
+  font-weight: 600;
   color: var(--on-surface);
+  line-height: 1.5;
+  line-break: strict;
   margin-top: 4px;
 }
 
@@ -4740,7 +4761,12 @@ body[data-theme="dark"] .edit-actions {
   font-weight: 800;
 }
 
-.root-review-meaning { color: var(--on-surface-variant); font-size: 0.98rem; }
+.root-review-meaning {
+  font-family: var(--font-zh-editorial);
+  color: var(--on-surface-variant);
+  font-size: 1.02rem;
+  line-height: 1.5;
+}
 
 .root-review-suggestion-label {
   display: flex;
@@ -5194,11 +5220,13 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
   .rail-brand span {
     display: flex;
     flex-direction: column;
-    font-size: 1rem;
-    font-weight: 800;
-    line-height: 1.2;
+    font-family: var(--font-title);
+    font-size: 1.06rem;
+    font-weight: 700;
+    line-height: 1.22;
   }
   .rail-brand small {
+    font-family: var(--font-ui);
     font-size: 0.72rem;
     font-weight: 600;
     color: var(--text-muted);

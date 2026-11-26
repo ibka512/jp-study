@@ -41,10 +41,19 @@ for (const asset of uniqueLocalResources) {
   if (!localAssets.includes(asset)) {
     localAssets.push(asset);
   }
+  if (asset === './vendor/lxgw-wenkai.css' && !localAssets.includes('./vendor/lxgw-wenkai-subset.woff2')) {
+    localAssets.push('./vendor/lxgw-wenkai-subset.woff2');
+  }
 }
 
-// Network-first assets exclude static images and data.js/english-data.js stubs, keeping dynamic shell code fresh
-const STATIC_CACHE_FIRST_SKIP = new Set(['./', './logo.png', './data.js', './english-data.js']);
+// Network-first assets exclude static images, large immutable font binaries, and stub data files
+const STATIC_CACHE_FIRST_SKIP = new Set([
+  './',
+  './logo.png',
+  './vendor/lxgw-wenkai-subset.woff2',
+  './data.js',
+  './english-data.js'
+]);
 const networkFirstAssets = localAssets.filter(asset => !STATIC_CACHE_FIRST_SKIP.has(asset));
 
 const formatLocalBlock = () => {

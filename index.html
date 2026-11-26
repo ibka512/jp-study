@@ -74,8 +74,8 @@
 <link rel="preload" href="vendor/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/material-symbols.css">
-<link rel="stylesheet" href="ui-system.css?v=modern-v7">
-<link rel="stylesheet" href="style.css?v=modern-v7">
+<link rel="stylesheet" href="ui-system.css?v=modern-v8">
+<link rel="stylesheet" href="style.css?v=modern-v8">
 </head>
 <body>
 
@@ -286,7 +286,7 @@
                   长按打卡
                 </span>
               </button>
-              <small>按住 1.5 秒记录今日学习，桌面端可长按空格</small>
+              <small>按住 1.5 秒记录今日学习<span class="desktop-only-copy">，桌面端可长按空格</span></small>
             </div>
           </section>
         </div>
@@ -1003,8 +1003,8 @@
 <div id="bs-overlay" class="modal-overlay">
   <div class="bottom-sheet">
     <div class="bs-handle"></div>
+    <h3 id="bs-title">请选择</h3>
     <div class="bs-scrollable-content">
-      <h3 id="bs-title">请选择</h3>
       <div id="bs-options" class="bs-options"></div>
     </div>
   </div>
@@ -1021,8 +1021,8 @@
 <div id="view-settings-overlay" class="modal-overlay">
   <div class="bottom-sheet">
     <div class="bs-handle"></div>
+    <h3 class="sheet-center-title">视图与排版设置</h3>
     <div class="bs-scrollable-content">
-      <h3 class="sheet-center-title">视图与排版设置</h3>
       <div class="vs-section-label">偏好列数</div>
       <p id="wb-actual-columns" class="ui-context" aria-live="polite"></p>
       <div class="flex-row vs-col-row">
@@ -1214,7 +1214,7 @@
       </button>
       <button id="root-review-accept" type="button" class="root-review-decision-btn accept-choice">
         <span class="material-symbols-rounded">check_circle</span>
-        <span><strong>接受拆分</strong><small>对理解有帮助</small></span>
+        <span><strong>接受拆分</strong><small>有助理解</small></span>
       </button>
       <button id="root-review-next" type="button" class="root-review-nav-btn" aria-label="下一个词">
         <span class="material-symbols-rounded">arrow_forward</span>
@@ -1277,7 +1277,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v5"></script>
+<script src="app.js?v=modern-v6"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

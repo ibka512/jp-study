@@ -2287,10 +2287,30 @@ body[data-theme="dark"] .study-header {
 }
 
 .qwerty-key-confirm {
+  flex: 1 1 auto;
+  min-width: 148px;
+  max-width: 240px;
+  padding: 0 22px;
+  gap: 6px;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
   background: var(--primary);
   border-color: transparent;
   color: var(--on-primary);
   box-shadow: 0 2px 0 var(--primary-lip);
+}
+
+.qwerty-key-confirm .kbd-hint {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--on-primary);
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .qwerty-key-confirm .kbd-hint {
+  background: rgba(13, 25, 36, 0.22);
+  border-color: rgba(13, 25, 36, 0.32);
 }
 
 .qwerty-key-confirm:hover {
@@ -3028,14 +3048,25 @@ body[data-theme="dark"] .en-book .book-language-mark {
 }
 
 .settings-note-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 14px 16px 14px 18px;
   border-radius: var(--radius-md);
   background: var(--surface-container);
   border: 1px solid var(--outline);
-  border-left: 3px solid var(--primary);
+}
+
+.settings-note-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3.5px;
+  background: var(--primary);
 }
 
 .settings-note-card .material-symbols-rounded {
@@ -3732,16 +3763,39 @@ body[data-theme="dark"] .native-reminder-mini-toggle input:checked + .native-min
 
 .data-action-copy { flex: 1; min-width: 180px; }
 
+@media (max-width: 480px) {
+  .data-action-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .data-action-row .data-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .danger-zone {
+  position: relative;
+  overflow: hidden;
   margin-top: 14px;
-  padding: 14px 16px;
+  padding: 14px 16px 14px 18px;
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
   border: 1px solid rgba(200, 62, 50, 0.22);
-  border-left: 3px solid var(--accent-red);
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.danger-zone::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3.5px;
+  background: var(--accent-red);
 }
 
 .danger-zone #btn-reset {
@@ -3892,6 +3946,7 @@ body[data-theme="dark"] .modal-overlay {
   scrollbar-width: thin;
   flex: 1;
   min-height: 0;
+  padding-right: 4px;
 }
 
 .bottom-sheet h3,
@@ -3922,6 +3977,12 @@ body[data-theme="dark"] .modal-overlay {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .bs-option-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .bs-option {
@@ -4981,9 +5042,10 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
   }
 }
 
-/* Hide redundant mobile Wordbank H1 when global mobile header already shows "我的词库" */
+/* Hide redundant mobile Wordbank & Settings home H1 when global mobile header already shows the title */
 @media (max-width: 599px), (max-width: 999px) and (min-height: 561px) {
-  #tab-wordbank > .page-heading {
+  #tab-wordbank > .page-heading,
+  #settings-home > .page-heading {
     display: none;
   }
 }

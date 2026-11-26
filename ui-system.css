@@ -513,7 +513,8 @@ select:focus {
 }
 
 @media (hover: none), (pointer: coarse), (max-width: 767px) {
-  .kbd-hint {
+  .kbd-hint,
+  .desktop-only-copy {
     display: none !important;
   }
 }

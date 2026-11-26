@@ -7014,7 +7014,7 @@ void card.offsetWidth;
               let btn = document.createElement('div'); btn.className = 'qwerty-key';
               if (key === 'Kana') { btn.innerText = 'あ/ア'; btn.classList.add('qwerty-key-wide'); }
               else if (key === 'Backspace') { btn.innerHTML = '<span class="material-symbols-rounded">backspace</span>'; btn.classList.add('qwerty-key-wide'); }
-              else if (key === 'Enter') { btn.innerText = '確認 (Enter)'; btn.className = 'qwerty-key qwerty-key-confirm'; }
+              else if (key === 'Enter') { btn.innerHTML = '<span>确认</span><span class="kbd-hint">Enter</span>'; btn.className = 'qwerty-key qwerty-key-confirm'; }
               else btn.innerText = key;
               
               btn.setAttribute('tabindex', '0');
@@ -8333,8 +8333,16 @@ if (testVibrateBtn) {
         'click',
         () => this.toggleBatchMode(false)
     );
-    View.getEl('btn-new-folder').addEventListener('click', () => this.createFolder()); 
-    View.getEl('btn-del-folder').addEventListener('click', () => this.deleteFolder());
+    View.getEl('btn-new-folder').addEventListener('click', event => {
+        const menu = event.currentTarget.closest('details');
+        if (menu) menu.open = false;
+        this.createFolder();
+    });
+    View.getEl('btn-del-folder').addEventListener('click', event => {
+        const menu = event.currentTarget.closest('details');
+        if (menu) menu.open = false;
+        this.deleteFolder();
+    });
     View.getEl('btn-batch-move').addEventListener(
         'click',
         () => {
@@ -11047,11 +11055,11 @@ deleteWord(idx) {
 
       if (lang === 'en') {
           if (formatText) formatText.textContent = '单词,音标,词性,释义,例句,词根';
-          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用上方批次设置，例句含逗号时建议使用 Tab 分隔。';
+          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用下方导入选项设置，例句含逗号时建议使用 Tab 分隔。';
           if (textarea) textarea.placeholder = 'abandon,/əˈbændən/,动词,放弃,They abandoned the plan.,a(去)-bandon(控制)';
       } else {
           if (formatText) formatText.textContent = '单词,假名,词性,释义,例句';
-          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用上方批次设置，例句含逗号时建议使用 Tab 分隔。';
+          if (formatNote) formatNote.textContent = '前四项必填；级别、难度和标签使用下方导入选项设置，例句含逗号时建议使用 Tab 分隔。';
           if (textarea) textarea.placeholder = '勉強,べんきょう,名・サ变,学习,毎日日本語を勉強する。';
       }
   },

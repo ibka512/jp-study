@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v45';
+const CACHE_NAME = 'zhongri-shell-v46';
 const LOCAL_ASSETS = [
   './',
   './index.html',
@@ -9,8 +9,8 @@ const LOCAL_ASSETS = [
   './logo.png',
   './vendor/material-symbols.css',
   './vendor/material-symbols-rounded.woff2',
-  './ui-system.css?v=modern-v7',
-  './style.css?v=modern-v7',
+  './ui-system.css?v=modern-v8',
+  './style.css?v=modern-v8',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -25,7 +25,7 @@ const LOCAL_ASSETS = [
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v5',
+  './app.js?v=modern-v6',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ];
@@ -44,8 +44,8 @@ const NETWORK_FIRST_ASSETS = new Set([
   './manifest.json',
   './vendor/material-symbols.css',
   './vendor/material-symbols-rounded.woff2',
-  './ui-system.css?v=modern-v6',
-  './style.css?v=modern-v6',
+  './ui-system.css?v=modern-v8',
+  './style.css?v=modern-v8',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
@@ -55,7 +55,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v5',
+  './app.js?v=modern-v6',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
 ].map(toAbsoluteUrl));

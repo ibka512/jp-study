@@ -50,12 +50,15 @@
   --accent-green: #227a4b;
   --accent-green-lip: #185c38;
   --accent-green-soft: #e6f4ec;
+  --on-accent-green: #ffffff;
   --accent-orange: #b7791f;
   --accent-orange-lip: #925e14;
   --accent-orange-soft: #fbf2e1;
+  --on-accent-orange: #ffffff;
   --accent-red: #c83e32;
   --accent-red-lip: #9e2d23;
   --accent-red-soft: #fbeae8;
+  --on-accent-red: #ffffff;
   --accent-blue: #2b6cb0;
   --accent-blue-soft: #e8f1fa;
   --accent-gold: #c98a1c;
@@ -143,12 +146,15 @@ body[data-theme="dark"] {
   --accent-green: #5cc48b;
   --accent-green-lip: #2f8f5b;
   --accent-green-soft: rgba(92, 196, 139, 0.15);
+  --on-accent-green: #091d13;
   --accent-orange: #e5b55c;
   --accent-orange-lip: #b58228;
   --accent-orange-soft: rgba(229, 181, 92, 0.15);
+  --on-accent-orange: #241705;
   --accent-red: #eb746a;
   --accent-red-lip: #b84238;
   --accent-red-soft: rgba(235, 116, 106, 0.15);
+  --on-accent-red: #240907;
   --accent-blue: #72b0ee;
   --accent-blue-soft: rgba(114, 176, 238, 0.15);
   --accent-gold: #e5b55c;
@@ -436,7 +442,7 @@ body:not([data-lang="en"]) .en-only {
 
 .ui-danger-action {
   background: var(--accent-red) !important;
-  color: #ffffff !important;
+  color: var(--on-accent-red) !important;
   box-shadow: 0 2px 0 var(--accent-red-lip) !important;
 }
 
@@ -506,7 +512,7 @@ select:focus {
   }
 }
 
-/* Tactile Toggle Switch */
+/* Precision Tactile Toggle Switch */
 .tactile-switch-wrap {
   position: relative;
   display: inline-flex;
@@ -529,10 +535,16 @@ select:focus {
   width: 46px;
   height: 26px;
   border-radius: var(--radius-full);
-  background: var(--surface-subtle);
+  background: var(--surface-hover);
   border: 1px solid var(--outline-strong);
+  box-shadow: inset 0 1px 2px rgba(23, 25, 26, 0.08);
   transition: background var(--dur-med) var(--ease-out),
-              border-color var(--dur-med) var(--ease-out);
+              border-color var(--dur-med) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.tactile-switch-wrap:hover .tactile-slider {
+  border-color: var(--primary);
 }
 
 .tactile-slider::after {
@@ -542,19 +554,43 @@ select:focus {
   left: 2px;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(23, 25, 26, 0.22);
-  transition: transform var(--dur-med) var(--ease-out);
+  box-shadow: 0 1px 3px rgba(23, 25, 26, 0.24), 0 0 0 0.5px rgba(23, 25, 26, 0.06);
+  transition: transform 200ms cubic-bezier(0.34, 1.32, 0.64, 1),
+              width var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out);
+}
+
+body[data-theme="dark"] .tactile-slider::after {
+  background: #ecefeb;
+}
+
+.tactile-switch-wrap:active .tactile-slider::after {
+  width: 23px;
 }
 
 .tactile-switch:checked + .tactile-slider {
   background: var(--primary);
   border-color: var(--primary);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
 }
 
 .tactile-switch:checked + .tactile-slider::after {
   transform: translateX(20px);
+}
+
+body[data-theme="dark"] .tactile-switch:checked + .tactile-slider::after {
+  background: var(--on-primary);
+}
+
+.tactile-switch-wrap:active .tactile-switch:checked + .tactile-slider::after {
+  transform: translateX(17px);
+}
+
+.tactile-switch:disabled + .tactile-slider {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .tactile-switch:focus-visible + .tactile-slider {
@@ -637,6 +673,7 @@ select:focus {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }

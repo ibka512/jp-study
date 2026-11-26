@@ -204,6 +204,24 @@
       console.warn('等待学习数据加载失败', error);
     }
 
+    // 先关闭可能遮挡首页的弹窗、审核页或学习区
+    const rootReview = document.getElementById('root-review-overlay');
+    if (rootReview?.classList.contains('active')) {
+      document.getElementById('root-review-close')?.click();
+    }
+    document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+      if (modal.id && typeof window.toggleModal === 'function') {
+        window.toggleModal(modal.id, false);
+      } else {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    });
+    const studyArea = document.getElementById('study-area');
+    if (studyArea && !studyArea.classList.contains('hidden')) {
+      document.getElementById('btn-exit-study')?.click();
+    }
+
     document.querySelector('.nav-item[data-target="tab-home"]')?.click();
     window.setTimeout(() => {
       const due = Number(
@@ -222,6 +240,8 @@
     if (!notifications) return;
     await createReminderChannel();
     await cancelNotifications([SNOOZE_REMINDER_ID]);
+    const settings = readSettings();
+    const exactGranted = settings.exact && (await getExactAlarmPermission()) === 'granted';
     await notifications.schedule({
       notifications: [{
         id: SNOOZE_REMINDER_ID,
@@ -232,7 +252,8 @@
         channelId: CHANNEL_ID,
         actionTypeId: ACTION_TYPE_ID,
         schedule: {
-          at: new Date(Date.now() + 30 * 60 * 1000)
+          at: new Date(Date.now() + 30 * 60 * 1000),
+          ...(exactGranted ? { allowWhileIdle: true } : {})
         },
         extra: {
           ...(notification?.extra || {}),
@@ -252,27 +273,24 @@
   };
 
   const closeTopLayer = () => {
-    const rootReview = document.getElementById('root-review-overlay');
-    if (rootReview?.classList.contains('active')) {
-      document.getElementById('root-review-close')?.click();
-      return true;
-    }
-
-    const activeModals = Array.from(
-      document.querySelectorAll('.modal-overlay.active')
+    const activeOverlays = Array.from(
+      document.querySelectorAll('.modal-overlay.active, #root-review-overlay.active')
     );
-    const activeModal = activeModals[activeModals.length - 1];
+    const activeModal = activeOverlays.reduce((top, overlay) => {
+      const z = Number.parseInt(window.getComputedStyle(overlay).zIndex, 10) || 0;
+      const topZ = top ? Number.parseInt(window.getComputedStyle(top).zIndex, 10) || 0 : 0;
+      return !top || z >= topZ ? overlay : top;
+    }, null);
 
     if (activeModal) {
-      const closeButtonByModal = {
-        'detail-overlay': '#detail-close',
-        'ai-word-collector-overlay': '#ai-word-collector-close',
-        'ai-quiz-overlay': '#ai-quiz-close'
-      };
-      const closeSelector = closeButtonByModal[activeModal.id];
-      const closeButton = closeSelector
-        ? document.querySelector(closeSelector)
-        : null;
+      if (activeModal.id === 'root-review-overlay') {
+        document.getElementById('root-review-close')?.click();
+        return true;
+      }
+
+      const closeButton = activeModal.querySelector(
+        '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #btn-cancel-move, #detail-close'
+      );
 
       if (closeButton) {
         closeButton.click();
@@ -287,7 +305,7 @@
         activeModal.setAttribute('aria-hidden', 'true');
         document.body.classList.toggle(
           'modal-open',
-          Boolean(document.querySelector('.modal-overlay.active'))
+          Boolean(document.querySelector('.modal-overlay.active, #root-review-overlay.active'))
         );
         window.ZhongriHaptics?.trigger?.('navigation');
       }
@@ -300,9 +318,9 @@
       return true;
     }
 
-    const aiChatView = document.getElementById('ai-chat-view');
-    if (aiChatView && !aiChatView.classList.contains('hidden')) {
-      document.getElementById('btn-ai-chat-back')?.click();
+    const batchBar = document.getElementById('batch-bar');
+    if (batchBar && batchBar.style.display !== 'none') {
+      document.getElementById('btn-batch-cancel')?.click();
       return true;
     }
 
@@ -578,6 +596,7 @@
       } catch (error) {
         console.warn('更新学习提醒失败', error);
         reminderUi.enabled.checked = !reminderUi.enabled.checked;
+        saveSettings(readFormSettings());
         reminderUi.status.textContent = '设置失败，请稍后重试';
       } finally {
         reminderUi.enabled.disabled = false;
@@ -767,7 +786,15 @@
     window.addEventListener('zhongri-study-data-changed', () => {
       window.clearTimeout(dataChangeTimer);
       dataChangeTimer = window.setTimeout(() => {
-        cancelNotifications([SNOOZE_REMINDER_ID])
+        const snapshot = window.ZhongriReminderData?.getSnapshot?.() || {};
+        const todayKey = planner?.dateKey ? planner.dateKey(new Date()) : '';
+        const studiedToday = Array.isArray(snapshot.studyDates) &&
+          todayKey &&
+          snapshot.studyDates.some(value => planner.dateKey(value) === todayKey);
+        const maybeCancelSnooze = studiedToday
+          ? cancelNotifications([SNOOZE_REMINDER_ID])
+          : Promise.resolve();
+        maybeCancelSnooze
           .then(() => requestReminderSync(readSettings()))
           .catch(() => {});
       }, 500);

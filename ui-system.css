@@ -59,6 +59,7 @@
   --bg-noun: #ffffff;
   --bg-verb: #f8faff;
   --bg-adj: #fffdf5;
+  --bg-adj-na: #fff9f0;
   --bg-adv: #f5fdf9;
   --bg-pronoun: #fdf8ff;
   --bg-other: #ffffff;
@@ -149,6 +150,7 @@ body[data-theme="dark"] {
   --bg-noun: #131720;
   --bg-verb: #141926;
   --bg-adj: #1a1814;
+  --bg-adj-na: #1c1816;
   --bg-adv: #121c19;
   --bg-pronoun: #191523;
   --bg-other: #131720;

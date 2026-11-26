@@ -2276,6 +2276,7 @@ const BottomSheet = {
             '4': 'filter_4',
             '5': 'filter_5',
             skip: 'skip_next',
+            overwrite: 'sync',
             update: 'sync',
             keep: 'content_copy'
         };
@@ -2627,49 +2628,72 @@ const RomajiEngine = {
         "na":"な","ni":"に","nu":"ぬ","ne":"ね","no":"の","ha":"は","hi":"ひ","fu":"ふ","hu":"ふ","he":"へ","ho":"ほ",
         "ba":"ば","bi":"び","bu":"ぶ","be":"べ","bo":"ぼ","pa":"ぱ","pi":"ぴ","pu":"ぷ","pe":"ぺ","po":"ぽ",
         "ma":"ま","mi":"み","mu":"む","me":"め","mo":"も","ya":"や","yu":"ゆ","yo":"よ","ra":"ら","ri":"り","ru":"る","re":"れ","ro":"ろ",
-        "wa":"わ","wo":"を","nn":"ん","n ":"ん","-":"ー",
+        "wa":"わ","wo":"を","nn":"ん","n'":"ん","n ":"ん","-":"ー",
         "kya":"きゃ","kyu":"きゅ","kyo":"きょ","gya":"ぎゃ","gyu":"ぎゅ","gyo":"ぎょ",
-        "sha":"しゃ","sya":"しゃ","shu":"しゅ","syu":"しゅ","sho":"しょ","syo":"しょ",
-                "ja":"じゃ","zya":"じゃ","jya":"じゃ","ju":"じゅ","zyu":"じゅ","jyu":"じゅ","jo":"じょ","zyo":"じょ","jyo":"じょ",
-        "cha":"ちゃ","tya":"ちゃ","cya":"ちゃ","chu":"ちゅ","tyu":"ちゅ","cyu":"ちゅ","cho":"ちょ","tyo":"ちょ","cyo":"ちょ",
-
+        "sha":"しゃ","sya":"しゃ","shu":"しゅ","syu":"しゅ","sho":"しょ","syo":"しょ","she":"しぇ","sye":"しぇ",
+        "ja":"じゃ","zya":"じゃ","jya":"じゃ","ju":"じゅ","zyu":"じゅ","jyu":"じゅ","jo":"じょ","zyo":"じょ","jyo":"じょ","je":"じぇ","zye":"じぇ","jye":"じぇ",
+        "cha":"ちゃ","tya":"ちゃ","cya":"ちゃ","chu":"ちゅ","tyu":"ちゅ","cyu":"ちゅ","cho":"ちょ","tyo":"ちょ","cyo":"ちょ","che":"ちぇ","tye":"ちぇ","cye":"ちぇ",
         "nya":"にゃ","nyu":"にゅ","nyo":"にょ","hya":"ひゃ","hyu":"ひゅ","hyo":"ひょ",
         "bya":"びゃ","byu":"びゅ","byo":"びょ","pya":"ぴゃ","pyu":"ぴゅ","pyo":"ぴょ",
-        "mya":"みゃ","myu":"みゅ","myo":"みょ","rya":"りゃ","ryu":"りゅ","ryo":"りょ"
+        "mya":"みゃ","myu":"みゅ","myo":"みょ","rya":"りゃ","ryu":"りゅ","ryo":"りょ",
+        "fa":"ふぁ","fi":"ふぃ","fe":"ふぇ","fo":"ふぉ","fyu":"ふゅ",
+        "wi":"うぃ","we":"うぇ","wha":"うぁ","whi":"うぃ","whe":"うぇ","who":"うぉ",
+        "thi":"てぃ","tha":"てゃ","thu":"てゅ","the":"てぇ","tho":"てょ",
+        "dhi":"でぃ","dha":"でゃ","dhu":"でゅ","dhe":"でぇ","dho":"でょ",
+        "tsa":"つぁ","tsi":"つぃ","tse":"つぇ","tso":"つぉ",
+        "va":"ゔぁ","vi":"ゔぃ","vu":"ゔ","ve":"ゔぇ","vo":"ゔぉ",
+        "xa":"ぁ","xi":"ぃ","xu":"ぅ","xe":"ぇ","xo":"ぉ","xtu":"っ","xtsu":"っ","xya":"ゃ","xyu":"ゅ","xyo":"ょ",
+        "la":"ぁ","li":"ぃ","lu":"ぅ","le":"ぇ","lo":"ぉ","ltu":"っ","ltsu":"っ","lya":"ゃ","lyu":"ゅ","lyo":"ょ"
     },
     reset() { this.raw = ''; this.buffer = ''; this.mode = 'hiragana'; },
     toggleMode() { this.mode = this.mode === 'hiragana' ? 'katakana' : 'hiragana'; Hardware.vibrate(10); },
     toKatakana(hira) { return hira.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60)); },
+    toHiragana(text) { return String(text || '').replace(/[\u30A1-\u30F6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60)); },
+    hasPrefix(prefix) { return Object.keys(this.map).some(k => k.startsWith(prefix)); },
     input(char) {
         if (char === 'Backspace') {
             if (this.buffer.length > 0) this.buffer = this.buffer.slice(0, -1);
             else if (this.raw.length > 0) this.raw = this.raw.slice(0, -1);
             Hardware.vibrate(10); return;
         }
+        const lower = String(char || '').toLowerCase();
+        if (!/^[a-z'-]$/.test(lower)) return;
         Hardware.vibrate(15);
-        this.buffer += char.toLowerCase();
-        
-        // 促音规则
-        if (this.buffer.length >= 2 && this.buffer[0] === this.buffer[1] && !"aeiouy-".includes(this.buffer[0]) && this.buffer[0] !== 'n') {
-            this.raw += this.mode === 'hiragana' ? "っ" : "ッ";
-            this.buffer = this.buffer.slice(1);
-        }
-        // 拨音规则
-        if (this.buffer.length >= 2 && this.buffer[0] === 'n' && this.buffer[1] !== 'n' && !"aeiouy-".includes(this.buffer[1])) {
-            this.raw += this.mode === 'hiragana' ? "ん" : "ン";
-            this.buffer = this.buffer.slice(1);
-        }
-        // 匹配合成
-        for (let i = 3; i > 0; i--) {
-            if (this.buffer.length >= i) {
+        this.buffer += lower;
+
+        let safety = 0;
+        while (this.buffer.length > 0 && safety++ < 8) {
+            // 促音规则
+            if (this.buffer.length >= 2 && this.buffer[0] === this.buffer[1] && !"aeiouyn'-".includes(this.buffer[0])) {
+                this.raw += this.mode === 'hiragana' ? "っ" : "ッ";
+                this.buffer = this.buffer.slice(1);
+                continue;
+            }
+            // 拨音规则（n 后接非元音/y/n/撇号）
+            if (this.buffer.length >= 2 && this.buffer[0] === 'n' && this.buffer[1] !== 'n' && !"aeiouy'-".includes(this.buffer[1])) {
+                this.raw += this.mode === 'hiragana' ? "ん" : "ン";
+                this.buffer = this.buffer.slice(1);
+                continue;
+            }
+            // 最长匹配合成
+            let matched = false;
+            for (let i = Math.min(4, this.buffer.length); i > 0; i--) {
                 let chunk = this.buffer.slice(0, i);
                 if (this.map[chunk]) {
                     let kana = this.map[chunk];
                     this.raw += this.mode === 'hiragana' ? kana : this.toKatakana(kana);
                     this.buffer = this.buffer.slice(i);
+                    matched = true;
                     break;
                 }
             }
+            if (matched) continue;
+            // 若当前缓冲不是任何合法罗马音前缀，丢弃无法匹配的首字符避免永久卡死
+            if (!this.hasPrefix(this.buffer)) {
+                this.buffer = this.buffer.slice(1);
+                continue;
+            }
+            break;
         }
     },
     getDisplayText() { return this.raw + (this.buffer ? `<span class="pending-romaji">${this.buffer}</span>` : ''); },
@@ -2774,7 +2798,7 @@ const Model = {
       ) {
           return {
               ...stored,
-              kanji: Boolean(stored.word),
+              kanji: Boolean(stored.kanji ?? stored.word),
               kana: Boolean(stored.kana),
               meaning: Boolean(stored.meaning)
           };
@@ -3552,7 +3576,7 @@ const Model = {
               };
           }
 
-          return {
+          const normalized = {
               ...cloneDataValue(value),
               kanji: Boolean(
                   value.kanji ?? value.word ?? false
@@ -3561,6 +3585,8 @@ const Model = {
               meaning: Boolean(value.meaning ?? false),
               needsReview: Boolean(value.needsReview)
           };
+          delete normalized.word;
+          return normalized;
       };
 
       const mergeClearState = (base, incoming) => {
@@ -3993,9 +4019,10 @@ const Model = {
       this.state.filteredDb = this.db.map((w, idx) => ({w, idx})).filter(item => {
           if ((item.w.lang || 'ja') !== Model.state.currentLangMode) return false;
           let matchFolder = currentFilter === 'all' ? true : this.checkFilter(item.w, currentFilter);
-          let matchSearch = !searchQuery || 
+          let matchSearch = !searchQuery ||
                             item.w.word.toLowerCase().includes(searchQuery) ||
                             (item.w.kana || '').toLowerCase().includes(searchQuery) ||
+                            (item.w.phonetic || '').toLowerCase().includes(searchQuery) ||
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
@@ -4007,18 +4034,42 @@ const Model = {
       return tokens || kanaStr.split('');
   },
   
+  parseLocalDate(value) {
+      if (value instanceof Date) {
+          return Number.isNaN(value.getTime()) ? null : new Date(value.getFullYear(), value.getMonth(), value.getDate());
+      }
+      const text = String(value || '').trim();
+      const match = text.match(/^(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/);
+      if (match) {
+          return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      }
+      const parsed = new Date(text);
+      return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  },
+
   calculateStats() {
-      let dailyRecords = this.records.filter(r => r.type === 'daily_punch').map(r => r.date);
-      let uniqueDates = [...new Set(dailyRecords)].sort((a, b) => new Date(b) - new Date(a));
-      let totalDays = uniqueDates.length; let streak = 0;
-      let today = new Date(); today.setHours(0,0,0,0);
+      const dateMap = new Map();
+      this.records
+          .filter(r => r && r.type === 'daily_punch' && r.date)
+          .forEach(r => {
+              const d = this.parseLocalDate(r.date);
+              if (!d) return;
+              const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              if (!dateMap.has(key)) dateMap.set(key, d);
+          });
+      const uniqueDates = [...dateMap.values()].sort((a, b) => b.getTime() - a.getTime());
+      const totalDays = uniqueDates.length;
+      let streak = 0;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       for (let i = 0; i < uniqueDates.length; i++) {
-          let d = new Date(uniqueDates[i]); d.setHours(0,0,0,0);
-          let diff = (today - d) / 86400000;
-          if (i === 0 && diff > 1) break; 
-          if (i > 0) {
-              let prevD = new Date(uniqueDates[i-1]); prevD.setHours(0,0,0,0);
-              if ((prevD - d) / 86400000 > 1) break; 
+          const d = uniqueDates[i];
+          const diff = Math.round((today.getTime() - d.getTime()) / 86400000);
+          if (diff < 0) continue;
+          if (streak === 0 && diff > 1) break;
+          if (streak > 0) {
+              const prevD = uniqueDates[i - 1];
+              if (Math.round((prevD.getTime() - d.getTime()) / 86400000) > 1) break;
           }
           streak++;
       }
@@ -4188,9 +4239,9 @@ fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
 speakWord(w, btnEl) {
     if (!w) return;
     const isEnglish = w.lang === 'en';
-    const text = isEnglish 
-        ? (w.word || '') 
-        : ((w.kana || '').replace(/[【】\[\]()]/g,''));
+    const text = isEnglish
+        ? (w.word || '')
+        : ((w.kana || w.word || '').replace(/[【】\[\]()]/g, '').split(/[\/／]/)[0]);
     this.speakText(text, btnEl, isEnglish ? 'en' : 'ja');
 },
 
@@ -4420,10 +4471,10 @@ const View = {
       let meanVis = wMean && wMean.style.display !== 'none' && !wMean.innerText.includes('■');
 
       rootsEl.querySelectorAll('.r-text').forEach(n => {
-          n.innerHTML = wordVis ? (n.dataset.real || '■■■') : '■■■';
+          n.textContent = wordVis ? (n.dataset.real || '■■■') : '■■■';
       });
       rootsEl.querySelectorAll('.r-mean').forEach(n => {
-          n.innerHTML = meanVis ? (n.dataset.real || '■■■') : '■■■';
+          n.textContent = meanVis ? (n.dataset.real || '■■■') : '■■■';
       });
   },
 
@@ -4495,8 +4546,8 @@ const View = {
 
         const enWm =
             watermarkItems.length > 1
-                ? `<span class="wm-multi">${watermarkItems.join('・')}</span>`
-                : (watermarkItems[0] || '');
+                ? `<span class="wm-multi">${escapeHTML(watermarkItems.join('・'))}</span>`
+                : escapeHTML(watermarkItems[0] || '');
 
         const getCat = type => {
             if (
@@ -4609,7 +4660,7 @@ const View = {
     let mainColors = [];
     let tagsHTML = tags.map(t => {
         let catInfo = getCat(t); mainColors.push(catInfo.color);
-        return `<span class="type-capsule" style="background: ${catInfo.color};">${t}</span>`;
+        return `<span class="type-capsule" style="background: ${catInfo.color};">${escapeHTML(t)}</span>`;
     }).join('');
     let uniqueColors = [...new Set(mainColors)];
     let bg = uniqueColors[0] || 'var(--surface-container)';
@@ -5330,7 +5381,7 @@ const View = {
             return map;
         }, {});
         const labels = { kanji: '拼写', spelling: '拼写', reading: '读音', listening: '听力', meaning: '释义' };
-        const summary = Object.entries(groups).map(([dimension, count]) => `<span class="fsrs-due-chip">${labels[dimension] || dimension}<strong>${count}</strong></span>`).join('');
+        const summary = Object.entries(groups).map(([dimension, count]) => `<span class="fsrs-due-chip">${escapeHTML(labels[dimension] || dimension)}<strong>${count}</strong></span>`).join('');
         dueDetailEl.innerHTML = summary || '<span class="fsrs-empty-copy"><span class="material-symbols-rounded">task_alt</span>今天没有到期项目，继续保持节奏</span>';
     }
     const fsrsStartButton = this.getEl('btn-start-fsrs-review');
@@ -5351,18 +5402,17 @@ const View = {
     Model.db.forEach(w => { wordLangMap[Model.getWordId(w)] = w.lang || 'ja'; });
     
 Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
-        if (typeof st === 'object') {
-            const lang = wordLangMap[wordKey] || 'ja';
+        if (st && typeof st === 'object') {
+            if (!Object.prototype.hasOwnProperty.call(wordLangMap, wordKey)) return;
+            const lang = wordLangMap[wordKey];
             if (lang !== Model.state.currentLangMode) return;
-            // 兼容旧英语格式 {word, meaning} → 映射为三杠
-            if (lang === 'en' && st.word !== undefined) {
-                st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
-            }
-            // 统一三杠判断
-            if (st.kanji && st.kana && st.meaning) clearedWordsCount++;
-            if (st.kanji) kanjiCount++;
-            if (st.kana) kanaCount++;
-            if (st.meaning) meaningCount++;
+            const norm = (lang === 'en' && st.word !== undefined)
+                ? { kanji: Boolean(st.kanji ?? st.word), kana: Boolean(st.kana), meaning: Boolean(st.meaning) }
+                : st;
+            if (norm.kanji && norm.kana && norm.meaning) clearedWordsCount++;
+            if (norm.kanji) kanjiCount++;
+            if (norm.kana) kanaCount++;
+            if (norm.meaning) meaningCount++;
         }
     });
 
@@ -5417,16 +5467,27 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
         displaySel.options[1].style.display = isEn ? 'none' : '';
     }
 
-    let lastTestDisplay = localStorage.getItem('lastTestDisplay') || 'kana';
+    let lastTestDisplay = localStorage.getItem('lastTestDisplay') || (Model.state.currentLangMode === 'en' ? 'audio' : 'kana');
+    if (Model.state.currentLangMode === 'en' && lastTestDisplay === 'kana') {
+        lastTestDisplay = 'audio';
+        localStorage.setItem('lastTestDisplay', 'audio');
+    }
     if (displaySel && Array.from(displaySel.options).some(o => o.value === lastTestDisplay)) {
-
         displaySel.value = lastTestDisplay;
         displaySel.dispatchEvent(new Event('facade-update'));
     }
-    
-    let t = new Date().toLocaleDateString('zh-CN'); let btn = this.getEl('btn-long-press');
+
+    const nowDate = new Date();
+    const todayKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+    let btn = this.getEl('btn-long-press');
     if (btn) {
-        let isPunched = Model.records.some(r => r.date === t && r.type === 'daily_punch');
+        let isPunched = Model.records.some(r => {
+            if (!r || r.type !== 'daily_punch') return false;
+            const parsed = Model.parseLocalDate(r.date);
+            if (!parsed) return false;
+            const key = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+            return key === todayKey;
+        });
         if(isPunched) {
             btn.className = 'btn-long-press done';
             btn.innerHTML = `<span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">task_alt</span> 今日已完成</span>`;
@@ -5795,8 +5856,8 @@ void card.offsetWidth;
             return false;
         };
 
-                let showW = isVisible('word');
-        let showK = (!isEnglish && isVisible('kana')) || showKanaHint; 
+        let showW = isVisible('word');
+        let showK = isVisible('kana') || showKanaHint;
         let showM = isVisible('meaning');
         let showA = isVisible('audio');
 
@@ -6217,11 +6278,20 @@ void card.offsetWidth;
  else if (Model.state.dtSubMode === 'choice') {
           this.getEl('dt-spell-area').classList.add('hidden'); this.getEl('dt-choice-area').classList.remove('hidden');
           let targetMeaning = wObj.meaning;
-          let pool = Model.db.filter(x => x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
-          if (pool.length < 3) pool = Model.db.filter(x => x.word !== wObj.word && x.meaning !== targetMeaning); 
-          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-          let choices = [{text: targetMeaning, correct: true}];
-          pool.forEach(x => choices.push({text: x.meaning, correct: false})); choices.sort(() => Math.random() - 0.5); 
+          const wordLang = wObj.lang || 'ja';
+          let pool = Model.db.filter(x => (x.lang || 'ja') === wordLang && x.folder === wObj.folder && x.type === wObj.type && x.word !== wObj.word && x.meaning !== targetMeaning);
+          if (pool.length < 3) pool = Model.db.filter(x => (x.lang || 'ja') === wordLang && x.word !== wObj.word && x.meaning !== targetMeaning);
+          pool = pool.sort(() => Math.random() - 0.5);
+          const seenChoices = new Set([String(targetMeaning || '').trim()]);
+          let choices = [{ text: targetMeaning, correct: true }];
+          for (const x of pool) {
+              if (choices.length >= 4) break;
+              const txt = String(x.meaning || '').trim();
+              if (!txt || seenChoices.has(txt)) continue;
+              seenChoices.add(txt);
+              choices.push({ text: txt, correct: false });
+          }
+          choices.sort(() => Math.random() - 0.5);
           let cb = this.getEl('dt-choice-buttons'); cb.innerHTML = '';
           choices.forEach((c, idx) => { 
               let btn = document.createElement('div'); btn.className = 'dt-choice-btn'; 
@@ -6659,15 +6729,16 @@ void card.offsetWidth;
           });
       }
 
-      pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-
+      pool = pool.sort(() => Math.random() - 0.5);
+      const seenTexts = new Set([String(targetText || '').trim()]);
       let choices = [{ text: targetText, correct: true }];
-      pool.forEach(x => {
-          choices.push({
-              text: isMeaning ? x.meaning : x.word,
-              correct: false
-          });
-      });
+      for (const x of pool) {
+          if (choices.length >= 4) break;
+          const candidateText = String(isMeaning ? x.meaning : x.word || '').trim();
+          if (!candidateText || seenTexts.has(candidateText)) continue;
+          seenTexts.add(candidateText);
+          choices.push({ text: candidateText, correct: false });
+      }
       choices.sort(() => Math.random() - 0.5);
 
       const choiceButtons = this.getEl('mt-choice-buttons');
@@ -6767,28 +6838,6 @@ void card.offsetWidth;
                   targetText = wObj.word;
               }
           }
-      } else {
-          if (displayMode === 'all') {
-              if (mtWarning) mtWarning.classList.remove('hidden');
-              return;
-          }
-
-          if (displayMode === 'word') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'spell'
-                  : 'choice-meaning';
-          } else if (displayMode === 'kana') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'choice-word'
-                  : 'choice-meaning';
-          } else if (displayMode === 'meaning') {
-              currentTestType = Model.state.mtStep === 1
-                  ? 'spell'
-                  : 'choice-word';
-          }
-
-          isMeaning = currentTestType === 'choice-meaning';
-          targetText = isMeaning ? wObj.meaning : wObj.word;
       }
 
       if (currentTestType === 'spell') {
@@ -6830,15 +6879,16 @@ void card.offsetWidth;
               });
           }
 
-          pool = pool.sort(() => Math.random() - 0.5).slice(0, 3);
-
+          pool = pool.sort(() => Math.random() - 0.5);
+          const seenTexts = new Set([String(targetText || '').trim()]);
           let choices = [{ text: targetText, correct: true }];
-          pool.forEach(x => {
-              choices.push({
-                  text: isMeaning ? x.meaning : x.word,
-                  correct: false
-              });
-          });
+          for (const x of pool) {
+              if (choices.length >= 4) break;
+              const candidateText = String(isMeaning ? x.meaning : x.word || '').trim();
+              if (!candidateText || seenTexts.has(candidateText)) continue;
+              seenTexts.add(candidateText);
+              choices.push({ text: candidateText, correct: false });
+          }
           choices.sort(() => Math.random() - 0.5);
 
           let cb = this.getEl('mt-choice-buttons');
@@ -7118,7 +7168,7 @@ void card.offsetWidth;
       let st = Model.getClearState(w);
       if (typeof st === 'number') st = { kanji: false, kana: false, meaning: false };
       if (isEnglishWord && st.word !== undefined) {
-        st = { kanji: st.word || false, kana: false, meaning: st.meaning || false };
+        st = { kanji: Boolean(st.kanji ?? st.word), kana: Boolean(st.kana), meaning: Boolean(st.meaning) };
       }
       // 统一三杠缩略图
       let hankoHTML = `
@@ -7151,25 +7201,32 @@ void card.offsetWidth;
         ${hankoHTML}
         <div class="watermark-layer"><div class="watermark">${visuals.wm}</div></div>
         ${topRightHTML}
-        ${cols !== '4' && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
+        ${cols !== 4 && !Model.state.batchMode ? `<button type="button" class="wb-c-speaker btn-wb-speak" aria-label="朗读单词"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span></button>` : ''}
         <div class="wb-c-word ${blurW}" lang="${isEnglishWord ? 'en' : 'ja'}"><span class="wb-blur-trigger">${safeWord}</span></div>
         ${isEnglishWord ? `<div class="wb-c-kana ${blurK}" lang="en"><span class="wb-blur-trigger">${escapeHTML(w.phonetic || '')}</span></div>` : `<div class="wb-c-kana ${blurK}" lang="ja"><span class="wb-blur-trigger">${safeKana}</span>${pitchHTML}</div>`}
         <div class="wb-c-mean ${blurM}"><span class="wb-blur-trigger">${safeMean}</span></div>`;
 
-      renderFingerprint =
-          String(idx) +
-          blurMode +
-          Model.state.batchMode +
-          isChecked +
-          starFilled +
-          st.kanji +
-          st.kana +
-          st.meaning +
-          String(w.pitch || '') +
-          String(w.level || '') +
-          String(w.frequency || '') +
-          String(w.difficulty || '') +
-          JSON.stringify(w.specialTags || []);
+      renderFingerprint = [
+          idx,
+          cols,
+          blurMode,
+          Model.state.batchMode,
+          isChecked,
+          starFilled,
+          st.kanji,
+          st.kana,
+          st.meaning,
+          w.word || '',
+          w.kana || '',
+          w.phonetic || '',
+          w.type || '',
+          w.meaning || '',
+          w.pitch || '',
+          w.level || '',
+          w.frequency || '',
+          w.difficulty || '',
+          JSON.stringify(w.specialTags || [])
+      ].join('|');
 
 
       let card;
@@ -7564,8 +7621,7 @@ setupVirtualScroll() {
           Hardware.vibrate(10);
           window.toggleModal('detail-overlay', false);
           if (document.getElementById('tab-wordbank').classList.contains('active')) {
-              Model.state.renderedStartIndex = -1;
-              View.renderVirtualGrid();
+              View.resetWordbankRenderer();
           }
       }
   },
@@ -7576,7 +7632,7 @@ setupVirtualScroll() {
             if(e.target === ov) {
                 Hardware.vibrate(10);
                 window.toggleModal(ov.id, false); 
-                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); }
+                if (ov.id === 'detail-overlay' && document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); }
             }
         }); 
     });
@@ -7585,7 +7641,20 @@ setupVirtualScroll() {
         btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
     });
     
-    View.getEl('btn-exit-study').addEventListener('click', () => { Hardware.vibrate(20); Hardware.stopAllAudio(); View.showPage('tab-home'); View.renderDashboard(); });
+    View.getEl('btn-exit-study').addEventListener('click', () => {
+        Hardware.vibrate(20);
+        Hardware.stopAllAudio();
+        Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
+        Model.state.isAnimating = false;
+        Model.state.isWrongBookPractice = false;
+        Model.state.mode = 'none';
+        View.showPage('tab-home');
+        View.renderDashboard();
+        if (document.getElementById('tab-wordbank')?.classList.contains('active')) {
+            View.updateWordbankUI();
+            View.resetWordbankRenderer();
+        }
+    });
 
     // 📚 词书切换核心事件（支持设置页书架与顶栏快速切换）
     const handleLanguageSwitch = async (targetLang, activeTrigger) => {
@@ -7934,11 +8003,12 @@ if (testVibrateBtn) {
             el.addEventListener('change', (e) => { 
                 Hardware.playSound('click'); 
                 Hardware.vibrate(10);
-                if(id === 'next-display-mode') { 
-                    localStorage.setItem('displayMode', e.target.value); 
-                    Model.state.mtStep = 1; 
-                    View.renderStudyCard('none'); 
-                } else if(id.includes('wb')) { 
+                if(id === 'next-display-mode') {
+                    const storageKey = Model.state.mode === 'rote-learning' ? 'roteDisplayMode' : 'displayMode';
+                    localStorage.setItem(storageKey, e.target.value);
+                    Model.state.mtStep = 1;
+                    View.renderStudyCard('none');
+                } else if(id.includes('wb')) {
                     if (Model.state.batchMode) Controller.toggleBatchMode();
                     View.resetWordbankRenderer(); 
                 } 
@@ -8168,6 +8238,9 @@ if (testVibrateBtn) {
               isStarred ? '取消收藏' : '收藏单词'
           );
           Model.saveStars();
+          if (View.getEl('wb-folder-filter')?.value === 'virtual_starred') {
+              View.resetWordbankRenderer();
+          }
           return;
       }
       if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
@@ -8295,7 +8368,7 @@ if (testVibrateBtn) {
             { confirmLabel: '完全重置', danger: true }
         );
     });
-    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { Model.state.renderedStartIndex = -1; View.renderVirtualGrid(); } }); 
+    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => {
         Hardware.vibrate(20);
@@ -8462,7 +8535,7 @@ if (testVibrateBtn) {
     document.addEventListener('keydown', (e) => {
 
         
-        const activeModal = [...document.querySelectorAll('.modal-overlay.active')]
+        const activeModal = [...document.querySelectorAll('.modal-overlay.active, #root-review-overlay.active')]
             .reduce((top, modal) => {
                 const z = Number.parseInt(getComputedStyle(modal).zIndex, 10) || 0;
                 const topZ = top ? Number.parseInt(getComputedStyle(top).zIndex, 10) || 0 : 0;
@@ -8470,9 +8543,10 @@ if (testVibrateBtn) {
             }, null);
 
         if (e.key === 'Escape' && activeModal) {
+            if (activeModal.id === 'root-review-overlay') return;
             e.preventDefault();
             const close = activeModal.querySelector(
-                '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #detail-close'
+                '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #btn-cancel-move, #detail-close'
             );
             if (close) close.click();
             else window.toggleModal(activeModal.id, false);
@@ -8510,7 +8584,7 @@ if (testVibrateBtn) {
         }
 
         // 🔒 第一层防线：如果用户正在输入框里打字，静默所有快捷键 (放行 Escape)
-        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT' || document.activeElement.isContentEditable)) {
             if (e.key !== 'Escape') return; 
         }
         
@@ -8589,7 +8663,7 @@ if (testVibrateBtn) {
 
         // 🔵 底部导航栏(Tab)的全局左右切换
         // 触发条件：没有任何弹窗处于打开状态，且不在学习区内
-        let isAnyModalOpen = document.querySelectorAll('.modal-overlay.active').length > 0;
+        let isAnyModalOpen = document.querySelectorAll('.modal-overlay.active, #root-review-overlay.active').length > 0;
         if (!isAnyModalOpen && View.getEl('study-area').classList.contains('hidden')) {
             if (key === 'ArrowLeft' || key === 'ArrowRight') {
                 e.preventDefault();
@@ -9323,6 +9397,7 @@ if (testVibrateBtn) {
   },
 
   async exportBackup() {
+      await Model.ensureAllBuiltInLanguages();
       const payload =
           this.buildBackupPayload('manual');
 
@@ -9776,11 +9851,16 @@ if (testVibrateBtn) {
             sourceWords.map(item => item.i)
         );
     }
+    Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
+    Model.state.isAnimating = false;
+    Model.state.isWrongBookPractice = false;
     Model.state.initialQueueLength = (launchMode === 'memory-test') ? Model.state.mtBaseQueue.length : Model.state.studyQueue.length;
     View.updateComboBadge();
     const modeSelect = View.getEl('next-display-mode');
-    let savedMode = localStorage.getItem('displayMode') || 'all';
     const isRoteLaunch = launchMode === 'rote-learning';
+    let savedMode = isRoteLaunch
+        ? (localStorage.getItem('roteDisplayMode') || localStorage.getItem('displayMode') || 'word')
+        : (localStorage.getItem('displayMode') || 'all');
 
     if (modeSelect) {
         if (isRoteLaunch) {
@@ -9794,7 +9874,7 @@ if (testVibrateBtn) {
                 : '假名强化';
             modeSelect.options[3].text = '释义强化';
             savedMode = ROTE_CORE.normalizeMode(currentLang, savedMode);
-            localStorage.setItem('displayMode', savedMode);
+            localStorage.setItem('roteDisplayMode', savedMode);
         } else {
             modeSelect.options[0].text = '全显';
             modeSelect.options[0].style.display = '';
@@ -9928,7 +10008,7 @@ if (testVibrateBtn) {
           });
       }
       Hardware.playSound('click'); 
-      Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0;
+      Model.state.studySessionId = (Model.state.studySessionId || 0) + 1; Model.state.isAnimating = false; Model.state.isWrongBookPractice = false; Model.state.mode = 'filter-test'; Model.state.currentIndex = 0; Model.state.ftState = 'A'; Model.state.ftHint = null; Model.state.ftShowKanaHint = false; Model.state.maxProgressSeen = 0;
       
       const rawQueue =
           sourceWords.map(x => x.i);
@@ -9945,6 +10025,9 @@ if (testVibrateBtn) {
             showToast('今天没有到期复习，继续保持节奏');
             return;
         }
+        Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
+        Model.state.isAnimating = false;
+        Model.state.isWrongBookPractice = false;
         Model.state.mode = 'fsrs-review';
         Model.state.studyQueue = items.map(item => Model.db.indexOf(item.word));
         Model.state.fsrsReviewItems = items;
@@ -9956,6 +10039,8 @@ if (testVibrateBtn) {
         View.getEl('capsule-filter-judge')?.classList.add('hidden');
         View.getEl('capsule-fsrs-review')?.classList.remove('hidden');
         View.getEl('keyboard-hint-bar')?.classList.remove('hidden');
+        const fsrsMatrix = View.getEl('pixel-matrix');
+        if (fsrsMatrix) fsrsMatrix.innerHTML = '';
         View.showPage('study-area');
         View.renderStudyCard('none');
         this.renderFsrsReviewControls();
@@ -10021,10 +10106,12 @@ if (testVibrateBtn) {
         const item = Model.state.fsrsReviewItems?.[Model.state.currentIndex];
         if (!item) return;
         Model.state.isAnimating = true;
+        const sessionId = Model.state.studySessionId || 0;
         Model.recordFsrsReview({ word: item.word, dimension: item.dimension, rating, source: 'fsrs-review' });
         Hardware.playSound(rating === 'again' ? 'error' : 'success');
         Hardware.vibrate(rating === 'again' ? 35 : 20);
         window.setTimeout(() => {
+            if ((Model.state.studySessionId || 0) !== sessionId || Model.state.mode !== 'fsrs-review') return;
             Model.state.isAnimating = false;
             Model.state.currentIndex++;
             if (Model.state.currentIndex >= Model.state.fsrsReviewItems.length) {
@@ -10107,7 +10194,9 @@ if (testVibrateBtn) {
       Model.saveClears();
       View.playStudyFeedback(isCorrect ? 'correct' : 'wrong');
 
+      const sessionId = Model.state.studySessionId || 0;
       window.setTimeout(() => {
+          if ((Model.state.studySessionId || 0) !== sessionId || Model.state.mode !== 'filter-test') return;
           Model.state.currentIndex++;
           Model.state.ftState = 'A';
           Model.state.ftHint = null;
@@ -10136,17 +10225,29 @@ if (testVibrateBtn) {
       let targetClean;
       let inputClean;
 
+      let isSpellMatch = false;
       if (isEnglish) {
           targetClean = (wObj.word || '').toLowerCase().trim();
           inputClean = (EnglishInput.buffer || '').toLowerCase().trim();
+          if (!inputClean) return;
+          isSpellMatch = inputClean === targetClean;
       } else {
-          targetClean = (wObj.kana || '').replace(/[【】\[\]()]/g, '');
-          inputClean = RomajiEngine.getFinalText();
+          const rawTarget = String(wObj.kana || wObj.word || '').replace(/[【】\[\]()（）\s]/g, '');
+          inputClean = RomajiEngine.getFinalText().trim();
+          if (!inputClean) return;
+          const normInput = RomajiEngine.toHiragana(inputClean);
+          const candidates = rawTarget
+              .split(/[\/／・,，;；]/)
+              .map(part => RomajiEngine.toHiragana(part.replace(/[\u4E00-\u9FFF々〆ヶ]/g, '')))
+              .filter(Boolean);
+          isSpellMatch = candidates.length > 0
+              ? candidates.includes(normInput)
+              : normInput === RomajiEngine.toHiragana(rawTarget);
       }
 
-      if (!inputClean) return;
+      const sessionId = Model.state.studySessionId || 0;
 
-      if (inputClean === targetClean) {
+      if (isSpellMatch) {
           Model.state.isAnimating = true;
           Hardware.playSound('success');
           Hardware.vibrate(50);
@@ -10161,6 +10262,7 @@ if (testVibrateBtn) {
               else RomajiEngine.reset();
 
               setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId || Model.state.mode !== 'rote-learning') return;
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
                   View.renderRoteLearningUI(wObj, displayMode);
@@ -10193,13 +10295,19 @@ if (testVibrateBtn) {
           View.revealStudyAnswer();
 
           if (Model.state.mode === 'dual-track') {
-              setTimeout(() => this.dtAdvanceNext(), 420);
+              setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
+                  this.dtAdvanceNext();
+              }, 420);
           } else if (Model.state.mode === 'memory-test') {
               if (!isEnglish) {
                   View.getEl('w-kana').innerText = wObj.kana;
                   View.getEl('w-kana').style.display = 'block';
               }
-              setTimeout(() => this.mtAdvanceNext(), 600);
+              setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
+                  this.mtAdvanceNext();
+              }, 600);
           } else {
               if (
                   !isEnglish &&
@@ -10209,6 +10317,7 @@ if (testVibrateBtn) {
               }
 
               setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
                   View.renderMemoryTestUI(wObj, displayMode);
@@ -10274,7 +10383,12 @@ if (testVibrateBtn) {
         el.style.opacity = '1'; 
     }, 150); 
 });
-          document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none'); setTimeout(() => this.dtAdvanceNext(), 600);
+          const sessionId = Model.state.studySessionId || 0;
+          document.querySelectorAll('.dt-choice-btn').forEach(b => b.style.pointerEvents = 'none');
+          setTimeout(() => {
+              if ((Model.state.studySessionId || 0) !== sessionId) return;
+              this.dtAdvanceNext();
+          }, 600);
       } else { 
           Hardware.playSound('error');
           Hardware.vibrate(50);
@@ -10327,9 +10441,12 @@ if (testVibrateBtn) {
               });
       };
 
+      const sessionId = Model.state.studySessionId || 0;
+
       if (Model.state.mode === 'memory-test') {
           let round = Model.state.mtRound;
           let step = Model.state.mtStep;
+          const isEnglishMt = wObj?.lang === 'en';
 
           if (round === 1) {
               View.getEl('w-meaning').innerText = wObj.meaning;
@@ -10337,7 +10454,10 @@ if (testVibrateBtn) {
               View.syncRootsDisplay();
               View.revealStudyElement(View.getEl('w-meaning'));
               disableChoiceButtons();
-              setTimeout(() => this.mtAdvanceNext(), 800);
+              setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
+                  this.mtAdvanceNext();
+              }, 800);
           } else if (round === 2 && step === 1) {
               View.getEl('w-word').innerText = wObj.word;
               View.getEl('w-word').style.display = 'block';
@@ -10345,6 +10465,7 @@ if (testVibrateBtn) {
               View.revealStudyElement(View.getEl('w-word'));
 
               setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
                   View.renderMemoryTestUI(wObj, displayMode);
@@ -10354,19 +10475,31 @@ if (testVibrateBtn) {
               View.getEl('w-meaning').style.display = 'block';
               View.syncRootsDisplay();
               View.revealStudyElement(View.getEl('w-meaning'));
+              disableChoiceButtons();
 
-              setTimeout(() => {
-                  Model.state.mtStep = 2;
-                  Model.state.isAnimating = false;
-                  View.renderMemoryTestUI(wObj, displayMode);
-              }, 600);
+              if (isEnglishMt) {
+                  setTimeout(() => {
+                      if ((Model.state.studySessionId || 0) !== sessionId) return;
+                      this.mtAdvanceNext();
+                  }, 700);
+              } else {
+                  setTimeout(() => {
+                      if ((Model.state.studySessionId || 0) !== sessionId) return;
+                      Model.state.mtStep = 2;
+                      Model.state.isAnimating = false;
+                      View.renderMemoryTestUI(wObj, displayMode);
+                  }, 600);
+              }
           } else if (round === 3 && step === 2) {
               View.getEl('w-word').innerText = wObj.word;
               View.getEl('w-word').style.display = 'block';
               View.syncRootsDisplay();
               View.revealStudyElement(View.getEl('w-word'));
               disableChoiceButtons();
-              setTimeout(() => this.mtAdvanceNext(), 800);
+              setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
+                  this.mtAdvanceNext();
+              }, 800);
           }
           return;
       }
@@ -10377,12 +10510,16 @@ if (testVibrateBtn) {
 
           if (Model.state.mtStep === 1) {
               setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
                   Model.state.mtStep = 2;
                   Model.state.isAnimating = false;
                   View.renderRoteLearningUI(wObj, displayMode);
               }, 650);
           } else {
-              setTimeout(() => this.mtAdvanceNext(), 850);
+              setTimeout(() => {
+                  if ((Model.state.studySessionId || 0) !== sessionId) return;
+                  this.mtAdvanceNext();
+              }, 850);
           }
       }
   },
@@ -11285,7 +11422,15 @@ deleteWord(idx) {
           Model.records = [];
           Model.mtGroupClears = {};
           Model.mtWordClears = {};
-          await Promise.all([Model.saveRecords(), Model.saveClears()]);
+          Model.fsrsCards = {};
+          Model.fsrsReviewLogs = [];
+          Model.wrongBook = {};
+          await Promise.all([
+              Model.saveRecords(),
+              Model.saveClears(),
+              Model.saveFsrs(),
+              typeof Model.saveWrongBook === 'function' ? Model.saveWrongBook() : Promise.resolve()
+          ]);
       }, '学习进度已清空');
   },
 
@@ -11308,6 +11453,22 @@ deleteWord(idx) {
                   return wordIds.has(wordId);
               })
           );
+          if (Model.wrongBook && typeof Model.wrongBook === 'object') {
+              Model.wrongBook = Object.fromEntries(
+                  Object.entries(Model.wrongBook).filter(([wordId]) => wordIds.has(wordId))
+              );
+          }
+          if (Model.fsrsCards && typeof Model.fsrsCards === 'object') {
+              Model.fsrsCards = Object.fromEntries(
+                  Object.entries(Model.fsrsCards).filter(([key]) => {
+                      const parts = String(key).split(':');
+                      return parts.length >= 2 && wordIds.has(parts[1]);
+                  })
+              );
+          }
+          if (Array.isArray(Model.recycleBin)) {
+              Model.recycleBin = Model.recycleBin.filter(item => item?.payload?.word?.builtIn === true);
+          }
 
           await Model.saveAllUserData();
       }, '已恢复内置词库');
@@ -11325,10 +11486,30 @@ deleteWord(idx) {
           Model.records = [];
           Model.mtGroupClears = {};
           Model.mtWordClears = {};
+          Model.fsrsCards = {};
+          Model.fsrsReviewLogs = [];
+          Model.wrongBook = {};
+          Model.recycleBin = [];
 
-          new Set([...BACKUP_PREFERENCE_KEYS, 'wordOrderMode']).forEach(key => {
+          new Set([
+              ...BACKUP_PREFERENCE_KEYS,
+              'wordOrderMode',
+              'roteDisplayMode',
+              'wrongBookEnabled',
+              'wordbank_level_ja',
+              'wordbank_level_en',
+              'wordbank_difficulty_ja',
+              'wordbank_difficulty_en',
+              'nativeStudyReminderSettingsV2',
+              'nativeStudyReminderEnabled',
+              'nativeStudyReminderTime'
+          ]).forEach(key => {
               localStorage.removeItem(key);
           });
+
+          Object.keys(localStorage)
+              .filter(key => key.startsWith('zhongri-root-review-v1:'))
+              .forEach(key => localStorage.removeItem(key));
 
           await Model.saveAllUserData();
       }, '应用已恢复初始状态', true);
@@ -12251,6 +12432,25 @@ deleteWord(idx) {
             return 'meaning';
         }
 
+        if (Model.state.mode === 'memory-test') {
+            const round = Model.state.mtRound;
+            const step = Model.state.mtStep;
+            if (round === 1) return 'meaning';
+            if (round === 2) return isEnglish ? 'listening' : (step === 1 ? 'listening' : 'reading');
+            if (round === 3) return step === 1 ? 'meaning' : (isEnglish ? 'spell' : 'reading');
+        }
+
+        if (Model.state.mode === 'rote-learning' && ROTE_CORE?.getStep) {
+            const descriptor = ROTE_CORE.getStep(
+                isEnglish ? 'en' : 'ja',
+                displayMode || 'word',
+                Model.state.mtStep || 1
+            );
+            if (descriptor?.dimension) {
+                return descriptor.dimension;
+            }
+        }
+
         if (displayMode === 'meaning') {
             return interaction === 'choice'
                 ? isEnglish
@@ -12344,10 +12544,26 @@ deleteWord(idx) {
         const isEnglish = word.lang === 'en';
         const target = isEnglish
             ? String(word.word || '').toLowerCase().trim()
-            : String(word.kana || '').replace(/[【】\[\]()]/g, '');
+            : String(word.kana || word.word || '').replace(/[【】\[\]()（）\s]/g, '');
         const answer = isEnglish
             ? String(EnglishInput.buffer || '').toLowerCase().trim()
-            : RomajiEngine.getFinalText();
+            : RomajiEngine.getFinalText().trim();
+
+        let isCorrectSpell = false;
+        if (answer) {
+            if (isEnglish) {
+                isCorrectSpell = answer === target;
+            } else {
+                const normAnswer = RomajiEngine.toHiragana(answer);
+                const candidates = target
+                    .split(/[\/／・,，;；]/)
+                    .map(part => RomajiEngine.toHiragana(part.replace(/[\u4E00-\u9FFF々〆ヶ]/g, '')))
+                    .filter(Boolean);
+                isCorrectSpell = candidates.length > 0
+                    ? candidates.includes(normAnswer)
+                    : normAnswer === RomajiEngine.toHiragana(target);
+            }
+        }
 
         const result = originalSpellConfirm(inputEl, word, displayMode);
 
@@ -12361,7 +12577,7 @@ deleteWord(idx) {
             Model.recordStudyResult({
                 word,
                 dimension,
-                correct: answer === target,
+                correct: isCorrectSpell,
                 userAnswer: answer,
                 correctAnswer: target,
                 source: 'study',
@@ -12463,6 +12679,8 @@ deleteWord(idx) {
         });
 
         const selected = words.slice(0, 20);
+        Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
+        Model.state.isAnimating = false;
         Model.state.mode = 'dual-track';
         Model.state.isWrongBookPractice = true;
         Model.state.currentIndex = 0;
@@ -12471,8 +12689,6 @@ deleteWord(idx) {
         Model.state.comboCount = 0;
         Model.state.maxProgressSeen = 0;
         Model.state.uniqueWordCount = selected.length;
-        Model.state.currentGroupKey = 'wrongbook-practice';
-        Model.state.currentGroupLabel = '错题专项';
         Model.state.studyQueue = [];
 
         selected.forEach(item => {
@@ -12574,6 +12790,23 @@ deleteWord(idx) {
                 Model.recycleBin.splice(index, 1);
                 await Model.saveRecycleBin();
                 return false;
+            }
+
+            if (Model.state.batchMode) {
+                Model.state.batchMode = false;
+                Model.state.manageMode = false;
+                Model.state.selectedSet.clear();
+            }
+            if (document.getElementById('edit-overlay')?.classList.contains('active')) {
+                window.toggleModal('edit-overlay', false);
+            }
+            if (document.getElementById('detail-overlay')?.classList.contains('active')) {
+                window.toggleModal('detail-overlay', false);
+            }
+
+            if (word.folder && !Model.folders.includes(word.folder)) {
+                Model.folders.push(word.folder);
+                Model.folderLangs[word.folder] = word.lang === 'en' ? 'en' : 'ja';
             }
 
             const targetIndex = Math.min(
@@ -12863,7 +13096,7 @@ deleteWord(idx) {
                 );
 
                 return `
-                    <article class="recycle-item" data-trash-id="${item.id}">
+                    <article class="recycle-item" data-trash-id="${escapeHTML(item.id)}">
                         <div class="recycle-item-icon">
                             <span class="material-symbols-rounded">${
                                 item.kind === 'example'
@@ -12988,9 +13221,12 @@ deleteWord(idx) {
         const trashCount = View.getEl('settings-trash-count');
 
         if (wrongCount) {
-            wrongCount.textContent = Object.values(Model.wrongBook).filter(
-                record => record.totalWrong > 0 && record.status !== 'resolved'
-            ).length;
+            const currentLang = Model.state.currentLangMode || 'ja';
+            wrongCount.textContent = Model.db.filter(word => {
+                if ((word.lang || 'ja') !== currentLang) return false;
+                const record = Model.getWrongRecord(word, false);
+                return Boolean(record && record.totalWrong > 0 && record.status !== 'resolved');
+            }).length;
         }
 
         if (trashCount) {

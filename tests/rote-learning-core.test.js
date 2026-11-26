@@ -52,6 +52,11 @@ assert.deepEqual(core.getGroupRange(2, 24), {
     hasWords: true
 });
 
+const singleQueue = core.buildInterleavedQueue([42]);
+assert.deepEqual(singleQueue, [42, 42]);
+assert.equal(core.isFirstAppearance(singleQueue, 0), true);
+assert.equal(core.isFirstAppearance(singleQueue, 1), false);
+
 const queue = core.buildInterleavedQueue([1, 2, 3]);
 assert.deepEqual(queue, [1, 2, 1, 2, 3, 2, 1, 2, 3]);
 assert.equal(core.isFirstAppearance(queue, 0), true);

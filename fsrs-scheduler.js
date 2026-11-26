@@ -83,7 +83,10 @@
     const result = scheduler.repeat(card, at);
     return Object.keys(RATING).reduce((out, name) => {
       const item = result[RATING[name]];
-      out[name] = { card: serialize(item.card), log: item.log, interval: item.card.scheduled_days, label: formatInterval(item.card.scheduled_days) };
+      const dueDate = date(item.card.due, at);
+      const exactDays = Math.max(0, (dueDate.getTime() - at.getTime()) / DAY);
+      const intervalDays = item.card.scheduled_days > 0 ? item.card.scheduled_days : exactDays;
+      out[name] = { card: serialize(item.card), log: item.log, interval: intervalDays, label: formatInterval(intervalDays) };
       return out;
     }, {});
   }

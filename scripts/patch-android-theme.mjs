@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 /**
  * 状态栏适配：让安卓状态栏使用深色图标（应用背景是浅色），
- * 并让状态栏区域与应用顶部的米色背景融为一体。
+ * 并让状态栏区域与应用顶部的浅灰白背景融为一体。
  * 只修改自动生成的安卓工程。模板结构变化时直接失败，避免生成一个
  * 看似成功、实际没有应用主题修复的 APK。
  */
@@ -38,8 +38,8 @@ const insertIntoStyle = (source, styleName, marker) => {
   const insert =
   `\n        <!-- ${marker} -->` +
   `\n        <item name="android:windowLightStatusBar">true</item>` +
-  `\n        <item name="android:statusBarColor">#f1ece4</item>` +
-  `\n        <item name="android:navigationBarColor">#f1ece4</item>` +
+  `\n        <item name="android:statusBarColor">#f6f7f9</item>` +
+  `\n        <item name="android:navigationBarColor">#f6f7f9</item>` +
   `\n        <item name="android:windowLightNavigationBar">true</item>`;
   return source.replace(match[0], match[0] + insert);
 };

@@ -3,11 +3,12 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const read = path => readFile(resolve(root, path), 'utf8');
-const [manifest, styles, gradle, html] = await Promise.all([
+const [manifest, styles, gradle, html, uiSystemCss] = await Promise.all([
   read('android/app/src/main/AndroidManifest.xml'),
   read('android/app/src/main/res/values/styles.xml'),
   read('android/app/build.gradle'),
-  read('android/app/src/main/assets/public/index.html')
+  read('android/app/src/main/assets/public/index.html'),
+  read('android/app/src/main/assets/public/ui-system.css')
 ]);
 
 const requireMatch = (source, pattern, message) => {
@@ -26,6 +27,8 @@ requireMatch(gradle, /versionCode\s+(?!1\b)\d+/, 'Android versionCode 没有更�
 requireMatch(gradle, /versionName\s+"(?!1\.0")/, 'Android versionName 没有更新');
 requireMatch(html, /vendor\/fonts\/fonts\.css/, 'Android 包未使用本地字体');
 requireMatch(html, /vendor\/idb-keyval\.umd\.js/, 'Android 包未使用本地 idb-keyval');
+requireMatch(html, /ui-system\.css/, 'Android 首页未引入 ui-system.css');
+requireMatch(uiSystemCss, /:root/, 'Android 包中的 ui-system.css 内容异常');
 
 if (/fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/idb-keyval/.test(html)) {
   throw new Error('Android 首页仍包含必须本地化的远程资源');

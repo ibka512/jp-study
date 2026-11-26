@@ -8,6 +8,8 @@
     index: 0,
     batch: 'latest',
     report: null,
+    loadError: false,
+    previousFocus: null,
   };
 
   const $ = id => document.getElementById(id);
@@ -69,11 +71,15 @@
   }
 
   async function loadReport() {
-    const response = await fetch(`./reports/root-generation-latest.json?t=${Date.now()}`, {
-      cache: 'no-store',
-    });
+    if (window.ZhongriWordbankLoader?.loadLanguage) {
+      try {
+        await window.ZhongriWordbankLoader.loadLanguage('en');
+      } catch (_error) {}
+    }
+    const response = await fetch('./reports/root-generation-latest.json');
     if (!response.ok) throw new Error('审核报告读取失败');
     const report = await response.json();
+    state.loadError = false;
     state.report = report;
     state.batch = `${report.level || 'EN'}-${report.generated_at || 'latest'}`;
     state.items = normalizeSuggestions(report);
@@ -112,7 +118,7 @@
     const parts = parseRoots(value);
     $('root-review-parts').innerHTML = parts.length
       ? parts.map((part, index) => `${index ? '<span class="root-review-plus">+</span>' : ''}<span class="root-review-part"><b>${escapeHTML(part.text)}</b><small>${escapeHTML(part.meaning || '未解释')}</small></span>`).join('')
-      : '<span class="root-review-no-split">AI 建议这个词不显示拆分</span>';
+      : '<span class="root-review-no-split">候选建议：该词不显示词根拆分</span>';
   }
 
   function render() {
@@ -122,10 +128,18 @@
     $('root-review-progress-bar').style.width = `${total ? (done / total) * 100 : 0}%`;
 
     if (!total) {
-      $('root-review-loading').innerHTML = '<span class="material-symbols-rounded">inventory_2</span><strong>暂时没有审核候选</strong><small>下一批 AI 建议生成后会自动出现在这里。</small>';
+      $('root-review-loading').innerHTML = state.loadError
+        ? '<span class="material-symbols-rounded">inventory_2</span><strong>无法读取审核报告</strong><small>请检查网络连接后重试。</small><button type="button" id="root-review-retry" class="btn-outline" style="margin-top:8px;">重试读取</button>'
+        : '<span class="material-symbols-rounded">inventory_2</span><strong>暂时没有审核候选</strong><small>新的词根候选批次生成后会自动出现在这里。</small>';
+      $('root-review-retry')?.addEventListener('click', () => {
+        state.loadError = false;
+        $('root-review-loading').innerHTML = '<span class="material-symbols-rounded">hourglass_top</span><strong>正在读取审核批次</strong><small>词库仍可正常离线学习</small>';
+        ensureReport().then(() => { selectFirstPending(); render(); });
+      });
       $('root-review-loading').hidden = false;
       $('root-review-card').hidden = true;
       $('root-review-actions').hidden = true;
+      $('root-review-complete').hidden = true;
       return;
     }
 
@@ -210,7 +224,7 @@
     const text = JSON.stringify(exportPayload(), null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      toast('审核结果已复制，直接粘贴给 ChatGPT 即可');
+      toast('审核结果已复制，可保存为 JSON 提交到词库仓库');
       vibrate(30);
     } catch (_error) {
       downloadReview();
@@ -242,6 +256,7 @@
         .then(() => true)
         .catch(() => {
           reportLoad = null;
+          state.loadError = true;
           state.items = [];
           updateEntrySummary();
           return false;
@@ -257,11 +272,13 @@
 
   function open() {
     const overlay = $('root-review-overlay');
+    state.previousFocus = document.activeElement;
     overlay.classList.add('active');
     overlay.removeAttribute('inert');
     overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
     vibrate(18);
+    window.setTimeout(() => $('root-review-close')?.focus(), 60);
 
     if (state.report) {
       selectFirstPending();
@@ -269,9 +286,11 @@
       return;
     }
 
+    $('root-review-loading').innerHTML = '<span class="material-symbols-rounded">hourglass_top</span><strong>正在读取审核批次</strong><small>词库仍可正常离线学习</small>';
     $('root-review-loading').hidden = false;
     $('root-review-card').hidden = true;
     $('root-review-actions').hidden = true;
+    $('root-review-complete').hidden = true;
     ensureReport().then(() => {
       selectFirstPending();
       render();
@@ -283,6 +302,10 @@
     $('root-review-overlay').setAttribute('inert', '');
     $('root-review-overlay').setAttribute('aria-hidden', 'true');
     if (!document.querySelector('.modal-overlay.active')) document.body.classList.remove('modal-open');
+    if (state.previousFocus && typeof state.previousFocus.focus === 'function') {
+      state.previousFocus.focus();
+      state.previousFocus = null;
+    }
     vibrate(12);
   }
 
@@ -290,18 +313,26 @@
     $('btn-open-root-review')?.addEventListener('click', open);
     $('root-review-close')?.addEventListener('click', close);
     $('root-review-help')?.addEventListener('click', () => {
-      if (typeof showAlert === 'function') {
-        showAlert('审核标准', '接受：拆分能自然解释单词现在的常用意思。<br><br>不显示：只是历史词源、解释牵强、或某一部分本身没有清楚含义。');
-      } else toast('只接受能帮助理解现代常用词义的拆分');
+      if (typeof showConfirm === 'function') {
+        showConfirm(
+          '审核标准',
+          '接受：拆分能自然解释单词现在的常用意思。<br><br>不显示：只是历史词源、解释牵强、或某一部分本身没有清楚含义。',
+          () => {},
+          { confirmLabel: '知道了' }
+        );
+      } else {
+        toast('只接受能帮助理解现代常用词义的拆分');
+      }
     });
     $('root-review-accept')?.addEventListener('click', () => setDecision('accept'));
     $('root-review-hide')?.addEventListener('click', () => setDecision('hide'));
     $('root-review-prev')?.addEventListener('click', () => { state.index--; vibrate(10); render(); });
     $('root-review-next')?.addEventListener('click', () => { state.index++; vibrate(10); render(); });
     $('root-review-edit')?.addEventListener('click', () => {
-      $('root-review-roots-input').hidden = false;
+      const input = $('root-review-roots-input');
+      input.hidden = false;
       $('root-review-parts').hidden = true;
-      $('root-review-roots-input').focus();
+      input.focus();
       vibrate(10);
     });
     $('root-review-roots-input')?.addEventListener('change', event => {
@@ -312,11 +343,35 @@
       save();
       renderParts(event.target.value);
     });
+    $('root-review-roots-input')?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        event.target.dispatchEvent(new Event('change'));
+        event.target.hidden = true;
+        $('root-review-parts').hidden = false;
+      } else if (event.key === 'Escape') {
+        event.stopPropagation();
+        event.target.hidden = true;
+        $('root-review-parts').hidden = false;
+      }
+    });
     $('root-review-copy')?.addEventListener('click', copyReview);
     $('root-review-download')?.addEventListener('click', downloadReview);
+    $('root-review-reopen')?.addEventListener('click', () => {
+      state.index = Math.max(0, state.items.length - 1);
+      render();
+    });
     document.addEventListener('keydown', event => {
       if (!$('root-review-overlay')?.classList.contains('active')) return;
-      if (event.key === 'Escape') close();
+      if (event.key === 'Escape') {
+        const input = $('root-review-roots-input');
+        if (input && !input.hidden) {
+          input.hidden = true;
+          $('root-review-parts').hidden = false;
+          return;
+        }
+        close();
+      }
     });
   }
 

@@ -74,8 +74,8 @@
 <link rel="preload" href="vendor/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/material-symbols.css">
-<link rel="stylesheet" href="ui-system.css?v=modern-v1">
-<link rel="stylesheet" href="style.css?v=modern-v1">
+<link rel="stylesheet" href="ui-system.css?v=modern-v2">
+<link rel="stylesheet" href="style.css?v=modern-v2">
 </head>
 <body>
 
@@ -1225,6 +1225,7 @@
         <p id="root-review-complete-summary">已完成所有判断。</p>
         <button id="root-review-copy" type="button"><span class="material-symbols-rounded">content_copy</span> 复制审核结果</button>
         <button id="root-review-download" type="button" class="btn-outline"><span class="material-symbols-rounded">download</span> 下载审核文件</button>
+        <button id="root-review-reopen" type="button" class="btn-outline"><span class="material-symbols-rounded">arrow_back</span> 返回查看 / 修改</button>
         <small>审核结果保存在当前设备，可导出 JSON 提交到词库仓库。</small>
       </div>
     </main>
@@ -1282,7 +1283,11 @@
 <script src="wordbank-loader.js"></script>
 <script>
   (function () {
-    const initialLanguage = localStorage.getItem('langMode') === 'en' ? 'en' : 'ja';
+    let savedLang = 'ja';
+    try {
+      savedLang = localStorage.getItem('langMode') === 'en' ? 'en' : 'ja';
+    } catch (_) {}
+    const initialLanguage = savedLang;
     const initialAssets = ZhongriWordbankLoader.getAssets(initialLanguage);
     window.__zhongriInitialWordbankLanguage = initialLanguage;
     document.write(initialAssets.map(asset => (
@@ -1298,7 +1303,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v1"></script>
+<script src="app.js?v=modern-v2"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

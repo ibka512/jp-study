@@ -16,7 +16,10 @@ const preview = scheduler.preview(card, now);
 for (const name of ['again', 'hard', 'good', 'easy']) {
   assert.ok(preview[name].card.due, `${name} should have a due date`);
   assert.ok(typeof preview[name].label === 'string');
+  assert.notStrictEqual(preview[name].label, '现在', `${name} should show future interval instead of 现在`);
 }
+assert.match(preview.again.label, /分钟后$/);
+assert.match(preview.good.label, /分钟后$/);
 
 const reviewed = scheduler.review(card, 'good', now);
 assert.strictEqual(reviewed.card.reps, 1);

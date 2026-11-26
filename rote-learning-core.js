@@ -152,6 +152,9 @@
         const source = Array.isArray(sourceIndexes)
             ? sourceIndexes.filter(Number.isInteger)
             : [];
+        if (source.length === 1) {
+            return [source[0], source[0]];
+        }
         const queue = [];
 
         for (let index = 0; index < source.length; index++) {

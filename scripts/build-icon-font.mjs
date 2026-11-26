@@ -2,16 +2,15 @@
 /**
  * 构建图标字体子集。
  *
- * 从源码里提取实际引用的 Material Symbols 图标名，向 Google Fonts 请求
- * 只包含这些图标的 woff2，替换 vendor/material-symbols-rounded.woff2，
+ * 从源码里提取实际引用的 Material Symbols 图标名（含静态标签、动态赋值、
+ * 模板三元表达式与选择器图标映射表），向 Google Fonts 请求仅包含这些图标且
+ * 保留 FILL (0..1) 变体轴的 woff2，替换 vendor/material-symbols-rounded.woff2，
  * 并生成清单 vendor/material-symbols-icons.json 供测试校验。
  *
  * 用法：node scripts/build-icon-font.mjs [--dry-run]
- *
- * 需要网络。图标集合变化后重新执行一次即可。
  */
 
-import { readFile, writeFile, readdir } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -26,32 +25,97 @@ const USER_AGENT =
 
 const dryRun = process.argv.includes('--dry-run');
 
-const SOURCE_FILES = ['index.html', 'app.js', 'native-app.js', 'root-review.js'];
+export const SOURCE_FILES = ['index.html', 'app.js', 'native-app.js', 'root-review.js'];
 
-/** 紧跟在 material-symbols-rounded 标记之后的图标文本（允许附加其他 class） */
+const ICON_NAME_RE = /^[a-z][a-z0-9_]{1,30}$/;
+
+/** 1. 静态图标标签：<span class="... material-symbols-rounded ...">icon_name</span> */
 const INLINE_PATTERN = new RegExp(`${ICON_ATTR}[^>]*>\\s*([a-z][a-z0-9_]{1,30})\\s*<`, 'g');
-/** 运行时改写图标内容的写法：icon.textContent = 'auto_fix_high' */
-const ASSIGN_PATTERN = /\b(?:icon|buttonIcon|el|node)\w*\.textContent\s*=\s*'([a-z][a-z0-9_]{1,30})'/g;
+/** 2. 运行时文本赋值（支持 textContent / innerText 以及三元 / 或运算表达式） */
+const ASSIGN_LINE_PATTERN = /\b(?:icon|buttonIcon|manageIcon|el|node)\w*\.(?:textContent|innerText)\s*=\s*([^;]+)/g;
+/** 3. 模板表达式内嵌在 material-symbols-rounded 标签里 */
+const TEMPLATE_ICON_PATTERN = new RegExp(`${ICON_ATTR}[^>]*>\\s*\\$\\{([^}]+)\\}\\s*<`, 'g');
+/** 4. 对象字面量 icon: '...' 或三元 icon: cond ? 'a' : 'b' */
+const ICON_PROP_PATTERN = /\bicon\s*:\s*([^,\n}]+)/g;
+/** 5. 命名图标映射对象：displayIconMap / genericIconMap */
+const ICON_MAP_BLOCK_PATTERN = /\b(?:displayIconMap|genericIconMap)\s*=\s*\{([\s\S]*?)\};/g;
+/** 6. 词库/范围选择器元信息表：['group', 'label', 'icon_name', ...] */
+const PICKER_TUPLE_PATTERN = /\[\s*'(?:quick|wrong|progress|folders|library|favorite|review|weak)'\s*,\s*(?:'[^']*'|[^,\]]+)\s*,\s*([^,\]]+)/g;
+/** 7. 导航 data-title="icon|标题" */
+const DATA_TITLE_PATTERN = /data-title="([a-z][a-z0-9_]{1,30})\|/g;
+/** 8. 变量声明 const icon = ...;（含三元/回退图标如 'tune' / 'hearing_disabled'） */
+const CONST_ICON_PATTERN = /\bconst icon\s*=\s*([^;]+);/g;
 
-async function collectIconNames() {
+const NON_ICON_TOKENS = new Set([
+    'all', 'en', 'ja', 'word', 'kana', 'meaning', 'audio', 'spell', 'skip',
+    'overwrite', 'keep', 'default', 'normal', 'active', 'hidden', 'none',
+    'warning', 'ok', 'true', 'false', 'example', 'conversation', 'study',
+    'filter', 'pending', 'resolved', 'kanji', 'span'
+]);
+
+function addQuotedIconLiterals(expression, names, allowErrorIcon = false) {
+    for (const match of expression.matchAll(/'([a-z][a-z0-9_]{1,30})'/g)) {
+        const candidate = match[1];
+        if (!ICON_NAME_RE.test(candidate)) continue;
+        if (NON_ICON_TOKENS.has(candidate)) continue;
+        if (candidate === 'error' && !allowErrorIcon) continue;
+        names.add(candidate);
+    }
+}
+
+export function extractIconNamesFromSource(source) {
+    const names = new Set();
+
+    if (source.includes(ICON_ATTR)) {
+        for (const match of source.matchAll(INLINE_PATTERN)) {
+            names.add(match[1]);
+        }
+        for (const match of source.matchAll(TEMPLATE_ICON_PATTERN)) {
+            addQuotedIconLiterals(match[1], names, true);
+        }
+    }
+
+    for (const match of source.matchAll(ASSIGN_LINE_PATTERN)) {
+        addQuotedIconLiterals(match[1], names, false);
+    }
+
+    for (const match of source.matchAll(ICON_PROP_PATTERN)) {
+        addQuotedIconLiterals(match[1], names, false);
+    }
+
+    for (const match of source.matchAll(ICON_MAP_BLOCK_PATTERN)) {
+        for (const val of match[1].matchAll(/:\s*'([a-z][a-z0-9_]{1,30})'/g)) {
+            names.add(val[1]);
+        }
+    }
+
+    for (const match of source.matchAll(PICKER_TUPLE_PATTERN)) {
+        addQuotedIconLiterals(match[1], names, false);
+    }
+
+    for (const match of source.matchAll(DATA_TITLE_PATTERN)) {
+        names.add(match[1]);
+    }
+
+    for (const match of source.matchAll(CONST_ICON_PATTERN)) {
+        addQuotedIconLiterals(match[1], names, false);
+    }
+
+    return names;
+}
+
+export async function collectIconNames(rootDir = ROOT) {
     const names = new Set();
 
     for (const file of SOURCE_FILES) {
         let source;
         try {
-            source = await readFile(path.join(ROOT, file), 'utf8');
+            source = await readFile(path.join(rootDir, file), 'utf8');
         } catch {
             continue;
         }
-
-        // 只在本文件包含图标标记时才扫描赋值写法，避免误收普通文本
-        if (source.includes(ICON_ATTR)) {
-            for (const match of source.matchAll(INLINE_PATTERN)) {
-                names.add(match[1]);
-            }
-        }
-        for (const match of source.matchAll(ASSIGN_PATTERN)) {
-            names.add(match[1]);
+        for (const name of extractIconNamesFromSource(source)) {
+            names.add(name);
         }
     }
 
@@ -61,7 +125,7 @@ async function collectIconNames() {
 async function fetchSubsetFont(icons) {
     const iconQuery = icons.join(',');
     const url =
-        `${GOOGLE_CSS}:opsz,wght,FILL,GRAD@24,500,0,0` +
+        `${GOOGLE_CSS}:opsz,wght,FILL,GRAD@24,500..600,0..1,0` +
         `&icon_names=${encodeURIComponent(iconQuery)}&display=block`;
 
     const cssResponse = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
@@ -113,7 +177,7 @@ async function main() {
     const manifest = {
         generatedAt: new Date().toISOString(),
         family: 'Material Symbols Rounded',
-        variant: 'opsz 24 / wght 500 / FILL 0 / GRAD 0',
+        variant: 'opsz 24 / wght 500..600 / FILL 0..1 / GRAD 0',
         fontFile: 'vendor/material-symbols-rounded.woff2',
         source: 'https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded',
         icons
@@ -132,4 +196,6 @@ async function main() {
     console.log(`清单写入 ${path.relative(ROOT, MANIFEST_PATH)}`);
 }
 
-await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    await main();
+}

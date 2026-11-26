@@ -35,12 +35,22 @@
   const pad = value => String(value).padStart(2, '0');
 
   const dateKey = value => {
-    const dateOnly = String(value || '').match(
-      /^(\d{4})-(\d{2})-(\d{2})$/
-    );
-    if (dateOnly) return dateOnly[0];
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return '';
+      return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+    }
+    const text = String(value || '').trim();
+    const localMatch = text.match(/^(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})(?:日)?$/);
+    if (localMatch) {
+      const year = Number(localMatch[1]);
+      const month = Number(localMatch[2]);
+      const day = Number(localMatch[3]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return `${year}-${pad(month)}-${pad(day)}`;
+      }
+    }
 
-    const date = value instanceof Date ? value : new Date(value);
+    const date = new Date(text);
     if (Number.isNaN(date.getTime())) return '';
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   };
@@ -265,11 +275,21 @@
       }
 
       const rescueAt = atLocalTime(day, normalized.rescueTime);
+      const effectiveRescueAt =
+        rescueAt.getTime() < primaryAt.getTime() && offset > 0
+          ? primaryAt
+          : rescueAt;
+      const effectiveRescueTime =
+        effectiveRescueAt === primaryAt
+          ? normalized.reminderTime
+          : normalized.rescueTime;
+      const showStreak =
+        offset === 0 || (offset === 1 && studied.has(dateKey(current)));
       if (
         normalized.rescueEnabled &&
-        isUsableTime(rescueAt, current, normalized.rescueTime, normalized)
+        isUsableTime(effectiveRescueAt, current, effectiveRescueTime, normalized)
       ) {
-        result.push(buildRescueNotification(rescueAt, offset, streak));
+        result.push(buildRescueNotification(effectiveRescueAt, offset, showStreak ? streak : 0));
       }
     }
 

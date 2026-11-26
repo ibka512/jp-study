@@ -119,3 +119,49 @@ test('设置归一化保留空星期并回退非法时间', () => {
   assert.deepEqual(result.weekdays, []);
   assert.equal(result.exact, true);
 });
+
+test('dateKey 直接解析 YYYY/M/D 与中文年月日格式且不依赖 Date 隐式解析', () => {
+  assert.equal(planner.dateKey('2026/7/5'), '2026-07-05');
+  assert.equal(planner.dateKey('2026-7-5'), '2026-07-05');
+  assert.equal(planner.dateKey('2026年7月5日'), '2026-07-05');
+});
+
+test('未来补救提醒不会沿用过期的连续打卡天数，且不会早于主要提醒', () => {
+  const result = planner.planNotifications({
+    now: localDate(23, '08:00'),
+    settings: settings({
+      weekdays: [4, 5, 6],
+      reminderTime: '20:00',
+      rescueTime: '18:00',
+      dueEnabled: true,
+      rescueEnabled: true
+    }),
+    cards: [{ due: localDate(23, '07:00'), dimension: 'meaning' }],
+    streak: 7,
+    horizonDays: 3
+  });
+
+  // 第 1 天（7/23）有到期卡，安排在 20:00 的到期提醒，而不是 18:00 的补救提醒
+  assert.equal(planner.dateKey(result[0].at), '2026-07-23');
+  assert.equal(result[0].kind, 'due');
+  assert.equal(new Date(result[0].at).getHours(), 20);
+
+  // 2 天后（7/25）无到期卡时的补救提醒不应声称“连续学习 7 天”
+  const rescueFuture = planner.planNotifications({
+    now: localDate(23, '08:00'),
+    settings: settings({
+      weekdays: [4, 5, 6],
+      reminderTime: '20:00',
+      rescueTime: '21:30',
+      dueEnabled: false,
+      rescueEnabled: true
+    }),
+    cards: [],
+    streak: 7,
+    horizonDays: 3
+  });
+  const day0 = rescueFuture.find(item => planner.dateKey(item.at) === '2026-07-23');
+  const day2 = rescueFuture.find(item => planner.dateKey(item.at) === '2026-07-25');
+  assert.match(day0.body, /7 天/);
+  assert.doesNotMatch(day2.body, /7 天/);
+});

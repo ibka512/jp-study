@@ -64,7 +64,8 @@ function loadApp(storage = createStorage(), root = path.resolve(__dirname, '../.
     }
     for (const file of [
         'data.js', 'english-data.js', 'wordbanks/assets.js', 'wordbank-loader.js',
-        'core-utils.js', 'haptics.js', 'rote-learning-core.js',
+        'core-utils.js', 'settings-store.js', 'study-card-viewmodel.js',
+        'haptics.js', 'rote-learning-core.js',
         'vendor/ts-fsrs.umd.js', 'fsrs-scheduler.js', 'notification-planner.js', 'app.js'
     ]) run(file);
     return { ...vm.runInContext('({ Model, Controller, View })', context), context, storage, events };

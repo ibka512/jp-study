@@ -126,8 +126,68 @@
         return task;
     };
 
+    const getDefaultFolderForLanguage = language => {
+        return normalizeLanguage(language) === 'en' ? '四级词汇' : '默认词库';
+    };
+
+    const getLanguageRawWords = language => {
+        const normalizedLanguage = normalizeLanguage(language);
+        if (normalizedLanguage === 'en') {
+            if (Array.isArray(root.DefaultEnglishWords)) {
+                return root.DefaultEnglishWords;
+            }
+            if (typeof DefaultEnglishWords !== 'undefined' && Array.isArray(DefaultEnglishWords)) {
+                return DefaultEnglishWords;
+            }
+            return [];
+        }
+        if (Array.isArray(root.DefaultWords)) {
+            return root.DefaultWords;
+        }
+        if (typeof DefaultWords !== 'undefined' && Array.isArray(DefaultWords)) {
+            return DefaultWords;
+        }
+        return [];
+    };
+
+    const getBuiltInFoldersForLanguage = language => {
+        const normalizedLanguage = normalizeLanguage(language);
+        const fallback = getDefaultFolderForLanguage(normalizedLanguage);
+        const rawWords = getLanguageRawWords(normalizedLanguage);
+        const folders = [];
+        const seen = new Set();
+
+        for (const word of rawWords) {
+            const folder = String(word?.folder || fallback).trim() || fallback;
+            if (!seen.has(folder)) {
+                seen.add(folder);
+                folders.push(folder);
+            }
+        }
+        if (!folders.length && isLoaded(normalizedLanguage)) {
+            folders.push(fallback);
+        }
+        return Object.freeze(folders);
+    };
+
+    const getLanguageSnapshot = language => {
+        const normalizedLanguage = normalizeLanguage(language);
+        const rawWords = getLanguageRawWords(normalizedLanguage);
+        return Object.freeze({
+            lang: normalizedLanguage,
+            loaded: isLoaded(normalizedLanguage) || rawWords.length > 0,
+            defaultFolder: getDefaultFolderForLanguage(normalizedLanguage),
+            builtInFolders: getBuiltInFoldersForLanguage(normalizedLanguage),
+            wordCount: rawWords.length
+        });
+    };
+
     return Object.freeze({
         getAssets,
+        getBuiltInFoldersForLanguage,
+        getDefaultFolderForLanguage,
+        getLanguageRawWords,
+        getLanguageSnapshot,
         isLoaded,
         loadLanguage,
         markLoaded,

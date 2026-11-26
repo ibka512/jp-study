@@ -19,6 +19,8 @@ const PENDING_STORAGE_PREFIX = 'zhongriPendingStorage_v1:';
 const CORE_UTILS = globalThis.ZhongriCoreUtils;
 const HAPTICS = globalThis.ZhongriHaptics;
 const WORD_BANK_LOADER = globalThis.ZhongriWordbankLoader;
+const SETTINGS_STORE = globalThis.ZhongriSettingsStore;
+const STUDY_CARD_VM = globalThis.ZhongriStudyCardViewModel;
 const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
     version: '未知版本',
     build: '本地缓存',
@@ -39,6 +41,14 @@ if (!ROTE_CORE) {
     throw new Error('循环强记核心模块加载失败');
 }
 
+if (!SETTINGS_STORE) {
+    throw new Error('钟日偏好存储模块加载失败');
+}
+
+if (!STUDY_CARD_VM) {
+    throw new Error('钟日学习卡片视图模型模块加载失败');
+}
+
 const {
     cloneDataValue,
     escapeHTML,
@@ -47,24 +57,7 @@ const {
     normalizeEntryText
 } = CORE_UTILS;
 
-const BACKUP_PREFERENCE_KEYS = Object.freeze([
-    'theme',
-    'langMode',
-    'autoSpeak',
-    'hapticsEnabled',
-    'showRoots',
-        'darkBtnStyle',
-    'postponeTested',
-    'wordOrderMode',
-    'skipMastered',
-    'ttsEngine',
-    'displayMode',
-    'lastCustomGroupTxt',
-    'lastCustomGroupVal',
-    'lastSelectedFolder',
-    'lastTestDisplay',
-    'lastTestRange'
-]);
+const BACKUP_PREFERENCE_KEYS = SETTINGS_STORE.getBackupKeys();
 
 const normalizeFolderName = value => {
     return normalizeEntryText(value);
@@ -2822,13 +2815,16 @@ const Model = {
 
   getDefaultBuiltInWords() {
       const words = [];
+      const readRaw = lang => (
+          WORD_BANK_LOADER && typeof WORD_BANK_LOADER.getLanguageRawWords === 'function'
+              ? WORD_BANK_LOADER.getLanguageRawWords(lang)
+              : (lang === 'en'
+                  ? (typeof DefaultEnglishWords !== 'undefined' ? DefaultEnglishWords : [])
+                  : (typeof DefaultWords !== 'undefined' ? DefaultWords : []))
+      );
       const sources = {
-          ja: typeof DefaultWords !== 'undefined'
-              ? DefaultWords
-              : [],
-          en: typeof DefaultEnglishWords !== 'undefined'
-              ? DefaultEnglishWords
-              : []
+          ja: readRaw('ja'),
+          en: readRaw('en')
       };
       const languages = this.builtInLoadOrder.length
           ? this.builtInLoadOrder
@@ -2836,15 +2832,16 @@ const Model = {
 
       languages.forEach(language => {
           const sourceWords = sources[language] || [];
-          const isEnglish = language === 'en';
+          const defaultFolder =
+              WORD_BANK_LOADER && typeof WORD_BANK_LOADER.getDefaultFolderForLanguage === 'function'
+                  ? WORD_BANK_LOADER.getDefaultFolderForLanguage(language)
+                  : (language === 'en' ? '四级词汇' : '默认词库');
 
           sourceWords.forEach(word => {
               const entry = normalizeWordEntry({
                   ...cloneDataValue(word),
                   lang: language,
-                  folder: word.folder || (
-                      isEnglish ? '四级词汇' : '默认词库'
-                  ),
+                  folder: word.folder || defaultFolder,
                   builtIn: true
               });
 
@@ -4473,8 +4470,81 @@ const View = {
           const el = this.getEl(id);
           if (!el) return;
           const text = (el.innerText || el.textContent || '').trim();
-          el.classList.toggle('is-masked', Boolean(text && /^[■\s]+$/.test(text)));
+          const masked = STUDY_CARD_VM.isMaskedText(text);
+          el.classList.toggle('is-masked', masked);
+          if (el.dataset) {
+              el.dataset.masked = masked ? 'true' : 'false';
+          }
       });
+  },
+
+  applyDeclarativeCardViewModel(vm, w, visuals) {
+      const wordEl = this.getEl('w-word');
+      const kanaEl = this.getEl('w-kana');
+      const meaningEl = this.getEl('w-meaning');
+      const typeEl = this.getEl('w-type');
+      const rootsEl = this.getEl('w-roots');
+      const exampleEl = this.getEl('w-example-box');
+      const blindAudioUi = this.getEl('mt-blind-audio-ui');
+      const hintBtn = this.getEl('btn-mt-show-hint');
+
+      wordEl.innerText = vm.wordText;
+      wordEl.style.fontSize = vm.wordFontSize;
+      kanaEl.innerText = vm.readingText;
+      meaningEl.innerText = vm.meaningText;
+
+      typeEl.innerHTML = visuals.tagsHTML;
+      typeEl.style.display = vm.showType ? 'flex' : 'none';
+
+      if (rootsEl) {
+          if (vm.showRoots) {
+              rootsEl.innerHTML = this.renderRoots(w.roots, vm.maskRootText, vm.maskRootMeaning);
+              rootsEl.style.display = 'flex';
+          } else {
+              rootsEl.style.display = 'none';
+          }
+          rootsEl.className = 'roots-row';
+      }
+
+      this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
+      exampleEl.className = 'dt-example-box';
+      exampleEl.style.display = vm.showExample ? 'block' : 'none';
+      exampleEl.toggleAttribute('aria-hidden', !vm.showExample);
+
+      ['word', 'kana', 'type', 'meaning'].forEach(k => {
+          const el = this.getEl(`w-${k}`);
+          if (!el) return;
+          el.className =
+              k === 'word'
+                  ? 'word-main'
+                  : k === 'type'
+                      ? 'type-row'
+                      : `${k}-row`;
+          el.removeAttribute('aria-hidden');
+      });
+
+      if (wordEl.dataset) wordEl.dataset.masked = vm.isMaskedWord ? 'true' : 'false';
+      if (kanaEl.dataset) kanaEl.dataset.masked = vm.isMaskedReading ? 'true' : 'false';
+      if (meaningEl.dataset) meaningEl.dataset.masked = vm.isMaskedMeaning ? 'true' : 'false';
+      wordEl.classList.toggle('is-masked', vm.isMaskedWord);
+      kanaEl.classList.toggle('is-masked', vm.isMaskedReading);
+      meaningEl.classList.toggle('is-masked', vm.isMaskedMeaning);
+
+      blindAudioUi.classList.toggle('hidden', !vm.showBlindAudio);
+      if (hintBtn && !vm.showBlindHint) {
+          hintBtn.style.display = 'none';
+      }
+      wordEl.style.display = vm.showWordRow ? 'block' : 'none';
+      kanaEl.style.display = vm.showReadingRow ? 'block' : 'none';
+      meaningEl.style.display = vm.showMeaningRow ? 'block' : 'none';
+      this.getEl('btn-speaker').style.display = vm.showSpeaker ? 'block' : 'none';
+
+      const isStarred = Model.isStarred(w);
+      this.getEl('star-icon').style.fontVariationSettings =
+          isStarred ? "'FILL' 1" : "'FILL' 0";
+      this.getEl('star-btn').classList.toggle('active', isStarred);
+      this.getEl('star-btn').setAttribute('aria-pressed', String(isStarred));
+      this.getEl('star-btn').style.display = vm.showStar ? 'block' : 'none';
   },
 
   syncRootsDisplay() {
@@ -5772,83 +5842,15 @@ void card.offsetWidth;
     if (isFsrsReview) {
         const item =
             Model.state.fsrsReviewItems?.[Model.state.currentIndex];
-        const dimension = item?.dimension || 'meaning';
-        const isRevealed = Model.state.fsrsAnswerRevealed === true;
-        const hideWord =
-            !isRevealed &&
-            ['kanji', 'spelling', 'listening'].includes(dimension);
-        const hideReading =
-            !isRevealed &&
-            ['reading', 'spelling', 'listening'].includes(dimension);
-        const hideMeaning =
-            !isRevealed &&
-            ['meaning', 'listening'].includes(dimension);
-        const wordEl = this.getEl('w-word');
-        const kanaEl = this.getEl('w-kana');
-        const meaningEl = this.getEl('w-meaning');
-        const typeEl = this.getEl('w-type');
-        const rootsEl = this.getEl('w-roots');
-        const exampleEl = this.getEl('w-example-box');
-        const blindAudioUi = this.getEl('mt-blind-audio-ui');
-
-        wordEl.innerText = hideWord ? maskFixed : (w.word || '');
-        wordEl.style.fontSize = hideWord ? '2.8rem' : '';
-        kanaEl.innerText = hideReading
-            ? maskFixed
-            : isEnglish
-                ? (w.phonetic || '')
-                : (w.kana || '').replace(/[【】\[\]()]/g, '');
-        meaningEl.innerText = hideMeaning ? maskFixed : (w.meaning || '');
-        typeEl.innerHTML = visuals.tagsHTML;
-        typeEl.style.display = isRevealed ? 'flex' : 'none';
-
-        if (
-            isRevealed &&
-            isEnglish &&
-            w.roots &&
-            localStorage.getItem('showRoots') !== 'false'
-        ) {
-            rootsEl.innerHTML = this.renderRoots(w.roots, false, false);
-            rootsEl.style.display = 'flex';
-        } else {
-            rootsEl.style.display = 'none';
-        }
-
-        this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
-        exampleEl.className = 'dt-example-box';
-        exampleEl.style.display = isRevealed && w.example ? 'block' : 'none';
-        exampleEl.toggleAttribute('aria-hidden', !isRevealed);
-
-        ['word', 'kana', 'type', 'meaning'].forEach(k => {
-            const el = this.getEl(`w-${k}`);
-            if (!el) return;
-            el.className =
-                k === 'word'
-                    ? 'word-main'
-                    : k === 'type'
-                        ? 'type-row'
-                        : `${k}-row`;
-            el.removeAttribute('aria-hidden');
+        const vm = STUDY_CARD_VM.buildFsrsCardViewModel({
+            word: w,
+            dimension: item?.dimension || 'meaning',
+            isRevealed: Model.state.fsrsAnswerRevealed === true,
+            isEnglish,
+            showRootsPref: SETTINGS_STORE.getBool('showRoots')
         });
 
-        const isListeningPrompt =
-            !isRevealed && dimension === 'listening';
-        blindAudioUi.classList.toggle('hidden', !isListeningPrompt);
-        this.getEl('btn-mt-show-hint').style.display = 'none';
-        wordEl.style.display = isListeningPrompt ? 'none' : 'block';
-        kanaEl.style.display = isListeningPrompt ? 'none' : 'block';
-        meaningEl.style.display = isListeningPrompt ? 'none' : 'block';
-        this.getEl('btn-speaker').style.display =
-            isRevealed ? 'block' : 'none';
-
-        const isStarred = Model.isStarred(w);
-        this.getEl('star-icon').style.fontVariationSettings =
-            isStarred ? "'FILL' 1" : "'FILL' 0";
-        this.getEl('star-btn').classList.toggle('active', isStarred);
-        this.getEl('star-btn').setAttribute(
-            'aria-pressed',
-            String(isStarred)
-        );
+        this.applyDeclarativeCardViewModel(vm, w, visuals);
         this.getEl('capsule-pendulum').classList.add('hidden');
         this.getEl('capsule-filter-test').classList.add('hidden');
         this.getEl('capsule-filter-judge').classList.add('hidden');
@@ -5856,119 +5858,35 @@ void card.offsetWidth;
         this.getEl('memory-test-ui').classList.add('hidden');
         this.getEl('capsule-fsrs-review').classList.remove('hidden');
         this.getEl('btn-display-mode-trigger').style.display = 'none';
-        this.getEl('star-btn').style.display =
-            isRevealed ? 'block' : 'none';
         this.syncRootsDisplay();
         this.updatePixelMatrix();
-        if (isListeningPrompt) {
+        if (vm.autoSpeakOnRender) {
             window.setTimeout(() => Hardware.speakWord(w), 80);
         }
         return;
     }
 
     if (isFilterTest) {
-        let displayMode = this.getEl('test-display-select').value || 'kana'; 
-        // 英语模式：kana 维度不存在，映射为 word；audio 维度保留为听力辨音
-        if (isEnglish && displayMode === 'kana') {
-            displayMode = 'word';
-        }
-        let st = Model.state.ftState; 
-        let hint = Model.state.ftHint;
-        let showKanaHint = Model.state.ftShowKanaHint; 
-
-        let isVisible = (field) => {
-            if (st === 'C') return true;
-            if (displayMode === field) return true;
-            if (st === 'B' && hint === field) return true;
-            return false;
-        };
-
-        let showW = isVisible('word');
-        let showK = isVisible('kana') || showKanaHint;
-        let showM = isVisible('meaning');
-        let showA = isVisible('audio');
-
-        // 引入动态字号计算引擎，防止筛选检验模式长单词排版崩溃
-        let finalWord = showW ? w.word : maskFixed;
-        let wWordEl = this.getEl('w-word');
-        wWordEl.innerText = finalWord;
-        
-        let wLen = Array.from(finalWord || '').length;
-        if (isEnglish) {
-            if (wLen >= 14) wWordEl.style.fontSize = '1.8rem';
-            else if (wLen >= 11) wWordEl.style.fontSize = '2.2rem';
-            else if (wLen >= 8) wWordEl.style.fontSize = '2.8rem';
-            else if (wLen >= 5) wWordEl.style.fontSize = '3.5rem';
-            else wWordEl.style.fontSize = '4.2rem';
-        } else {
-            if (wLen >= 10) wWordEl.style.fontSize = '1.8rem';
-            else if (wLen >= 7) wWordEl.style.fontSize = '2.2rem';
-            else if (wLen >= 5) wWordEl.style.fontSize = '2.6rem';
-            else wWordEl.style.fontSize = ''; 
-        }
-
-        if (!isEnglish) {
-
-            this.getEl('w-kana').innerText = showK ? (w.kana || '').replace(/[【】\[\]()]/g,'') : maskFixed;
-            this.getEl('w-kana').style.display = 'block';
-        } else {
-            // 恢复为纯文本（背词界面已有专门的全局发音按钮）
-            this.getEl('w-kana').innerText = showK ? (w.phonetic || '') : maskFixed;
-            this.getEl('w-kana').style.display = 'block';
-        }
-
-
-        this.getEl('w-meaning').innerText = showM ? w.meaning : maskFixed;
-        this.getEl('w-type').innerHTML = visuals.tagsHTML;
-        this.getEl('w-type').style.display = st === 'C' ? 'flex' : 'none'; 
-        
-        let rootsEl = this.getEl('w-roots');
-        let showRootsPref = localStorage.getItem('showRoots') !== 'false';
-        if (rootsEl) {
-            if (isEnglish && w.roots && showRootsPref) {
-                // 根据主单词和主释义的显示状态，决定是否对词根的对应部分打码(■■■)
-                rootsEl.innerHTML = this.renderRoots(w.roots, !showW, !showM);
-                rootsEl.style.display = 'flex';
-            } else {
-                rootsEl.style.display = 'none';
-            }
-        }
-
-        ['word','kana','meaning','type'].forEach(k => {
-             let el = this.getEl(`w-${k}`);
-             if(!el) return;
-             el.className = (k === 'word') ? 'word-main' : (k === 'type' ? 'type-row' : `${k}-row`);
+        const st = Model.state.ftState;
+        const vm = STUDY_CARD_VM.buildFilterTestCardViewModel({
+            word: w,
+            displayMode: this.getEl('test-display-select').value || 'kana',
+            ftState: st,
+            ftHint: Model.state.ftHint,
+            showKanaHint: Model.state.ftShowKanaHint,
+            isEnglish,
+            showRootsPref: SETTINGS_STORE.getBool('showRoots')
         });
-        if(rootsEl) rootsEl.className = 'roots-row';
 
-                let blindAudioUi = this.getEl('mt-blind-audio-ui');
-        if (st === 'C') {
-            blindAudioUi.classList.add('hidden');
-            this.getEl('w-word').style.display = 'block';
-        } else {
-            if (displayMode === 'audio') {
-                blindAudioUi.classList.remove('hidden');
-                if (!showW) this.getEl('w-word').style.display = 'none';
-            }
+        this.applyDeclarativeCardViewModel(vm, w, visuals);
+        if (vm.autoSpeakOnRender) {
+            Hardware.speakWord(w);
         }
-
-        this.getEl('btn-speaker').style.display = (st === 'C' || (showA && displayMode !== 'audio')) ? 'block' : 'none';
-        
-        if ((st === 'A' && displayMode === 'audio') || (st === 'B' && hint === 'audio')) {
-
-             Hardware.speakWord(w);
-        }
-
-        this.renderExampleBox(w.example, 'w-example-box', 'normal', w);
-        this.getEl('w-example-box').style.display = st === 'C' ? 'block' : 'none';
-        this.getEl('w-example-box').className = 'dt-example-box';
 
         this.getEl('capsule-pendulum').classList.add('hidden');
         this.getEl('dual-track-ui').classList.add('hidden');
         this.getEl('memory-test-ui').classList.add('hidden');
         this.getEl('btn-display-mode-trigger').style.display = 'none';
-        this.getEl('star-btn').style.display = st === 'C' ? 'block' : 'none'; 
-        this.getEl('star-icon').style.fontVariationSettings = Model.isStarred(w) ? "'FILL' 1" : "'FILL' 0";
 
         if (st === 'C') {
             this.getEl('capsule-filter-test').classList.add('hidden');
@@ -5977,12 +5895,12 @@ void card.offsetWidth;
             this.getEl('capsule-filter-judge').classList.add('hidden');
             this.getEl('capsule-filter-test').classList.remove('hidden');
             let blurBtn = this.getEl('ft-blur');
-            if (st === 'B') blurBtn.style.display = 'none'; 
+            if (st === 'B') blurBtn.style.display = 'none';
             else blurBtn.style.display = 'flex';
         }
-        
+
         this.syncRootsDisplay();
-        return; 
+        return;
     }
 
     let showWord = true, showKana = !isEnglish, showMeaning = true;
@@ -8916,41 +8834,11 @@ if (testVibrateBtn) {
   },
 
   collectBackupPreferences() {
-      const preferences = {};
-
-      for (const key of BACKUP_PREFERENCE_KEYS) {
-          const value = localStorage.getItem(key);
-
-          if (value !== null) {
-              preferences[key] = value;
-          }
-      }
-
-      return preferences;
+      return SETTINGS_STORE.collectBackupPreferences();
   },
 
   applyBackupPreferences(preferences) {
-      if (
-          !preferences ||
-          typeof preferences !== 'object' ||
-          Array.isArray(preferences)
-      ) {
-          return;
-      }
-
-      for (const key of BACKUP_PREFERENCE_KEYS) {
-          if (
-              Object.prototype.hasOwnProperty.call(
-                  preferences,
-                  key
-              )
-          ) {
-              localStorage.setItem(
-                  key,
-                  String(preferences[key])
-              );
-          }
-      }
+      SETTINGS_STORE.applyBackupPreferences(preferences);
   },
 
   buildBackupPayload(kind = 'manual') {

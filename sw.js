@@ -1,16 +1,17 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v46';
+const CACHE_NAME = 'zhongri-shell-v47';
 const LOCAL_ASSETS = [
+  // @sync-shell-assets:local:start
   './',
   './index.html',
-  './manifest.json',
   './logo.png',
-  './vendor/material-symbols.css',
+  './manifest.json',
   './vendor/material-symbols-rounded.woff2',
+  './vendor/material-symbols.css',
   './ui-system.css?v=modern-v8',
-  './style.css?v=modern-v8',
+  './style.css?v=modern-v9',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -20,14 +21,17 @@ const LOCAL_ASSETS = [
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
+  './settings-store.js',
+  './study-card-viewmodel.js',
   './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v6',
+  './app.js?v=modern-v7',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
+  // @sync-shell-assets:local:end
 ];
 
 const OPTIONAL_EXTERNAL_ASSETS = [
@@ -40,24 +44,28 @@ const PRECACHE_URLS = new Set(LOCAL_ASSETS.map(toAbsoluteUrl));
 const WORD_BANK_BASE_URL = toAbsoluteUrl('./wordbanks/');
 const REPORTS_BASE_URL = toAbsoluteUrl('./reports/');
 const NETWORK_FIRST_ASSETS = new Set([
+  // @sync-shell-assets:network-first:start
   './index.html',
   './manifest.json',
-  './vendor/material-symbols.css',
   './vendor/material-symbols-rounded.woff2',
+  './vendor/material-symbols.css',
   './ui-system.css?v=modern-v8',
-  './style.css?v=modern-v8',
+  './style.css?v=modern-v9',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
+  './settings-store.js',
+  './study-card-viewmodel.js',
   './haptics.js?v=native-haptics-v1',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v6',
+  './app.js?v=modern-v7',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
+  // @sync-shell-assets:network-first:end
 ].map(toAbsoluteUrl));
 
 const isCacheableResponse = response => {

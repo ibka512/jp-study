@@ -17,6 +17,8 @@ const runtimeEntries = [
   'wordbank-loader.js',
   'release-info.js',
   'core-utils.js',
+  'settings-store.js',
+  'study-card-viewmodel.js',
   'haptics.js',
   'rote-learning-core.js',
   'fsrs-scheduler.js',

@@ -1986,8 +1986,11 @@ body[data-theme="dark"] .study-header {
 }
 
 .word-main.is-masked,
+.word-main[data-masked="true"],
 .kana-row.is-masked,
-.meaning-row.is-masked {
+.kana-row[data-masked="true"],
+.meaning-row.is-masked,
+.meaning-row[data-masked="true"] {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
@@ -2003,7 +2006,8 @@ body[data-theme="dark"] .study-header {
   line-height: 1.4;
 }
 
-.word-main.is-masked {
+.word-main.is-masked,
+.word-main[data-masked="true"] {
   min-width: 148px;
   padding: 10px 24px;
   font-size: 1.15rem !important;

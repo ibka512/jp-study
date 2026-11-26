@@ -59,8 +59,8 @@ writeFileSync(charsPath, [...chars].sort().join(''), 'utf8');
 let sourceTtf = process.argv[2];
 let downloadedTemp = false;
 if (!sourceTtf) {
-  sourceTtf = path.join(tmpdir(), `LXGWWenKai-Medium-${Date.now()}.ttf`);
-  console.log(`正在下载 LXGWWenKai-Medium.ttf ...`);
+  sourceTtf = path.join(tmpdir(), `LXGWNeoZhiSong-${Date.now()}.ttf`);
+  console.log(`正在下载 LXGWNeoZhiSong.ttf ...`);
   execFileSync('curl', ['-L', '-s', '-o', sourceTtf, RELEASE_URL], { stdio: 'inherit' });
   downloadedTemp = true;
 }
@@ -83,7 +83,7 @@ try {
     ],
     { stdio: 'inherit' }
   );
-  console.log(`霞鹜文楷子集已生成：${OUT_WOFF2}（${chars.size} 个字符）`);
+  console.log(`细明体（LXGW Neo ZhiSong）子集已生成：${OUT_WOFF2}（${chars.size} 个字符）`);
 } finally {
   try { unlinkSync(charsPath); } catch (_) {}
   if (downloadedTemp) {

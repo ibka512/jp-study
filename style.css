@@ -150,7 +150,7 @@ body[data-theme="dark"] .action-toast {
   border-radius: var(--radius-xs);
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--on-surface-variant);
   transition: background var(--dur-fast) var(--ease-out),
               color var(--dur-fast) var(--ease-out);
 }
@@ -3108,6 +3108,9 @@ body[data-theme="dark"] .en-book .book-language-mark {
 }
 
 @media (min-width: 640px) {
+  .palette-card-copy {
+    padding-right: 28px;
+  }
   .palette-check {
     position: absolute;
     bottom: 12px;

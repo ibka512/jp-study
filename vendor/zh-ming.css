@@ -9,5 +9,5 @@
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('zh-ming-subset.woff2') format('woff2');
+  src: url('zh-ming-subset.woff2?v=2') format('woff2');
 }

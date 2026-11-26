@@ -133,8 +133,8 @@ body[data-lang="en"] {
   --hero-lip: #0d2b22;
   --hero-fg: #fcfaf5;
   --hero-fg-muted: rgba(252, 250, 245, 0.84);
-  --seal: #b87324;
-  --seal-soft: rgba(184, 115, 36, 0.13);
+  --seal: #915612;
+  --seal-soft: rgba(145, 86, 18, 0.12);
   --tertiary: #1b4d3e;
 }
 
@@ -236,8 +236,8 @@ body[data-palette="terracotta"] {
   --hero-lip: #6e2515;
   --hero-fg: #fdfbf6;
   --hero-fg-muted: rgba(253, 251, 246, 0.85);
-  --seal: #b8862d;
-  --seal-soft: rgba(184, 134, 45, 0.14);
+  --seal: #8c6317;
+  --seal-soft: rgba(140, 99, 23, 0.13);
   --on-seal: #ffffff;
   --tertiary: #a63e26;
 
@@ -276,8 +276,8 @@ body[data-palette="terracotta"][data-lang="en"] {
   --hero-bg: #213a56;
   --hero-hover: #192e45;
   --hero-lip: #102033;
-  --seal: #c46a35;
-  --seal-soft: rgba(196, 106, 53, 0.14);
+  --seal: #9a4618;
+  --seal-soft: rgba(154, 70, 24, 0.12);
   --tertiary: #213a56;
 }
 

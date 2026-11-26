@@ -1612,39 +1612,55 @@ body[data-theme="dark"] .study-header {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 4px;
-  padding: 2px 4px;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 2px;
 }
 
+#pixel-matrix:empty {
+  display: none;
+}
+
+/* Dense multi-step sessions (> 10 segments, e.g. Pendulum / Dual-Track) */
 #pixel-matrix .pixel {
-  width: 16px;
+  width: 11px;
   height: 5px;
   border-radius: var(--radius-full);
   background: var(--outline-strong);
-  transition: background var(--dur-med) ease, transform var(--dur-fast) ease;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
+/* Compact sessions (<= 10 segments: Memory Test / Rote / Large Filter / FSRS) */
 #pixel-matrix.compact-mode {
-  gap: 3px;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
 }
 
 #pixel-matrix.compact-mode .pixel {
-  width: 10px;
-  height: 4px;
+  flex: 1 1 0;
+  width: auto;
+  max-width: 56px;
+  height: 6px;
 }
 
-#pixel-matrix.matrix-legacy .pixel {
-  width: 24px;
-  height: 7px;
+#pixel-matrix.matrix-legacy:not(.compact-mode) .pixel {
+  width: 18px;
+  height: 6px;
 }
 
-#pixel-matrix .pixel.active {
-  background: var(--primary);
-  transform: scaleY(1.3);
-}
-
+/* Completed segments */
+#pixel-matrix .pixel.filled,
 #pixel-matrix .pixel.correct {
-  background: var(--accent-green);
+  background: var(--primary);
+}
+
+/* Current active segment */
+#pixel-matrix .pixel.current,
+#pixel-matrix .pixel.active {
+  background: var(--accent-orange);
+  transform: scaleY(1.35);
+  box-shadow: 0 0 0 2px var(--accent-orange-soft);
 }
 
 #pixel-matrix .pixel.wrong {

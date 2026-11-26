@@ -4744,9 +4744,18 @@ const View = {
     } else if (mode === 'pendulum' || mode === 'dual-track') {
         totalPixels = Model.state.studyQueue.length;
         displayCurrent = Model.state.currentIndex;
+    } else if (mode === 'fsrs-review') {
+        const total = Model.state.fsrsReviewItems?.length || Model.state.studyQueue.length || 0;
+        if (total <= 10) {
+            totalPixels = total;
+            displayCurrent = Model.state.currentIndex;
+        } else {
+            totalPixels = 10;
+            displayCurrent = Math.floor((Model.state.currentIndex / total) * 10);
+        }
     }
     
-        if (displayCurrent > totalPixels) displayCurrent = totalPixels;
+    if (displayCurrent > totalPixels) displayCurrent = totalPixels;
 
     let baseCount = Model.state.studyQueue.length;
     if (mode === 'memory-test') {
@@ -4755,7 +4764,7 @@ const View = {
         baseCount = Model.state.uniqueWordCount;
     }
     
-    if (baseCount > 100 || mode === 'rote-learning' || mode === 'memory-test') {
+    if (baseCount > 100 || mode === 'rote-learning' || mode === 'memory-test' || mode === 'fsrs-review') {
         c.classList.add('matrix-legacy');
     } else {
         c.classList.remove('matrix-legacy');
@@ -4773,7 +4782,6 @@ const View = {
     
     Array.from(c.children).forEach((p, i) => {
       p.className = (i < displayCurrent) ? 'pixel filled' : (i === displayCurrent ? 'pixel current' : 'pixel');
-      p.style.setProperty('--fill-color', ['#e0d7cd','#d1c5b8','#c2b4a3','#b2a18d','#a28f78','#917e62','#816d4d','#705b38','#5f4923','#4e370e'][Math.min(9, Math.floor((i/totalPixels)*10))]);
     });
   },
 
@@ -5851,6 +5859,7 @@ void card.offsetWidth;
         this.getEl('star-btn').style.display =
             isRevealed ? 'block' : 'none';
         this.syncRootsDisplay();
+        this.updatePixelMatrix();
         if (isListeningPrompt) {
             window.setTimeout(() => Hardware.speakWord(w), 80);
         }

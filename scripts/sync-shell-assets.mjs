@@ -41,8 +41,8 @@ for (const asset of uniqueLocalResources) {
   if (!localAssets.includes(asset)) {
     localAssets.push(asset);
   }
-  if (asset === './vendor/lxgw-wenkai.css' && !localAssets.includes('./vendor/lxgw-wenkai-subset.woff2')) {
-    localAssets.push('./vendor/lxgw-wenkai-subset.woff2');
+  if (asset === './vendor/zh-ming.css' && !localAssets.includes('./vendor/zh-ming-subset.woff2')) {
+    localAssets.push('./vendor/zh-ming-subset.woff2');
   }
 }
 
@@ -50,7 +50,7 @@ for (const asset of uniqueLocalResources) {
 const STATIC_CACHE_FIRST_SKIP = new Set([
   './',
   './logo.png',
-  './vendor/lxgw-wenkai-subset.woff2',
+  './vendor/zh-ming-subset.woff2',
   './data.js',
   './english-data.js'
 ]);

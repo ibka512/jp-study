@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * 构建霞鹜文楷（LXGW WenKai Medium）项目静态子集字体。
+ * 构建中文细明体（LXGW Neo ZhiSong，基于 IPAex 明朝、贴近新细明体风格）项目静态子集字体。
  *
  * 扫描 UI 源码与全部双语词库中实际出现的汉字、中文标点与基础 ASCII，
  * 调用 `uv run --with fonttools --with brotli pyftsubset` 生成离线
- * `vendor/lxgw-wenkai-subset.woff2`。
+ * `vendor/zh-ming-subset.woff2`。
  *
- * 用法：node scripts/build-chinese-font.mjs [/path/to/LXGWWenKai-Medium.ttf]
+ * 用法：node scripts/build-chinese-font.mjs [/path/to/LXGWNeoZhiSong.ttf]
  */
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -16,8 +16,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RELEASE_URL =
-  'https://github.com/lxgw/LxgwWenKai/releases/download/v1.530/LXGWWenKai-Medium.ttf';
-const OUT_WOFF2 = path.join(ROOT, 'vendor', 'lxgw-wenkai-subset.woff2');
+  'https://github.com/lxgw/LxgwNeoZhiSong/releases/download/v1.071/LXGWNeoZhiSong.ttf';
+const OUT_WOFF2 = path.join(ROOT, 'vendor', 'zh-ming-subset.woff2');
 
 const scanFiles = [
   'index.html',

@@ -55,8 +55,10 @@ assert.doesNotMatch(
 assert.match(app, /classList\.toggle\('has-progress', Number\(percent\) > 0\)/);
 assert.match(styles, /\.home-sub-progress-track > div\.has-progress\s*\{\s*min-width:\s*3px/);
 assert.match(styles, /\.wb-card\.is-english-word\.is-word-long\s*\.wb-c-word/);
-assert.match(index, /M\+PLUS\+Rounded\+1c/);
-assert.match(index, /family=Nunito/);
+assert.match(index, /BIZ\+UDPGothic/);
+assert.match(index, /family=Literata/);
+assert.match(index, /Noto\+Serif\+JP/);
+assert.match(uiStyles, /--font-phonetic:/);
 assert.match(uiStyles, /--font-title:/);
 assert.match(uiStyles, /--font-body:/);
 assert.match(uiStyles, /--font-number:/);

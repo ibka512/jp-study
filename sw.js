@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v47';
+const CACHE_NAME = 'zhongri-shell-v48';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -10,8 +10,8 @@ const LOCAL_ASSETS = [
   './manifest.json',
   './vendor/material-symbols-rounded.woff2',
   './vendor/material-symbols.css',
-  './ui-system.css?v=modern-v8',
-  './style.css?v=modern-v9',
+  './ui-system.css?v=modern-v9',
+  './style.css?v=modern-v10',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -36,7 +36,7 @@ const LOCAL_ASSETS = [
 
 const OPTIONAL_EXTERNAL_ASSETS = [
   'https://cdn.jsdelivr.net/npm/idb-keyval@6.2.2/dist/umd.js',
-  'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap'
+  'https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Literata:opsz,wght@7..72,600;7..72,700&family=Noto+Serif+JP:wght@600;700&display=swap'
 ];
 
 const toAbsoluteUrl = asset => new URL(asset, self.registration.scope).href;
@@ -49,8 +49,8 @@ const NETWORK_FIRST_ASSETS = new Set([
   './manifest.json',
   './vendor/material-symbols-rounded.woff2',
   './vendor/material-symbols.css',
-  './ui-system.css?v=modern-v8',
-  './style.css?v=modern-v9',
+  './ui-system.css?v=modern-v9',
+  './style.css?v=modern-v10',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',

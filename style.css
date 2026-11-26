@@ -1394,7 +1394,7 @@ body[data-theme="dark"] .home-mode-featured .kbd-hint {
 .wb-c-word {
   width: 100%;
   font-size: 1.24rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.24;
   color: var(--on-surface);
   overflow: hidden;
@@ -1850,9 +1850,9 @@ body[data-theme="dark"] .study-header {
 
 .word-main {
   font-size: clamp(2rem, 7vw, 3.1rem);
-  font-weight: 800;
-  line-height: 1.18;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
   color: var(--on-surface);
   word-break: break-word;
   max-width: 100%;
@@ -2263,7 +2263,7 @@ body[data-theme="dark"] .study-header {
   background: var(--surface-container);
   border: 1px solid var(--outline-strong);
   box-shadow: 0 2px 0 var(--outline);
-  font-family: var(--font-word-en);
+  font-family: var(--font-en-body);
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--on-surface);
@@ -4525,8 +4525,8 @@ body[data-theme="dark"] .edit-actions {
 
 .dt-word {
   font-size: clamp(1.9rem, 6vw, 2.7rem);
-  font-weight: 800;
-  line-height: 1.2;
+  font-weight: 700;
+  line-height: 1.22;
   color: var(--on-surface);
 }
 
@@ -4775,7 +4775,7 @@ body[data-theme="dark"] .edit-actions {
   border: 1px solid var(--outline);
 }
 
-.root-review-part b { font-family: var(--font-word-en); font-size: 0.96rem; }
+.root-review-part b { font-family: var(--font-en-body); font-size: 0.96rem; }
 .root-review-part small { font-size: 0.74rem; color: var(--text-muted); }
 
 .root-review-plus {
@@ -4794,7 +4794,7 @@ body[data-theme="dark"] .edit-actions {
 
 .root-review-roots-input {
   width: 100%;
-  font-family: var(--font-word-en);
+  font-family: var(--font-en-body);
   font-size: 0.96rem;
 }
 

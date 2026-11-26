@@ -1,5 +1,5 @@
 export const FONT_LINK_TAGS = [
-  '<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap" rel="stylesheet">',
+  '<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Literata:opsz,wght@7..72,600;7..72,700&family=Noto+Serif+JP:wght@600;700&display=swap" rel="stylesheet">',
   '<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,0,0" rel="stylesheet" />'
 ];
 const LOCAL_FONTS_TAG = '<link href="vendor/fonts/fonts.css" rel="stylesheet">';

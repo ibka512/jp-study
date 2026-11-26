@@ -1782,14 +1782,13 @@ const BottomSheet = {
                     handle.classList.remove('is-dragging');
                     overlay.classList.remove('sheet-dismissing');
 
-                    sheet.style.removeProperty(
-                        '--sheet-drag-y'
-                    );
+                    sheet.style.transform = '';
+                    overlay.style.opacity = '';
                 };
 
                 /*
                  * 没有达到关闭距离时，
-                 * 让抽屉弹回原位。
+                 * 让抽屉与遮罩同步弹回原位。
                  */
                 const springBack = () => {
                     sheet.classList.remove(
@@ -1803,25 +1802,18 @@ const BottomSheet = {
                     );
 
                     sheet.classList.add('is-settling');
-
-                    sheet.style.setProperty(
-                        '--sheet-drag-y',
-                        '0px'
-                    );
+                    sheet.style.transform = 'translate3d(0, 0, 0)';
+                    overlay.style.opacity = '';
 
                     finishTimer = window.setTimeout(() => {
                         sheet.classList.remove('is-settling');
-
-                        sheet.style.removeProperty(
-                            '--sheet-drag-y'
-                        );
-
+                        sheet.style.transform = '';
                         finishTimer = null;
-                    }, 300);
+                    }, 260);
                 };
 
                 /*
-                 * 完整执行抽屉退出动画，
+                 * 完整执行抽屉退出动画（使用 --ease-sheet，避免 ease-in 粘滞），
                  * 然后调用现有的弹窗关闭方法。
                  */
                 const dismissSheet = () => {
@@ -1842,10 +1834,8 @@ const BottomSheet = {
                         sheet.offsetHeight + 120
                     );
 
-                    sheet.style.setProperty(
-                        '--sheet-drag-y',
-                        `${dismissDistance}px`
-                    );
+                    sheet.style.transform = `translate3d(0, ${dismissDistance}px, 0)`;
+                    overlay.style.opacity = '0';
 
                     Hardware.vibrate(12);
 
@@ -1858,7 +1848,7 @@ const BottomSheet = {
                         finishTimer =
                             window.setTimeout(() => {
                                 clearMotionState();
-                            }, 420);
+                            }, 380);
                     }, 220);
                 };
 
@@ -1907,16 +1897,14 @@ const BottomSheet = {
 
                     /*
                      * 满足任一条件即可关闭：
-                     *
                      * 1. 下拉距离足够；
-                     * 2. 下拉距离超过 28 像素，
-                     *    并且手势速度足够快。
+                     * 2. 下拉距离超过 24 像素且甩出速度 > 0.35 px/ms。
                      */
                     const shouldClose =
                         currentY > closeThreshold ||
                         (
-                            currentY > 28 &&
-                            velocity > 0.55
+                            currentY > 24 &&
+                            velocity > 0.35
                         );
 
                     if (shouldClose) {
@@ -1949,6 +1937,10 @@ const BottomSheet = {
                                 'sheet-dismissing'
                             )
                         ) {
+                            return;
+                        }
+
+                        if (dragging) {
                             return;
                         }
 
@@ -1985,10 +1977,7 @@ const BottomSheet = {
                             'is-dragging'
                         );
 
-                        sheet.style.setProperty(
-                            '--sheet-drag-y',
-                            '0px'
-                        );
+                        sheet.style.transform = 'translate3d(0, 0, 0)';
 
                         try {
                             handle.setPointerCapture(
@@ -2014,19 +2003,24 @@ const BottomSheet = {
                             event.clientY - startY;
 
                         /*
-                         * 向下时完全跟手。
-                         * 向上时增加阻力，最多只移动 18 像素。
+                         * 向下时 1:1 跟手；向上越界时呈递增阻尼（rubber-band），
+                         * 最多平滑上移 22 像素。
                          */
                         currentY = rawDistance < 0
-                            ? Math.max(
-                                -18,
-                                rawDistance * 0.18
-                            )
+                            ? -22 * (1 - Math.exp(rawDistance / 90))
                             : rawDistance;
 
-                        sheet.style.setProperty(
-                            '--sheet-drag-y',
-                            `${currentY}px`
+                        sheet.style.transform = `translate3d(0, ${currentY}px, 0)`;
+
+                        const sheetSpan = Math.max(
+                            sheet.offsetHeight || 320,
+                            240
+                        );
+                        const dragRatio = currentY > 0
+                            ? Math.min(currentY / sheetSpan, 1)
+                            : 0;
+                        overlay.style.opacity = String(
+                            Math.max(0.25, 1 - dragRatio * 0.65)
                         );
                     }
                 );

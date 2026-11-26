@@ -66,7 +66,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#1f4e79">
 <title>钟日</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -74,8 +74,8 @@
 <link rel="preload" href="vendor/material-symbols-rounded.woff2" as="font" type="font/woff2" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Noto+Serif+JP:wght@600;900&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/material-symbols.css">
-<link rel="stylesheet" href="ui-system.css?v=modern-v2">
-<link rel="stylesheet" href="style.css?v=modern-v2">
+<link rel="stylesheet" href="ui-system.css?v=modern-v3">
+<link rel="stylesheet" href="style.css?v=modern-v3">
 </head>
 <body>
 
@@ -112,7 +112,6 @@
   <div id="tab-home" class="tab-content active">
     <header class="page-heading">
       <div>
-        <span class="page-eyebrow">DAILY VOCABULARY STUDIO</span>
         <h1>今日学习</h1>
       </div>
       <div class="page-heading-actions">
@@ -127,25 +126,16 @@
       <div class="home-right-col">
         <section class="card-panel home-study-panel" aria-labelledby="home-study-title">
           <header class="home-study-header">
-            <div>
-              <h3 id="home-study-title">
-                <span aria-hidden="true" class="material-symbols-rounded">school</span>
-                <span>学习模式</span>
-              </h3>
-              <p>选定范围后，直接进入专注练习</p>
-            </div>
+            <h3 id="home-study-title">分组练习</h3>
+            <p id="group-study-summary" class="ui-context"></p>
           </header>
 
           <div class="home-study-section home-range-section">
-            <div class="home-section-label">
-              <span class="home-step-index" aria-hidden="true">1</span>
-              <span>分组练习范围</span>
-            </div>
-            <button id="btn-custom-group-select" class="bs-facade home-range-button" type="button">
+            <button id="btn-custom-group-select" class="bs-facade home-range-button" type="button" aria-label="选择分组练习范围">
+              <span class="home-range-prefix">范围</span>
               <span class="bs-facade-text" id="custom-group-text">默认词库 (第 1-10 词)</span>
               <span aria-hidden="true" class="material-symbols-rounded">keyboard_arrow_down</span>
             </button>
-            <p id="group-study-summary" class="ui-context"></p>
           </div>
 
           <select id="test-range-select" style="display:none;" class="no-bs"></select>
@@ -157,25 +147,20 @@
           </select>
 
           <div class="home-study-section home-modes-section">
-            <div class="home-section-label">
-              <span class="home-step-index" aria-hidden="true">2</span>
-              <span>学习方式</span>
-            </div>
             <div class="home-mode-grid">
               <button id="btn-start-pendulum" class="home-mode-card home-mode-featured mode-btn-classic" type="button">
                 <span aria-hidden="true" class="home-mode-icon material-symbols-rounded">explore</span>
                 <span class="home-mode-copy">
                   <strong>自由浏览</strong>
-                  <small>先熟悉词形与读音</small>
+                  <small>翻卡听音，先熟悉词形与读音</small>
                 </span>
                 <kbd class="kbd-hint home-shortcut-hint">A</kbd>
-                <span aria-hidden="true" class="home-mode-arrow material-symbols-rounded">arrow_forward</span>
               </button>
               <button id="btn-start-dual-track" class="home-mode-card mode-btn-challenge" type="button">
                 <span aria-hidden="true" class="home-mode-icon material-symbols-rounded">sync_alt</span>
                 <span class="home-mode-copy">
                   <strong>往复检验</strong>
-                  <small>在问答中巩固记忆</small>
+                  <small>交替练习读音拼写与词义辨认</small>
                 </span>
                 <kbd class="kbd-hint home-shortcut-hint">B</kbd>
               </button>
@@ -183,7 +168,7 @@
                 <span aria-hidden="true" class="home-mode-icon material-symbols-rounded">menu_book</span>
                 <span class="home-mode-copy">
                   <strong>循环强记</strong>
-                  <small>反复练习当前词组</small>
+                  <small>反复巩固当前词组，错词自动加练</small>
                 </span>
                 <kbd class="kbd-hint home-shortcut-hint">C</kbd>
               </button>
@@ -191,14 +176,14 @@
                 <span aria-hidden="true" class="home-mode-icon material-symbols-rounded">workspace_premium</span>
                 <span class="home-mode-copy">
                   <strong>三轮通关</strong>
-                  <small>分轮检验学习成果</small>
+                  <small>三轮递进测验，点亮词条掌握标记</small>
                 </span>
                 <kbd class="kbd-hint home-shortcut-hint">D</kbd>
               </button>
             </div>
           </div>
 
-          <div class="home-study-section">
+          <div class="home-study-section home-filter-section">
             <div class="filter-test-btn-group home-filter-card">
               <button id="btn-start-filter-test" class="ft-main" type="button">
                 <span aria-hidden="true" class="home-action-icon material-symbols-rounded">content_cut</span>
@@ -224,91 +209,87 @@
       </div>
 
       <aside class="home-left-col" aria-label="复习与学习进度">
-        <div class="card-panel fsrs-home-card" id="stats-panel">
-          <div class="fsrs-home-topline">
-            <div class="fsrs-home-heading">
-              <span aria-hidden="true" class="fsrs-home-icon material-symbols-rounded">event_repeat</span>
-              <div>
-                <span class="fsrs-home-eyebrow">FSRS 智能排程</span>
+        <div class="home-ledger">
+          <div class="card-panel fsrs-home-card" id="stats-panel">
+            <div class="fsrs-home-topline">
+              <div class="fsrs-home-heading">
                 <h3>今日复习</h3>
               </div>
-            </div>
-            <div class="fsrs-streak-badge">
-              <span aria-hidden="true" class="material-symbols-rounded">local_fire_department</span>
-              <span id="fsrs-streak-text">连续 0 天</span>
-            </div>
-          </div>
-          <div class="fsrs-home-main">
-            <div class="fsrs-home-count">
-              <strong id="fsrs-due-count">0</strong>
-              <span>个维度<br>等待复习</span>
-            </div>
-            <button id="btn-start-fsrs-review" class="fsrs-start-button" type="button">
-              <span>开始复习</span>
-              <span aria-hidden="true" class="material-symbols-rounded">arrow_forward</span>
-            </button>
-          </div>
-          <div class="fsrs-home-divider"></div>
-          <div class="fsrs-home-detail" id="fsrs-due-detail">完成一次复习后，系统会安排下一次时间</div>
-        </div>
-
-        <div id="total-words" style="display:none;"></div>
-
-        <section class="card-panel home-progress-panel" aria-label="学习进度">
-          <div class="home-progress-heading">
-            <h3>学习进度</h3>
-            <div class="home-mastery-number" aria-label="总体掌握进度">
-              <strong id="mastery-percent">(0%)</strong>
-              <span>总体掌握</span>
-            </div>
-          </div>
-          <div class="mastery-progress-container home-mastery-progress">
-            <div class="home-mastery-meta">
-              <span>已完全掌握</span>
-              <strong><span id="mastery-count">0</span><small> / <span id="mastery-total">0</span> 词</small></strong>
-            </div>
-            <div class="mastery-track">
-              <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
-            </div>
-
-            <details class="home-progress-details">
-              <summary>
-                <span>查看单词、读音与释义进度</span>
-                <span aria-hidden="true" class="material-symbols-rounded">expand_more</span>
-              </summary>
-              <div class="home-sub-progress-group">
-                <div class="home-sub-progress-row">
-                  <div class="home-sub-progress-label"><i class="is-word"></i><span>单词</span></div>
-                  <div class="home-sub-progress-track"><div id="prog-bar-kanji" class="is-word" style="width: 0%;"></div></div>
-                  <div class="home-sub-progress-value" id="prog-txt-kanji">0 (0%)</div>
-                </div>
-                <div id="prog-row-kana" class="home-sub-progress-row">
-                  <div class="home-sub-progress-label"><i class="is-reading"></i><span id="kana-bar-label">读音</span></div>
-                  <div class="home-sub-progress-track"><div id="prog-bar-kana" class="is-reading" style="width: 0%;"></div></div>
-                  <div class="home-sub-progress-value" id="prog-txt-kana">0 (0%)</div>
-                </div>
-                <div class="home-sub-progress-row">
-                  <div class="home-sub-progress-label"><i class="is-meaning"></i><span>释义</span></div>
-                  <div class="home-sub-progress-track"><div id="prog-bar-meaning" class="is-meaning" style="width: 0%;"></div></div>
-                  <div class="home-sub-progress-value" id="prog-txt-meaning">0 (0%)</div>
-                </div>
+              <div class="fsrs-streak-badge">
+                <span aria-hidden="true" class="material-symbols-rounded">local_fire_department</span>
+                <span id="fsrs-streak-text">连续 0 天</span>
               </div>
-            </details>
+            </div>
+            <div class="fsrs-home-main">
+              <div class="fsrs-home-count">
+                <strong id="fsrs-due-count">0</strong>
+                <span>项待复习</span>
+              </div>
+              <button id="btn-start-fsrs-review" class="fsrs-start-button" type="button">
+                <span>开始复习</span>
+              </button>
+            </div>
+            <div class="fsrs-home-divider"></div>
+            <div class="fsrs-home-detail" id="fsrs-due-detail">完成一次复习后，会自动安排下次复习时间</div>
           </div>
-        </section>
 
-        <section class="card-panel home-checkin-panel" aria-label="每日打卡">
-          <div class="home-checkin-area">
-            <button id="btn-long-press" class="btn-long-press" type="button">
-              <span class="lp-bg"></span>
-              <span class="lp-text">
-                <span aria-hidden="true" class="material-symbols-rounded">fingerprint</span>
-                长按打卡
-              </span>
-            </button>
-            <small><span aria-hidden="true" class="material-symbols-rounded">touch_app</span>长按 1.5 秒完成今日打卡，键盘可长按空格</small>
-          </div>
-        </section>
+          <div id="total-words" style="display:none;"></div>
+
+          <section class="card-panel home-progress-panel" aria-label="学习进度">
+            <div class="home-progress-heading">
+              <h3>掌握进度</h3>
+              <div class="home-mastery-number" aria-label="总体掌握进度">
+                <strong id="mastery-percent">(0%)</strong>
+              </div>
+            </div>
+            <div class="mastery-progress-container home-mastery-progress">
+              <div class="home-mastery-meta">
+                <span>已完全掌握</span>
+                <strong><span id="mastery-count">0</span><small> / <span id="mastery-total">0</span> 词</small></strong>
+              </div>
+              <div class="mastery-track">
+                <div id="mastery-bar" class="mastery-fill" style="width: 0%;"></div>
+              </div>
+
+              <details class="home-progress-details">
+                <summary>
+                  <span>按维度查看进度</span>
+                  <span aria-hidden="true" class="material-symbols-rounded">expand_more</span>
+                </summary>
+                <div class="home-sub-progress-group">
+                  <div class="home-sub-progress-row">
+                    <div class="home-sub-progress-label"><i class="is-word"></i><span>单词</span></div>
+                    <div class="home-sub-progress-track"><div id="prog-bar-kanji" class="is-word" style="width: 0%;"></div></div>
+                    <div class="home-sub-progress-value" id="prog-txt-kanji">0 (0%)</div>
+                  </div>
+                  <div id="prog-row-kana" class="home-sub-progress-row">
+                    <div class="home-sub-progress-label"><i class="is-reading"></i><span id="kana-bar-label">读音</span></div>
+                    <div class="home-sub-progress-track"><div id="prog-bar-kana" class="is-reading" style="width: 0%;"></div></div>
+                    <div class="home-sub-progress-value" id="prog-txt-kana">0 (0%)</div>
+                  </div>
+                  <div class="home-sub-progress-row">
+                    <div class="home-sub-progress-label"><i class="is-meaning"></i><span>释义</span></div>
+                    <div class="home-sub-progress-track"><div id="prog-bar-meaning" class="is-meaning" style="width: 0%;"></div></div>
+                    <div class="home-sub-progress-value" id="prog-txt-meaning">0 (0%)</div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </section>
+
+          <section class="card-panel home-checkin-panel" aria-label="每日打卡">
+            <div class="home-checkin-area">
+              <button id="btn-long-press" class="btn-long-press" type="button">
+                <span class="lp-bg"></span>
+                <span class="lp-text">
+                  <span aria-hidden="true" class="material-symbols-rounded">fingerprint</span>
+                  长按打卡
+                </span>
+              </button>
+              <small>按住 1.5 秒记录今日学习，桌面端可长按空格</small>
+            </div>
+          </section>
+        </div>
       </aside>
     </div>
   </div>
@@ -317,7 +298,6 @@
   <div id="tab-wordbank" class="tab-content hidden">
     <header class="page-heading">
       <div>
-        <span class="page-eyebrow">DICTIONARY &amp; COLLECTIONS</span>
         <h1>我的词库</h1>
       </div>
     </header>
@@ -422,7 +402,6 @@
       <div id="settings-home" class="settings-home">
         <header class="page-heading">
           <div>
-            <span class="page-eyebrow">PREFERENCES &amp; DATA</span>
             <h1>学习偏好</h1>
           </div>
         </header>
@@ -430,9 +409,8 @@
         <div class="card-panel settings-mode-card">
           <div class="settings-home-heading">
             <div>
-              <span class="settings-eyebrow">学习环境</span>
-              <h3><span class="material-symbols-rounded">library_books</span> 学习语言</h3>
-              <p class="book-selector-intro">切换后，学习、词库和复习计划会同步切换</p>
+              <h3>当前词书</h3>
+              <p class="book-selector-intro">切换后，学习进度、词库和复习计划会自动同步</p>
             </div>
           </div>
 
@@ -440,7 +418,6 @@
             <button type="button" class="book-card jp-book" data-lang="ja" aria-pressed="false">
               <span class="book-language-mark" lang="ja">あ</span>
               <span class="book-card-copy">
-                <span class="book-card-kicker">JAPANESE</span>
                 <strong class="book-title">日语词书</strong>
                 <span class="book-meta" data-book-count>正在读取…</span>
                 <span class="book-progress-track"><span class="book-progress-fill" data-book-progress></span></span>
@@ -452,7 +429,6 @@
             <button type="button" class="book-card en-book" data-lang="en" aria-pressed="false">
               <span class="book-language-mark" lang="en">A</span>
               <span class="book-card-copy">
-                <span class="book-card-kicker">ENGLISH</span>
                 <strong class="book-title">英语词书</strong>
                 <span class="book-meta" data-book-count>点击载入</span>
                 <span class="book-progress-track"><span class="book-progress-fill" data-book-progress></span></span>
@@ -462,7 +438,7 @@
               <span class="book-loading"><span class="book-loading-spinner"></span>正在载入</span>
             </button>
           </div>
-          <p class="book-selector-note"><span class="material-symbols-rounded">verified_user</span>切换语言不会删除另一词书的学习记录</p>
+          <p class="book-selector-note"><span class="material-symbols-rounded">verified_user</span>切换语言不会影响另一本词书的学习记录</p>
         </div>
 
         <div class="settings-category-grid">
@@ -470,7 +446,7 @@
             <span class="settings-category-icon"><span class="material-symbols-rounded">school</span></span>
             <span class="settings-category-copy">
               <strong>学习与复习</strong>
-              <small>排序、跳过规则与智能错题本</small>
+              <small>词汇排序、跳过规则与错题记录</small>
             </span>
             <span class="settings-category-tail">
               <span class="settings-count-pill"><b id="settings-wrong-count">0</b> 错题</span>
@@ -482,7 +458,7 @@
             <span class="settings-category-icon"><span class="material-symbols-rounded">volume_up</span></span>
             <span class="settings-category-copy">
               <strong>朗读与显示</strong>
-              <small>自动朗读、词根、发音引擎与触感</small>
+              <small>自动朗读、词根公式、语音引擎与震动</small>
             </span>
             <span class="settings-category-tail">
               <span class="material-symbols-rounded">chevron_right</span>
@@ -493,7 +469,7 @@
             <span class="settings-category-icon"><span class="material-symbols-rounded">folder_copy</span></span>
             <span class="settings-category-copy">
               <strong>词库与导入</strong>
-              <small>批量导入、数据检查、词根校对与回收站</small>
+              <small>批量导入、词库检查与回收站</small>
             </span>
             <span class="settings-category-tail">
               <span class="settings-count-pill"><b id="settings-trash-count">0</b> 删除</span>
@@ -505,7 +481,7 @@
             <span class="settings-category-icon"><span class="material-symbols-rounded">shield</span></span>
             <span class="settings-category-copy">
               <strong>备份与应用</strong>
-              <small>备份恢复、学习提醒、版本与数据清理</small>
+              <small>数据备份、学习提醒、版本状态与重置</small>
             </span>
             <span class="settings-category-tail">
               <span id="settings-online-status" class="settings-status-dot" data-state="online">在线</span>
@@ -521,7 +497,7 @@
           <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页">
             <span class="material-symbols-rounded">arrow_back</span>
           </button>
-          <div><span>学习与复习</span><small>让学习记录更贴近真实掌握情况</small></div>
+          <div><span>学习与复习</span><small>调整出题顺序与错题记录规则</small></div>
         </div>
 
         <div class="card-panel settings-detail-card">
@@ -717,20 +693,19 @@
           </div>
           <button id="btn-open-root-review" type="button" class="root-review-entry-button">
             <span>开始审核</span>
-            <span class="material-symbols-rounded">arrow_forward</span>
           </button>
         </div>
 
         <div class="card-panel recycle-bin-card">
           <div class="recycle-bin-header">
-            <div><h3><span class="material-symbols-rounded">delete_sweep</span> 最近删除</h3><p>删除的词汇和例句保留 7 天，到期后自动清理。</p></div>
+            <div><h3><span class="material-symbols-rounded">delete_sweep</span> 最近删除</h3><p>删除的词汇和例句暂留 7 天，到期自动清理。</p></div>
             <span id="recycle-bin-count" class="recycle-bin-count">0 项</span>
           </div>
 
           <div id="recycle-bin-empty" class="recycle-bin-empty">
             <span class="material-symbols-rounded">inbox</span>
-            <strong>回收站是空的</strong>
-            <small>删除内容后，可以在这里恢复。</small>
+            <strong>暂无已删除内容</strong>
+            <small>从词库删除词条或例句后，可在此随时恢复。</small>
           </div>
           <div id="recycle-bin-list" class="recycle-bin-list"></div>
           <button id="btn-clear-recycle-bin" type="button" class="btn-outline recycle-clear-btn" disabled>
@@ -744,12 +719,12 @@
       <section class="settings-section" data-settings-section="app" hidden>
         <div class="settings-section-header">
           <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
-          <div><span>备份与应用</span><small>保护数据，并查看当前运行状态</small></div>
+          <div><span>备份与应用</span><small>导出数据、配置提醒与查看应用版本</small></div>
         </div>
 
         <div class="card-panel settings-detail-card">
-          <h3><span class="material-symbols-rounded">save</span> 数据安全与备份</h3>
-          <div class="setting-desc settings-section-intro">导出或恢复词库改动、学习记录、FSRS 复习进度、错题本与偏好设置。</div>
+          <h3><span class="material-symbols-rounded">save</span> 数据备份与恢复</h3>
+          <div class="setting-desc settings-section-intro">导出或恢复词库改动、学习进度、复习计划、错题本与偏好设置。</div>
           <div class="backup-action-grid">
             <button type="button" id="btn-export-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">download</span> 导出备份</button>
             <button type="button" id="btn-import-backup" class="btn-outline icon-text-gap"><span class="material-symbols-rounded">upload</span> 导入恢复</button>
@@ -761,10 +736,10 @@
 
         <div class="card-panel settings-detail-card native-reminder-card" id="native-reminder-card">
           <div class="native-reminder-heading">
-            <h3><span class="material-symbols-rounded">notifications_active</span> 智能学习提醒</h3>
+            <h3><span class="material-symbols-rounded">notifications_active</span> 学习提醒</h3>
             <span class="native-platform-badge" id="native-platform-badge">检测中</span>
           </div>
-          <div class="setting-desc settings-section-intro">根据 FSRS 到期内容和当天学习状态，由 Android 在后台安排提醒。</div>
+          <div class="setting-desc settings-section-intro">按待复习计划和当天学习状态，由 Android 在后台安排提醒。</div>
           <p class="web-reminder-summary">后台提醒可在 Android 应用中使用。</p>
           <label class="native-reminder-toggle" for="setting-study-reminder-enabled">
             <span>
@@ -1176,8 +1151,7 @@
         <span class="material-symbols-rounded">close</span>
       </button>
       <div class="root-review-header-copy">
-        <span class="root-review-eyebrow">词库编辑室</span>
-        <h2 id="root-review-title">词根词缀审核</h2>
+        <h2 id="root-review-title">英语词根词缀审核</h2>
       </div>
       <button id="root-review-help" class="glass-icon-btn" type="button" aria-label="查看审核标准">
         <span class="material-symbols-rounded">help</span>
@@ -1303,7 +1277,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v2"></script>
+<script src="app.js?v=modern-v3"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

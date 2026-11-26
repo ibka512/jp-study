@@ -38,8 +38,8 @@ const insertIntoStyle = (source, styleName, marker) => {
   const insert =
   `\n        <!-- ${marker} -->` +
   `\n        <item name="android:windowLightStatusBar">true</item>` +
-  `\n        <item name="android:statusBarColor">#f6f7f9</item>` +
-  `\n        <item name="android:navigationBarColor">#f6f7f9</item>` +
+  `\n        <item name="android:statusBarColor">#f7f8f6</item>` +
+  `\n        <item name="android:navigationBarColor">#f7f8f6</item>` +
   `\n        <item name="android:windowLightNavigationBar">true</item>`;
   return source.replace(match[0], match[0] + insert);
 };

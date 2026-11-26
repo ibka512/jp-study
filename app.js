@@ -3023,6 +3023,22 @@ const Model = {
       this.builtInIdSet = new Set(
           this.builtInWords.map(word => this.getWordId(word))
       );
+
+      // 确保按需载入另一语种词库后，其内置文件夹立即注册到 folders / folderLangs
+      if (Array.isArray(this.folders) && this.folderLangs && typeof this.folderLangs === 'object') {
+          this.db.forEach(word => {
+              const folder = normalizeEntryText(
+                  word.folder || (word.lang === 'en' ? '四级词汇' : '默认词库')
+              );
+              if (!folder) return;
+              if (!this.folders.includes(folder)) {
+                  this.folders.push(folder);
+              }
+              if (!this.folderLangs[folder]) {
+                  this.folderLangs[folder] = word.lang === 'en' ? 'en' : 'ja';
+              }
+          });
+      }
   },
 
   migrateLegacyWordStorage(
@@ -4415,7 +4431,7 @@ const View = {
         'meta[name="theme-color"]'
     );
     if (themeColor) {
-        themeColor.content = isDark ? '#0b0e14' : (document.body.getAttribute('data-lang') === 'en' ? '#0d9488' : '#4f46e5');
+        themeColor.content = isDark ? '#141618' : (document.body.getAttribute('data-lang') === 'en' ? '#1e6049' : '#1f4e79');
     }
   },
 
@@ -5389,7 +5405,7 @@ const View = {
     if (fsrsStartButton) {
         fsrsStartButton.disabled = dueItems.length === 0;
         fsrsStartButton.innerHTML = dueItems.length
-            ? '<span>开始复习</span><span class="material-symbols-rounded">arrow_forward</span>'
+            ? '<span>开始复习</span>'
             : '<span>暂无到期复习</span>';
     }
     this.renderBookSelector();

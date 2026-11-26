@@ -5,11 +5,11 @@ import sharp from 'sharp';
 
 await mkdir('assets', { recursive: true });
 
-// 传统图标：Logo 放在浅灰白底上
+// 传统图标：Logo 放在纸白底上
 await sharp('logo.png')
   .resize(1024, 1024, {
     fit: 'contain',
-    background: '#f6f7f9',
+    background: '#f7f8f6',
     kernel: sharp.kernel.lanczos3
   })
   .png({ compressionLevel: 9 })
@@ -39,12 +39,12 @@ await sharp({
 
 // 自适应图标背景：与图标底色一致的纯色
 await sharp({
-  create: { width: 1024, height: 1024, channels: 3, background: '#f6f7f9' }
+  create: { width: 1024, height: 1024, channels: 3, background: '#f7f8f6' }
 })
   .png()
   .toFile('assets/icon-background.png');
 
-// 启动画面：浅灰白底（与应用背景一致）+ 居中 Logo
+// 启动画面：纸白底（与应用背景一致）+ 居中 Logo
 const splashLogo = await sharp('logo.png')
   .resize(900, 900, {
     fit: 'contain',
@@ -55,7 +55,7 @@ const splashLogo = await sharp('logo.png')
   .toBuffer();
 
 await sharp({
-  create: { width: 2732, height: 2732, channels: 3, background: '#f6f7f9' }
+  create: { width: 2732, height: 2732, channels: 3, background: '#f7f8f6' }
 })
   .composite([{ input: splashLogo, gravity: 'center' }])
   .png({ compressionLevel: 9 })

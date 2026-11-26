@@ -89,7 +89,7 @@
         } catch (_error) {}
 
         if (!enabled && isSupported()) {
-            root.navigator.vibrate(0);
+            vibrateInBrowser([0]);
         }
     };
 
@@ -244,7 +244,7 @@
         const control = element.closest(
             'button, a[href], input, select, textarea, label, ' +
             '[role="button"], [tabindex], .nav-item, .book-card, ' +
-            '.wb-card, .move-folder-item, .ai-history-card'
+            '.wb-card, .move-folder-item'
         );
 
         if (!control) {
@@ -277,7 +277,7 @@
         }
         if (
             control.matches?.(
-                '.danger, .batch-action-danger, .ai-history-del-btn, ' +
+                '.danger, .batch-action-danger, ' +
                 '[data-trash-action="delete"]'
             )
         ) {

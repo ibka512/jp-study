@@ -43,7 +43,8 @@ test('图标字体子集覆盖全部静态与动态图标，并保留 FILL 变�
         'verified',
         'cancel',
         'dictionary',
-        'format_quote'
+        'format_quote',
+        'library_books'
     ]) {
         assert.ok(
             available.has(criticalDynamicIcon),

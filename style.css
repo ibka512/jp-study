@@ -1712,6 +1712,7 @@ body[data-theme="dark"] .study-header {
   transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-out);
 }
 
+.combo-badge.active,
 .combo-badge.show {
   opacity: 1;
   transform: translateX(-50%) scale(1);
@@ -1896,8 +1897,32 @@ body[data-theme="dark"] .study-header {
   animation: reveal-pop var(--dur-med) var(--ease-out);
 }
 
+.word-main.is-masked,
+.kana-row.is-masked,
+.meaning-row.is-masked {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 5px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  border: 1px dashed var(--outline-strong);
+  color: var(--text-faint);
+  font-size: 0.92rem !important;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  line-height: 1.4;
+}
+
+.word-main.is-masked {
+  min-width: 148px;
+  padding: 10px 24px;
+  font-size: 1.15rem !important;
+}
+
 @keyframes reveal-pop {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0.86; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -3449,13 +3474,18 @@ body[data-theme="dark"] .en-book .book-language-mark {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--dur-med) var(--ease-out);
+  transition: opacity var(--dur-med) var(--ease-out),
+              visibility 0s linear var(--dur-med);
 }
 
 .modal-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  transition: opacity var(--dur-med) var(--ease-out),
+              visibility 0s linear 0s;
 }
 
 /* Tiered overlay z-index so pickers and confirm/prompt dialogs never render behind parent modals */
@@ -3517,7 +3547,7 @@ body[data-theme="dark"] .en-book .book-language-mark {
 }
 
 .modal-overlay.active .bottom-sheet {
-  transform: translateY(0);
+  transform: translateY(var(--sheet-drag-y, 0px));
 }
 
 .bs-handle {
@@ -4056,13 +4086,18 @@ body[data-theme="dark"] .en-book .book-language-mark {
   z-index: 4400;
   background: var(--bg-canvas);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity var(--dur-med) ease;
+  transition: opacity var(--dur-med) ease,
+              visibility 0s linear var(--dur-med);
 }
 
 .root-review-overlay.active {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
+  transition: opacity var(--dur-med) ease,
+              visibility 0s linear 0s;
 }
 
 .root-review-shell {

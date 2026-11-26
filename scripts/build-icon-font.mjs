@@ -35,8 +35,8 @@ const INLINE_PATTERN = new RegExp(`${ICON_ATTR}[^>]*>\\s*([a-z][a-z0-9_]{1,30})\
 const ASSIGN_LINE_PATTERN = /\b(?:icon|buttonIcon|manageIcon|el|node)\w*\.(?:textContent|innerText)\s*=\s*([^;]+)/g;
 /** 3. 模板表达式内嵌在 material-symbols-rounded 标签里 */
 const TEMPLATE_ICON_PATTERN = new RegExp(`${ICON_ATTR}[^>]*>\\s*\\$\\{([^}]+)\\}\\s*<`, 'g');
-/** 4. 对象字面量 icon: '...' 或三元 icon: cond ? 'a' : 'b' */
-const ICON_PROP_PATTERN = /\bicon\s*:\s*([^,\n}]+)/g;
+/** 4. 对象字面量 icon: '...' 或跨行三元 icon: cond\n ? 'a'\n : 'b' */
+const ICON_PROP_PATTERN = /\bicon\s*:\s*([^,};]+)/g;
 /** 5. 命名图标映射对象：displayIconMap / genericIconMap */
 const ICON_MAP_BLOCK_PATTERN = /\b(?:displayIconMap|genericIconMap)\s*=\s*\{([\s\S]*?)\};/g;
 /** 6. 词库/范围选择器元信息表：['group', 'label', 'icon_name', ...] */

@@ -924,14 +924,6 @@ const validateVocabularyData = (entries = []) => {
                 '难度必须是 1～5 的整数',
                 'difficulty'
             );
-        } else if (raw.builtIn === true && difficulty === 0) {
-            addIssue(
-                'error',
-                index,
-                wordLabel,
-                '内置词缺少难度',
-                'difficulty'
-            );
         }
 
         if (lang === 'ja') {
@@ -4476,7 +4468,17 @@ const View = {
       }).join('<span class="root-plus">+</span>');
   },
 
+  syncMaskedVisuals() {
+      ['w-word', 'w-kana', 'w-meaning'].forEach(id => {
+          const el = this.getEl(id);
+          if (!el) return;
+          const text = (el.innerText || el.textContent || '').trim();
+          el.classList.toggle('is-masked', Boolean(text && /^[■\s]+$/.test(text)));
+      });
+  },
+
   syncRootsDisplay() {
+      this.syncMaskedVisuals();
       let rootsEl = this.getEl('w-roots');
       if (!rootsEl || rootsEl.style.display === 'none') return;
       
@@ -4629,9 +4631,9 @@ const View = {
         if (uniqueColors.length >= 2) {
             bg =
                 `linear-gradient(` +
-                `135deg, ` +
-                `${uniqueColors[0]} 50%, ` +
-                `${uniqueColors[1]} 50%` +
+                `150deg, ` +
+                `${uniqueColors[0]} 0%, ` +
+                `${uniqueColors[1]} 100%` +
                 `)`;
         }
 
@@ -4680,7 +4682,7 @@ const View = {
     }).join('');
     let uniqueColors = [...new Set(mainColors)];
     let bg = uniqueColors[0] || 'var(--surface-container)';
-    if (uniqueColors.length >= 2) { bg = `linear-gradient(135deg, ${uniqueColors[0]} 50%, ${uniqueColors[1]} 50%)`; }
+    if (uniqueColors.length >= 2) { bg = `linear-gradient(150deg, ${uniqueColors[0]} 0%, ${uniqueColors[1]} 100%)`; }
     if (bg === 'var(--surface-container)' && tagsHTML) {
         bg = 'var(--bg-other)';
     }
@@ -13704,7 +13706,12 @@ deleteWord(idx) {
         }
     };
 
-    Controller.runVocabularyAudit = function() {
+    Controller.runVocabularyAudit = async function() {
+        try {
+            await Model.ensureAllBuiltInLanguages();
+        } catch (error) {
+            console.warn('[词库检查] 未能载入全部语种，将检查当前已载入词汇', error);
+        }
         const report = validateVocabularyData(Model.db);
         this.renderVocabularyAudit(report);
 

@@ -56,4 +56,25 @@ assert.deepEqual(calls.at(-1), [24, 34, 42]);
 haptics.trigger('diagnostic', { force: true });
 assert.deepEqual(calls.at(-1), [220, 120, 220]);
 
+// 原生 Capacitor 环境缺少 navigator.vibrate 时关闭触感不应抛异常
+Object.defineProperty(globalThis, 'Capacitor', {
+    configurable: true,
+    value: {
+        isNativePlatform: () => true,
+        Plugins: {
+            Haptics: {
+                impact: async () => {},
+                notification: async () => {},
+                vibrate: async () => {}
+            }
+        }
+    }
+});
+Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {}
+});
+assert.doesNotThrow(() => haptics.setEnabled(false));
+assert.equal(haptics.isSupported(), true);
+
 console.log('场景化触感模块测试通过');

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-26T09:11:20.598Z",
+  "generatedAt": "2026-11-26T10:58:35.475Z",
   "family": "Material Symbols Rounded",
   "variant": "opsz 24 / wght 500..600 / FILL 0..1 / GRAD 0",
   "fontFile": "vendor/material-symbols-rounded.woff2",
@@ -58,6 +58,7 @@
     "info",
     "inventory_2",
     "keyboard_arrow_down",
+    "library_books",
     "light_mode",
     "lightbulb",
     "local_fire_department",

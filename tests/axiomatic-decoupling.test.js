@@ -21,23 +21,27 @@ const createMockStorage = () => {
 test('DP2 SettingsStore: 声明式 Schema 隔离备份键，忽略未注册脏键', () => {
     const store = createMockStorage();
     SettingsStore.set('theme', 'dark', store);
+    SettingsStore.set('colorPalette', 'terracotta', store);
     SettingsStore.set('showRoots', false, store);
     SettingsStore.set('wbCols', '4', store); // backup: false
     store.setItem('rogueTempKey', 'should-not-backup');
 
     const collected = SettingsStore.collectBackupPreferences(store);
     assert.equal(collected.theme, 'dark');
+    assert.equal(collected.colorPalette, 'terracotta');
     assert.equal(collected.showRoots, 'false');
     assert.equal(Object.prototype.hasOwnProperty.call(collected, 'wbCols'), false);
     assert.equal(Object.prototype.hasOwnProperty.call(collected, 'rogueTempKey'), false);
 
     const target = createMockStorage();
+    assert.equal(SettingsStore.get('colorPalette', target), 'washi');
     const applied = SettingsStore.applyBackupPreferences(
-        { theme: 'light', langMode: 'en', rogueKey: 'nope' },
+        { theme: 'light', colorPalette: 'swiss', langMode: 'en', rogueKey: 'nope' },
         target
     );
-    assert.equal(applied, 2);
+    assert.equal(applied, 3);
     assert.equal(SettingsStore.get('theme', target), 'light');
+    assert.equal(SettingsStore.get('colorPalette', target), 'swiss');
     assert.equal(SettingsStore.get('langMode', target), 'en');
     assert.equal(target.getItem('rogueKey'), null);
     assert.equal(SettingsStore.getBool('autoSpeak', target), true);

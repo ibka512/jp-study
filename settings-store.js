@@ -16,6 +16,7 @@
      */
     const PREFERENCE_SCHEMA = Object.freeze({
         theme: Object.freeze({ defaultValue: 'light', backup: true, type: 'string' }),
+        colorPalette: Object.freeze({ defaultValue: 'washi', backup: true, type: 'string' }),
         langMode: Object.freeze({ defaultValue: 'ja', backup: true, type: 'string' }),
         autoSpeak: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),
         hapticsEnabled: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),

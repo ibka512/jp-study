@@ -4399,6 +4399,51 @@ const View = {
       }
   },
   
+  COLOR_PALETTES: Object.freeze({
+    washi: Object.freeze({
+      label: '和纸朱印',
+      themeColor: { lightJa: '#1b3b5a', lightEn: '#1b4d3e', dark: '#151311' }
+    }),
+    terracotta: Object.freeze({
+      label: '陶土日轮',
+      themeColor: { lightJa: '#a63e26', lightEn: '#213a56', dark: '#171311' }
+    }),
+    swiss: Object.freeze({
+      label: '瑞士印刷',
+      themeColor: { lightJa: '#161616', lightEn: '#161616', dark: '#101010' }
+    })
+  }),
+
+  normalizeColorPalette(value) {
+    return Object.prototype.hasOwnProperty.call(this.COLOR_PALETTES, value)
+      ? value
+      : 'washi';
+  },
+
+  applyColorPalette(palette, { persist = true, toast = false } = {}) {
+    const normalized = this.normalizeColorPalette(palette);
+    if (document.body) {
+      document.body.setAttribute('data-palette', normalized);
+    }
+    if (persist) {
+      SETTINGS_STORE.set('colorPalette', normalized);
+    }
+    document.querySelectorAll('.palette-card[data-palette-option]').forEach(card => {
+      const isSelected = card.dataset.paletteOption === normalized;
+      card.classList.toggle('active', isSelected);
+      card.setAttribute('aria-checked', String(isSelected));
+    });
+    const pill = this.getEl('settings-palette-pill');
+    if (pill) {
+      pill.textContent = this.COLOR_PALETTES[normalized].label;
+    }
+    this.syncThemeUI();
+    if (toast) {
+      showToast(`已切换配色：${this.COLOR_PALETTES[normalized].label}`);
+    }
+    return normalized;
+  },
+
   syncThemeUI() {
     const isDark =
         document.body.getAttribute('data-theme') === 'dark';
@@ -4420,7 +4465,13 @@ const View = {
         'meta[name="theme-color"]'
     );
     if (themeColor) {
-        themeColor.content = isDark ? '#141618' : (document.body.getAttribute('data-lang') === 'en' ? '#1e6049' : '#1f4e79');
+        const palette = this.normalizeColorPalette(
+            document.body.getAttribute('data-palette')
+        );
+        const colors = this.COLOR_PALETTES[palette].themeColor;
+        themeColor.content = isDark
+            ? colors.dark
+            : (document.body.getAttribute('data-lang') === 'en' ? colors.lightEn : colors.lightJa);
     }
   },
 
@@ -7313,7 +7364,7 @@ const Controller = {
     if(localStorage.getItem('theme') === 'dark') {
         document.body.setAttribute('data-theme', 'dark');
     }
-    View.syncThemeUI();
+    View.applyColorPalette(SETTINGS_STORE.get('colorPalette'), { persist: false });
     
     let autoSpeak = localStorage.getItem('autoSpeak') !== 'false'; 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
@@ -7789,6 +7840,22 @@ setupVirtualScroll() {
         });
     }
 
+
+    document.querySelectorAll('.palette-card[data-palette-option]').forEach(card => {
+        card.addEventListener('click', () => {
+            const targetPalette = card.dataset.paletteOption;
+            if (!targetPalette) return;
+            Hardware.playSound('click');
+            Hardware.vibrate(15);
+            const applyAction = () => View.applyColorPalette(targetPalette, { persist: true, toast: true });
+            if (!document.startViewTransition || isMotionReduced()) {
+                applyAction();
+                return;
+            }
+            const transition = document.startViewTransition(applyAction);
+            transition.finished.catch(() => {});
+        });
+    });
 
     let darkBtnCheck = View.getEl('setting-dark-btn');
     if (darkBtnCheck) {

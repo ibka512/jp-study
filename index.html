@@ -66,7 +66,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#1f4e79">
+<meta name="theme-color" content="#1b3b5a">
 <title>钟日</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -75,10 +75,18 @@
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Literata:opsz,wght@7..72,600;7..72,700&family=Noto+Serif+JP:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css">
-<link rel="stylesheet" href="ui-system.css?v=modern-v11">
-<link rel="stylesheet" href="style.css?v=modern-v12">
+<link rel="stylesheet" href="ui-system.css?v=modern-v12">
+<link rel="stylesheet" href="style.css?v=modern-v13">
 </head>
 <body>
+<script>
+  try {
+    const p = localStorage.getItem('colorPalette');
+    if (p === 'washi' || p === 'terracotta' || p === 'swiss') document.body.setAttribute('data-palette', p);
+    else document.body.setAttribute('data-palette', 'washi');
+    if (localStorage.getItem('theme') === 'dark') document.body.setAttribute('data-theme', 'dark');
+  } catch (_) {}
+</script>
 
 <div id="sr-announcer" aria-live="assertive" aria-atomic="true" class="sr-only"></div>
 
@@ -458,10 +466,11 @@
           <button class="settings-category-card" type="button" data-open-settings-section="display">
             <span class="settings-category-icon"><span class="material-symbols-rounded">volume_up</span></span>
             <span class="settings-category-copy">
-              <strong>朗读与显示</strong>
-              <small>自动朗读、词根公式、语音引擎与震动</small>
+              <strong>外观与朗读</strong>
+              <small>配色主题、自动朗读、词根公式与触感</small>
             </span>
             <span class="settings-category-tail">
+              <span id="settings-palette-pill" class="settings-count-pill">和纸朱印</span>
               <span class="material-symbols-rounded">chevron_right</span>
             </span>
           </button>
@@ -545,11 +554,61 @@
         </div>
       </section>
 
-      <!-- 子页：朗读与显示 -->
+      <!-- 子页：外观与朗读 -->
       <section class="settings-section" data-settings-section="display" hidden>
         <div class="settings-section-header">
           <button type="button" class="settings-back-btn" data-settings-back aria-label="返回设置首页"><span class="material-symbols-rounded">arrow_back</span></button>
-          <div><span>朗读与显示</span><small>控制卡片呈现、发音与触感反馈</small></div>
+          <div><span>外观与朗读</span><small>切换辞书配色、卡片呈现、发音与触感反馈</small></div>
+        </div>
+
+        <div class="card-panel palette-picker-card" role="radiogroup" aria-label="界面配色主题">
+          <div class="palette-picker-head">
+            <strong>辞书配色主题</strong>
+            <small>三套方案均独立校准日间 / 夜间与日英双语配色</small>
+          </div>
+          <div class="palette-grid">
+            <button type="button" class="palette-card active" data-palette-option="washi" role="radio" aria-checked="true">
+              <span class="palette-swatch" aria-hidden="true">
+                <span class="palette-swatch-spine" style="background:#1b3b5a;"></span>
+                <span class="palette-swatch-paper" style="background:#f2ede3;">
+                  <span class="palette-swatch-seal" style="background:#c84b31;"></span>
+                </span>
+              </span>
+              <span class="palette-card-copy">
+                <strong>和纸朱印</strong>
+                <small>暖宣纸 · 胜色靛蓝 · 朱砂印</small>
+              </span>
+              <span class="palette-check" aria-hidden="true"><span class="material-symbols-rounded">check</span></span>
+            </button>
+
+            <button type="button" class="palette-card" data-palette-option="terracotta" role="radio" aria-checked="false">
+              <span class="palette-swatch" aria-hidden="true">
+                <span class="palette-swatch-spine" style="background:#a63e26;"></span>
+                <span class="palette-swatch-paper" style="background:#f4eee4;">
+                  <span class="palette-swatch-seal" style="background:#b8862d;"></span>
+                </span>
+              </span>
+              <span class="palette-card-copy">
+                <strong>陶土日轮</strong>
+                <small>羊皮纸 · 柿渋赤陶 · 黄铜金</small>
+              </span>
+              <span class="palette-check" aria-hidden="true"><span class="material-symbols-rounded">check</span></span>
+            </button>
+
+            <button type="button" class="palette-card" data-palette-option="swiss" role="radio" aria-checked="false">
+              <span class="palette-swatch" aria-hidden="true">
+                <span class="palette-swatch-spine" style="background:#161616;"></span>
+                <span class="palette-swatch-paper" style="background:#eae7e0;">
+                  <span class="palette-swatch-seal" style="background:#d6361d;"></span>
+                </span>
+              </span>
+              <span class="palette-card-copy">
+                <strong>瑞士印刷</strong>
+                <small>石膏灰 · 墨黑权威 · 信号红</small>
+              </span>
+              <span class="palette-check" aria-hidden="true"><span class="material-symbols-rounded">check</span></span>
+            </button>
+          </div>
         </div>
 
         <div class="card-panel settings-detail-card">
@@ -1280,7 +1339,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v7"></script>
+<script src="app.js?v=modern-v8"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

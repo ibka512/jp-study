@@ -442,6 +442,7 @@ MD_POS_MAP = {
     "prep": "介词",
     "conj": "连词",
     "pron": "代词",
+    "pro": "代词",
     "art": "冠词",
     "num": "数词",
     "int": "感叹词",
@@ -551,10 +552,26 @@ def parse_markdown_wordlist_text(text: str) -> list[dict[str, str]]:
         pos_parts: list[str] = []
         m_pos = MD_POS_RE.match(rest)
         if m_pos:
-            first_pos = normalize_md_pos(m_pos.group(1))
-            if first_pos:
-                pos_parts.append(first_pos)
-            rest = m_pos.group(2).strip()
+            raw_italic = clean_text(m_pos.group(1))
+            italic_tokens = [tok.strip().rstrip(".") for tok in re.split(r"[,，、/／&＆;；\s]+", raw_italic) if tok.strip().rstrip(".")]
+            is_known_pos = bool(italic_tokens) and all(
+                tok.lower() in MD_POS_MAP or bool(re.search(r"[\u4e00-\u9fff]", tok))
+                for tok in italic_tokens
+            )
+            if is_known_pos:
+                first_pos = normalize_md_pos(raw_italic)
+                if first_pos:
+                    pos_parts.append(first_pos)
+                rest = m_pos.group(2).strip()
+            else:
+                # 忽略原稿中误加斜体的重复音标（如 *keis* / *hu:*），回退到正文开头识别词性
+                rest = m_pos.group(2).strip()
+                m_bare_pos = re.match(r"^([A-Za-z]+\.)\s+(.*)$", rest)
+                if m_bare_pos and m_bare_pos.group(1).rstrip(".").lower() in MD_POS_MAP:
+                    bare_pos = normalize_md_pos(m_bare_pos.group(1))
+                    if bare_pos:
+                        pos_parts.append(bare_pos)
+                    rest = m_bare_pos.group(2).strip()
 
         # 兼容形如 `*adv.* & prep. ...` 或行内第二个斜体词性 `*n.* ... *v.* ...`
         m_amp = re.match(r"^&\s*([A-Za-z]+\.?)\s+(.*)$", rest)

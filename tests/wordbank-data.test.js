@@ -27,7 +27,7 @@ const english = loadWords('english-data.js', 'DefaultEnglishWords');
 
 const minimumCounts = {
     ja: { N5: 400, N4: 450, N3: 1400, N2: 1200, N1: 2200 },
-    en: { 'CET-4': 2500, 'CET-6': 1200 }
+    en: { 'CET-4': 2500, 'CET-6': 1200, '专升本': 2000 }
 };
 
 for (const [language, words] of [['ja', japanese], ['en', english]]) {
@@ -47,7 +47,10 @@ for (const [language, words] of [['ja', japanese], ['en', english]]) {
         if (language === 'ja') {
             assert.ok(String(word.kana || '').trim(), `${word.word} 缺少假名`);
         } else {
-            assert.ok(String(word.phonetic || '').trim(), `${word.word} 缺少音标`);
+            const isPhrase = word.type === '短语' || String(word.word || '').includes(' ');
+            if (!isPhrase) {
+                assert.ok(String(word.phonetic || '').trim(), `${word.word} 缺少音标`);
+            }
         }
 
         counts[word.level] = (counts[word.level] || 0) + 1;

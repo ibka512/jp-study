@@ -13,7 +13,10 @@ const WORD_BANK_LANG_ASSETS = Object.freeze({
   "./wordbanks/en-002.js",
   "./wordbanks/en-003.js",
   "./wordbanks/en-004.js",
-  "./wordbanks/en-005.js"
+  "./wordbanks/en-005.js",
+  "./wordbanks/en-006.js",
+  "./wordbanks/en-007.js",
+  "./wordbanks/en-008.js"
   ])
 });
 

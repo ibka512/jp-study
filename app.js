@@ -16077,7 +16077,7 @@ deleteWord(idx) {
                 !levelFilter ||
                 (levelFilter === '__unassigned__'
                     ? !level
-                    : level === levelFilter);
+                    : (level === levelFilter || (Array.isArray(item.w.tags) && item.w.tags.includes(levelFilter))));
 
             const difficultyMatches =
                 !difficultyFilter ||

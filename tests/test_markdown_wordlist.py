@@ -12,6 +12,27 @@ from tools.wordbank_compiler import (
 
 
 class MarkdownWordlistTests(unittest.TestCase):
+    def test_sanitizes_headwords_with_pos_or_numbering_noise(self):
+        sample = """---
+title: 专升本英语考纲词汇 · 背诵清单
+tags: [专升本, 英语, 词汇]
+---
+
+- [ ] **justice n .** 公平, 公平
+- [ ] **rush v .** 冲，使冲 n. 冲，急速行进
+- [ ] **by far ….** 得多，最
+- [ ] **get up 1.** 起床
+- [ ] **check in （** 办理入住
+- [ ] **keep … from …** 防止，预防
+- [ ] **photo(graph)** *n.* 照片
+"""
+        rows = parse_markdown_wordlist_text(sample)
+        words = [row["word"] for row in rows]
+        self.assertEqual(
+            words,
+            ["justice", "rush", "by far", "get up", "check in", "keep … from …", "photo(graph)"],
+        )
+
     def test_parse_markdown_formats_and_irregular_verbs(self):
         sample = """---
 title: 专升本英语考纲词汇 · 背诵清单

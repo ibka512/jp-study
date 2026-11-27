@@ -454,6 +454,27 @@ MD_POS_MAP = {
 MD_BOLD_LINE_RE = re.compile(
     r"^\s*[-*+]\s+(?:\[[ xX]\]\s+)?\*\*([^*]+?)\*\*\s*(.*)$"
 )
+# 源文档里偶有 **justice n .** / **get up 1.** / **check in （** 这类把词性、
+# 义项编号或半个括号写进加粗词头的情况，入库前必须清掉。
+MD_HEAD_POS_TAIL_RE = re.compile(
+    r"\s+(?:n|v|vt|vi|adj|adv|ad|prep|conj|pron|num|art|int)\s*\.\s*$", re.I
+)
+MD_HEAD_NUMBER_TAIL_RE = re.compile(r"\s+\d+\s*[.．]?\s*$")
+MD_HEAD_ELLIPSIS_DOT_RE = re.compile(r"\s*…\s*\.\s*$")
+MD_HEAD_DANGLE_RE = re.compile(r"[\s（(\[【]+$")
+
+
+def sanitize_md_headword(raw: str) -> str:
+    """清掉加粗词头里的词性后缀、义项编号、尾部省略号句点和悬空括号。"""
+    value = clean_text(raw)
+    for pattern in (
+        MD_HEAD_POS_TAIL_RE,
+        MD_HEAD_NUMBER_TAIL_RE,
+        MD_HEAD_ELLIPSIS_DOT_RE,
+        MD_HEAD_DANGLE_RE,
+    ):
+        value = pattern.sub("", value)
+    return value.strip()
 MD_PHONETIC_RE = re.compile(r"^`(\[[^\]]+\]|/[^/]+/)`\s*(.*)$")
 MD_POS_RE = re.compile(r"^\*([^*]+?)\*\s*(.*)$")
 MD_IRREGULAR_RE = re.compile(
@@ -534,7 +555,7 @@ def parse_markdown_wordlist_text(text: str) -> list[dict[str, str]]:
         match = MD_BOLD_LINE_RE.match(line)
         if not match:
             continue
-        raw_word = clean_text(match.group(1))
+        raw_word = sanitize_md_headword(match.group(1))
         rest = match.group(2).strip()
         if not raw_word or not rest:
             continue

@@ -1921,6 +1921,15 @@ body[data-theme="dark"] .wb-card {
   border-color: transparent;
 }
 
+/* 同一个词同时属于多个考纲时的次要级别（如四级词也属于专升本） */
+.word-meta-chip.is-level-alt {
+  background: transparent;
+  color: var(--primary);
+  border-color: currentColor;
+  font-weight: 600;
+  opacity: 0.86;
+}
+
 .word-meta-chip.is-special {
   background: var(--accent-orange-soft);
   color: var(--accent-orange);

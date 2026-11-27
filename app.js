@@ -408,6 +408,14 @@ const DIFFICULTY_LABELS = Object.freeze({
     5: '困难'
 });
 
+// 内置考试词书：同一个词可能同时属于多个考纲（如四级 + 专升本），入库时只保留
+// 一条记录，另一个考纲记在 tags 里，所以词书范围要按「级别或标签」判定。
+const EXAM_BOOK_LEVELS = Object.freeze({
+    '四级词汇': 'CET-4',
+    '六级词汇': 'CET-6',
+    '专升本词汇': '专升本'
+});
+
 const normalizeWordLevel = (value, lang = 'ja') => {
     const raw = normalizeEntryText(value)
         .toUpperCase()
@@ -732,10 +740,24 @@ const getWordMetadataHTML = (
         : (compact ? 1 : 2);
     const chips = [];
 
-    if (level) {
-        chips.push(
-            `<span class="word-meta-chip is-level">${escapeHTML(level)}</span>`
-        );
+    // 一个词可能同时属于多个考纲（CET-4 + 专升本），tags 里的其他考试级别也显示出来，
+    // 否则共享词在界面上只露出先导入的那个级别。
+    const examLevels = [];
+    const pushExamLevel = value => {
+        const normalized = normalizeWordLevel(value, lang);
+        if (normalized && !examLevels.includes(normalized)) {
+            examLevels.push(normalized);
+        }
+    };
+    pushExamLevel(entry.level);
+    normalizeWordTags(entry.tags).forEach(pushExamLevel);
+
+    if (examLevels.length) {
+        examLevels.forEach((value, index) => {
+            chips.push(
+                `<span class="word-meta-chip is-level${index > 0 ? ' is-level-alt' : ''}">${escapeHTML(value)}</span>`
+            );
+        });
     } else if (showUnassigned) {
         chips.push(
             '<span class="word-meta-chip is-muted">未分级</span>'
@@ -5650,7 +5672,19 @@ const Model = {
       if (filterName === 'virtual_miss_kanji') return !st.kanji;
       if (filterName === 'virtual_miss_kana') return !st.kana;
       if (filterName === 'virtual_miss_meaning') return !st.meaning;
-      
+
+      const examLevel = EXAM_BOOK_LEVELS[filterName];
+      if (examLevel) {
+          const lang = w.lang === 'en' ? 'en' : 'ja';
+          const level = normalizeWordLevel(w.level, lang);
+          const tags = Array.isArray(w.tags) ? w.tags : [];
+          return (
+              w.folder === filterName ||
+              level === examLevel ||
+              tags.includes(examLevel)
+          );
+      }
+
       return w.folder === (filterName === 'default' ? '默认词库' : filterName);
   },
 

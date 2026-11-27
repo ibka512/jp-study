@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v66';
+const CACHE_NAME = 'zhongri-shell-v67';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -13,7 +13,7 @@ const LOCAL_ASSETS = [
   './vendor/zh-ming.css?v=2',
   './vendor/zh-ming-subset.woff2?v=2',
   './ui-system.css?v=modern-v18',
-  './style.css?v=modern-v26',
+  './style.css?v=modern-v27',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -30,7 +30,7 @@ const LOCAL_ASSETS = [
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v22',
+  './app.js?v=modern-v23',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:local:end
@@ -53,7 +53,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/material-symbols.css',
   './vendor/zh-ming.css?v=2',
   './ui-system.css?v=modern-v18',
-  './style.css?v=modern-v26',
+  './style.css?v=modern-v27',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
@@ -65,7 +65,7 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v22',
+  './app.js?v=modern-v23',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:network-first:end

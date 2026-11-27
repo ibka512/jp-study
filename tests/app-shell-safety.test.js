@@ -194,5 +194,15 @@ assert.equal(logo.subarray(1, 4).toString('ascii'), 'PNG');
 assert.equal(logo.readUInt32BE(16), 512);
 assert.equal(logo.readUInt32BE(20), 512);
 assert.ok(logo.length < 40 * 1024, 'PWA 图标应保持在 40KB 以内');
+assert.match(
+    index,
+    /id="flash-card"[\s\S]*?class="flash-card-header"[\s\S]*?id="combo-badge"[\s\S]*?class="flash-card-body"[\s\S]*?id="w-word"/,
+    '答题卡必须将发音/Combo/收藏放在独立流式顶栏，避免与主词条重叠'
+);
+assert.doesNotMatch(
+    styles,
+    /\.combo-badge\s*\{[^}]*position:\s*absolute/,
+    'Combo 徽章禁止使用绝对定位，防止在矮屏或横屏比例下遮挡单词'
+);
 
 console.log('应用外壳安全检查通过');

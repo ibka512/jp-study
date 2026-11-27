@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v18">
-<link rel="stylesheet" href="style.css?v=modern-v26">
+<link rel="stylesheet" href="style.css?v=modern-v27">
 </head>
 <body>
 <script>
@@ -1055,30 +1055,34 @@
     <div class="study-left-col">
       <div id="pixel-matrix"></div>
       <div class="flash-card" id="flash-card">
-        <div id="combo-badge" class="combo-badge">Combo x0</div>
         <div class="watermark-layer">
           <div id="flash-watermark" class="watermark"></div>
         </div>
-        <button id="btn-speaker" class="speaker-icon" type="button" aria-label="朗读发音">
-          <span class="material-symbols-rounded" aria-hidden="true">volume_up</span>
-        </button>
-        <button id="star-btn" class="star-btn" type="button" aria-label="收藏单词" aria-pressed="false">
-          <span class="material-symbols-rounded" id="star-icon" aria-hidden="true">star</span>
-        </button>
-        <div id="mt-blind-audio-ui" class="hidden blind-audio-stage">
-          <button type="button" id="btn-mt-replay" class="glass-icon-btn blind-replay-btn" aria-label="重播发音">
-            <span class="material-symbols-rounded">play_arrow</span>
+        <div class="flash-card-header">
+          <button id="btn-speaker" class="speaker-icon" type="button" aria-label="朗读发音">
+            <span class="material-symbols-rounded" aria-hidden="true">volume_up</span>
           </button>
-          <button id="btn-mt-show-hint" class="study-audio-hint" type="button">听不清？显示假名</button>
+          <div id="combo-badge" class="combo-badge">Combo x0</div>
+          <button id="star-btn" class="star-btn" type="button" aria-label="收藏单词" aria-pressed="false">
+            <span class="material-symbols-rounded" id="star-icon" aria-hidden="true">star</span>
+          </button>
         </div>
-        <div class="word-main blur-target" id="w-word">单词</div>
-        <div class="info-row-group">
-          <div class="kana-row blur-target" id="w-kana">假名</div>
-          <div class="type-row blur-target" id="w-type"></div>
-          <div class="roots-row blur-target" id="w-roots" style="display:none;"></div>
-          <div class="meaning-row blur-target" id="w-meaning">释义</div>
+        <div class="flash-card-body">
+          <div id="mt-blind-audio-ui" class="hidden blind-audio-stage">
+            <button type="button" id="btn-mt-replay" class="glass-icon-btn blind-replay-btn" aria-label="重播发音">
+              <span class="material-symbols-rounded">play_arrow</span>
+            </button>
+            <button id="btn-mt-show-hint" class="study-audio-hint" type="button">听不清？显示假名</button>
+          </div>
+          <div class="word-main blur-target" id="w-word">单词</div>
+          <div class="info-row-group">
+            <div class="kana-row blur-target" id="w-kana">假名</div>
+            <div class="type-row blur-target" id="w-type"></div>
+            <div class="roots-row blur-target" id="w-roots" style="display:none;"></div>
+            <div class="meaning-row blur-target" id="w-meaning">释义</div>
+          </div>
+          <div class="dt-example-box blur-target" id="w-example-box"></div>
         </div>
-        <div class="dt-example-box blur-target" id="w-example-box"></div>
       </div>
     </div>
 
@@ -1499,7 +1503,7 @@
   </div>
 </div>
 
-<script src="app.js?v=modern-v22"></script>
+<script src="app.js?v=modern-v23"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

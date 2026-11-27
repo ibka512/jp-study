@@ -6209,14 +6209,14 @@ const View = {
       wordEl.style.display = vm.showWordRow ? 'block' : 'none';
       kanaEl.style.display = vm.showReadingRow ? 'block' : 'none';
       meaningEl.style.display = vm.showMeaningRow ? 'block' : 'none';
-      this.getEl('btn-speaker').style.display = vm.showSpeaker ? 'block' : 'none';
+      this.getEl('btn-speaker').style.display = vm.showSpeaker ? 'inline-flex' : 'none';
 
       const isStarred = Model.isStarred(w);
       this.getEl('star-icon').style.fontVariationSettings =
           isStarred ? "'FILL' 1" : "'FILL' 0";
       this.getEl('star-btn').classList.toggle('active', isStarred);
       this.getEl('star-btn').setAttribute('aria-pressed', String(isStarred));
-      this.getEl('star-btn').style.display = vm.showStar ? 'block' : 'none';
+      this.getEl('star-btn').style.display = vm.showStar ? 'inline-flex' : 'none';
   },
 
   syncRootsDisplay() {
@@ -7726,7 +7726,7 @@ void card.offsetWidth;
         isMemTest ||
         isEnglishRoteTraining ||
         (isRote && !isEnglish && mode !== 'kana' && mode !== 'all' && !forceRoteFull);
-    this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'block';
+    this.getEl('btn-speaker').style.display = hideSpeaker ? 'none' : 'inline-flex';
     
     let displayTrigger = this.getEl('btn-display-mode-trigger');
     if (displayTrigger) displayTrigger.style.display = (Model.state.mode === 'dual-track' || isMemTest) ? 'none' : 'inline-flex';

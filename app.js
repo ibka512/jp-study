@@ -5140,194 +5140,166 @@ const View = {
 
 
   getCardVisuals(typeStr, lang) {
-    if (!typeStr) return { bg: 'var(--surface-container)', wm: '', tagsHTML: '' };
-    
-    // English words: use simple PoS abbreviations as watermark
-    if (lang === 'en') {
-        /*
-         * 显示层继续兼容多种词性分隔符，
-         * 即使旧数据尚未经过迁移，也能正确显示双色卡片。
-         */
-        let tags = String(typeStr)
-            .split(/[・/／、,，;；|]+/)
-            .map(type => type.trim())
-            .filter(Boolean);
+    if (!typeStr) {
+        return {
+            bg: 'var(--surface-elevated)',
+            strip: 'linear-gradient(90deg, var(--primary), var(--primary))',
+            border: 'var(--outline-strong)',
+            wm: '',
+            tagsHTML: '',
+            cats: [],
+            isMulti: false
+        };
+    }
 
-        if (tags.length === 0) {
-            tags = [String(typeStr).trim()];
+    const POS_PALETTE = {
+        noun: { key: 'noun', bg: 'var(--pos-noun-bg)', accent: 'var(--pos-noun-accent)' },
+        verb: { key: 'verb', bg: 'var(--pos-verb-bg)', accent: 'var(--pos-verb-accent)' },
+        adj: { key: 'adj', bg: 'var(--pos-adj-bg)', accent: 'var(--pos-adj-accent)' },
+        'adj-na': { key: 'adj-na', bg: 'var(--pos-adj-na-bg)', accent: 'var(--pos-adj-na-accent)' },
+        adv: { key: 'adv', bg: 'var(--pos-adv-bg)', accent: 'var(--pos-adv-accent)' },
+        pronoun: { key: 'pronoun', bg: 'var(--pos-pronoun-bg)', accent: 'var(--pos-pronoun-accent)' },
+        func: { key: 'func', bg: 'var(--pos-func-bg)', accent: 'var(--pos-func-accent)' },
+        other: { key: 'other', bg: 'var(--pos-other-bg)', accent: 'var(--pos-other-accent)' }
+    };
+
+    const resolvePosCat = (rawType) => {
+        const t = String(rawType || '').trim();
+        const lower = t.toLowerCase();
+        if (t.includes('形容动词') || t.includes('形动') || t.includes('ナ形')) return POS_PALETTE['adj-na'];
+        if (t.includes('形容词') || t.includes('形') || lower === 'adj' || lower === 'adjective') return POS_PALETTE.adj;
+        if (
+            t.includes('助动词') ||
+            t.includes('助词') ||
+            t.includes('介词') ||
+            t.includes('前置词') ||
+            t.includes('连词') ||
+            t.includes('接续') ||
+            t.includes('接続') ||
+            lower === 'prep' ||
+            lower === 'conj'
+        ) {
+            return POS_PALETTE.func;
         }
+        if (t.includes('动词') || t === '动' || /[段変变動自他サ]/.test(t) || lower === 'v' || lower === 'verb') return POS_PALETTE.verb;
+        if (t.includes('代词') || t.includes('代') || lower === 'pron' || lower === 'pronoun') return POS_PALETTE.pronoun;
+        if (t.includes('名词') || t.includes('名') || lower === 'n' || lower === 'noun') return POS_PALETTE.noun;
+        if (t.includes('副词') || t.includes('副') || lower === 'adv' || lower === 'adverb') return POS_PALETTE.adv;
+        return POS_PALETTE.other;
+    };
 
+    const buildSplitBg = (colors) => {
+        if (colors.length === 0) return 'var(--surface-container)';
+        if (colors.length === 1) return colors[0];
+        const count = colors.length;
+        const feather = count >= 3 ? 0.65 : 0.8;
+        const stops = [];
+        for (let i = 0; i < count; i++) {
+            const start = (i / count) * 100;
+            const end = ((i + 1) / count) * 100;
+            const sPct = i === 0 ? 0 : +(start + feather).toFixed(2);
+            const ePct = i === count - 1 ? 100 : +(end - feather).toFixed(2);
+            stops.push(`${colors[i]} ${sPct}%`, `${colors[i]} ${ePct}%`);
+        }
+        return `linear-gradient(132deg, ${stops.join(', ')})`;
+    };
+
+    const buildSegmentedStrip = (accents) => {
+        if (accents.length === 0) return 'linear-gradient(90deg, var(--primary), var(--primary))';
+        if (accents.length === 1) return `linear-gradient(90deg, ${accents[0]}, ${accents[0]})`;
+        const count = accents.length;
+        const stops = [];
+        for (let i = 0; i < count; i++) {
+            const start = +((i / count) * 100).toFixed(2);
+            const end = +(((i + 1) / count) * 100).toFixed(2);
+            stops.push(`${accents[i]} ${start}% ${end}%`);
+        }
+        return `linear-gradient(90deg, ${stops.join(', ')})`;
+    };
+
+    /*
+     * 显示层统一兼容中日双语多种词性分隔符，
+     * 单词性呈现独立和纸矿物色，多词性呈现斜切拼色与顶部拼色色带。
+     */
+    let tags = String(typeStr)
+        .split(/[・/／、,，;；|＋+&＆]+/)
+        .map(type => type.trim())
+        .filter(Boolean);
+    if (tags.length === 0) {
+        tags = [String(typeStr).trim()];
+    }
+
+    let wm = '';
+    if (lang === 'en') {
         const getEnglishWatermark = type => {
-            if (type.includes('名词') || type === '名') {
-                return 'n.';
-            }
-
-            if (type.includes('动词') || type === '动') {
-                return 'v.';
-            }
-
-            if (
-                type.includes('形容词') &&
-                !type.includes('形容动词')
-            ) {
-                return 'adj.';
-            }
-
-            if (type.includes('副词')) {
-                return 'adv.';
-            }
-
-            if (type.includes('介词')) {
-                return 'prep.';
-            }
-
-            if (
-                type.includes('连词') ||
-                type.includes('连接')
-            ) {
-                return 'conj.';
-            }
-
-            if (type.includes('代词')) {
-                return 'pron.';
-            }
-
+            if (type.includes('名词') || type === '名') return 'n.';
+            if (type.includes('动词') || type === '动') return 'v.';
+            if (type.includes('形容词') && !type.includes('形容动词')) return 'adj.';
+            if (type.includes('副词')) return 'adv.';
+            if (type.includes('介词')) return 'prep.';
+            if (type.includes('连词') || type.includes('连接')) return 'conj.';
+            if (type.includes('代词')) return 'pron.';
             return type.charAt(0);
         };
-
-        const watermarkItems = [
-            ...new Set(
-                tags
-                    .map(getEnglishWatermark)
-                    .filter(Boolean)
-            )
-        ].slice(0, 2);
-
-        const enWm =
-            watermarkItems.length > 1
-                ? `<span class="wm-multi">${escapeHTML(watermarkItems.join('・'))}</span>`
-                : escapeHTML(watermarkItems[0] || '');
-
-        const getCat = type => {
-            if (
-                type.includes('形容动词') ||
-                type.includes('形动') ||
-                type.includes('形容词')
-            ) {
-                return { color: 'var(--bg-adj)' };
-            }
-
-            if (
-                type.includes('动词') ||
-                type === '动'
-            ) {
-                return { color: 'var(--bg-verb)' };
-            }
-
-            if (
-                type.includes('名词') ||
-                type === '名'
-            ) {
-                return { color: 'var(--bg-noun)' };
-            }
-
-            if (
-                type.includes('副词') ||
-                type.includes('接')
-            ) {
-                return { color: 'var(--bg-adv)' };
-            }
-
-            if (type.includes('代词')) {
-                return { color: 'var(--bg-pronoun)' };
-            }
-
-            return { color: 'var(--bg-other)' };
-        };
-
-        const mainColors = [];
-
-        const tagsHTML = tags
-            .map(type => {
-                const catInfo = getCat(type);
-                mainColors.push(catInfo.color);
-
-                return (
-                    `<span class="type-capsule" ` +
-                    `style="background: ${catInfo.color};">` +
-                    `${escapeHTML(type)}` +
-                    `</span>`
-                );
-            })
-            .join('');
-
-        const uniqueColors = [
-            ...new Set(mainColors)
-        ];
-
-        let bg =
-            uniqueColors[0] ||
-            'var(--surface-container)';
-
-        if (uniqueColors.length >= 2) {
-            bg =
-                `linear-gradient(` +
-                `150deg, ` +
-                `${uniqueColors[0]} 0%, ` +
-                `${uniqueColors[1]} 100%` +
-                `)`;
+        const watermarkItems = [...new Set(tags.map(getEnglishWatermark).filter(Boolean))].slice(0, 2);
+        wm = watermarkItems.length > 1
+            ? `<span class="wm-multi">${escapeHTML(watermarkItems.join('・'))}</span>`
+            : escapeHTML(watermarkItems[0] || '');
+    } else {
+        const wmSet = new Set();
+        if (typeStr.includes('自他')) { wmSet.add('が'); wmSet.add('を'); }
+        else {
+            if (typeStr.includes('自')) wmSet.add('が');
+            if (typeStr.includes('他')) wmSet.add('を');
         }
+        if (typeStr.includes('形动') || typeStr.includes('形容动词') || typeStr.includes('ナ形')) wmSet.add('な');
+        if (typeStr.includes('名')) wmSet.add('の');
+        const wmArray = Array.from(wmSet).slice(0, 2);
+        wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('・')}</span>` : wmArray.join('');
+    }
 
-        if (
-            bg === 'var(--surface-container)' &&
-            tagsHTML
-        ) {
-            bg = 'var(--bg-other)';
+    const uniqueCats = [];
+    const seenKeys = new Set();
+    const tagsHTML = tags.map(tag => {
+        const cat = resolvePosCat(tag);
+        if (!seenKeys.has(cat.key)) {
+            seenKeys.add(cat.key);
+            uniqueCats.push(cat);
         }
-
-        return {
-            bg,
-            wm: enWm,
-            tagsHTML
-        };
-    }
-    
-    // Japanese words: keep original grammar character watermark
-    let wmSet = new Set();
-    if (typeStr.includes('自他')) { wmSet.add('が'); wmSet.add('を'); }
-    else {
-        if (typeStr.includes('自')) wmSet.add('が');
-        if (typeStr.includes('他')) wmSet.add('を');
-    }
-    if (typeStr.includes('形动') || typeStr.includes('形容动词') || typeStr.includes('ナ形')) wmSet.add('な');
-    if (typeStr.includes('名')) wmSet.add('の');
-
-    let wmArray = Array.from(wmSet).slice(0, 2);
-    let wm = wmArray.length > 1 ? `<span class="wm-multi">${wmArray.join('・')}</span>` : wmArray.join('');
-
-    const getCat = (t) => {
-        if (t.includes('形容动词') || t.includes('形动') || t.includes('ナ形')) return { color: 'var(--bg-adj-na)' };
-        if (t.includes('形')) return { color: 'var(--bg-adj)' };
-        if (/[段変变動自他サ]/.test(t)) return { color: 'var(--bg-verb)' };
-        if (t.includes('代')) return { color: 'var(--bg-pronoun)' };
-        if (t.includes('名')) return { color: 'var(--bg-noun)' };
-        if (t.includes('副') || t.includes('接')) return { color: 'var(--bg-adv)' };
-        return { color: 'var(--bg-other)' }; 
-    };
-    let tags = typeStr.split('・').map(t => t.trim()).filter(t => t);
-    if (tags.length === 0) tags = [typeStr]; 
-    let mainColors = [];
-    let tagsHTML = tags.map(t => {
-        let catInfo = getCat(t); mainColors.push(catInfo.color);
-        return `<span class="type-capsule" style="background: ${catInfo.color};">${escapeHTML(t)}</span>`;
+        return (
+            `<span class="type-capsule" ` +
+            `style="background: ${cat.bg}; color: ${cat.accent}; border-color: color-mix(in srgb, ${cat.accent} 34%, transparent);">` +
+            `${escapeHTML(tag)}` +
+            `</span>`
+        );
     }).join('');
-    let uniqueColors = [...new Set(mainColors)];
-    let bg = uniqueColors[0] || 'var(--surface-container)';
-    if (uniqueColors.length >= 2) { bg = `linear-gradient(150deg, ${uniqueColors[0]} 0%, ${uniqueColors[1]} 100%)`; }
-    if (bg === 'var(--surface-container)' && tagsHTML) {
-        bg = 'var(--bg-other)';
-    }
-    return { bg, wm, tagsHTML };
+
+    const bgColors = uniqueCats.map(c => c.bg);
+    const accentColors = uniqueCats.map(c => c.accent);
+    const bg = buildSplitBg(bgColors);
+    const strip = buildSegmentedStrip(accentColors);
+    const border = accentColors[0]
+        ? `color-mix(in srgb, ${accentColors[0]} 26%, var(--outline))`
+        : 'var(--outline)';
+
+    return {
+        bg,
+        strip,
+        border,
+        wm,
+        tagsHTML,
+        cats: uniqueCats.map(c => c.key),
+        isMulti: uniqueCats.length >= 2
+    };
+  },
+
+  applyCardVisuals(cardEl, visuals) {
+    if (!cardEl || !visuals) return;
+    cardEl.style.background = visuals.bg;
+    cardEl.style.setProperty('--card-pos-bg', visuals.bg);
+    cardEl.style.setProperty('--card-pos-strip', visuals.strip);
+    cardEl.style.setProperty('--card-pos-border', visuals.border);
+    cardEl.classList.toggle('is-multi-pos', Boolean(visuals.isMulti));
   },
 
   updateComboBadge() {
@@ -6276,7 +6248,9 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
 
     let card = this.getEl('flash-card');
     let visuals = this.getCardVisuals(w.type, w.lang);
-    card.querySelector('.watermark-layer').style.background = visuals.bg;
+    this.applyCardVisuals(card, visuals);
+    const flashWmLayer = card.querySelector('.watermark-layer');
+    if (flashWmLayer) flashWmLayer.style.background = visuals.bg;
     this.getEl('flash-watermark').innerHTML = visuals.wm; 
     
     card.classList.remove(
@@ -7745,7 +7719,7 @@ void card.offsetWidth;
               isChecked
           );
           if (card.dataset.fingerprint !== renderFingerprint) {
-              card.style.background = bgStyle;
+              this.applyCardVisuals(card, visuals);
               card.dataset.idx = idx;
               card.dataset.fingerprint = renderFingerprint;
               card.innerHTML = contentHTML;
@@ -7757,7 +7731,7 @@ void card.offsetWidth;
               (isChecked
                   ? ' is-selected'
                   : '');
-          card.style.background = bgStyle;
+          this.applyCardVisuals(card, visuals);
           card.dataset.idx = idx;
           card.dataset.fingerprint = renderFingerprint;
           card.style.opacity = '1';
@@ -12872,7 +12846,10 @@ deleteWord(idx) {
 
       updateDetailContent(w, triggerTTS = false) {  
       let visuals = View.getCardVisuals(w.type, w.lang); 
-      document.querySelector('#detail-card-container .watermark-layer').style.background = visuals.bg; 
+      const detailCard = View.getEl('detail-card-container');
+      View.applyCardVisuals(detailCard, visuals);
+      const dtWmLayer = detailCard?.querySelector('.watermark-layer');
+      if (dtWmLayer) dtWmLayer.style.background = visuals.bg; 
  
       View.getEl('dt-watermark').innerHTML = visuals.wm; 
       

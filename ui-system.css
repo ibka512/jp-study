@@ -76,14 +76,33 @@
   --accent-blue-soft: #e6eff8;
   --accent-gold: #c2831d;
 
-  /* Wordbank Subtle Part-of-Speech Paper Tints (Day) */
-  --bg-noun: #fcfaf5;
-  --bg-verb: #f6f8fa;
-  --bg-adj: #fbf7ec;
-  --bg-adj-na: #faf4ec;
-  --bg-adv: #f3f8f4;
-  --bg-pronoun: #f8f5fa;
-  --bg-other: #fcfaf5;
+  /* Part-of-Speech Mineral Paper Palette (Day — Distinct & High-Contrast Readable) */
+  --pos-noun-bg: #e8f1fa;
+  --pos-noun-accent: #25639a;
+  --pos-verb-bg: #fcebe5;
+  --pos-verb-accent: #c94c34;
+  --pos-adj-bg: #fcf2d6;
+  --pos-adj-accent: #b57b10;
+  --pos-adj-na-bg: #fae8ef;
+  --pos-adj-na-accent: #ba466d;
+  --pos-adv-bg: #e5f4eb;
+  --pos-adv-accent: #277c54;
+  --pos-pronoun-bg: #f0e9fa;
+  --pos-pronoun-accent: #6f48a8;
+  --pos-func-bg: #e3f4f4;
+  --pos-func-accent: #1e7a7d;
+  --pos-other-bg: #f1ede6;
+  --pos-other-accent: #73685a;
+
+  /* Backward-compatible POS aliases */
+  --bg-noun: var(--pos-noun-bg);
+  --bg-verb: var(--pos-verb-bg);
+  --bg-adj: var(--pos-adj-bg);
+  --bg-adj-na: var(--pos-adj-na-bg);
+  --bg-adv: var(--pos-adv-bg);
+  --bg-pronoun: var(--pos-pronoun-bg);
+  --bg-func: var(--pos-func-bg);
+  --bg-other: var(--pos-other-bg);
 
   /* Differentiated Radii by Role (Compact chips -> Index cards -> Hero leaf) */
   --radius-xs: 6px;
@@ -204,13 +223,31 @@ body[data-theme="dark"] {
   --accent-blue-soft: rgba(114, 176, 238, 0.15);
   --accent-gold: #e5b55c;
 
-  --bg-noun: #1f1c18;
-  --bg-verb: #1d2024;
-  --bg-adj: #24201a;
-  --bg-adj-na: #251e1a;
-  --bg-adv: #1b221d;
-  --bg-pronoun: #221d23;
-  --bg-other: #1f1c18;
+  --pos-noun-bg: #192634;
+  --pos-noun-accent: #70b3eb;
+  --pos-verb-bg: #321f1b;
+  --pos-verb-accent: #ef836c;
+  --pos-adj-bg: #2f2615;
+  --pos-adj-accent: #e8b548;
+  --pos-adj-na-bg: #301d26;
+  --pos-adj-na-accent: #ea7fa3;
+  --pos-adv-bg: #182b22;
+  --pos-adv-accent: #64c796;
+  --pos-pronoun-bg: #261e34;
+  --pos-pronoun-accent: #b492e8;
+  --pos-func-bg: #162b2d;
+  --pos-func-accent: #5ec5c9;
+  --pos-other-bg: #25221e;
+  --pos-other-accent: #afa394;
+
+  --bg-noun: var(--pos-noun-bg);
+  --bg-verb: var(--pos-verb-bg);
+  --bg-adj: var(--pos-adj-bg);
+  --bg-adj-na: var(--pos-adj-na-bg);
+  --bg-adv: var(--pos-adv-bg);
+  --bg-pronoun: var(--pos-pronoun-bg);
+  --bg-func: var(--pos-func-bg);
+  --bg-other: var(--pos-other-bg);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
@@ -277,14 +314,6 @@ body[data-palette="terracotta"] {
   --outline: rgba(32, 23, 19, 0.11);
   --outline-strong: rgba(32, 23, 19, 0.2);
   --divider: rgba(32, 23, 19, 0.08);
-
-  --bg-noun: #fdfbf6;
-  --bg-verb: #f8f7f9;
-  --bg-adj: #fcf7eb;
-  --bg-adj-na: #fbf3eb;
-  --bg-adv: #f4f8f3;
-  --bg-pronoun: #f9f5f8;
-  --bg-other: #fdfbf6;
 }
 
 body[data-palette="terracotta"][data-lang="en"] {
@@ -339,14 +368,6 @@ body[data-palette="terracotta"][data-theme="dark"] {
   --outline: rgba(242, 235, 227, 0.11);
   --outline-strong: rgba(242, 235, 227, 0.2);
   --divider: rgba(242, 235, 227, 0.08);
-
-  --bg-noun: #221c18;
-  --bg-verb: #1f2125;
-  --bg-adj: #262019;
-  --bg-adj-na: #281e1a;
-  --bg-adv: #1d231e;
-  --bg-pronoun: #241d22;
-  --bg-other: #221c18;
 }
 
 body[data-palette="terracotta"][data-theme="dark"][data-lang="en"] {
@@ -408,14 +429,6 @@ body[data-palette="swiss"] {
   --outline: rgba(18, 18, 18, 0.13);
   --outline-strong: rgba(18, 18, 18, 0.24);
   --divider: rgba(18, 18, 18, 0.09);
-
-  --bg-noun: #ffffff;
-  --bg-verb: #f9fafb;
-  --bg-adj: #fdfcf7;
-  --bg-adj-na: #fcf9f6;
-  --bg-adv: #f7fbf8;
-  --bg-pronoun: #faf8fb;
-  --bg-other: #ffffff;
 }
 
 body[data-palette="swiss"][data-lang="en"] {
@@ -470,14 +483,6 @@ body[data-palette="swiss"][data-theme="dark"] {
   --outline: rgba(242, 242, 239, 0.12);
   --outline-strong: rgba(242, 242, 239, 0.22);
   --divider: rgba(242, 242, 239, 0.09);
-
-  --bg-noun: #191919;
-  --bg-verb: #181a1c;
-  --bg-adj: #1d1c19;
-  --bg-adj-na: #1e1b19;
-  --bg-adv: #181d1a;
-  --bg-pronoun: #1c191d;
-  --bg-other: #191919;
 }
 
 body[data-palette="swiss"][data-theme="dark"][data-lang="en"] {

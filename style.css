@@ -1557,7 +1557,7 @@ body[data-theme="dark"] .fsrs-home-card.has-due {
   color: var(--on-surface);
 }
 
-/* Individual Wordbank Index Card (Left-aligned dictionary entry) */
+/* Individual Wordbank Index Card (Left-aligned dictionary entry with PoS mineral tint & color-block strip) */
 .wb-card {
   position: relative;
   display: flex;
@@ -1567,9 +1567,9 @@ body[data-theme="dark"] .fsrs-home-card.has-due {
   text-align: left;
   padding: 32px 13px 12px;
   border-radius: var(--radius-md);
-  background: var(--surface-container);
-  border: 1px solid var(--outline);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--shadow-xs);
+  background: var(--card-pos-bg, var(--surface-container));
+  border: 1px solid var(--card-pos-border, var(--outline));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), var(--shadow-xs);
   overflow: hidden;
   cursor: pointer;
   transition: border-color var(--dur-fast) var(--ease-out),
@@ -1578,8 +1578,20 @@ body[data-theme="dark"] .fsrs-home-card.has-due {
               transform var(--dur-press) var(--ease-out);
 }
 
+.wb-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3.5px;
+  background: var(--card-pos-strip, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
 body[data-theme="dark"] .wb-card {
-  box-shadow: var(--shadow-xs);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-xs);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -2069,9 +2081,8 @@ body[data-theme="dark"] .batch-bar {
   min-height: 300px;
   padding: 68px 26px 28px;
   border-radius: var(--radius-xl);
-  background: var(--surface-container);
-  border: 1px solid var(--outline-strong);
-  border-top: 4px solid var(--primary);
+  background: var(--card-pos-bg, var(--surface-container));
+  border: 1px solid var(--card-pos-border, var(--outline-strong));
   box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
@@ -2082,29 +2093,35 @@ body[data-theme="dark"] .batch-bar {
               box-shadow var(--dur-med) var(--ease-out);
 }
 
-.flash-card::after {
+.flash-card::before {
   content: "";
   position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 28px;
-  height: 4px;
-  background: var(--seal);
-  border-radius: 0 0 2px 2px;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--card-pos-strip, linear-gradient(90deg, var(--primary), var(--primary)));
+  background-size: 100% 5px;
+  background-position: top left;
+  background-repeat: no-repeat;
   pointer-events: none;
+  z-index: 1;
 }
 
 .flash-card.study-feedback-correct {
   border-color: var(--accent-green);
-  border-top-color: var(--accent-green);
   box-shadow: 0 0 0 3px var(--accent-green-soft), var(--shadow-md);
+}
+
+.flash-card.study-feedback-correct::before {
+  background-image: linear-gradient(90deg, var(--accent-green), var(--accent-green));
 }
 
 .flash-card.study-feedback-wrong {
   border-color: var(--accent-red);
-  border-top-color: var(--accent-red);
   box-shadow: 0 0 0 3px var(--accent-red-soft), var(--shadow-md);
+}
+
+.flash-card.study-feedback-wrong::before {
+  background-image: linear-gradient(90deg, var(--accent-red), var(--accent-red));
 }
 
 .flash-card #btn-speaker {
@@ -5401,7 +5418,7 @@ body[data-theme="dark"] .edit-actions {
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.34);
 }
 
-/* Word Detail Modal (Dictionary Leaf with non-clipped navigation ears) */
+/* Word Detail Modal (Dictionary Leaf with non-clipped navigation ears & PoS color-block strip) */
 .detail-card-container {
   position: relative;
   width: 100%;
@@ -5410,15 +5427,27 @@ body[data-theme="dark"] .edit-actions {
   touch-action: pan-y;
   padding: 50px 32px 58px;
   border-radius: var(--radius-xl);
-  background: var(--surface-elevated);
-  border: 1px solid var(--outline-strong);
-  border-top: 4px solid var(--primary);
+  background: var(--card-pos-bg, var(--surface-elevated));
+  border: 1px solid var(--card-pos-border, var(--outline-strong));
   box-shadow: var(--shadow-lg);
   text-align: center;
   transform-origin: center;
   opacity: 0;
   transform: scale(0.96) translateY(6px);
   transition: transform 220ms var(--ease-out), opacity 180ms var(--ease-out);
+}
+
+.detail-card-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--card-pos-strip, linear-gradient(90deg, var(--primary), var(--primary)));
+  background-size: 100% 5px;
+  background-position: top left;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .modal-overlay.active .detail-card-container {

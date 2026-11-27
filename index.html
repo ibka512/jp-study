@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v18">
-<link rel="stylesheet" href="style.css?v=modern-v27">
+<link rel="stylesheet" href="style.css?v=modern-v28">
 </head>
 <body>
 <script>
@@ -319,6 +319,26 @@
                 <div id="checkin-stamp-grid" class="checkin-stamp-grid" role="list" aria-label="近 28 天打卡印谱"></div>
               </div>
             </details>
+          </section>
+
+          <section class="card-panel home-confusables-card en-only" id="home-confusables-card" style="display:none;" aria-label="易混词辨析">
+            <div class="home-confusables-head">
+              <div class="home-confusables-icon"><span class="material-symbols-rounded" aria-hidden="true">sync_alt</span></div>
+              <div class="home-confusables-copy">
+                <h3>易混词辨析</h3>
+                <small id="home-confusables-meta">12 组辨析 · 0 组待复刷</small>
+              </div>
+            </div>
+            <div class="home-confusables-actions">
+              <button type="button" id="btn-open-confusables-compare" class="btn-outline icon-text-gap">
+                <span class="material-symbols-rounded" aria-hidden="true">menu_book</span>
+                <span>对比浏览</span>
+              </button>
+              <button type="button" id="btn-open-confusables-quiz" class="ui-primary-action icon-text-gap">
+                <span class="material-symbols-rounded" aria-hidden="true">fact_check</span>
+                <span>选词测验</span>
+              </button>
+            </div>
           </section>
         </div>
       </aside>
@@ -589,6 +609,17 @@
             </label>
           </div>
 
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-title">拼写模式跳过多词短语</div>
+              <div class="setting-desc">英语往复检验拼写环节遇到含空格短语时，自动改用释义选择</div>
+            </div>
+            <label class="tactile-switch-wrap">
+              <input type="checkbox" id="setting-skip-phrase-spell" class="tactile-switch">
+              <span class="tactile-slider"></span>
+            </label>
+          </div>
+
           <div class="setting-item" style="border-bottom:none;">
             <div class="setting-info">
               <div class="setting-title">记录智能错题</div>
@@ -769,18 +800,25 @@
           </div>
 
           <div class="import-entry">
-            <label for="custom-input" class="import-input-label">粘贴词汇</label>
-            <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句" class="settings-textarea import-textarea" spellcheck="false"></textarea>
-            <button type="button" id="btn-import" class="icon-text-gap">
-              <span class="material-symbols-rounded">fact_check</span>
-              <span id="btn-import-label">检查并导入</span>
-            </button>
+            <label for="custom-input" class="import-input-label">粘贴词汇或读取 Markdown 清单</label>
+            <textarea id="custom-input" placeholder="单词,假名,词性,释义,例句 或 Markdown 列表（- [ ] **word** `[ipa]` *pos.* 释义）" class="settings-textarea import-textarea" spellcheck="false"></textarea>
+            <div class="import-action-row">
+              <button type="button" id="btn-import" class="icon-text-gap">
+                <span class="material-symbols-rounded">fact_check</span>
+                <span id="btn-import-label">检查并导入</span>
+              </button>
+              <button type="button" id="btn-import-file" class="btn-outline icon-text-gap">
+                <span class="material-symbols-rounded">upload</span>
+                <span>读取 .md / .txt</span>
+              </button>
+              <input type="file" id="import-file-input" accept=".md,.markdown,.txt,.csv,.tsv" hidden>
+            </div>
           </div>
 
           <details class="import-format-box">
             <summary>查看输入格式</summary>
             <div id="import-format-text" class="import-format-code">单词,假名,词性,释义,例句</div>
-            <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。</div>
+            <div id="import-format-note" class="setting-desc">前四项必填，例句可选；例句含逗号时建议使用 Tab 分隔。亦支持直接粘贴或读取 Markdown 词汇清单（如 - [ ] **ability** `[ə'biləti]` *n.* 能力）。</div>
           </details>
 
           <details class="import-options">
@@ -821,7 +859,7 @@
 
             <div class="import-control-item import-duplicate-control">
               <label id="import-duplicate-label" for="import-duplicate-mode">遇到同词库内的重复词</label>
-              <div class="custom-select-wrapper"><select id="import-duplicate-mode"><option value="skip">跳过重复词</option><option value="overwrite">用新内容覆盖</option><option value="keep">保留两个词条</option></select></div>
+              <div class="custom-select-wrapper"><select id="import-duplicate-mode"><option value="skip">跳过重复词</option><option value="update">仅补全空白字段</option><option value="overwrite">用新内容覆盖</option><option value="keep">保留两个词条</option></select></div>
             </div>
           </details>
         </div>
@@ -1328,6 +1366,25 @@
         <div class="dt-mean" id="dt-mean">释义</div>
       </div>
       <div class="dt-example-box" id="dt-example-box"></div>
+      <div id="dt-root-family-panel" class="dt-root-family-panel" hidden>
+        <div class="dt-rf-header">
+          <div class="dt-rf-title-group">
+            <strong id="dt-rf-title">同根词族</strong>
+            <span id="dt-rf-count" class="dt-rf-count">0 词</span>
+          </div>
+          <button type="button" id="dt-rf-close" class="glass-icon-btn dt-rf-close-btn" aria-label="收起同根词族">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+        </div>
+        <div id="dt-rf-note" class="dt-rf-note" hidden></div>
+        <div id="dt-rf-list" class="dt-rf-list"></div>
+        <div class="dt-rf-footer">
+          <button type="button" id="dt-rf-study-btn" class="btn-outline icon-text-gap">
+            <span class="material-symbols-rounded" aria-hidden="true">play_arrow</span>
+            <span>开始本族练习</span>
+          </button>
+        </div>
+      </div>
       <div id="dt-wrong-summary" class="dt-wrong-summary" hidden></div>
     </div>
   </div>
@@ -1486,6 +1543,102 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
+<script src="confusables-data.js?v=zsb-v1"></script>
+<!-- ==================== 易混词辨析对比卡与选词微测验 ==================== -->
+<div id="confusables-overlay" class="confusables-overlay" aria-hidden="true" inert>
+  <div class="confusables-shell" role="dialog" aria-modal="true" aria-labelledby="confusables-title">
+    <header class="confusables-header">
+      <button id="confusables-close" class="glass-icon-btn" type="button" aria-label="关闭易混词辨析">
+        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+      </button>
+      <div class="confusables-header-copy">
+        <h2 id="confusables-title">易混词辨析</h2>
+        <small id="confusables-header-sub">对比差异要点 · 语境选词测验</small>
+      </div>
+      <button id="btn-confusables-import" class="btn-outline confusables-import-btn" type="button" title="导入易混词 JSON 或 Markdown">
+        <span class="material-symbols-rounded" aria-hidden="true">upload</span>
+        <span>导入</span>
+      </button>
+      <input type="file" id="confusables-file-input" accept=".json,.md,.markdown,.txt" hidden>
+    </header>
+
+    <div class="confusables-toolbar">
+      <div class="confusables-mode-tabs" role="tablist" aria-label="易混词模式">
+        <button type="button" id="conf-tab-compare" class="conf-tab-btn active" role="tab" aria-selected="true">对比浏览卡</button>
+        <button type="button" id="conf-tab-quiz" class="conf-tab-btn" role="tab" aria-selected="false">语境选词测验</button>
+      </div>
+      <button type="button" id="conf-mistakes-toggle" class="conf-mistakes-chip" aria-pressed="false">
+        <span class="material-symbols-rounded" aria-hidden="true">error_med</span>
+        <span id="conf-mistakes-label">错题组 (0)</span>
+      </button>
+    </div>
+
+    <main class="confusables-main">
+      <!-- 对比浏览卡视图 -->
+      <section id="conf-compare-view" class="conf-view">
+        <div class="conf-search-row">
+          <div class="search-input-shell conf-search-shell">
+            <span class="material-symbols-rounded search-bar-icon" aria-hidden="true">search</span>
+            <input type="search" id="conf-search-input" placeholder="筛选易混词或中文要点…" autocomplete="off">
+          </div>
+          <span id="conf-compare-counter" class="conf-counter">1 / 12</span>
+        </div>
+
+        <article id="conf-compare-card" class="card-panel conf-card">
+          <div class="conf-card-head">
+            <div id="conf-word-chips" class="conf-word-chips"></div>
+            <span id="conf-card-badge" class="conf-mistake-tag" hidden>待复刷</span>
+          </div>
+          <div id="conf-diff-notes" class="conf-diff-notes"></div>
+          <div id="conf-compare-examples" class="conf-compare-examples"></div>
+        </article>
+
+        <div class="conf-nav-bar">
+          <button type="button" id="conf-prev-btn" class="btn-outline icon-text-gap">
+            <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+            <span>上一组</span>
+          </button>
+          <button type="button" id="conf-go-quiz-btn" class="ui-primary-action icon-text-gap">
+            <span class="material-symbols-rounded" aria-hidden="true">fact_check</span>
+            <span>测这一组</span>
+          </button>
+          <button type="button" id="conf-next-btn" class="btn-outline icon-text-gap">
+            <span>下一组</span>
+            <span class="material-symbols-rounded" aria-hidden="true">chevron_right</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 语境选词测验视图 -->
+      <section id="conf-quiz-view" class="conf-view" hidden>
+        <div class="conf-quiz-status">
+          <span id="conf-quiz-progress" class="conf-counter">1 / 12</span>
+          <span id="conf-quiz-score" class="conf-quiz-score">连对 0</span>
+        </div>
+
+        <article id="conf-quiz-card" class="card-panel conf-card conf-quiz-card">
+          <div class="conf-quiz-group-label" id="conf-quiz-group-label"></div>
+          <div class="conf-quiz-stem" id="conf-quiz-stem"></div>
+          <div class="conf-quiz-translation" id="conf-quiz-translation"></div>
+          <div id="conf-quiz-options" class="conf-quiz-options"></div>
+          <div id="conf-quiz-feedback" class="conf-quiz-feedback" hidden></div>
+        </article>
+
+        <div class="conf-nav-bar">
+          <button type="button" id="conf-quiz-speak" class="btn-outline icon-text-gap">
+            <span class="material-symbols-rounded" aria-hidden="true">volume_up</span>
+            <span>朗读整句</span>
+          </button>
+          <button type="button" id="conf-quiz-next" class="ui-primary-action icon-text-gap">
+            <span>下一题</span>
+            <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
 <!-- ==================== 全局快捷命令面板（Cmd/Ctrl + K） ==================== -->
 <div id="cmd-palette-overlay" class="modal-overlay cmd-palette-overlay" role="dialog" aria-modal="true" aria-label="快捷搜索与命令面板" aria-hidden="true" inert>
   <div class="cmd-palette-card" id="cmd-palette-card">
@@ -1503,7 +1656,7 @@
   </div>
 </div>
 
-<script src="app.js?v=modern-v23"></script>
+<script src="app.js?v=modern-v24"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

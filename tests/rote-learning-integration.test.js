@@ -69,7 +69,7 @@ assert.match(app, /ROTE_CORE\.getGroupRange/);
 assert.match(app, /ROTE_CORE\.buildInterleavedQueue/);
 assert.match(app, /ROTE_CORE\.isFirstAppearance/);
 assert.match(app, /const isEnglishSpelling = wObj\?\.lang === 'en'/);
-assert.match(app, /\/\[a-zA-Z-\]\//);
+assert.match(app, /\/\[a-zA-Z\\-'\]\//);
 
 const metadataTagHelper = app.match(
     /const isRedundantWordMetadataTag = \([\s\S]*?\n};/

@@ -23,6 +23,7 @@ const runtimeEntries = [
   'rote-learning-core.js',
   'fsrs-scheduler.js',
   'notification-planner.js',
+  'confusables-data.js',
   'app.js',
   'native-app.js',
   'root-review.js',

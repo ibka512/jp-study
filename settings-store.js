@@ -27,6 +27,7 @@
         postponeTested: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         wordOrderMode: Object.freeze({ defaultValue: 'smart', backup: true, type: 'string' }),
         skipMastered: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
+        skipPhraseSpell: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         ttsEngine: Object.freeze({ defaultValue: 'microsoft', backup: true, type: 'string' }),
         ttsRate: Object.freeze({ defaultValue: '1', backup: true, type: 'string' }),
         displayMode: Object.freeze({ defaultValue: 'all', backup: true, type: 'string' }),

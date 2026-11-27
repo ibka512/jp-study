@@ -31,7 +31,7 @@ MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_000
 MAX_ARCHIVE_BYTES = 500 * 1024 * 1024
 MAX_TEXT_BYTES = 30 * 1024 * 1024
-SUPPORTED_SUFFIXES = {".apkg", ".anki2", ".anki21", ".csv", ".tsv", ".txt", ".json"}
+SUPPORTED_SUFFIXES = {".apkg", ".anki2", ".anki21", ".csv", ".tsv", ".txt", ".json", ".md"}
 BLOCKED_LICENSES = {"", "unknown", "none", "no-license", "unlicensed", "未注明", "不清楚"}
 ZH_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 JA_RE = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]")
@@ -57,10 +57,11 @@ FIELD_ALIASES = {
     "level": ["level", "jlpt", "cefr", "grade", "等级", "等級", "级别", "級別"],
     "tags": ["tags", "tag", "标签", "標籤"],
     "folder": ["folder", "deck", "category", "book", "词书", "詞書", "分类", "分類"],
+    "aliases": ["aliases", "alias", "forms", "inflections", "变位", "变形", "别名"],
 }
 OUTPUT_FIELDS = {
     "ja": ["word", "kana", "type", "meaning", "example", "level", "tags"],
-    "en": ["word", "type", "phonetic", "meaning", "example", "roots", "folder", "level", "tags"],
+    "en": ["word", "type", "phonetic", "meaning", "example", "roots", "folder", "level", "tags", "aliases"],
 }
 WORD_BANK_CHUNK_BYTES = 500 * 1024
 
@@ -427,6 +428,172 @@ def read_tabular(path: Path) -> SourceBatch:
     return SourceBatch(path.name, fields, rows, str(path))
 
 
+MD_POS_MAP = {
+    "n": "名词",
+    "noun": "名词",
+    "v": "动词",
+    "verb": "动词",
+    "vt": "及物动词",
+    "vi": "不及物动词",
+    "adj": "形容词",
+    "a": "形容词",
+    "adv": "副词",
+    "ad": "副词",
+    "prep": "介词",
+    "conj": "连词",
+    "pron": "代词",
+    "art": "冠词",
+    "num": "数词",
+    "int": "感叹词",
+    "interj": "感叹词",
+    "aux": "助动词",
+    "phr": "短语",
+    "phrase": "短语",
+}
+MD_BOLD_LINE_RE = re.compile(
+    r"^\s*[-*+]\s+(?:\[[ xX]\]\s+)?\*\*([^*]+?)\*\*\s*(.*)$"
+)
+MD_PHONETIC_RE = re.compile(r"^`(\[[^\]]+\]|/[^/]+/)`\s*(.*)$")
+MD_POS_RE = re.compile(r"^\*([^*]+?)\*\s*(.*)$")
+MD_IRREGULAR_RE = re.compile(
+    r"^([A-Za-z][A-Za-z0-9'\-\s/]*?)\s+\(([A-Za-z][A-Za-z'\-\s,/]*)\)$"
+)
+
+
+def normalize_md_pos(raw_pos: str) -> str:
+    cleaned = clean_text(raw_pos)
+    if not cleaned:
+        return ""
+    tokens = re.split(r"[,，、/／&＆;；\s]+", cleaned)
+    mapped: list[str] = []
+    for token in tokens:
+        t = token.strip().rstrip(".")
+        if not t:
+            continue
+        label = MD_POS_MAP.get(t.lower(), t)
+        if label not in mapped:
+            mapped.append(label)
+    return "・".join(mapped)
+
+
+def split_irregular_headword(raw_headword: str) -> tuple[str, list[str]]:
+    head = clean_text(raw_headword)
+    match = MD_IRREGULAR_RE.match(head)
+    if not match:
+        return head, []
+    base = clean_text(match.group(1))
+    inner = clean_text(match.group(2))
+    # 仅将不规则动词变位（如 arise (arose, arisen) / bear (bore, borne/born)）拆入 aliases，
+    # 保留短语占位括号（如 happen to sb (sth) / in (the) future / save from (doing)）。
+    parts = [clean_text(p) for p in re.split(r"[,，/]+", inner) if clean_text(p)]
+    if not parts or any(p.lower() in {"sth", "sb", "the", "doing", "to", "of"} for p in parts):
+        return head, []
+    if len(parts) < 2 and " " in base:
+        return head, []
+    if any(len(p.split()) > 2 for p in parts):
+        return head, []
+    return base, list(dict.fromkeys(parts))
+
+
+def parse_markdown_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}, text
+    end_idx = -1
+    for i in range(1, min(len(lines), 40)):
+        if lines[i].strip() == "---":
+            end_idx = i
+            break
+    if end_idx < 0:
+        return {}, text
+    meta: dict[str, str] = {}
+    for line in lines[1:end_idx]:
+        if ":" in line:
+            k, v = line.split(":", 1)
+            meta[k.strip().lower()] = v.strip()
+    return meta, "\n".join(lines[end_idx + 1:])
+
+
+def parse_markdown_wordlist_text(text: str) -> list[dict[str, str]]:
+    meta, body = parse_markdown_frontmatter(text)
+    inferred_level = ""
+    meta_blob = f"{meta.get('title', '')} {meta.get('tags', '')}"
+    if any(k in meta_blob for k in ("专升本", "ZSB", "zsb")):
+        inferred_level = "专升本"
+    elif "CET-6" in meta_blob.upper() or "六级" in meta_blob:
+        inferred_level = "CET-6"
+    elif "CET-4" in meta_blob.upper() or "四级" in meta_blob:
+        inferred_level = "CET-4"
+
+    rows: list[dict[str, str]] = []
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = MD_BOLD_LINE_RE.match(line)
+        if not match:
+            continue
+        raw_word = clean_text(match.group(1))
+        rest = match.group(2).strip()
+        if not raw_word or not rest:
+            continue
+        # 跳过形如 "- 辨析：**move** 是..." 或纯说明条目（不含英文字母词头）
+        if not re.search(r"[A-Za-z]", raw_word):
+            continue
+
+        word, aliases = split_irregular_headword(raw_word)
+        phonetic = ""
+        m_phon = MD_PHONETIC_RE.match(rest)
+        if m_phon:
+            phonetic = clean_text(m_phon.group(1))
+            rest = m_phon.group(2).strip()
+
+        pos_parts: list[str] = []
+        m_pos = MD_POS_RE.match(rest)
+        if m_pos:
+            first_pos = normalize_md_pos(m_pos.group(1))
+            if first_pos:
+                pos_parts.append(first_pos)
+            rest = m_pos.group(2).strip()
+
+        # 兼容形如 `*adv.* & prep. ...` 或行内第二个斜体词性 `*n.* ... *v.* ...`
+        m_amp = re.match(r"^&\s*([A-Za-z]+\.?)\s+(.*)$", rest)
+        if m_amp:
+            extra_pos = normalize_md_pos(m_amp.group(1))
+            if extra_pos and extra_pos not in pos_parts:
+                pos_parts.append(extra_pos)
+            rest = m_amp.group(2).strip()
+
+        meaning = re.sub(r"\*([^*]+?)\*", r"\1", rest)
+        meaning = clean_text(meaning)
+        if not meaning:
+            continue
+
+        word_type = "・".join(dict.fromkeys(p for p in pos_parts if p))
+        if not word_type:
+            word_type = "短语" if " " in word else "其他"
+
+        row: dict[str, str] = {
+            "word": word,
+            "phonetic": phonetic,
+            "type": word_type,
+            "meaning": meaning,
+            "aliases": ", ".join(aliases),
+            "level": inferred_level,
+        }
+        rows.append(row)
+    return rows
+
+
+def read_markdown_wordlist(path: Path) -> SourceBatch:
+    if path.stat().st_size > MAX_TEXT_BYTES:
+        raise CompilerError(f"Markdown 文件超过 30MB：{path.name}")
+    text = decode_text(path.read_bytes())
+    rows = parse_markdown_wordlist_text(text)
+    fields = ["word", "phonetic", "type", "meaning", "aliases", "level"]
+    return SourceBatch(path.name, fields, rows, str(path))
+
+
 def read_json_file(path: Path) -> list[SourceBatch]:
     if path.stat().st_size > MAX_TEXT_BYTES:
         raise CompilerError(f"JSON 文件超过 30MB：{path.name}")
@@ -519,13 +686,15 @@ def collect_batches(source: Path, temp_dir: Path, report: Report) -> list[Source
                 batches.extend(read_anki_database(path, str(path)))
             elif suffix == ".json":
                 batches.extend(read_json_file(path))
+            elif suffix == ".md":
+                batches.append(read_markdown_wordlist(path))
             elif suffix in {".csv", ".tsv", ".txt"}:
                 batches.append(read_tabular(path))
         except (CompilerError, OSError, ValueError, json.JSONDecodeError) as exc:
             report.warnings.append(str(exc))
         report.files_seen += 1
     if not batches:
-        raise CompilerError("来源中没有找到可读取的 .apkg/.anki2/.csv/.tsv/.txt/.json 数据")
+        raise CompilerError("来源中没有找到可读取的 .apkg/.anki2/.csv/.tsv/.txt/.json/.md 数据")
     return batches
 
 
@@ -557,6 +726,16 @@ def map_batch(batch: SourceBatch, language: str, manual: dict[str, str], ai: AIC
             entry["tags"] = [x for x in re.split(r"[,;\s]+", entry["tags"]) if x]
         else:
             entry["tags"] = []
+        if "aliases" in OUTPUT_FIELDS[language]:
+            raw_aliases = entry.get("aliases", "")
+            if isinstance(raw_aliases, str) and raw_aliases.strip():
+                entry["aliases"] = list(dict.fromkeys(
+                    clean_text(x) for x in re.split(r"[,，;/／]+", raw_aliases) if clean_text(x)
+                ))
+            elif isinstance(raw_aliases, list):
+                entry["aliases"] = list(dict.fromkeys(clean_text(x) for x in raw_aliases if clean_text(x)))
+            else:
+                entry.pop("aliases", None)
         if default_level and not entry.get("level"):
             entry["level"] = default_level
         if language == "en" and default_folder and not entry.get("folder"):
@@ -626,18 +805,25 @@ def merge_entries(existing: list[dict[str, Any]], incoming: list[dict[str, Any]]
             changed = False
             conflict_fields = []
             for field_name in OUTPUT_FIELDS[language]:
+                if field_name in {"tags", "aliases"}:
+                    continue
                 value = item.get(field_name)
                 if not value:
                     continue
                 if not current.get(field_name):
                     current[field_name] = value
                     changed = True
-                elif field_name not in {"tags", "level", "folder"} and clean_text(current[field_name]) != clean_text(value):
+                elif field_name not in {"tags", "level", "folder", "aliases"} and clean_text(current[field_name]) != clean_text(value):
                     conflict_fields.append(field_name)
             if isinstance(item.get("tags"), list):
                 tags = list(dict.fromkeys(list(current.get("tags", [])) + item["tags"]))
                 if tags != current.get("tags", []):
                     current["tags"] = tags
+                    changed = True
+            if isinstance(item.get("aliases"), list) and item["aliases"]:
+                aliases = list(dict.fromkeys(list(current.get("aliases", [])) + item["aliases"]))
+                if aliases != current.get("aliases", []):
+                    current["aliases"] = aliases
                     changed = True
             if conflict_fields:
                 report.conflicts.append({"word": item.get("word"), "fields": conflict_fields, "action": "保留原词库值"})

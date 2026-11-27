@@ -213,11 +213,15 @@ const normalizeWordType = (value) => {
         ['動詞', '动词'],
         ['verb', '动词'],
         ['v', '动词'],
+        ['vt', '及物动词'],
+        ['vi', '不及物动词'],
+        ['aux', '助动词'],
         ['形', '形容词'],
         ['形容词', '形容词'],
         ['形容詞', '形容词'],
         ['adjective', '形容词'],
         ['adj', '形容词'],
+        ['a', '形容词'],
         ['形动', '形容动词'],
         ['形動', '形容动词'],
         ['ナ形', '形容动词'],
@@ -230,6 +234,7 @@ const normalizeWordType = (value) => {
         ['副詞', '副词'],
         ['adverb', '副词'],
         ['adv', '副词'],
+        ['ad', '副词'],
         ['代', '代词'],
         ['代词', '代词'],
         ['代詞', '代词'],
@@ -253,11 +258,16 @@ const normalizeWordType = (value) => {
         ['助動詞', '助动词'],
         ['感叹词', '感叹词'],
         ['感嘆詞', '感叹词'],
+        ['int', '感叹词'],
+        ['interj', '感叹词'],
         ['冠词', '冠词'],
         ['冠詞', '冠词'],
         ['article', '冠词'],
+        ['art', '冠词'],
         ['短语', '短语'],
         ['词组', '短语'],
+        ['phr', '短语'],
+        ['phrase', '短语'],
         ['固定搭配', '固定搭配'],
         ['惯用语', '惯用语'],
         ['慣用句', '惯用语'],
@@ -265,6 +275,7 @@ const normalizeWordType = (value) => {
         ['熟語', '熟语'],
         ['数词', '数词'],
         ['数詞', '数词'],
+        ['num', '数词'],
         ['量词', '量词'],
         ['量詞', '量词'],
         ['接头词', '接头词'],
@@ -385,7 +396,7 @@ const normalizeRootsText = (value) => {
 
 const WORD_LEVEL_OPTIONS = Object.freeze({
     ja: Object.freeze(['N5', 'N4', 'N3', 'N2', 'N1']),
-    en: Object.freeze(['CET-4', 'CET-6'])
+    en: Object.freeze(['CET-4', 'CET-6', '专升本'])
 });
 
 const DIFFICULTY_LABELS = Object.freeze({
@@ -425,6 +436,10 @@ const normalizeWordLevel = (value, lang = 'ja') => {
 
     if (/^(?:CET-?6|六级)$/.test(raw)) {
         return 'CET-6';
+    }
+
+    if (/^(?:专升本|专升本英语|英语专升本|公共英语专升本|统招专升本|ZSB|ZSB[-_]?EN)$/.test(raw)) {
+        return '专升本';
     }
 
     return '';
@@ -885,7 +900,7 @@ const validateVocabularyData = (entries = []) => {
                 index,
                 wordLabel,
                 lang === 'en'
-                    ? '级别只能是 CET-4 或 CET-6'
+                    ? '级别只能是 CET-4、CET-6 或专升本'
                     : '级别只能是 N5、N4、N3、N2 或 N1',
                 'level'
             );
@@ -2771,7 +2786,7 @@ const EditorialWorkspace = {
                 id: 'cmd-lang',
                 group: '快捷操作',
                 icon: 'translate',
-                title: curLang === 'ja' ? '切换到英语词书（CET-4 / CET-6）' : '切换到日语词书（JLPT N5–N1）',
+                title: curLang === 'ja' ? '切换到英语词书（CET-4 / CET-6 / 专升本）' : '切换到日语词书（JLPT N5–N1）',
                 sub: '双语进度、收藏与复习曲线独立隔离',
                 keywords: 'lang language 英语 日语 切换 词书 en ja',
                 run: () => {
@@ -3844,6 +3859,7 @@ const BottomSheet = {
             N1: 'looks_one',
             'CET-4': 'filter_4',
             'CET-6': 'filter_6',
+            '专升本': 'school',
             '1': 'filter_1',
             '2': 'filter_2',
             '3': 'filter_3',
@@ -4278,7 +4294,28 @@ const RomajiEngine = {
     }
 };
 
-// Simple English word input buffer for spelling mode
+const normalizeEnglishSpellText = value => {
+    return String(value || '')
+        .replace(/[’‘`]/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+};
+
+const getEnglishPhraseMeta = word => {
+    const normalized = normalizeEnglishSpellText(word);
+    if (!normalized) {
+        return { isMultiWord: false, wordCount: 0, letterCounts: [] };
+    }
+    const parts = normalized.split(' ').filter(Boolean);
+    return {
+        isMultiWord: parts.length > 1,
+        wordCount: parts.length,
+        letterCounts: parts.map(part => part.length)
+    };
+};
+
+// Simple English word & phrase input buffer for spelling mode
 const EnglishInput = {
     buffer: '',
     reset() { this.buffer = ''; },
@@ -4287,12 +4324,19 @@ const EnglishInput = {
             this.buffer = this.buffer.slice(0, -1);
             return;
         }
-        if (char.length === 1 && /[a-zA-Z-]/.test(char)) {
-            this.buffer += char.toLowerCase();
+        if (char === 'Space' || char === ' ') {
+            if (this.buffer.length > 0 && !this.buffer.endsWith(' ')) {
+                this.buffer += ' ';
+            }
+            return;
+        }
+        const normalizedChar = char === '’' || char === '‘' ? "'" : char;
+        if (typeof normalizedChar === 'string' && normalizedChar.length === 1 && /[a-zA-Z\-']/.test(normalizedChar)) {
+            this.buffer += normalizedChar.toLowerCase();
         }
     },
     getDisplayText() { return this.buffer || ''; },
-    getFinalText() { return this.buffer; }
+    getFinalText() { return normalizeEnglishSpellText(this.buffer); }
 };
 
 const Model = {
@@ -6118,21 +6162,29 @@ const View = {
 
   },
   
-      renderRoots(rootsStr, maskText = false, maskMean = false) {
+      renderRoots(rootsStr, maskText = false, maskMean = false, options = {}) {
       if (!rootsStr) return '';
+      const interactive = Boolean(options && options.interactive && !maskText && !maskMean);
       let maskFixed = "■■■"; 
       return rootsStr.split('-').map((part, index) => {
           let match = part.match(/(.+?)\((.+?)\)/);
+          const rawToken = match ? match[1] : part;
+          const rootKey = String(rawToken || '').replace(/[^a-zA-Z/]/g, '').toLowerCase();
+          const rootLabel = escapeHTML(part.trim());
+          const tagOpen = interactive && rootKey
+              ? `<button type="button" class="root-capsule capsule-${index % 3} is-clickable" data-root-key="${escapeHTML(rootKey)}" data-root-label="${rootLabel}" title="点击查看「${escapeHTML(rawToken.trim())}」同根词族">`
+              : `<div class="root-capsule capsule-${index % 3}">`;
+          const tagClose = interactive && rootKey ? '</button>' : '</div>';
           if (match) {
               let tReal = escapeHTML(match[1]);
               let mReal = escapeHTML(match[2]);
               let t = maskText ? maskFixed : tReal;
               let m = maskMean ? maskFixed : mReal;
-              return `<div class="root-capsule capsule-${index % 3}"><span class="r-text blur-target" data-real="${tReal}">${t}</span><span class="r-mean blur-target" data-real="${mReal}">${m}</span></div>`;
+              return `${tagOpen}<span class="r-text blur-target" data-real="${tReal}">${t}</span><span class="r-mean blur-target" data-real="${mReal}">${m}</span>${tagClose}`;
           }
           let tReal = escapeHTML(part);
           let t = maskText ? maskFixed : tReal;
-          return `<div class="root-capsule capsule-${index % 3}"><span class="r-text blur-target" data-real="${tReal}">${t}</span></div>`;
+          return `${tagOpen}<span class="r-text blur-target" data-real="${tReal}">${t}</span>${tagClose}`;
       }).join('<span class="root-plus">+</span>');
   },
 
@@ -7355,7 +7407,10 @@ if (Array.from(testSel.options).some(o => o.value === currentTest)) testSel.valu
     if (Model.state.mode === 'dual-track') {
         Model.state.dtWordAppearanceMap[idx] = (Model.state.dtWordAppearanceMap[idx] || 0) + 1;
         let count = Model.state.dtWordAppearanceMap[idx];
-        Model.state.dtSubMode = ((count - 1) % 5 < 3) ? 'choice' : 'spell';
+        const rawSubMode = ((count - 1) % 5 < 3) ? 'choice' : 'spell';
+        const skipPhraseSpell = localStorage.getItem('skipPhraseSpell') === 'true';
+        const isMultiWordEn = w.lang === 'en' && getEnglishPhraseMeta(w.word).isMultiWord;
+        Model.state.dtSubMode = (rawSubMode === 'spell' && skipPhraseSpell && isMultiWordEn) ? 'choice' : rawSubMode;
         mode = 'all';
     }
 
@@ -8575,12 +8630,20 @@ void card.offsetWidth;
       hintWrap.appendChild(hintBtn);
       kb.appendChild(hintWrap);
 
-      // 日语键盘 vs 英语键盘：英语键盘含完整 QWERTY 及常用标点
+      const phraseMeta = isEnglishKb ? getEnglishPhraseMeta(wObj?.word) : null;
+      if (isEnglishKb && phraseMeta?.isMultiWord) {
+          const phraseHint = document.createElement('div');
+          phraseHint.className = 'spell-phrase-hint';
+          phraseHint.textContent = `短语 · 共 ${phraseMeta.wordCount} 词（${phraseMeta.letterCounts.join(' + ')} 字母），词间请按空格`;
+          kb.appendChild(phraseHint);
+      }
+
+      // 日语键盘 vs 英语键盘：英语键盘含完整 QWERTY、撇号与空格键
       const rows = isEnglishKb ? [
           ['Q','W','E','R','T','Y','U','I','O','P'],
           ['A','S','D','F','G','H','J','K','L'],
           ['Z','X','C','V','B','N','M','-',"'",'Backspace'],
-          ['Enter']
+          ['Space','Enter']
       ] : [
           ['Q','W','E','R','T','Y','U','I','O','P'],
           ['A','S','D','F','G','H','J','K','L','-'],
@@ -8592,8 +8655,10 @@ void card.offsetWidth;
           let rowEl = document.createElement('div'); rowEl.className = 'qwerty-row';
           r.forEach(key => {
               let btn = document.createElement('div'); btn.className = 'qwerty-key';
+              btn.dataset.key = key;
               if (key === 'Kana') { btn.innerText = 'あ/ア'; btn.classList.add('qwerty-key-wide'); }
               else if (key === 'Backspace') { btn.innerHTML = '<span class="material-symbols-rounded">backspace</span>'; btn.classList.add('qwerty-key-wide'); }
+              else if (key === 'Space') { btn.innerHTML = '<span>空格</span><span class="kbd-hint">Space</span>'; btn.className = 'qwerty-key qwerty-key-space'; }
               else if (key === 'Enter') { btn.innerHTML = '<span>确认</span><span class="kbd-hint">Enter</span>'; btn.className = 'qwerty-key qwerty-key-confirm'; }
               else btn.innerText = key;
               
@@ -8605,15 +8670,11 @@ void card.offsetWidth;
                   inputEl.classList.remove('error-state', 'shake-anim');
                   if (key === 'Kana') { RomajiEngine.toggleMode(); btn.innerText = RomajiEngine.mode === 'hiragana' ? 'あ/ア' : 'ア/あ'; return; }
                   if (key === 'Enter') { Controller.handleSpellConfirm(inputEl, wObj, displayMode); return; }
-                                    if (isEnglishKb) {
+                  if (isEnglishKb) {
                       Hardware.haptic('key');
-                      
-                      if (key === 'Backspace') EnglishInput.input('Backspace');
-                      else if (key === "'") EnglishInput.buffer += "'";
-                      else EnglishInput.input(key);
+                      EnglishInput.input(key === 'Space' ? ' ' : key);
                       inputEl.innerHTML = escapeHTML(EnglishInput.getDisplayText());
                   } else {
-
                       RomajiEngine.input(key);
                       inputEl.innerHTML = RomajiEngine.getDisplayText();
                   }
@@ -8906,6 +8967,7 @@ void card.offsetWidth;
           let text = k.innerText;
           let match = false;
           if (keyStr === 'Backspace' && k.querySelector('.material-symbols-rounded')) match = true;
+          else if ((keyStr === ' ' || keyStr === 'Space') && k.dataset.key === 'Space') match = true;
           else if (keyStr === 'Enter' && text.includes('Enter')) match = true;
           else if (text === keyStr) match = true;
           
@@ -9041,6 +9103,10 @@ const Controller = {
     let skipMastered = localStorage.getItem('skipMastered') === 'true';
     let skipCheck = View.getEl('setting-skip-mastered');
     if(skipCheck) skipCheck.checked = skipMastered;
+
+    let skipPhraseSpell = localStorage.getItem('skipPhraseSpell') === 'true';
+    let skipPhraseCheck = View.getEl('setting-skip-phrase-spell');
+    if (skipPhraseCheck) skipPhraseCheck.checked = skipPhraseSpell;
 
     let showRootsCheck = View.getEl('setting-show-roots');
     if (showRootsCheck) {
@@ -9727,6 +9793,53 @@ setupVirtualScroll() {
             localStorage.setItem('skipMastered', e.target.checked);
             View.renderStudyScope();
             showToast(e.target.checked ? "已开启智能跳过已亮维度" : "已关闭智能跳过已亮维度");
+        });
+    }
+
+    let skipPhraseCheck = View.getEl('setting-skip-phrase-spell');
+    if (skipPhraseCheck) {
+        skipPhraseCheck.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('skipPhraseSpell', e.target.checked);
+            showToast(e.target.checked ? "拼写模式遇到多词短语将改用释义选择" : "已恢复多词短语拼写");
+        });
+    }
+
+    const btnImportFile = View.getEl('btn-import-file');
+    const importFileInput = View.getEl('import-file-input');
+    if (btnImportFile && importFileInput) {
+        btnImportFile.addEventListener('click', () => {
+            Hardware.playSound('click');
+            importFileInput.value = '';
+            importFileInput.click();
+        });
+        importFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                const content = await file.text();
+                const inputArea = View.getEl('custom-input');
+                if (inputArea) {
+                    inputArea.value = content;
+                    inputArea.scrollTop = 0;
+                }
+                if (/专升本|ZSB/i.test(file.name + '\n' + content.slice(0, 400))) {
+                    const langSel = View.getEl('import-lang-select');
+                    if (langSel && langSel.value !== 'en') {
+                        langSel.value = 'en';
+                        langSel.dispatchEvent(new Event('change'));
+                    }
+                    const lvlSel = View.getEl('import-level-select');
+                    if (lvlSel && !lvlSel.value) {
+                        lvlSel.value = '专升本';
+                        lvlSel.dispatchEvent(new Event('facade-update'));
+                    }
+                }
+                showToast(`已载入 ${file.name}，点击「检查并导入」预览`);
+            } catch (err) {
+                console.error('[Import] 读取文件失败', err);
+                showToast('读取文件失败，请确认文件为 UTF-8 文本');
+            }
         });
     }
 
@@ -10762,11 +10875,12 @@ if (testVibrateBtn) {
             let wObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
             let displayMode = View.getEl('next-display-mode').value;
 
-            // 1. 拼写输入隔离 (如果是打字阶段，把字母全部交给罗马音引擎)
+            // 1. 拼写输入隔离 (如果是打字阶段，把字母/空格/撇号全部交给对应输入引擎)
             if (isSpelling) {
                 let activeInputEl = !dtSpellArea.classList.contains('hidden') ? View.getEl('dt-spell-input') : View.getEl('mt-spell-input');
                 const isEnglishSpelling = wObj?.lang === 'en';
-                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === "'" || key === 'Backspace' || key === 'Enter') {
+                const isAllowedEnglishKey = isEnglishSpelling && (key === ' ' || key === '’' || key === '‘');
+                if (/^[a-zA-Z]$/.test(key) || key === '-' || key === "'" || key === 'Backspace' || key === 'Enter' || isAllowedEnglishKey) {
                     e.preventDefault(); 
                     activeInputEl.classList.remove('error-state', 'shake-anim');
                     
@@ -10774,21 +10888,14 @@ if (testVibrateBtn) {
                         Controller.handleSpellConfirm(activeInputEl, wObj, displayMode);
                         View.simulateKeyPress('Enter');
                     } else if (isEnglishSpelling) {
-                        if (key === 'Backspace') {
-                            EnglishInput.input('Backspace');
-                        } else if (key === "'") {
-                            EnglishInput.buffer += "'";
-                        } else {
-                            EnglishInput.input(key);
-                        }
-
+                        EnglishInput.input(key);
                         activeInputEl.innerHTML = escapeHTML(
                             EnglishInput.getDisplayText()
                         );
                         View.simulateKeyPress(
                             key === 'Backspace'
                                 ? 'Backspace'
-                                : key.toUpperCase()
+                                : (key === ' ' ? 'Space' : (key === '’' || key === '‘' ? "'" : key.toUpperCase()))
                         );
                     } else {
                         RomajiEngine.input(key);
@@ -12431,8 +12538,8 @@ if (testVibrateBtn) {
 
       let isSpellMatch = false;
       if (isEnglish) {
-          targetClean = (wObj.word || '').toLowerCase().trim();
-          inputClean = (EnglishInput.buffer || '').toLowerCase().trim();
+          targetClean = normalizeEnglishSpellText(wObj.word);
+          inputClean = normalizeEnglishSpellText(EnglishInput.buffer);
           if (!inputClean) return;
           isSpellMatch = inputClean === targetClean;
       } else {
@@ -13400,6 +13507,150 @@ deleteWord(idx) {
       return `${lang}::${word.folder || ''}::${name}`;
   },
 
+  parseMarkdownImportLine(rawLine, lang = 'en') {
+      const match = rawLine.match(/^\s*[-*+]\s+(?:\[[ xX]\]\s+)?\*\*([^*]+?)\*\*\s*(.*)$/);
+      if (!match) return null;
+
+      let rawWord = match[1].trim();
+      let rest = match[2].trim();
+      if (!rawWord || !rest) return null;
+      if (lang === 'en' && !/[A-Za-z]/.test(rawWord)) return null;
+
+      let word = rawWord;
+      let aliases = [];
+      const irregMatch = rawWord.match(/^([A-Za-z][A-Za-z0-9'\-\s/]*?)\s+\(([A-Za-z][A-Za-z'\-\s,/]*)\)$/);
+      if (irregMatch) {
+          const base = irregMatch[1].trim();
+          const parts = irregMatch[2].split(/[,，/]+/).map(p => p.trim()).filter(Boolean);
+          const isPlaceholder = parts.some(p => /^(?:sth|sb|the|doing|to|of)$/i.test(p)) ||
+              (parts.length < 2 && base.includes(' ')) ||
+              parts.some(p => p.split(/\s+/).length > 2);
+          if (parts.length > 0 && !isPlaceholder) {
+              word = base;
+              aliases = Array.from(new Set(parts));
+          }
+      }
+
+      let reading = '';
+      const phonMatch = rest.match(/^`(\[[^\]]+\]|\/[^/]+\/)`\s*(.*)$/);
+      if (phonMatch) {
+          reading = phonMatch[1].trim();
+          rest = phonMatch[2].trim();
+      }
+
+      const posParts = [];
+      const posMatch = rest.match(/^\*([^*]+?)\*\s*(.*)$/);
+      if (posMatch) {
+          const norm = normalizeWordType(posMatch[1]);
+          if (norm) posParts.push(norm);
+          rest = posMatch[2].trim();
+      }
+
+      const ampPosMatch = rest.match(/^&\s*([A-Za-z]+\.?)\s+(.*)$/);
+      if (ampPosMatch) {
+          const extra = normalizeWordType(ampPosMatch[1]);
+          if (extra && !posParts.includes(extra)) posParts.push(extra);
+          rest = ampPosMatch[2].trim();
+      }
+
+      const meaning = rest.replace(/\*([^*]+?)\*/g, '$1').replace(/\s+/g, ' ').trim();
+      if (!meaning) return null;
+
+      const type = posParts.length > 0
+          ? Array.from(new Set(posParts.join('・').split('・').filter(Boolean))).join('・')
+          : (word.includes(' ') ? '短语' : '其他');
+
+      return { word, reading, type, meaning, example: '', roots: '', aliases };
+  },
+
+  parseBatchImportText(text, options = {}) {
+      const lang = options.lang === 'en' ? 'en' : 'ja';
+      const rawLines = String(text || '').split(/\r?\n/);
+
+      // 检测并跳过 YAML Frontmatter（--- ... ---）
+      let startIndex = 0;
+      let frontmatterMeta = '';
+      if (rawLines.length > 1 && rawLines[0].trim() === '---') {
+          for (let i = 1; i < Math.min(rawLines.length, 40); i++) {
+              if (rawLines[i].trim() === '---') {
+                  frontmatterMeta = rawLines.slice(1, i).join('\n');
+                  startIndex = i + 1;
+                  break;
+              }
+          }
+      }
+
+      const bodyLines = rawLines.slice(startIndex)
+          .map((line, idx) => ({ text: line.trim(), number: startIndex + idx + 1 }))
+          .filter(item => item.text);
+
+      const isMarkdownDoc = Boolean(frontmatterMeta) ||
+          bodyLines.some(item => /^\s*[-*+]\s+(?:\[[ xX]\]\s+)?\*\*[^*]+\*\*/.test(item.text));
+
+      const inferredLevel = lang === 'en' && /专升本|ZSB/i.test(frontmatterMeta)
+          ? '专升本'
+          : '';
+
+      const parsed = [];
+      const errors = [];
+      let scannedLines = 0;
+
+      bodyLines.forEach(item => {
+          const line = item.text;
+          const mdEntry = this.parseMarkdownImportLine(line, lang);
+          if (mdEntry) {
+              scannedLines++;
+              parsed.push({ ...mdEntry, inferredLevel, number: item.number });
+              return;
+          }
+
+          if (isMarkdownDoc) {
+              // 在 Markdown 清单模式下自动忽略标题、引用、分割线、序号说明与纯说明行
+              if (
+                  /^(?:#|>|---|===|\d+\.\s|\*\*|[A-Z]\s+`U\d|G\d+\s+`)/.test(line) ||
+                  /^[-*+]\s+辨析[：:]/.test(line)
+              ) {
+                  return;
+              }
+              if (/^[-*+]\s+/.test(line) && !line.includes(',') && !line.includes('，') && !line.includes('\t')) {
+                  return;
+              }
+          }
+
+          scannedLines++;
+          const parts = (line.includes('\t')
+              ? line.split('\t')
+              : line.split(/[,，]/)
+          ).map(part => part.trim());
+
+          if (parts.length < 4) {
+              errors.push(`第 ${item.number} 行：只识别到 ${parts.length} 项，至少需要 4 项`);
+              return;
+          }
+
+          const [word, reading, type, meaning] = parts;
+          if (!word) return errors.push(`第 ${item.number} 行：缺少单词`);
+          if (!type) return errors.push(`第 ${item.number} 行：缺少词性`);
+          if (!meaning) return errors.push(`第 ${item.number} 行：缺少释义`);
+
+          let example = '';
+          let roots = '';
+          if (lang === 'en') {
+              if (parts.length === 5) example = parts[4];
+              if (parts.length >= 6) {
+                  example = parts.slice(4, -1).join(',');
+                  roots = parts[parts.length - 1];
+              }
+          } else if (parts.length >= 5) {
+              example = parts.slice(4).join(',');
+          }
+
+          parsed.push({ word, reading, type, meaning, example, roots, aliases: [], inferredLevel, number: item.number });
+      });
+
+      return { parsed, errors, scannedLines, isMarkdownDoc };
+  },
+
   importWords() {
       Hardware.playSound('click');
       Hardware.vibrate(15);
@@ -13422,65 +13673,26 @@ deleteWord(idx) {
       if (!text) return showToast('请先粘贴词汇');
       if (!folder) return showToast('当前语言没有可用词库');
 
-      const lines = text.split(/\r?\n/)
-          .map((line, index) => ({ text: line.trim(), number: index + 1 }))
-          .filter(item => item.text);
+      const { parsed, errors, scannedLines } = this.parseBatchImportText(text, { lang });
 
       const existingSet = new Set(Model.db.map(word => this.getImportIdentity(word)));
       const inputSet = new Set();
       const entries = [];
-      const errors = [];
       let duplicateCount = 0;
 
-      lines.forEach(item => {
-          const parts = (item.text.includes('\t')
-              ? item.text.split('\t')
-              : item.text.split(/[,，]/)
-          ).map(part => part.trim());
-
-          if (parts.length < 4) {
-              errors.push(`第 ${item.number} 行：只识别到 ${parts.length} 项，至少需要 4 项`);
-              return;
-          }
-
-          const [word, reading, type, meaning] = parts;
-          if (!word) return errors.push(`第 ${item.number} 行：缺少单词`);
-          if (!type) return errors.push(`第 ${item.number} 行：缺少词性`);
-          if (!meaning) return errors.push(`第 ${item.number} 行：缺少释义`);
-
-          let example = '';
-          let roots = '';
-
-          if (lang === 'en') {
-              if (parts.length === 5) example = parts[4];
-              if (parts.length >= 6) {
-                  example = parts.slice(4, -1).join(',');
-                  roots = parts[parts.length - 1];
-              }
-          } else if (parts.length >= 5) {
-              example = parts.slice(4).join(',');
-          }
-
+      parsed.forEach(item => {
           const wordData = normalizeWordEntry({
-              word,
-              type,
-              meaning,
-              example,
+              word: item.word,
+              type: item.type,
+              meaning: item.meaning,
+              example: item.example,
               folder,
               lang,
-              phonetic:
-                  lang === 'en'
-                      ? reading
-                      : '',
-              kana:
-                  lang === 'ja'
-                      ? reading
-                      : '',
-              roots:
-                  lang === 'en'
-                      ? roots
-                      : '',
-              level: batchLevel,
+              phonetic: lang === 'en' ? item.reading : '',
+              kana: lang === 'ja' ? item.reading : '',
+              roots: lang === 'en' ? item.roots : '',
+              aliases: item.aliases || [],
+              level: batchLevel || item.inferredLevel || '',
               difficulty: batchDifficulty,
               tags: batchTags,
               builtIn: false,
@@ -13517,6 +13729,7 @@ deleteWord(idx) {
 
       const modeText = {
           skip: '重复词会被跳过',
+          update: '重复词仅补全缺失字段，保留原有内容与学习记录',
           overwrite: '重复词会覆盖原内容',
           keep: '重复词会被保留；每个词条拥有独立收藏与掌握进度'
       }[duplicateMode];
@@ -13524,7 +13737,7 @@ deleteWord(idx) {
       const summary = `
           <div style="text-align:left;line-height:1.7;">
               <div style="padding:14px;border-radius:16px;background:var(--surface);border:1px solid var(--outline);">
-                  <strong>共识别 ${lines.length} 行</strong><br>
+                  <strong>共识别 ${scannedLines} 条</strong><br>
                   可处理 ${actionableEntries.length} 词 · 重复 ${duplicateCount} · 错误 ${errors.length}<br>
                   <span style="font-size:.82rem;opacity:.72;">${modeText}</span>
               </div>
@@ -13540,13 +13753,14 @@ deleteWord(idx) {
           return;
       }
 
-      const overwrite = duplicateMode === 'overwrite';
-      const newCount = overwrite
+      const isMergeMode = duplicateMode === 'overwrite' || duplicateMode === 'update';
+      const newCount = isMergeMode
           ? new Set(entries.map(entry => entry.identity).filter(id => !existingSet.has(id))).size
           : actionableEntries.length;
-      const updateCount = overwrite ? actionableEntries.length - newCount : 0;
+      const updateCount = isMergeMode ? actionableEntries.length - newCount : 0;
+      const mergeVerb = duplicateMode === 'update' ? '补全' : '覆盖';
       const importLabel = updateCount
-          ? `导入 ${newCount} 词，覆盖 ${updateCount} 项`
+          ? `导入 ${newCount} 词，${mergeVerb} ${updateCount} 项`
           : `导入 ${newCount} 词`;
 
       showConfirm('确认导入这些词汇？', summary, async () => {
@@ -13566,6 +13780,41 @@ deleteWord(idx) {
 
                   if (existingIndex >= 0 && duplicateMode === 'skip') {
                       skipped++;
+                      return;
+                  }
+
+                  if (existingIndex >= 0 && duplicateMode === 'update') {
+                      const oldWord = Model.db[existingIndex];
+                      let changed = false;
+                      const fillFields = lang === 'en'
+                          ? ['phonetic', 'type', 'meaning', 'example', 'roots', 'level']
+                          : ['kana', 'type', 'meaning', 'example', 'level'];
+                      fillFields.forEach(field => {
+                          if (!oldWord[field] && entry.wordData[field]) {
+                              oldWord[field] = entry.wordData[field];
+                              changed = true;
+                          }
+                      });
+                      if (!oldWord.difficulty && entry.wordData.difficulty) {
+                          oldWord.difficulty = entry.wordData.difficulty;
+                          changed = true;
+                      }
+                      if (Array.isArray(entry.wordData.tags) && entry.wordData.tags.length) {
+                          const mergedTags = Array.from(new Set([...(oldWord.tags || []), ...entry.wordData.tags]));
+                          if (mergedTags.length !== (oldWord.tags || []).length) {
+                              oldWord.tags = mergedTags;
+                              changed = true;
+                          }
+                      }
+                      if (Array.isArray(entry.wordData.aliases) && entry.wordData.aliases.length) {
+                          const mergedAliases = Array.from(new Set([...(oldWord.aliases || []), ...entry.wordData.aliases]));
+                          if (mergedAliases.length !== (oldWord.aliases || []).length) {
+                              oldWord.aliases = mergedAliases;
+                              changed = true;
+                          }
+                      }
+                      if (changed) updated++;
+                      else skipped++;
                       return;
                   }
 
@@ -13601,7 +13850,7 @@ deleteWord(idx) {
 
               const result = [];
               if (added) result.push(`新增 ${added} 词`);
-              if (updated) result.push(`覆盖 ${updated} 词`);
+              if (updated) result.push(`${mergeVerb} ${updated} 词`);
               if (skipped) result.push(`跳过 ${skipped} 词`);
               showToast(result.join('，') || '没有需要写入的词汇');
           } catch (error) {
@@ -14031,8 +14280,13 @@ deleteWord(idx) {
       let rootsEl = View.getEl('dt-roots');
       let showRootsPref = localStorage.getItem('showRoots') !== 'false';
       if (rootsEl) {
-          rootsEl.innerHTML = (w.lang === 'en' && w.roots && showRootsPref) ? View.renderRoots(w.roots) : '';
+          rootsEl.innerHTML = (w.lang === 'en' && w.roots && showRootsPref)
+              ? View.renderRoots(w.roots, false, false, { interactive: true })
+              : '';
           rootsEl.style.display = (w.lang === 'en' && w.roots && showRootsPref) ? 'flex' : 'none';
+      }
+      if (Controller.rootFamily && typeof Controller.rootFamily.closePanel === 'function') {
+          Controller.rootFamily.closePanel();
       }
             const detailMeaning = String(
           w.meaning || ''
@@ -14924,10 +15178,10 @@ deleteWord(idx) {
 
         const isEnglish = word.lang === 'en';
         const target = isEnglish
-            ? String(word.word || '').toLowerCase().trim()
+            ? normalizeEnglishSpellText(word.word)
             : String(word.kana || word.word || '').replace(/[【】\[\]()（）\s]/g, '');
         const answer = isEnglish
-            ? String(EnglishInput.buffer || '').toLowerCase().trim()
+            ? normalizeEnglishSpellText(EnglishInput.buffer)
             : RomajiEngine.getFinalText().trim();
 
         let isCorrectSpell = false;
@@ -16210,6 +16464,844 @@ deleteWord(idx) {
 })();
 
 
+
+/* ==========================================
+   P1-4 & P1-5：同根词族联动 + 易混词辨析对比卡与选词微测验
+   ========================================== */
+(() => {
+    const ROOT_NOTES_STORAGE_KEY = 'rootFamilyNotes_v1';
+    const CONFUSABLES_USER_KEY = 'confusablesUserGroups_v1';
+    const CONFUSABLES_MISTAKES_KEY = 'confusablesMistakes_v1';
+
+    const safeJsonParse = (raw, fallback) => {
+        try {
+            const parsed = JSON.parse(raw);
+            return parsed ?? fallback;
+        } catch (_) {
+            return fallback;
+        }
+    };
+
+    const extractRootKeys = rootsStr => {
+        if (!rootsStr) return [];
+        const keys = [];
+        String(rootsStr).split('-').forEach(part => {
+            const m = part.match(/(.+?)\((.+?)\)/);
+            const rawToken = m ? m[1] : part;
+            String(rawToken || '')
+                .split('/')
+                .map(s => s.replace(/[^a-zA-Z]/g, '').toLowerCase())
+                .filter(s => s.length >= 2)
+                .forEach(k => {
+                    if (!keys.includes(k)) keys.push(k);
+                });
+        });
+        return keys;
+    };
+
+    const getMergedRootFamilyNotes = () => {
+        const builtIn = (typeof window !== 'undefined' && window.ZhongriRootFamilyNotes && typeof window.ZhongriRootFamilyNotes === 'object')
+            ? window.ZhongriRootFamilyNotes
+            : {};
+        const userRaw = safeJsonParse(localStorage.getItem(ROOT_NOTES_STORAGE_KEY), {});
+        const userNotes = userRaw && typeof userRaw === 'object' && !Array.isArray(userRaw) ? userRaw : {};
+        return { ...builtIn, ...userNotes };
+    };
+
+    let activeRootFamilyIndices = [];
+    let activeRootFamilyLabel = '';
+
+    const rootFamilyApi = {
+        extractRootKeys,
+        getFamilyNote(rootKey) {
+            const notes = getMergedRootFamilyNotes();
+            const candidates = String(rootKey || '')
+                .split('/')
+                .map(s => s.replace(/[^a-zA-Z]/g, '').toLowerCase())
+                .filter(Boolean);
+            for (const key of candidates) {
+                if (notes[key]) return notes[key];
+            }
+            return null;
+        },
+        saveUserFamilyNotes(notesMap) {
+            if (!notesMap || typeof notesMap !== 'object' || Array.isArray(notesMap)) return 0;
+            const prev = safeJsonParse(localStorage.getItem(ROOT_NOTES_STORAGE_KEY), {});
+            const merged = { ...(prev && typeof prev === 'object' ? prev : {}), ...notesMap };
+            localStorage.setItem(ROOT_NOTES_STORAGE_KEY, JSON.stringify(merged));
+            return Object.keys(notesMap).length;
+        },
+        findFamilyWords(rootKey) {
+            const targets = new Set(
+                String(rootKey || '')
+                    .split('/')
+                    .map(s => s.replace(/[^a-zA-Z]/g, '').toLowerCase())
+                    .filter(Boolean)
+            );
+            const familyMeta = this.getFamilyNote(rootKey);
+            if (familyMeta && Array.isArray(familyMeta.rootKeys)) {
+                familyMeta.rootKeys.forEach(k => {
+                    const clean = String(k || '').replace(/[^a-zA-Z]/g, '').toLowerCase();
+                    if (clean) targets.add(clean);
+                });
+            }
+            if (targets.size === 0) return [];
+
+            const results = [];
+            Model.db.forEach((word, dbIdx) => {
+                if (!word || word.lang !== 'en') return;
+                const keys = extractRootKeys(word.roots);
+                const tagMatched = Array.isArray(word.tags) && word.tags.some(tag => {
+                    const cleaned = String(tag || '').replace(/^(?:词根|母词)[：:]\s*/, '').toLowerCase();
+                    return targets.has(cleaned);
+                });
+                const rootMatched = keys.some(k => targets.has(k));
+                if (rootMatched || tagMatched) {
+                    results.push({ dbIdx, word });
+                }
+            });
+            return results;
+        },
+        closePanel() {
+            const panel = View.getEl('dt-root-family-panel');
+            if (panel) panel.hidden = true;
+            const rootsEl = View.getEl('dt-roots');
+            if (rootsEl) {
+                rootsEl.querySelectorAll('.root-capsule.is-selected').forEach(el => el.classList.remove('is-selected'));
+            }
+            activeRootFamilyIndices = [];
+            activeRootFamilyLabel = '';
+        },
+        openPanel(rootKey, rootLabel = '') {
+            const panel = View.getEl('dt-root-family-panel');
+            const titleEl = View.getEl('dt-rf-title');
+            const countEl = View.getEl('dt-rf-count');
+            const noteEl = View.getEl('dt-rf-note');
+            const listEl = View.getEl('dt-rf-list');
+            const studyBtn = View.getEl('dt-rf-study-btn');
+            if (!panel || !listEl) return;
+
+            const matches = this.findFamilyWords(rootKey);
+            const familyMeta = this.getFamilyNote(rootKey);
+            const currentWordObj = Model.state.filteredDb[Model.state.activeDetailIdx]?.w || null;
+            const currentId = currentWordObj ? Model.getWordId(currentWordObj) : '';
+
+            activeRootFamilyIndices = matches.map(m => m.dbIdx);
+            activeRootFamilyLabel = rootLabel || (familyMeta?.title) || rootKey;
+
+            if (titleEl) {
+                titleEl.textContent = `同根词族 · ${activeRootFamilyLabel}`;
+            }
+            if (countEl) {
+                countEl.textContent = `${matches.length} 词`;
+            }
+
+            const noteText = (currentWordObj && currentWordObj.rootFamilyNote) || familyMeta?.note || '';
+            if (noteEl) {
+                if (noteText) {
+                    noteEl.textContent = noteText;
+                    noteEl.hidden = false;
+                } else {
+                    noteEl.textContent = '';
+                    noteEl.hidden = true;
+                }
+            }
+
+            if (matches.length === 0) {
+                listEl.innerHTML = '<div class="conf-empty-state">当前词库中暂无其他同根词条</div>';
+            } else {
+                listEl.innerHTML = matches.slice(0, 60).map(({ dbIdx, word }) => {
+                    const isCurrent = Model.getWordId(word) === currentId;
+                    return `<button type="button" class="dt-rf-item${isCurrent ? ' is-current' : ''}" data-db-idx="${dbIdx}">
+                        <span class="dt-rf-item-word">${escapeHTML(word.word || '')}</span>
+                        <span class="dt-rf-item-mean">${escapeHTML(word.meaning || '')}</span>
+                    </button>`;
+                }).join('');
+            }
+
+            if (studyBtn) {
+                studyBtn.disabled = matches.length === 0;
+            }
+
+            panel.hidden = false;
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        },
+        jumpToWord(dbIdx) {
+            const word = Model.db[dbIdx];
+            if (!word) return;
+            let filteredIdx = Model.state.filteredDb.findIndex(item => item.idx === dbIdx);
+            if (filteredIdx < 0) {
+                Model.state.filteredDb = [{ w: word, idx: dbIdx }, ...Model.state.filteredDb];
+                filteredIdx = 0;
+            }
+            Controller.openDetailModal(filteredIdx);
+        },
+        startFamilyStudy(indices = activeRootFamilyIndices, label = activeRootFamilyLabel) {
+            const valid = [...new Set(indices)].filter(i => Model.db[i]).slice(0, 20);
+            if (!valid.length) return showToast('没有可练习的同根词条');
+            if (typeof toggleModal === 'function') {
+                toggleModal('detail-overlay', false);
+            }
+            Model.state.mode = 'dual-track';
+            Model.state.isWrongBookPractice = false;
+            Model.state.currentIndex = 0;
+            Model.state.dtWordAppearanceMap = {};
+            Model.state.currentWordFailed = false;
+            Model.state.comboCount = 0;
+            Model.state.maxProgressSeen = 0;
+            Model.state.uniqueWordCount = valid.length;
+            Model.state.studyQueue = [];
+            valid.forEach(idx => {
+                Model.state.dtWordAppearanceMap[idx] = 2;
+                Model.state.studyQueue.push(idx, idx);
+            });
+            Model.state.studyQueue.sort(() => Math.random() - 0.5);
+            Model.state.initialQueueLength = Model.state.studyQueue.length;
+            Controller.beginStudySession({
+                mode: 'dual-track',
+                label: `同根词族：${label || '英语词根'}`,
+                totalWords: valid.length,
+                groupKey: ''
+            });
+            View.updateComboBadge();
+            View.showPage('study-area');
+            const matrix = View.getEl('pixel-matrix');
+            if (matrix) matrix.innerHTML = '';
+            View.renderStudyCard('none');
+            Hardware.haptic('confirm');
+        }
+    };
+
+    const parseConfusablesMarkdownClient = text => {
+        const groups = [];
+        let current = null;
+        const flush = () => {
+            if (current && current.words.length > 0) groups.push(current);
+            current = null;
+        };
+
+        const makeBlank = (sentence, words, preferred) => {
+            const ordered = [];
+            if (preferred) ordered.push(preferred);
+            [...words].sort((a, b) => b.length - a.length).forEach(w => {
+                if (!ordered.includes(w)) ordered.push(w);
+            });
+            for (const word of ordered) {
+                const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const patterns = [new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, 'i')];
+                if (!word.includes(' ') && word.length >= 3) {
+                    const stem = word.endsWith('e') ? escaped.slice(0, -1) : escaped;
+                    patterns.push(new RegExp(`(?<![A-Za-z])(?:${escaped}(?:s|es|ed|ing)|${stem}(?:ed|ing))(?![A-Za-z])`, 'i'));
+                }
+                for (const pat of patterns) {
+                    if (pat.test(sentence)) {
+                        return { blank: sentence.replace(pat, '____'), answer: word };
+                    }
+                }
+            }
+            return { blank: '', answer: '' };
+        };
+
+        String(text || '').split(/\r?\n/).forEach(rawLine => {
+            const line = rawLine.trim();
+            if (!line) return;
+            const headMatch = line.match(/^###\s*(\d+)\s*[.、．]\s*(.+?)\s*$/);
+            if (headMatch) {
+                flush();
+                const seq = Number(headMatch[1]);
+                const words = headMatch[2]
+                    .split(/[,，、/／]+/)
+                    .map(s => s.replace(/[`'"*]/g, '').trim())
+                    .filter(Boolean);
+                const uniq = [...new Set(words)];
+                current = {
+                    id: `conf-user-${String(seq).padStart(3, '0')}`,
+                    title: uniq.join(' / '),
+                    words: uniq,
+                    diffNotes: [],
+                    examples: []
+                };
+                return;
+            }
+            if (!current) return;
+            if (/^#{1,2}\s+/.test(line)) {
+                flush();
+                return;
+            }
+            const content = line.replace(/^\s*[-*+]\s+/, '').trim();
+            if (!content) return;
+            const chunks = content.split(/(?:^|[。；;.,，\s])例[：:]\s*/);
+            const noteRaw = (chunks[0] || '').replace(/[；;。]+$/, '').trim();
+            let matchedWord = '';
+            let noteBody = noteRaw;
+            for (const w of [...current.words].sort((a, b) => b.length - a.length)) {
+                const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const re = new RegExp(`^(?:\\*\\*)?${escaped}(?:\\*\\*)?(?:[\\s：:（(]+|$)`, 'i');
+                if (re.test(noteRaw)) {
+                    matchedWord = w;
+                    noteBody = noteRaw.replace(new RegExp(`^(?:\\*\\*)?${escaped}(?:\\*\\*)?[\\s：:]*`, 'i'), '').trim() || noteRaw;
+                    break;
+                }
+            }
+            if (noteBody) {
+                current.diffNotes.push({ word: matchedWord, note: noteBody });
+            }
+            chunks.slice(1).forEach(exRaw => {
+                const cleanEx = exRaw.replace(/[；;]+$/, '').trim();
+                if (!cleanEx || !/[A-Za-z]/.test(cleanEx)) return;
+                const m = cleanEx.match(/^([A-Za-z0-9'".,!?;:\-/\s()]+?)(?:\s*[，,]\s*([\u4e00-\u9fff].*))?$/);
+                const sentence = (m && /[A-Za-z]{2,}/.test(m[1])) ? m[1].trim() : cleanEx;
+                const translation = (m && m[2]) ? m[2].trim() : '';
+                const { blank, answer } = makeBlank(sentence, current.words, matchedWord);
+                if (blank && answer) {
+                    current.examples.push({ sentence, blank, answer, translation });
+                }
+            });
+        });
+        flush();
+        return groups;
+    };
+
+    const confState = {
+        mode: 'compare',
+        onlyMistakes: false,
+        search: '',
+        compareIdx: 0,
+        quizQueue: [],
+        quizIdx: 0,
+        quizStreak: 0,
+        quizAnswered: false
+    };
+
+    const confusablesApi = {
+        parseMarkdown: parseConfusablesMarkdownClient,
+        getGroups() {
+            const builtIn = Array.isArray(window.ZhongriConfusables) ? window.ZhongriConfusables : [];
+            const userGroups = safeJsonParse(localStorage.getItem(CONFUSABLES_USER_KEY), []);
+            const map = new Map();
+            builtIn.forEach(g => { if (g && g.id) map.set(g.id, g); });
+            if (Array.isArray(userGroups)) {
+                userGroups.forEach(g => {
+                    if (g && Array.isArray(g.words) && g.words.length > 0) {
+                        const id = g.id || `conf-user-${map.size + 1}`;
+                        map.set(id, { ...g, id });
+                    }
+                });
+            }
+            return [...map.values()];
+        },
+        getMistakeIds() {
+            const list = safeJsonParse(localStorage.getItem(CONFUSABLES_MISTAKES_KEY), []);
+            return Array.isArray(list) ? list : [];
+        },
+        recordMistake(groupId) {
+            if (!groupId) return;
+            const next = [...new Set([...this.getMistakeIds(), groupId])];
+            localStorage.setItem(CONFUSABLES_MISTAKES_KEY, JSON.stringify(next));
+            this.updateHomeSummary();
+        },
+        clearMistake(groupId) {
+            if (!groupId) return;
+            const next = this.getMistakeIds().filter(id => id !== groupId);
+            localStorage.setItem(CONFUSABLES_MISTAKES_KEY, JSON.stringify(next));
+            this.updateHomeSummary();
+        },
+        importPayload(rawText) {
+            const text = String(rawText || '').trim();
+            if (!text) return { type: 'empty', count: 0 };
+
+            if (text.startsWith('{') || text.startsWith('[')) {
+                const parsed = JSON.parse(text);
+                // 兼容母词/词根族 JSON 对象（{ act: { rootKeys: [...], note: ... } }）
+                if (!Array.isArray(parsed) && parsed && typeof parsed === 'object' && !Array.isArray(parsed.groups)) {
+                    const firstVal = Object.values(parsed)[0];
+                    if (firstVal && typeof firstVal === 'object' && (firstVal.rootKeys || firstVal.coreMeaning || firstVal.note !== undefined)) {
+                        const count = rootFamilyApi.saveUserFamilyNotes(parsed);
+                        return { type: 'root-families', count };
+                    }
+                }
+                const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.groups) ? parsed.groups : []);
+                const valid = arr.filter(g => g && Array.isArray(g.words) && g.words.length > 0);
+                if (!valid.length) return { type: 'invalid', count: 0 };
+                const prev = safeJsonParse(localStorage.getItem(CONFUSABLES_USER_KEY), []);
+                const merged = new Map();
+                (Array.isArray(prev) ? prev : []).forEach(g => merged.set(g.id, g));
+                valid.forEach((g, idx) => {
+                    const id = g.id || `conf-import-${Date.now()}-${idx}`;
+                    merged.set(id, { ...g, id });
+                });
+                localStorage.setItem(CONFUSABLES_USER_KEY, JSON.stringify([...merged.values()]));
+                this.updateHomeSummary();
+                return { type: 'confusables', count: valid.length };
+            }
+
+            const mdGroups = parseConfusablesMarkdownClient(text);
+            if (!mdGroups.length) return { type: 'invalid', count: 0 };
+            const prev = safeJsonParse(localStorage.getItem(CONFUSABLES_USER_KEY), []);
+            const merged = new Map();
+            (Array.isArray(prev) ? prev : []).forEach(g => merged.set(g.id, g));
+            mdGroups.forEach(g => merged.set(g.id, g));
+            localStorage.setItem(CONFUSABLES_USER_KEY, JSON.stringify([...merged.values()]));
+            this.updateHomeSummary();
+            return { type: 'confusables', count: mdGroups.length };
+        },
+        updateHomeSummary() {
+            const groups = this.getGroups();
+            const mistakes = this.getMistakeIds();
+            const metaEl = View.getEl('home-confusables-meta');
+            if (metaEl) {
+                metaEl.textContent = `${groups.length} 组辨析 · ${mistakes.length} 组待复刷`;
+            }
+            const toggleLabel = View.getEl('conf-mistakes-label');
+            if (toggleLabel) {
+                toggleLabel.textContent = `错题组 (${mistakes.length})`;
+            }
+        },
+        getFilteredGroups() {
+            const mistakes = new Set(this.getMistakeIds());
+            const q = confState.search.trim().toLowerCase();
+            return this.getGroups().filter(g => {
+                if (confState.onlyMistakes && !mistakes.has(g.id)) return false;
+                if (!q) return true;
+                const blob = [
+                    g.title,
+                    ...(g.words || []),
+                    ...(g.diffNotes || []).map(n => `${n.word || ''} ${n.note || ''}`)
+                ].join(' ').toLowerCase();
+                return blob.includes(q);
+            });
+        },
+        speak(text) {
+            if (!text) return;
+            Hardware.unlockSpeech();
+            Hardware.speakWord({ word: text, lang: 'en' });
+        },
+        buildQuizQueue(focusGroupId = '') {
+            const sourceGroups = focusGroupId
+                ? this.getGroups().filter(g => g.id === focusGroupId)
+                : this.getFilteredGroups();
+            const items = [];
+            sourceGroups.forEach(group => {
+                (group.examples || []).forEach(ex => {
+                    if (ex && ex.blank && ex.answer) {
+                        items.push({ group, example: ex });
+                    }
+                });
+            });
+            confState.quizQueue = items;
+            confState.quizIdx = 0;
+            confState.quizAnswered = false;
+        },
+        open(mode = 'compare', focusGroupId = '') {
+            const overlay = View.getEl('confusables-overlay');
+            if (!overlay) return;
+            confState.mode = mode === 'quiz' ? 'quiz' : 'compare';
+            this.updateHomeSummary();
+            overlay.classList.add('active');
+            overlay.setAttribute('aria-hidden', 'false');
+            overlay.removeAttribute('inert');
+            this.syncModeUI(focusGroupId);
+        },
+        close() {
+            const overlay = View.getEl('confusables-overlay');
+            if (!overlay) return;
+            overlay.classList.remove('active');
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.setAttribute('inert', '');
+        },
+        syncModeUI(focusGroupId = '') {
+            const tabCompare = View.getEl('conf-tab-compare');
+            const tabQuiz = View.getEl('conf-tab-quiz');
+            const viewCompare = View.getEl('conf-compare-view');
+            const viewQuiz = View.getEl('conf-quiz-view');
+            const isQuiz = confState.mode === 'quiz';
+
+            if (tabCompare) {
+                tabCompare.classList.toggle('active', !isQuiz);
+                tabCompare.setAttribute('aria-selected', String(!isQuiz));
+            }
+            if (tabQuiz) {
+                tabQuiz.classList.toggle('active', isQuiz);
+                tabQuiz.setAttribute('aria-selected', String(isQuiz));
+            }
+            if (viewCompare) viewCompare.hidden = isQuiz;
+            if (viewQuiz) viewQuiz.hidden = !isQuiz;
+
+            const mistakesBtn = View.getEl('conf-mistakes-toggle');
+            if (mistakesBtn) {
+                mistakesBtn.classList.toggle('active', confState.onlyMistakes);
+                mistakesBtn.setAttribute('aria-pressed', String(confState.onlyMistakes));
+            }
+            this.updateHomeSummary();
+
+            if (isQuiz) {
+                this.buildQuizQueue(focusGroupId);
+                this.renderQuiz();
+            } else {
+                this.renderCompare();
+            }
+        },
+        renderCompare() {
+            const list = this.getFilteredGroups();
+            const counterEl = View.getEl('conf-compare-counter');
+            const chipsEl = View.getEl('conf-word-chips');
+            const badgeEl = View.getEl('conf-card-badge');
+            const notesEl = View.getEl('conf-diff-notes');
+            const exEl = View.getEl('conf-compare-examples');
+            const quizBtn = View.getEl('conf-go-quiz-btn');
+
+            if (!list.length) {
+                if (counterEl) counterEl.textContent = '0 / 0';
+                if (chipsEl) chipsEl.innerHTML = '';
+                if (badgeEl) badgeEl.hidden = true;
+                if (notesEl) notesEl.innerHTML = '<div class="conf-empty-state">没有匹配的易混词组</div>';
+                if (exEl) exEl.innerHTML = '';
+                if (quizBtn) quizBtn.disabled = true;
+                return;
+            }
+
+            if (confState.compareIdx >= list.length) confState.compareIdx = 0;
+            if (confState.compareIdx < 0) confState.compareIdx = list.length - 1;
+
+            const group = list[confState.compareIdx];
+            const isMistake = this.getMistakeIds().includes(group.id);
+            if (counterEl) counterEl.textContent = `${confState.compareIdx + 1} / ${list.length}`;
+            if (badgeEl) badgeEl.hidden = !isMistake;
+            if (quizBtn) quizBtn.disabled = !(group.examples && group.examples.length > 0);
+
+            if (chipsEl) {
+                chipsEl.innerHTML = (group.words || []).map(w => `
+                    <button type="button" class="conf-word-chip" data-speak-word="${escapeHTML(w)}">
+                        <span class="material-symbols-rounded" aria-hidden="true">volume_up</span>
+                        <span>${escapeHTML(w)}</span>
+                    </button>
+                `).join('');
+            }
+            if (notesEl) {
+                notesEl.innerHTML = (group.diffNotes || []).map(item => `
+                    <div class="conf-diff-item">
+                        ${item.word ? `<span class="conf-diff-word">${escapeHTML(item.word)}</span>` : ''}
+                        <span>${escapeHTML(item.note || '')}</span>
+                    </div>
+                `).join('');
+            }
+            if (exEl) {
+                const examples = group.examples || [];
+                exEl.innerHTML = examples.length
+                    ? examples.map(ex => `
+                        <button type="button" class="conf-ex-row" data-speak-word="${escapeHTML(ex.sentence || '')}">
+                            <span class="material-symbols-rounded" aria-hidden="true">volume_up</span>
+                            <span class="conf-ex-body">
+                                <span class="conf-ex-en">${escapeHTML(ex.sentence || '')}</span>
+                                ${ex.translation ? `<span class="conf-ex-cn">${escapeHTML(ex.translation)}</span>` : ''}
+                            </span>
+                        </button>
+                    `).join('')
+                    : '<div class="conf-empty-state" style="padding:10px 0;">该组暂无配套例句，可直接按上方要点对比记忆</div>';
+            }
+        },
+        renderQuiz() {
+            const progressEl = View.getEl('conf-quiz-progress');
+            const scoreEl = View.getEl('conf-quiz-score');
+            const groupLabelEl = View.getEl('conf-quiz-group-label');
+            const stemEl = View.getEl('conf-quiz-stem');
+            const transEl = View.getEl('conf-quiz-translation');
+            const optsEl = View.getEl('conf-quiz-options');
+            const fbEl = View.getEl('conf-quiz-feedback');
+            const speakBtn = View.getEl('conf-quiz-speak');
+            const nextBtn = View.getEl('conf-quiz-next');
+
+            if (scoreEl) scoreEl.textContent = `连对 ${confState.quizStreak}`;
+
+            if (!confState.quizQueue.length) {
+                if (progressEl) progressEl.textContent = '0 / 0';
+                if (groupLabelEl) groupLabelEl.textContent = '';
+                if (stemEl) stemEl.innerHTML = '<div class="conf-empty-state">当前筛选条件下暂无带挖空例句的题目</div>';
+                if (transEl) transEl.textContent = '';
+                if (optsEl) optsEl.innerHTML = '';
+                if (fbEl) fbEl.hidden = true;
+                if (speakBtn) speakBtn.disabled = true;
+                if (nextBtn) nextBtn.disabled = true;
+                return;
+            }
+
+            if (confState.quizIdx >= confState.quizQueue.length) confState.quizIdx = 0;
+            const item = confState.quizQueue[confState.quizIdx];
+            confState.quizAnswered = false;
+
+            if (progressEl) progressEl.textContent = `${confState.quizIdx + 1} / ${confState.quizQueue.length}`;
+            if (groupLabelEl) groupLabelEl.textContent = `易混词组 · ${item.group.title}`;
+            if (stemEl) {
+                stemEl.innerHTML = escapeHTML(item.example.blank).replace('____', '<span class="conf-quiz-blank">____</span>');
+            }
+            if (transEl) transEl.textContent = item.example.translation || '';
+            if (fbEl) { fbEl.hidden = true; fbEl.innerHTML = ''; }
+            if (speakBtn) speakBtn.disabled = false;
+            if (nextBtn) nextBtn.disabled = false;
+
+            if (optsEl) {
+                optsEl.innerHTML = (item.group.words || []).map(w => `
+                    <button type="button" class="conf-quiz-opt" data-choice="${escapeHTML(w)}">${escapeHTML(w)}</button>
+                `).join('');
+            }
+        },
+        submitQuizAnswer(choice) {
+            if (confState.quizAnswered || !confState.quizQueue.length) return null;
+            const item = confState.quizQueue[confState.quizIdx];
+            const isCorrect = normalizeEnglishSpellText(choice) === normalizeEnglishSpellText(item.example.answer);
+            confState.quizAnswered = true;
+
+            if (isCorrect) {
+                confState.quizStreak++;
+                this.clearMistake(item.group.id);
+                Hardware.playSound('success', { haptic: 'correct' });
+            } else {
+                confState.quizStreak = 0;
+                this.recordMistake(item.group.id);
+                Hardware.playSound('error', { haptic: 'error' });
+            }
+
+            const scoreEl = View.getEl('conf-quiz-score');
+            if (scoreEl) scoreEl.textContent = `连对 ${confState.quizStreak}`;
+
+            const stemEl = View.getEl('conf-quiz-stem');
+            if (stemEl) stemEl.textContent = item.example.sentence;
+
+            const optsEl = View.getEl('conf-quiz-options');
+            if (optsEl) {
+                optsEl.querySelectorAll('.conf-quiz-opt').forEach(btn => {
+                    const val = btn.dataset.choice || '';
+                    btn.disabled = true;
+                    if (normalizeEnglishSpellText(val) === normalizeEnglishSpellText(item.example.answer)) {
+                        btn.classList.add('is-correct');
+                    } else if (normalizeEnglishSpellText(val) === normalizeEnglishSpellText(choice) && !isCorrect) {
+                        btn.classList.add('is-wrong');
+                    }
+                });
+            }
+
+            const fbEl = View.getEl('conf-quiz-feedback');
+            if (fbEl) {
+                const notesHtml = (item.group.diffNotes || []).map(n =>
+                    `<div><strong>${escapeHTML(n.word || '')}</strong>${n.word ? '：' : ''}${escapeHTML(n.note || '')}</div>`
+                ).join('');
+                fbEl.innerHTML = `<div style="margin-bottom:6px;font-weight:800;color:${isCorrect ? 'var(--accent-green)' : 'var(--accent-red)'};">${isCorrect ? '回答正确' : `正确答案：${escapeHTML(item.example.answer)}（已加入待复刷错题组）`}</div>${notesHtml}`;
+                fbEl.hidden = false;
+            }
+            return { isCorrect, answer: item.example.answer, groupId: item.group.id };
+        }
+    };
+
+    Controller.rootFamily = rootFamilyApi;
+    Controller.confusables = confusablesApi;
+
+    const bindP1Interactions = () => {
+        const dtRoots = View.getEl('dt-roots');
+        if (dtRoots && !dtRoots.dataset.rfBound) {
+            dtRoots.dataset.rfBound = 'true';
+            dtRoots.addEventListener('click', e => {
+                const capsule = e.target.closest('.root-capsule.is-clickable');
+                if (!capsule) return;
+                e.stopPropagation();
+                Hardware.playSound('click', { haptic: 'selection' });
+                const rootKey = capsule.dataset.rootKey || '';
+                const rootLabel = capsule.dataset.rootLabel || rootKey;
+                dtRoots.querySelectorAll('.root-capsule.is-selected').forEach(el => el.classList.remove('is-selected'));
+                capsule.classList.add('is-selected');
+                rootFamilyApi.openPanel(rootKey, rootLabel);
+            });
+        }
+
+        const rfClose = View.getEl('dt-rf-close');
+        if (rfClose && !rfClose.dataset.rfBound) {
+            rfClose.dataset.rfBound = 'true';
+            rfClose.addEventListener('click', () => rootFamilyApi.closePanel());
+        }
+
+        const rfList = View.getEl('dt-rf-list');
+        if (rfList && !rfList.dataset.rfBound) {
+            rfList.dataset.rfBound = 'true';
+            rfList.addEventListener('click', e => {
+                const item = e.target.closest('.dt-rf-item');
+                if (!item) return;
+                Hardware.playSound('click', { haptic: 'selection' });
+                rootFamilyApi.jumpToWord(Number(item.dataset.dbIdx));
+            });
+        }
+
+        const rfStudyBtn = View.getEl('dt-rf-study-btn');
+        if (rfStudyBtn && !rfStudyBtn.dataset.rfBound) {
+            rfStudyBtn.dataset.rfBound = 'true';
+            rfStudyBtn.addEventListener('click', () => rootFamilyApi.startFamilyStudy());
+        }
+
+        const openCompareBtn = View.getEl('btn-open-confusables-compare');
+        if (openCompareBtn && !openCompareBtn.dataset.confBound) {
+            openCompareBtn.dataset.confBound = 'true';
+            openCompareBtn.addEventListener('click', () => {
+                Hardware.playSound('click');
+                confusablesApi.open('compare');
+            });
+        }
+
+        const openQuizBtn = View.getEl('btn-open-confusables-quiz');
+        if (openQuizBtn && !openQuizBtn.dataset.confBound) {
+            openQuizBtn.dataset.confBound = 'true';
+            openQuizBtn.addEventListener('click', () => {
+                Hardware.playSound('click');
+                confusablesApi.open('quiz');
+            });
+        }
+
+        const closeBtn = View.getEl('confusables-close');
+        if (closeBtn && !closeBtn.dataset.confBound) {
+            closeBtn.dataset.confBound = 'true';
+            closeBtn.addEventListener('click', () => confusablesApi.close());
+        }
+
+        const tabCompare = View.getEl('conf-tab-compare');
+        const tabQuiz = View.getEl('conf-tab-quiz');
+        if (tabCompare && !tabCompare.dataset.confBound) {
+            tabCompare.dataset.confBound = 'true';
+            tabCompare.addEventListener('click', () => {
+                confState.mode = 'compare';
+                confusablesApi.syncModeUI();
+            });
+        }
+        if (tabQuiz && !tabQuiz.dataset.confBound) {
+            tabQuiz.dataset.confBound = 'true';
+            tabQuiz.addEventListener('click', () => {
+                confState.mode = 'quiz';
+                confusablesApi.syncModeUI();
+            });
+        }
+
+        const mistakesBtn = View.getEl('conf-mistakes-toggle');
+        if (mistakesBtn && !mistakesBtn.dataset.confBound) {
+            mistakesBtn.dataset.confBound = 'true';
+            mistakesBtn.addEventListener('click', () => {
+                confState.onlyMistakes = !confState.onlyMistakes;
+                confState.compareIdx = 0;
+                confusablesApi.syncModeUI();
+            });
+        }
+
+        const searchInp = View.getEl('conf-search-input');
+        if (searchInp && !searchInp.dataset.confBound) {
+            searchInp.dataset.confBound = 'true';
+            searchInp.addEventListener('input', e => {
+                confState.search = e.target.value || '';
+                confState.compareIdx = 0;
+                confusablesApi.renderCompare();
+            });
+        }
+
+        const prevBtn = View.getEl('conf-prev-btn');
+        const nextBtn = View.getEl('conf-next-btn');
+        const goQuizBtn = View.getEl('conf-go-quiz-btn');
+        if (prevBtn && !prevBtn.dataset.confBound) {
+            prevBtn.dataset.confBound = 'true';
+            prevBtn.addEventListener('click', () => {
+                confState.compareIdx--;
+                confusablesApi.renderCompare();
+            });
+        }
+        if (nextBtn && !nextBtn.dataset.confBound) {
+            nextBtn.dataset.confBound = 'true';
+            nextBtn.addEventListener('click', () => {
+                confState.compareIdx++;
+                confusablesApi.renderCompare();
+            });
+        }
+        if (goQuizBtn && !goQuizBtn.dataset.confBound) {
+            goQuizBtn.dataset.confBound = 'true';
+            goQuizBtn.addEventListener('click', () => {
+                const list = confusablesApi.getFilteredGroups();
+                const current = list[confState.compareIdx];
+                confState.mode = 'quiz';
+                confusablesApi.syncModeUI(current?.id || '');
+            });
+        }
+
+        const compareCard = View.getEl('conf-compare-card');
+        if (compareCard && !compareCard.dataset.confBound) {
+            compareCard.dataset.confBound = 'true';
+            compareCard.addEventListener('click', e => {
+                const target = e.target.closest('[data-speak-word]');
+                if (!target) return;
+                confusablesApi.speak(target.dataset.speakWord);
+            });
+        }
+
+        const quizOpts = View.getEl('conf-quiz-options');
+        if (quizOpts && !quizOpts.dataset.confBound) {
+            quizOpts.dataset.confBound = 'true';
+            quizOpts.addEventListener('click', e => {
+                const btn = e.target.closest('.conf-quiz-opt');
+                if (!btn || btn.disabled) return;
+                confusablesApi.submitQuizAnswer(btn.dataset.choice || '');
+            });
+        }
+
+        const quizSpeak = View.getEl('conf-quiz-speak');
+        if (quizSpeak && !quizSpeak.dataset.confBound) {
+            quizSpeak.dataset.confBound = 'true';
+            quizSpeak.addEventListener('click', () => {
+                const item = confState.quizQueue[confState.quizIdx];
+                if (item?.example?.sentence) confusablesApi.speak(item.example.sentence);
+            });
+        }
+
+        const quizNext = View.getEl('conf-quiz-next');
+        if (quizNext && !quizNext.dataset.confBound) {
+            quizNext.dataset.confBound = 'true';
+            quizNext.addEventListener('click', () => {
+                if (!confState.quizQueue.length) return;
+                confState.quizIdx = (confState.quizIdx + 1) % confState.quizQueue.length;
+                confusablesApi.renderQuiz();
+            });
+        }
+
+        const importBtn = View.getEl('btn-confusables-import');
+        const fileInput = View.getEl('confusables-file-input');
+        if (importBtn && fileInput && !importBtn.dataset.confBound) {
+            importBtn.dataset.confBound = 'true';
+            importBtn.addEventListener('click', () => {
+                fileInput.value = '';
+                fileInput.click();
+            });
+            fileInput.addEventListener('change', async e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const res = confusablesApi.importPayload(text);
+                    if (res.type === 'confusables') {
+                        confState.compareIdx = 0;
+                        confusablesApi.syncModeUI();
+                        showToast(`已导入 ${res.count} 组易混词辨析`);
+                    } else if (res.type === 'root-families') {
+                        showToast(`已导入 ${res.count} 条母词词根族注释`);
+                    } else {
+                        showToast('未识别到有效的易混词 JSON 或 Markdown 数据');
+                    }
+                } catch (err) {
+                    console.error('[Confusables] 导入失败', err);
+                    showToast('导入失败，请检查文件格式');
+                }
+            });
+        }
+
+        confusablesApi.updateHomeSummary();
+    };
+
+    ZhongriHooks.on('wordbank:ui-updated', () => {
+        bindP1Interactions();
+    });
+    if (typeof document !== 'undefined') {
+        bindP1Interactions();
+    }
+})();
 
 window.onload = () => {
     window.ZhongriAppReady = Promise.resolve(Controller.init());

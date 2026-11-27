@@ -1568,9 +1568,16 @@ const Nav = {
         pos: 0,
         target: 0,
         vel: 0,
+        pillPos: 0,
+        pillTarget: 0,
+        pillVel: 0,
+        pillMin: 0,
+        pillMax: 0,
         axis: 'x',
-        stiffness: 420,
-        damping: 28.5,
+        stiffness: 440,
+        damping: 27,
+        pillStiffness: 390,
+        pillDamping: 30,
         rafId: null,
         lastTime: 0,
         initialized: false
@@ -1587,30 +1594,32 @@ const Nav = {
         navRect: null,
         clientLeft: 0,
         ribbonW: 34,
+        pillW: 104,
         slotTargets: [],
+        pillTargets: [],
         previewIdx: -1
     },
-    _getRibbonMetrics(nav, ribbon, items) {
+    _getRibbonMetrics(nav, ribbon, pill, items) {
         const style = window.getComputedStyle(nav);
         const isVertical = style.flexDirection === 'column';
         const axis = isVertical ? 'y' : 'x';
         let slotTargets;
+        let pillTargets;
         if (isVertical) {
             const ribbonH = ribbon.offsetHeight || 24;
+            pillTargets = items.map(el => Math.round(el.offsetTop));
             slotTargets = items.map(el => Math.round(el.offsetTop + (el.offsetHeight - ribbonH) / 2));
         } else {
-            // 移动端悬浮展开胶囊岛：未选中 48px / 选中 104px，直接算出落点中轴避免过渡中抖动
+            // 移动端悬浮展开胶囊岛：未选中 48px / 选中 104px，共享胶囊色块与顶边丝带同轴精确落点
             const padLeft = Number.parseFloat(style.paddingLeft) || 6;
             const gap = Number.parseFloat(style.columnGap || style.gap) || 6;
             const inactiveW = 48;
-            const activeW = 104;
+            const activeW = (pill && pill.offsetWidth) || 104;
             const ribbonW = ribbon.offsetWidth || 34;
-            slotTargets = items.map((_, idx) => {
-                const centerX = padLeft + idx * (inactiveW + gap) + activeW / 2;
-                return Math.round(centerX - ribbonW / 2);
-            });
+            pillTargets = items.map((_, idx) => Math.round(padLeft + idx * (inactiveW + gap)));
+            slotTargets = pillTargets.map(px => Math.round(px + activeW / 2 - ribbonW / 2));
         }
-        return { isVertical, axis, slotTargets };
+        return { isVertical, axis, slotTargets, pillTargets };
     },
     _nearestSlotIndex(pos, slotTargets) {
         let bestIdx = 0;
@@ -1625,7 +1634,7 @@ const Nav = {
         return bestIdx;
     },
     _applyRibbonTransform(ribbon, pos, axis, vel = 0, options = {}) {
-        const { maxStretch = 0.9, velScale = 1050, allowStretch = true } = options;
+        const { maxStretch = 0.85, velScale = 1050, allowStretch = true } = options;
         if (axis === 'y') {
             ribbon.style.transform = `translate3d(0, ${pos.toFixed(2)}px, 0)`;
         } else {
@@ -1643,7 +1652,30 @@ const Nav = {
             ? `scale(${squeeze.toFixed(3)}, ${stretch.toFixed(3)})`
             : `scale(${stretch.toFixed(3)}, ${squeeze.toFixed(3)})`;
     },
-    _stopSpring(ribbon) {
+    _applyPillTransform(pill, pos, axis, vel = 0, options = {}) {
+        if (!pill) return;
+        const { maxStretch = 0.1, velScale = 3600, allowStretch = true } = options;
+        let renderPos = pos;
+        const s = this._spring;
+        if (axis === 'x' && s.pillMax > s.pillMin) {
+            // 软限幅保护：即便剧烈甩动也不越出悬浮岛外框 6px 内边距
+            renderPos = Math.max(s.pillMin - 4, Math.min(s.pillMax + 4, pos));
+        }
+        const translate = axis === 'y'
+            ? `translate3d(0, ${renderPos.toFixed(2)}px, 0)`
+            : `translate3d(${renderPos.toFixed(2)}px, 0, 0)`;
+        if (!allowStretch || Math.abs(vel) < 18) {
+            pill.style.transform = translate;
+            return;
+        }
+        const stretch = 1 + Math.min(maxStretch, Math.abs(vel) / velScale);
+        const squeeze = 1 - Math.min(0.045, (stretch - 1) * 0.4);
+        const scale = axis === 'y'
+            ? `scale(${squeeze.toFixed(3)}, ${stretch.toFixed(3)})`
+            : `scale(${stretch.toFixed(3)}, ${squeeze.toFixed(3)})`;
+        pill.style.transform = `${translate} ${scale}`;
+    },
+    _stopSpring(ribbon, pill) {
         const s = this._spring;
         if (s.rafId !== null) {
             cancelAnimationFrame(s.rafId);
@@ -1653,48 +1685,68 @@ const Nav = {
             ribbon.style.willChange = '';
             if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = '';
         }
+        if (pill) {
+            pill.style.willChange = '';
+        }
     },
-    _startSpring(ribbon) {
+    _startSpring(ribbon, pill) {
         const s = this._spring;
         if (s.rafId !== null) return;
         ribbon.style.willChange = 'transform';
         if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = 'transform';
-        s.lastTime = performance.now();
+        if (pill) pill.style.willChange = 'transform';
+        s.lastTime = 0;
 
         const tick = (now) => {
             if (!ribbon.isConnected) {
-                this._stopSpring(ribbon);
+                this._stopSpring(ribbon, pill);
                 return;
             }
-            // 实时时间积分（<=100ms 按 240Hz 子步精确积分，切后台超过 600ms 直接落位避免慢放）
-            const rawDt = Math.max(0.001, (now - s.lastTime) / 1000);
+            // 首帧按 16.7ms 稳定起步（避免切页 DOM 渲染耗时导致首帧跳变）；切后台超过 1.5s 直接落位
+            const rawDt = s.lastTime === 0
+                ? (1 / 60)
+                : Math.max(0.001, (now - s.lastTime) / 1000);
             s.lastTime = now;
-            if (rawDt > 0.6) {
+            if (rawDt > 1.5) {
                 s.pos = s.target;
                 s.vel = 0;
+                s.pillPos = s.pillTarget;
+                s.pillVel = 0;
                 this._applyRibbonTransform(ribbon, s.pos, s.axis, 0, { allowStretch: false });
-                this._stopSpring(ribbon);
+                this._applyPillTransform(pill, s.pillPos, s.axis, 0, { allowStretch: false });
+                this._stopSpring(ribbon, pill);
                 return;
             }
             let remaining = Math.min(0.1, rawDt);
             const maxStep = 1 / 240;
             while (remaining > 0) {
                 const dt = Math.min(remaining, maxStep);
-                const accel = s.stiffness * (s.target - s.pos) - s.damping * s.vel;
-                s.vel += accel * dt;
+                const ribAccel = s.stiffness * (s.target - s.pos) - s.damping * s.vel;
+                s.vel += ribAccel * dt;
                 s.pos += s.vel * dt;
+
+                const pillAccel = s.pillStiffness * (s.pillTarget - s.pillPos) - s.pillDamping * s.pillVel;
+                s.pillVel += pillAccel * dt;
+                s.pillPos += s.pillVel * dt;
                 remaining -= dt;
             }
 
-            if (Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5) {
+            const ribbonSettled = Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5;
+            const pillSettled = !pill || (Math.abs(s.pillTarget - s.pillPos) < 0.25 && Math.abs(s.pillVel) < 2.5);
+
+            if (ribbonSettled && pillSettled) {
                 s.pos = s.target;
                 s.vel = 0;
+                s.pillPos = s.pillTarget;
+                s.pillVel = 0;
                 this._applyRibbonTransform(ribbon, s.pos, s.axis, 0, { allowStretch: false });
-                this._stopSpring(ribbon);
+                this._applyPillTransform(pill, s.pillPos, s.axis, 0, { allowStretch: false });
+                this._stopSpring(ribbon, pill);
                 return;
             }
 
             this._applyRibbonTransform(ribbon, s.pos, s.axis, s.vel);
+            this._applyPillTransform(pill, s.pillPos, s.axis, s.pillVel);
             s.rafId = requestAnimationFrame(tick);
         };
 
@@ -1703,17 +1755,22 @@ const Nav = {
     syncRibbon(animate = false, options = {}) {
         const nav = document.getElementById('bottom-nav');
         const ribbon = document.getElementById('nav-ribbon');
+        const pill = document.getElementById('nav-pill');
         if (!nav || !ribbon) return;
         const items = Array.from(nav.querySelectorAll('.nav-item'));
         const activeIdx = items.findIndex(el => el.classList.contains('active'));
         if (activeIdx < 0) return;
 
-        const { axis, slotTargets } = this._getRibbonMetrics(nav, ribbon, items);
+        const { axis, slotTargets, pillTargets } = this._getRibbonMetrics(nav, ribbon, pill, items);
         const target = slotTargets[activeIdx];
+        const pillTarget = pillTargets[activeIdx];
         const s = this._spring;
         const axisChanged = s.initialized && s.axis !== axis;
         s.axis = axis;
         s.target = target;
+        s.pillTarget = pillTarget;
+        s.pillMin = pillTargets[0];
+        s.pillMax = pillTargets[pillTargets.length - 1];
 
         const canAnimate = animate
             && s.initialized
@@ -1722,39 +1779,56 @@ const Nav = {
             && typeof requestAnimationFrame === 'function';
 
         if (!canAnimate) {
-            this._stopSpring(ribbon);
+            this._stopSpring(ribbon, pill);
             s.pos = target;
             s.vel = 0;
+            s.pillPos = pillTarget;
+            s.pillVel = 0;
             s.initialized = true;
             this._applyRibbonTransform(ribbon, target, axis, 0, { allowStretch: false });
+            this._applyPillTransform(pill, pillTarget, axis, 0, { allowStretch: false });
         } else {
-            // 保留中途打断时的瞬时速度，或注入跟手松手时的指尖动量
-            s.stiffness = options.stiffness || 420;
-            s.damping = options.damping || 28.5;
+            // 保留中途打断时的瞬时速度，或注入跟手松手时的指尖动量（色块与丝带双层协同）
+            s.stiffness = options.stiffness || 440;
+            s.damping = options.damping || 27;
+            s.pillStiffness = options.pillStiffness || 390;
+            s.pillDamping = options.pillDamping || 30;
             if (typeof options.initialVelocity === 'number' && Number.isFinite(options.initialVelocity)) {
-                s.vel = Math.max(-2400, Math.min(2400, options.initialVelocity));
+                const clampedVel = Math.max(-2400, Math.min(2400, options.initialVelocity));
+                s.vel = clampedVel;
+                s.pillVel = clampedVel;
             }
-            if (Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5) {
-                this._stopSpring(ribbon);
+            const ribbonDone = Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5;
+            const pillDone = !pill || (Math.abs(s.pillTarget - s.pillPos) < 0.25 && Math.abs(s.pillVel) < 2.5);
+            if (ribbonDone && pillDone) {
+                this._stopSpring(ribbon, pill);
                 s.pos = target;
                 s.vel = 0;
+                s.pillPos = pillTarget;
+                s.pillVel = 0;
                 this._applyRibbonTransform(ribbon, target, axis, 0, { allowStretch: false });
+                this._applyPillTransform(pill, pillTarget, axis, 0, { allowStretch: false });
             } else {
-                this._startSpring(ribbon);
+                this._startSpring(ribbon, pill);
             }
         }
 
-        if (!ribbon.classList.contains('is-ready')) {
+        const markReady = () => {
+            ribbon.classList.add('is-ready');
+            if (pill) pill.classList.add('is-ready');
+        };
+        if (!ribbon.classList.contains('is-ready') || (pill && !pill.classList.contains('is-ready'))) {
             if (typeof requestAnimationFrame === 'function') {
-                requestAnimationFrame(() => ribbon.classList.add('is-ready'));
+                requestAnimationFrame(markReady);
             } else {
-                ribbon.classList.add('is-ready');
+                markReady();
             }
         }
     },
     bindScrubGesture() {
         const nav = document.getElementById('bottom-nav');
         const ribbon = document.getElementById('nav-ribbon');
+        const pill = document.getElementById('nav-pill');
         if (!nav || !ribbon) return;
 
         const finishScrub = (e, cancelled) => {
@@ -1801,14 +1875,15 @@ const Nav = {
 
             this.syncRibbon(true, {
                 initialVelocity: releaseVx,
-                damping: cancelled ? 28.5 : 25.5
+                damping: cancelled ? 27 : 25,
+                pillDamping: cancelled ? 30 : 27.5
             });
         };
 
         nav.addEventListener('pointerdown', (e) => {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             const items = Array.from(nav.querySelectorAll('.nav-item'));
-            const { isVertical, slotTargets } = this._getRibbonMetrics(nav, ribbon, items);
+            const { isVertical, slotTargets, pillTargets } = this._getRibbonMetrics(nav, ribbon, pill, items);
             if (isVertical || slotTargets.length < 2) return;
 
             const now = performance.now();
@@ -1824,7 +1899,9 @@ const Nav = {
             drag.navRect = nav.getBoundingClientRect();
             drag.clientLeft = nav.clientLeft || 0;
             drag.ribbonW = ribbon.offsetWidth || 34;
+            drag.pillW = (pill && pill.offsetWidth) || 104;
             drag.slotTargets = slotTargets;
+            drag.pillTargets = pillTargets;
             drag.previewIdx = items.findIndex(el => el.classList.contains('active'));
         });
 
@@ -1838,9 +1915,10 @@ const Nav = {
                 if (Math.abs(dx) <= 8 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
                 drag.isScrubbing = true;
                 nav.classList.add('is-scrubbing');
-                this._stopSpring(ribbon);
+                this._stopSpring(ribbon, pill);
                 ribbon.style.willChange = 'transform';
                 if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = 'transform';
+                if (pill) pill.style.willChange = 'transform';
                 const itemsNow = Array.from(nav.querySelectorAll('.nav-item'));
                 drag.previewIdx = itemsNow.findIndex(el => el.classList.contains('active'));
                 try { nav.setPointerCapture?.(e.pointerId); } catch (_) {}
@@ -1853,25 +1931,45 @@ const Nav = {
             drag.lastX = e.clientX;
             drag.lastTime = now;
 
+            const pointerLocalX = e.clientX - (drag.navRect.left + drag.clientLeft);
             const minT = drag.slotTargets[0];
             const maxT = drag.slotTargets[drag.slotTargets.length - 1];
-            let raw = e.clientX - (drag.navRect.left + drag.clientLeft) - drag.ribbonW / 2;
+            let raw = pointerLocalX - drag.ribbonW / 2;
             if (raw < minT) {
                 raw = minT + (raw - minT) * 0.22;
             } else if (raw > maxT) {
                 raw = maxT + (raw - maxT) * 0.22;
             }
             // 保留顶边平直区间余量，橡皮筋阻尼不滑入两端半圆弧
-            raw = Math.max(minT - 12, Math.min(maxT + 12, raw));
+            raw = Math.max(minT - 10, Math.min(maxT + 10, raw));
+
+            const minP = drag.pillTargets[0];
+            const maxP = drag.pillTargets[drag.pillTargets.length - 1];
+            let pillRaw = pointerLocalX - drag.pillW / 2;
+            if (pillRaw < minP) {
+                pillRaw = minP + (pillRaw - minP) * 0.2;
+            } else if (pillRaw > maxP) {
+                pillRaw = maxP + (pillRaw - maxP) * 0.2;
+            }
+            pillRaw = Math.max(minP - 4, Math.min(maxP + 4, pillRaw));
 
             const s = this._spring;
             s.axis = 'x';
             s.pos = raw;
             s.vel = drag.vx;
+            s.pillPos = pillRaw;
+            s.pillVel = drag.vx;
+            s.pillMin = minP;
+            s.pillMax = maxP;
             s.initialized = true;
             this._applyRibbonTransform(ribbon, raw, 'x', drag.vx, {
                 maxStretch: 0.65,
                 velScale: 1400,
+                allowStretch: !isMotionReduced()
+            });
+            this._applyPillTransform(pill, pillRaw, 'x', drag.vx, {
+                maxStretch: 0.08,
+                velScale: 4200,
                 allowStretch: !isMotionReduced()
             });
 

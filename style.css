@@ -258,6 +258,34 @@ body[data-theme="dark"] .bottom-nav.is-scrubbing {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.62), 0 0 0 1px color-mix(in srgb, var(--seal) 30%, transparent);
 }
 
+/* 滑动共享主色胶囊色块（GPU translate3d + 弹簧物理移动） */
+.nav-pill {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 104px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--primary) 28%, transparent);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transform-origin: center center;
+  transform: translate3d(0, 0, 0);
+  transition: opacity 160ms var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.nav-pill.is-ready {
+  opacity: 1;
+}
+
+.bottom-nav.is-scrubbing .nav-pill {
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--primary) 36%, transparent);
+}
+
 /* 顶边游走的朱砂书签丝带（弹簧物理引擎 rAF 驱动 + 速度感应拉伸） */
 .nav-ribbon {
   position: absolute;
@@ -297,6 +325,7 @@ body[data-theme="dark"] .bottom-nav.is-scrubbing {
 
 .nav-item {
   position: relative;
+  z-index: 2;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -306,15 +335,15 @@ body[data-theme="dark"] .bottom-nav.is-scrubbing {
   padding: 0;
   gap: 0;
   border-radius: 999px;
+  background: transparent;
   color: var(--text-muted);
   font-weight: 700;
   overflow: hidden;
-  transition: width 300ms cubic-bezier(0.34, 1.32, 0.64, 1),
-              padding 280ms var(--ease-out),
-              gap 240ms var(--ease-out),
-              background 220ms var(--ease-out),
-              color 180ms var(--ease-out),
-              box-shadow 220ms var(--ease-out),
+  transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1),
+              padding 260ms var(--ease-out),
+              gap 220ms var(--ease-out),
+              background 180ms var(--ease-out),
+              color 200ms var(--ease-out),
               transform 110ms var(--ease-out);
 }
 
@@ -359,8 +388,8 @@ body[data-theme="dark"] .bottom-nav.is-scrubbing {
   padding: 0 16px;
   gap: 7px;
   color: var(--on-primary);
-  background: var(--primary);
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--primary) 28%, transparent);
+  background: transparent;
+  box-shadow: none;
 }
 
 .nav-item.active .nav-icon {
@@ -379,6 +408,7 @@ body[data-theme="dark"] .bottom-nav.is-scrubbing {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .nav-pill,
   .nav-ribbon,
   .nav-item,
   .nav-item .nav-icon,
@@ -6087,6 +6117,16 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
     box-shadow: none;
     touch-action: auto;
   }
+  .nav-pill {
+    top: 0;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-soft);
+    box-shadow: none;
+  }
   .nav-ribbon {
     top: 0;
     left: 0;
@@ -6122,7 +6162,7 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
     padding: 0;
     gap: 0;
     color: var(--primary);
-    background: var(--primary-soft);
+    background: transparent;
     box-shadow: none;
   }
   .nav-item .nav-label,
@@ -6225,6 +6265,16 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
     box-shadow: none;
     touch-action: auto;
   }
+  .nav-pill {
+    top: 0;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    height: 42px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-soft);
+    box-shadow: none;
+  }
   .nav-ribbon {
     top: 0;
     left: 0;
@@ -6275,7 +6325,7 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
     padding: 0 12px;
     gap: 11px;
     color: var(--primary);
-    background: var(--primary-soft);
+    background: transparent;
     box-shadow: none;
   }
   .nav-item .nav-label,

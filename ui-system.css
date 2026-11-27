@@ -885,7 +885,7 @@ select:focus {
   }
 }
 
-/* Precision Mechanical Toggle Switch (Compositor-Only Thumb Motion) */
+/* Precision Mechanical Toggle Switch (Spring Overshoot + Directional Stretch + 1:1 Drag) */
 .tactile-switch-wrap {
   position: relative;
   display: inline-flex;
@@ -894,6 +894,9 @@ select:focus {
   height: 26px;
   flex-shrink: 0;
   cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .tactile-switch {
@@ -911,9 +914,9 @@ select:focus {
   background: var(--surface-subtle);
   border: 1px solid var(--outline-strong);
   box-shadow: inset 0 1.5px 3px rgba(23, 25, 26, 0.12);
-  transition: background var(--dur-med) var(--ease-out),
-              border-color var(--dur-med) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
+  transition: background 240ms var(--ease-out),
+              border-color 240ms var(--ease-out),
+              box-shadow 220ms var(--ease-out);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -935,9 +938,11 @@ select:focus {
               0 0 0 0.5px rgba(23, 25, 26, 0.08),
               inset 0 0 0 6px var(--surface-elevated),
               inset 0 0 0 7px var(--outline);
-  transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 200ms var(--ease-out),
-              background var(--dur-fast) var(--ease-out);
+  transform: translate3d(0, 0, 0);
+  transition: transform 300ms cubic-bezier(0.34, 1.42, 0.64, 1),
+              width 160ms var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
 }
 
 body[data-theme="dark"] .tactile-slider::after {
@@ -947,27 +952,48 @@ body[data-theme="dark"] .tactile-slider::after {
               inset 0 0 0 7px rgba(0, 0, 0, 0.16);
 }
 
-.tactile-switch-wrap:active .tactile-slider::after {
-  transform: translate3d(0, 0, 0) scale(0.92);
+/* 按下蓄力：未开启时向右弹性延展 */
+.tactile-switch-wrap:active .tactile-slider:not(.is-dragging)::after {
+  width: 25px;
+  transform: translate3d(0, 0, 0);
 }
 
-.tactile-switch:checked + .tactile-slider {
+.tactile-switch:checked + .tactile-slider,
+.tactile-slider.is-dragging.is-drag-on {
   background: var(--primary);
   border-color: var(--primary);
-  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.2),
+              0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.tactile-slider.is-dragging.is-drag-off {
+  background: var(--surface-subtle);
+  border-color: var(--outline-strong);
+  box-shadow: inset 0 1.5px 3px rgba(23, 25, 26, 0.12);
 }
 
 .tactile-switch:checked + .tactile-slider::after {
-  transform: translate3d(20px, 0, 0) scale(1);
+  transform: translate3d(20px, 0, 0);
 }
 
-body[data-theme="dark"] .tactile-switch:checked + .tactile-slider::after {
+body[data-theme="dark"] .tactile-switch:checked + .tactile-slider::after,
+body[data-theme="dark"] .tactile-slider.is-dragging.is-drag-on::after {
   background: var(--on-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
-.tactile-switch-wrap:active .tactile-switch:checked + .tactile-slider::after {
-  transform: translate3d(20px, 0, 0) scale(0.92);
+/* 按下蓄力：已开启时向左弹性延展（保持右边缘钉住 15+25=40） */
+.tactile-switch-wrap:active .tactile-switch:checked + .tactile-slider:not(.is-dragging)::after {
+  width: 25px;
+  transform: translate3d(15px, 0, 0);
+}
+
+/* 1:1 横向跟手拖拽状态 */
+.tactile-slider.is-dragging::after {
+  width: 23px;
+  transform: translate3d(var(--drag-x, 0px), 0, 0);
+  transition: width 120ms var(--ease-out), background var(--dur-fast) var(--ease-out);
+  box-shadow: 0 2px 6px rgba(23, 25, 26, 0.28);
 }
 
 .tactile-switch:disabled + .tactile-slider {
@@ -978,6 +1004,19 @@ body[data-theme="dark"] .tactile-switch:checked + .tactile-slider::after {
 .tactile-switch:focus-visible + .tactile-slider {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tactile-slider::after {
+    transition: transform 120ms ease-out, background 120ms ease-out !important;
+  }
+  .tactile-switch-wrap:active .tactile-slider:not(.is-dragging)::after {
+    width: 20px;
+  }
+  .tactile-switch-wrap:active .tactile-switch:checked + .tactile-slider:not(.is-dragging)::after {
+    width: 20px;
+    transform: translate3d(20px, 0, 0);
+  }
 }
 
 /* Fixed Touch Targets for Study Card Speaker & Star */

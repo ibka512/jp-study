@@ -2109,6 +2109,490 @@ const Nav = {
     }
 };
 
+/* Unified Spring & 1:1 Drag Motion for All Segmented Controls & Toggle Switches */
+const SliderMotion = {
+    _states: new WeakMap(),
+    _containers: new Set(),
+    _resizeObserver: null,
+    _initialized: false,
+    _getItems(container) {
+        return Array.from(container.children).filter(
+            el => el.classList && (el.classList.contains('segmented-option') || el.classList.contains('lang-pill-btn'))
+        );
+    },
+    _ensureState(container) {
+        let st = this._states.get(container);
+        if (st) return st;
+        let thumb = Array.from(container.children).find(el => el.classList && el.classList.contains('seg-thumb'));
+        if (!thumb && typeof document.createElement === 'function') {
+            thumb = document.createElement('span');
+            thumb.className = 'seg-thumb';
+            thumb.setAttribute('aria-hidden', 'true');
+            container.insertBefore(thumb, container.firstChild);
+        }
+        container.classList.add('has-seg-thumb');
+        st = {
+            thumb,
+            x: 0,
+            w: 0,
+            targetX: 0,
+            targetW: 0,
+            vx: 0,
+            vw: 0,
+            minX: 0,
+            maxX: 0,
+            stiffness: 430,
+            damping: 29,
+            rafId: null,
+            lastTime: 0,
+            initialized: false,
+            suppressClickUntil: 0,
+            pendingVelocity: null
+        };
+        this._states.set(container, st);
+        this._containers.add(container);
+        if (this._resizeObserver) {
+            this._resizeObserver.observe(container);
+        }
+        this._bindSegmentedScrub(container, st);
+        return st;
+    },
+    _applyThumb(st, x, w, vx = 0, allowStretch = true) {
+        const { thumb } = st;
+        if (!thumb) return;
+        let renderX = x;
+        if (st.maxX > st.minX) {
+            renderX = Math.max(st.minX - 2.5, Math.min(st.maxX + 2.5, x));
+        }
+        thumb.style.width = `${Math.max(0, w).toFixed(2)}px`;
+        if (!allowStretch || Math.abs(vx) < 20) {
+            thumb.style.transform = `translate3d(${renderX.toFixed(2)}px, 0, 0)`;
+            return;
+        }
+        const sx = 1 + Math.min(0.065, Math.abs(vx) / 4000);
+        const sy = 1 - Math.min(0.03, (sx - 1) * 0.45);
+        thumb.style.transform = `translate3d(${renderX.toFixed(2)}px, 0, 0) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`;
+    },
+    _stopSpring(st) {
+        if (st.rafId !== null) {
+            cancelAnimationFrame(st.rafId);
+            st.rafId = null;
+        }
+        if (st.thumb) st.thumb.style.willChange = '';
+    },
+    _startSpring(container, st) {
+        if (st.rafId !== null || !st.thumb) return;
+        st.thumb.style.willChange = 'transform, width';
+        st.lastTime = 0;
+
+        const tick = (now) => {
+            if (!container.isConnected || !st.thumb.isConnected) {
+                this._stopSpring(st);
+                return;
+            }
+            const rawDt = st.lastTime === 0
+                ? (1 / 60)
+                : Math.max(0.001, (now - st.lastTime) / 1000);
+            st.lastTime = now;
+            if (rawDt > 1.5) {
+                st.x = st.targetX;
+                st.w = st.targetW;
+                st.vx = 0;
+                st.vw = 0;
+                this._applyThumb(st, st.x, st.w, 0, false);
+                this._stopSpring(st);
+                return;
+            }
+            let remaining = Math.min(0.1, rawDt);
+            const maxStep = 1 / 240;
+            while (remaining > 0) {
+                const dt = Math.min(remaining, maxStep);
+                const ax = st.stiffness * (st.targetX - st.x) - st.damping * st.vx;
+                st.vx += ax * dt;
+                st.x += st.vx * dt;
+
+                const aw = st.stiffness * (st.targetW - st.w) - (st.damping + 3) * st.vw;
+                st.vw += aw * dt;
+                st.w += st.vw * dt;
+                remaining -= dt;
+            }
+
+            const settled = Math.abs(st.targetX - st.x) < 0.25
+                && Math.abs(st.vx) < 2.5
+                && Math.abs(st.targetW - st.w) < 0.25
+                && Math.abs(st.vw) < 2.5;
+
+            if (settled) {
+                st.x = st.targetX;
+                st.w = st.targetW;
+                st.vx = 0;
+                st.vw = 0;
+                this._applyThumb(st, st.x, st.w, 0, false);
+                this._stopSpring(st);
+                return;
+            }
+
+            this._applyThumb(st, st.x, st.w, st.vx, true);
+            st.rafId = requestAnimationFrame(tick);
+        };
+
+        st.rafId = requestAnimationFrame(tick);
+    },
+    syncContainer(container, animate = false, options = {}) {
+        if (!container) return;
+        const st = this._ensureState(container);
+        const items = this._getItems(container);
+        if (items.length === 0) return;
+
+        const targetEl = options.targetEl || items.find(el => el.classList.contains('active')) || items[0];
+        if (!targetEl) return;
+
+        const targetW = targetEl.offsetWidth || 0;
+        if (container.offsetWidth === 0 || targetW === 0) {
+            st.initialized = false;
+            return;
+        }
+
+        const targetX = targetEl.offsetLeft;
+        const firstX = items[0].offsetLeft;
+        const lastX = items[items.length - 1].offsetLeft;
+        st.minX = firstX;
+        st.maxX = lastX;
+        st.targetX = targetX;
+        st.targetW = targetW;
+
+        const canAnimate = animate
+            && st.initialized
+            && !isMotionReduced()
+            && typeof requestAnimationFrame === 'function';
+
+        if (!canAnimate) {
+            this._stopSpring(st);
+            st.x = targetX;
+            st.w = targetW;
+            st.vx = 0;
+            st.vw = 0;
+            st.initialized = true;
+            this._applyThumb(st, targetX, targetW, 0, false);
+        } else {
+            st.stiffness = options.stiffness || 430;
+            st.damping = options.damping || 29;
+            const injectedVel = typeof options.initialVelocity === 'number'
+                ? options.initialVelocity
+                : st.pendingVelocity;
+            st.pendingVelocity = null;
+            if (typeof injectedVel === 'number' && Number.isFinite(injectedVel)) {
+                st.vx = Math.max(-2200, Math.min(2200, injectedVel));
+            }
+            const done = Math.abs(st.targetX - st.x) < 0.25
+                && Math.abs(st.vx) < 2.5
+                && Math.abs(st.targetW - st.w) < 0.25
+                && Math.abs(st.vw) < 2.5;
+            if (done) {
+                this._stopSpring(st);
+                st.x = targetX;
+                st.w = targetW;
+                st.vx = 0;
+                st.vw = 0;
+                this._applyThumb(st, targetX, targetW, 0, false);
+            } else {
+                this._startSpring(container, st);
+            }
+        }
+
+        if (st.thumb && !st.thumb.classList.contains('is-ready')) {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => st.thumb.classList.add('is-ready'));
+            } else {
+                st.thumb.classList.add('is-ready');
+            }
+        }
+    },
+    syncAll(animate = false) {
+        this._containers.forEach(container => this.syncContainer(container, animate));
+    },
+    _bindSegmentedScrub(container, st) {
+        const drag = {
+            active: false,
+            isScrubbing: false,
+            pointerId: null,
+            startX: 0,
+            startY: 0,
+            lastX: 0,
+            lastTime: 0,
+            vx: 0,
+            rect: null,
+            clientLeft: 0,
+            slots: [],
+            previewIdx: -1
+        };
+
+        const nearestSlot = (centerX, slots) => {
+            let best = 0;
+            let bestDist = Infinity;
+            for (let i = 0; i < slots.length; i++) {
+                const dist = Math.abs(centerX - slots[i].center);
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = i;
+                }
+            }
+            return best;
+        };
+
+        const clearPreview = (items) => {
+            items.forEach(el => el.classList.remove('is-scrub-target'));
+        };
+
+        container.addEventListener('click', (e) => {
+            if (performance.now() < st.suppressClickUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+
+        container.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const items = this._getItems(container);
+            if (items.length < 2 || container.offsetWidth === 0) return;
+            if (items.some(el => el.disabled)) return;
+
+            const now = performance.now();
+            drag.active = true;
+            drag.isScrubbing = false;
+            drag.pointerId = e.pointerId;
+            drag.startX = e.clientX;
+            drag.startY = e.clientY;
+            drag.lastX = e.clientX;
+            drag.lastTime = now;
+            drag.vx = 0;
+            drag.rect = container.getBoundingClientRect();
+            drag.clientLeft = container.clientLeft || 0;
+            drag.slots = items.map(el => ({
+                el,
+                left: el.offsetLeft,
+                width: el.offsetWidth,
+                center: el.offsetLeft + el.offsetWidth / 2
+            }));
+            drag.previewIdx = Math.max(0, items.findIndex(el => el.classList.contains('active')));
+        });
+
+        const finishScrub = (e, cancelled) => {
+            if (!drag.active || (e && drag.pointerId !== null && e.pointerId !== drag.pointerId)) return;
+            drag.active = false;
+            const wasScrubbing = drag.isScrubbing;
+            drag.isScrubbing = false;
+            container.classList.remove('is-scrubbing');
+            try {
+                if (drag.pointerId !== null && container.hasPointerCapture?.(drag.pointerId)) {
+                    container.releasePointerCapture(drag.pointerId);
+                }
+            } catch (_) {}
+            drag.pointerId = null;
+
+            const items = this._getItems(container);
+            clearPreview(items);
+            if (!wasScrubbing || drag.slots.length === 0) return;
+
+            st.suppressClickUntil = performance.now() + 260;
+            const stale = (performance.now() - drag.lastTime) > 75;
+            const releaseVx = (cancelled || stale) ? 0 : Math.max(-2000, Math.min(2000, drag.vx));
+            const curCenter = st.x + st.w / 2;
+            const projectedCenter = cancelled
+                ? curCenter
+                : curCenter + Math.max(-1400, Math.min(1400, releaseVx)) * 0.055;
+            const finalIdx = nearestSlot(projectedCenter, drag.slots);
+            const activeIdx = items.findIndex(el => el.classList.contains('active'));
+            const targetBtn = drag.slots[finalIdx]?.el;
+
+            if (!cancelled && targetBtn && finalIdx !== activeIdx) {
+                st.pendingVelocity = releaseVx;
+                // 暂时放行我们主动触发的合成点击，再恢复拦截残余物理 click
+                const prevSuppress = st.suppressClickUntil;
+                st.suppressClickUntil = 0;
+                targetBtn.click();
+                st.suppressClickUntil = prevSuppress;
+                this.syncContainer(container, true, {
+                    targetEl: targetBtn,
+                    initialVelocity: releaseVx,
+                    damping: 26
+                });
+            } else {
+                this.syncContainer(container, true, {
+                    initialVelocity: cancelled ? 0 : releaseVx,
+                    damping: 27
+                });
+            }
+        };
+
+        window.addEventListener('pointermove', (e) => {
+            if (!drag.active || e.pointerId !== drag.pointerId) return;
+            const dx = e.clientX - drag.startX;
+            const dy = e.clientY - drag.startY;
+
+            if (!drag.isScrubbing) {
+                if (Math.abs(dx) <= 7 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
+                drag.isScrubbing = true;
+                container.classList.add('is-scrubbing');
+                this._stopSpring(st);
+                if (st.thumb) st.thumb.style.willChange = 'transform, width';
+                try { container.setPointerCapture?.(e.pointerId); } catch (_) {}
+            }
+
+            const now = performance.now();
+            const dt = Math.max(4, now - drag.lastTime);
+            const instVx = ((e.clientX - drag.lastX) / dt) * 1000;
+            drag.vx = drag.vx * 0.55 + instVx * 0.45;
+            drag.lastX = e.clientX;
+            drag.lastTime = now;
+
+            const localX = e.clientX - (drag.rect.left + drag.clientLeft);
+            const idx = nearestSlot(localX, drag.slots);
+            const targetW = drag.slots[idx].width;
+            const minX = drag.slots[0].left;
+            const maxX = drag.slots[drag.slots.length - 1].left;
+            let rawX = localX - targetW / 2;
+            if (rawX < minX) rawX = minX + (rawX - minX) * 0.2;
+            else if (rawX > maxX) rawX = maxX + (rawX - maxX) * 0.2;
+            rawX = Math.max(minX - 2.5, Math.min(maxX + 2.5, rawX));
+
+            st.minX = minX;
+            st.maxX = maxX;
+            st.x = rawX;
+            st.w = st.w ? (st.w * 0.72 + targetW * 0.28) : targetW;
+            st.vx = drag.vx;
+            st.initialized = true;
+            this._applyThumb(st, st.x, st.w, drag.vx, !isMotionReduced());
+
+            if (idx !== drag.previewIdx) {
+                drag.previewIdx = idx;
+                drag.slots.forEach((slot, i) => slot.el.classList.toggle('is-scrub-target', i === idx));
+                const slotEl = drag.slots[idx]?.el;
+                if (slotEl && slotEl.getAttribute('data-haptic') !== 'none') {
+                    Hardware.haptic('key');
+                }
+            }
+        }, { passive: true });
+
+        window.addEventListener('pointerup', (e) => finishScrub(e, false), { passive: true });
+        window.addEventListener('pointercancel', (e) => finishScrub(e, true), { passive: true });
+    },
+    _initSwitchDrag() {
+        const wraps = document.querySelectorAll('.tactile-switch-wrap, .native-reminder-toggle, .native-reminder-mini-toggle');
+        wraps.forEach(label => {
+            const input = label.querySelector('input[type="checkbox"]');
+            const track = label.querySelector('.tactile-slider, .native-switch, .native-mini-switch');
+            if (!input || !track || track.dataset.dragBound === '1') return;
+            track.dataset.dragBound = '1';
+
+            let suppressClickUntil = 0;
+            const drag = {
+                active: false,
+                isDragging: false,
+                pointerId: null,
+                startX: 0,
+                startY: 0,
+                baseX: 0,
+                previewOn: false
+            };
+
+            label.addEventListener('click', (e) => {
+                if (performance.now() < suppressClickUntil) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true);
+
+            track.addEventListener('pointerdown', (e) => {
+                if (input.disabled || (e.pointerType === 'mouse' && e.button !== 0)) return;
+                drag.active = true;
+                drag.isDragging = false;
+                drag.pointerId = e.pointerId;
+                drag.startX = e.clientX;
+                drag.startY = e.clientY;
+                drag.baseX = input.checked ? 20 : 0;
+                drag.previewOn = input.checked;
+            });
+
+            const finishSwitchDrag = (e, cancelled) => {
+                if (!drag.active || (e && drag.pointerId !== null && e.pointerId !== drag.pointerId)) return;
+                drag.active = false;
+                const wasDragging = drag.isDragging;
+                drag.isDragging = false;
+                try {
+                    if (drag.pointerId !== null && track.hasPointerCapture?.(drag.pointerId)) {
+                        track.releasePointerCapture(drag.pointerId);
+                    }
+                } catch (_) {}
+                drag.pointerId = null;
+
+                track.classList.remove('is-dragging', 'is-drag-on', 'is-drag-off');
+                track.style.removeProperty('--drag-x');
+                if (!wasDragging) return;
+
+                suppressClickUntil = performance.now() + 260;
+                if (!cancelled && drag.previewOn !== input.checked) {
+                    input.checked = drag.previewOn;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            };
+
+            window.addEventListener('pointermove', (e) => {
+                if (!drag.active || e.pointerId !== drag.pointerId) return;
+                const dx = e.clientX - drag.startX;
+                const dy = e.clientY - drag.startY;
+                if (!drag.isDragging) {
+                    if (Math.abs(dx) <= 6 || Math.abs(dx) <= Math.abs(dy) * 1.2) return;
+                    drag.isDragging = true;
+                    track.classList.add('is-dragging');
+                    try { track.setPointerCapture?.(e.pointerId); } catch (_) {}
+                }
+
+                // 拖动时拇指宽 23px，可滑区间 [0, 17]（23+17=40），超出带轻量橡皮筋阻力
+                const maxThumbX = 17;
+                let raw = (drag.baseX ? maxThumbX : 0) + dx;
+                if (raw < 0) raw = raw * 0.22;
+                else if (raw > maxThumbX) raw = maxThumbX + (raw - maxThumbX) * 0.22;
+                raw = Math.max(-2, Math.min(maxThumbX + 2, raw));
+
+                track.style.setProperty('--drag-x', `${raw.toFixed(2)}px`);
+                const nowOn = raw >= maxThumbX / 2;
+                track.classList.toggle('is-drag-on', nowOn);
+                track.classList.toggle('is-drag-off', !nowOn);
+
+                if (nowOn !== drag.previewOn) {
+                    drag.previewOn = nowOn;
+                    if (label.getAttribute('data-haptic') !== 'none' && input.getAttribute('data-haptic') !== 'none') {
+                        Hardware.haptic('key');
+                    }
+                }
+            }, { passive: true });
+
+            window.addEventListener('pointerup', (e) => finishSwitchDrag(e, false), { passive: true });
+            window.addEventListener('pointercancel', (e) => finishSwitchDrag(e, true), { passive: true });
+        });
+    },
+    init() {
+        if (this._initialized) return;
+        this._initialized = true;
+        if (typeof ResizeObserver === 'function') {
+            this._resizeObserver = new ResizeObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.contentRect.width > 0) {
+                        this.syncContainer(entry.target, false);
+                    }
+                });
+            });
+        }
+        document.querySelectorAll('.header-lang-switch, .segmented-control').forEach(container => {
+            this._ensureState(container);
+            this.syncContainer(container, false);
+        });
+        this._initSwitchDrag();
+        window.addEventListener('resize', () => this.syncAll(false), { passive: true });
+    }
+};
+
 const BottomSheet = {
     init() {
         document.querySelectorAll('select:not(.no-bs)').forEach(sel => {
@@ -6157,6 +6641,11 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
           btn.classList.toggle('active', isActive);
           btn.setAttribute('aria-pressed', String(isActive));
       });
+      const shouldAnimateLangThumb = Boolean(this._bookSelectorRendered);
+      this._bookSelectorRendered = true;
+      document.querySelectorAll('.header-lang-switch').forEach(group => {
+          SliderMotion.syncContainer(group, shouldAnimateLangThumb);
+      });
   },
 
   updateTestSelects() {
@@ -7827,7 +8316,8 @@ const Controller = {
   pendingWordDraft: null,
   async init() {
     BottomSheet.init(); 
-    Nav.init(); 
+    Nav.init();
+    SliderMotion.init();
     await Model.init(); 
     Model.state.currentLangMode = localStorage.getItem('langMode') || 'ja';
     document.body.setAttribute('data-lang', Model.state.currentLangMode);
@@ -8173,6 +8663,10 @@ setupVirtualScroll() {
         activeTrigger?.setAttribute('aria-busy', 'true');
         bookCard?.classList.add('is-loading');
         shelf?.classList.add('is-switching');
+        const langGroup = activeTrigger?.closest?.('.header-lang-switch');
+        if (langGroup) {
+            SliderMotion.syncContainer(langGroup, true, { targetEl: activeTrigger });
+        }
         cards.forEach(item => { item.disabled = true; });
 
         try {
@@ -8414,25 +8908,26 @@ setupVirtualScroll() {
         const selectEl = View.getEl(group.dataset.segmentedFor);
         if (!selectEl) return;
         const buttons = Array.from(group.querySelectorAll('.segmented-option[data-value]'));
-        const syncFromSelect = () => {
+        const syncFromSelect = (animate = false) => {
             const val = selectEl.value;
             buttons.forEach(btn => {
                 const isAct = btn.dataset.value === val;
                 btn.classList.toggle('active', isAct);
                 btn.setAttribute('aria-checked', String(isAct));
             });
+            SliderMotion.syncContainer(group, animate);
         };
         buttons.forEach(btn => {
             btn.addEventListener('click', () => {
                 if (selectEl.value === btn.dataset.value) return;
                 selectEl.value = btn.dataset.value;
                 selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-                syncFromSelect();
+                syncFromSelect(true);
             });
         });
-        selectEl.addEventListener('change', syncFromSelect);
-        selectEl.addEventListener('facade-update', syncFromSelect);
-        syncFromSelect();
+        selectEl.addEventListener('change', () => syncFromSelect(true));
+        selectEl.addEventListener('facade-update', () => syncFromSelect(false));
+        syncFromSelect(false);
     });
 
     let btnMtReplay = View.getEl('btn-mt-replay');

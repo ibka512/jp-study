@@ -146,35 +146,89 @@ body[data-theme="dark"] .action-toast {
   gap: 8px;
 }
 
-/* Segmented Quick Language Switcher */
+/* Segmented Quick Language Switcher (Spring-Driven Shared Thumb) */
 .header-lang-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: 3px;
   border-radius: var(--radius-sm);
   background: var(--surface-subtle);
   border: 1px solid var(--outline);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.header-lang-switch.is-scrubbing {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--outline));
+}
+
+.header-lang-switch .seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: var(--radius-xs);
+  background: var(--surface-container);
+  box-shadow: var(--shadow-xs);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transform-origin: center center;
+  transform: translate3d(0, 0, 0);
+  transition: opacity 150ms var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.header-lang-switch .seg-thumb.is-ready {
+  opacity: 1;
+}
+
+.header-lang-switch.is-scrubbing .seg-thumb {
+  box-shadow: var(--shadow-sm);
 }
 
 .lang-pill-btn {
+  position: relative;
+  z-index: 2;
   min-width: 38px;
   height: 34px;
   padding: 0 11px;
   border-radius: var(--radius-xs);
+  background: transparent;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--on-surface-variant);
-  transition: background var(--dur-fast) var(--ease-out),
-              color var(--dur-fast) var(--ease-out);
+  transition: color 180ms var(--ease-out),
+              transform 110ms var(--ease-out);
 }
 
-.lang-pill-btn:hover:not(.active) {
-  color: var(--on-surface);
+@media (hover: hover) and (pointer: fine) {
+  .lang-pill-btn:hover:not(.active) {
+    color: var(--on-surface);
+  }
 }
 
-.lang-pill-btn.active {
-  background: var(--surface-container);
+.lang-pill-btn:active {
+  transform: scale(0.95);
+}
+
+.header-lang-switch.is-scrubbing .lang-pill-btn:active {
+  transform: none;
+}
+
+.lang-pill-btn.active,
+.lang-pill-btn.is-scrub-target {
   color: var(--primary);
+}
+
+/* 降级兜底：JS 滑块尚未挂载时保留静态选中底色 */
+.header-lang-switch:not(.has-seg-thumb) .lang-pill-btn.active {
+  background: var(--surface-container);
   box-shadow: var(--shadow-xs);
 }
 
@@ -4192,6 +4246,13 @@ body[data-theme="dark"] .book-card::before {
   height: 0;
 }
 
+.native-reminder-toggle,
+.native-reminder-mini-toggle {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .native-switch,
 .native-mini-switch {
   width: 46px;
@@ -4202,9 +4263,9 @@ body[data-theme="dark"] .book-card::before {
   box-shadow: inset 0 1.5px 3px rgba(23, 25, 26, 0.12);
   position: relative;
   flex-shrink: 0;
-  transition: background var(--dur-med) var(--ease-out),
-              border-color var(--dur-med) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out);
+  transition: background 240ms var(--ease-out),
+              border-color 240ms var(--ease-out),
+              box-shadow 220ms var(--ease-out);
 }
 
 .native-switch::after,
@@ -4221,9 +4282,11 @@ body[data-theme="dark"] .book-card::before {
               0 0 0 0.5px rgba(23, 25, 26, 0.08),
               inset 0 0 0 6px var(--surface-elevated),
               inset 0 0 0 7px var(--outline);
-  transform: translate3d(0, 0, 0) scale(1);
-  transition: transform 200ms var(--ease-out),
-              background var(--dur-fast) var(--ease-out);
+  transform: translate3d(0, 0, 0);
+  transition: transform 300ms cubic-bezier(0.34, 1.42, 0.64, 1),
+              width 160ms var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
 }
 
 body[data-theme="dark"] .native-switch::after,
@@ -4234,30 +4297,52 @@ body[data-theme="dark"] .native-mini-switch::after {
               inset 0 0 0 7px rgba(0, 0, 0, 0.16);
 }
 
-.native-reminder-toggle:active .native-switch::after,
-.native-reminder-mini-toggle:active .native-mini-switch::after {
-  transform: translate3d(0, 0, 0) scale(0.92);
+.native-reminder-toggle:active .native-switch:not(.is-dragging)::after,
+.native-reminder-mini-toggle:active .native-mini-switch:not(.is-dragging)::after {
+  width: 25px;
+  transform: translate3d(0, 0, 0);
 }
 
 .native-reminder-toggle input:checked + .native-switch,
-.native-reminder-mini-toggle input:checked + .native-mini-switch {
+.native-reminder-mini-toggle input:checked + .native-mini-switch,
+.native-switch.is-dragging.is-drag-on,
+.native-mini-switch.is-dragging.is-drag-on {
   background: var(--primary);
   border-color: var(--primary);
-  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.2),
+              0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.native-switch.is-dragging.is-drag-off,
+.native-mini-switch.is-dragging.is-drag-off {
+  background: var(--surface-subtle);
+  border-color: var(--outline-strong);
+  box-shadow: inset 0 1.5px 3px rgba(23, 25, 26, 0.12);
 }
 
 .native-reminder-toggle input:checked + .native-switch::after,
 .native-reminder-mini-toggle input:checked + .native-mini-switch::after {
-  transform: translate3d(20px, 0, 0) scale(1);
+  transform: translate3d(20px, 0, 0);
 }
 
-.native-reminder-toggle:active input:checked + .native-switch::after,
-.native-reminder-mini-toggle:active input:checked + .native-mini-switch::after {
-  transform: translate3d(20px, 0, 0) scale(0.92);
+.native-reminder-toggle:active input:checked + .native-switch:not(.is-dragging)::after,
+.native-reminder-mini-toggle:active input:checked + .native-mini-switch:not(.is-dragging)::after {
+  width: 25px;
+  transform: translate3d(15px, 0, 0);
+}
+
+.native-switch.is-dragging::after,
+.native-mini-switch.is-dragging::after {
+  width: 23px;
+  transform: translate3d(var(--drag-x, 0px), 0, 0);
+  transition: width 120ms var(--ease-out), background var(--dur-fast) var(--ease-out);
+  box-shadow: 0 2px 6px rgba(23, 25, 26, 0.28);
 }
 
 body[data-theme="dark"] .native-reminder-toggle input:checked + .native-switch::after,
-body[data-theme="dark"] .native-reminder-mini-toggle input:checked + .native-mini-switch::after {
+body[data-theme="dark"] .native-reminder-mini-toggle input:checked + .native-mini-switch::after,
+body[data-theme="dark"] .native-switch.is-dragging.is-drag-on::after,
+body[data-theme="dark"] .native-mini-switch.is-dragging.is-drag-on::after {
   background: var(--on-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
@@ -4266,6 +4351,22 @@ body[data-theme="dark"] .native-reminder-mini-toggle input:checked + .native-min
 .native-reminder-mini-toggle input:focus-visible + .native-mini-switch {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .native-switch::after,
+  .native-mini-switch::after {
+    transition: transform 120ms ease-out, background 120ms ease-out !important;
+  }
+  .native-reminder-toggle:active .native-switch:not(.is-dragging)::after,
+  .native-reminder-mini-toggle:active .native-mini-switch:not(.is-dragging)::after {
+    width: 20px;
+  }
+  .native-reminder-toggle:active input:checked + .native-switch:not(.is-dragging)::after,
+  .native-reminder-mini-toggle:active input:checked + .native-mini-switch:not(.is-dragging)::after {
+    width: 20px;
+    transform: translate3d(20px, 0, 0);
+  }
 }
 
 .native-reminder-settings {
@@ -4632,13 +4733,14 @@ body[data-theme="dark"] .modal-overlay {
   transform: scale(1);
 }
 
-/* ---------- Inline Segmented Controls (P1 Settings) ---------- */
+/* ---------- Inline Segmented Controls (P1 Settings — Spring-Driven Sliding Thumb) ---------- */
 .setting-segmented-item {
   flex-wrap: wrap;
   gap: 12px 16px;
 }
 
 .segmented-control {
+  position: relative;
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -4649,6 +4751,41 @@ body[data-theme="dark"] .modal-overlay {
   border: 1px solid var(--outline-strong);
   box-shadow: inset 0 1px 2px rgba(27, 25, 23, 0.06);
   flex-shrink: 0;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+.segmented-control.is-scrubbing {
+  border-color: color-mix(in srgb, var(--seal) 42%, var(--outline-strong));
+}
+
+.segmented-control .seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-xs), inset 0 -2px 0 var(--seal);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transform-origin: center center;
+  transform: translate3d(0, 0, 0);
+  transition: opacity 150ms var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.segmented-control .seg-thumb.is-ready {
+  opacity: 1;
+}
+
+.segmented-control.is-scrubbing .seg-thumb {
+  box-shadow: var(--shadow-sm), inset 0 -2.5px 0 var(--seal);
 }
 
 @media (max-width: 560px) {
@@ -4662,6 +4799,8 @@ body[data-theme="dark"] .modal-overlay {
 }
 
 .segmented-option {
+  position: relative;
+  z-index: 2;
   min-height: 36px;
   padding: 6px 12px;
   border-radius: calc(var(--radius-md) - 3px);
@@ -4671,10 +4810,8 @@ body[data-theme="dark"] .modal-overlay {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out),
-              color var(--dur-fast) var(--ease-out),
-              box-shadow var(--dur-fast) var(--ease-out),
-              transform var(--dur-press) var(--ease-out);
+  transition: color 180ms var(--ease-out),
+              transform 110ms var(--ease-out);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -4684,12 +4821,21 @@ body[data-theme="dark"] .modal-overlay {
 }
 
 .segmented-option:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
 }
 
-.segmented-option.active {
-  background: var(--surface-elevated);
+.segmented-control.is-scrubbing .segmented-option:active {
+  transform: none;
+}
+
+.segmented-option.active,
+.segmented-option.is-scrub-target {
   color: var(--primary);
+}
+
+/* 降级兜底：JS 滑块尚未挂载时保留静态选中样式 */
+.segmented-control:not(.has-seg-thumb) .segmented-option.active {
+  background: var(--surface-elevated);
   box-shadow: var(--shadow-xs), inset 0 -2px 0 var(--seal);
 }
 

@@ -851,8 +851,11 @@ const validateVocabularyData = (entries = []) => {
             addIssue('error', index, wordLabel, '缺少中文释义', 'meaning');
         }
 
+        const normalizedReading = normalizeEntryText(normalized.kana || '').toLowerCase();
         const identity =
-            `${lang}::${normalizeHeadword(normalized.word, lang).toLowerCase()}`;
+            lang === 'ja' && normalizedReading
+                ? `${lang}::${normalizeHeadword(normalized.word, lang).toLowerCase()}::${normalizedReading}`
+                : `${lang}::${normalizeHeadword(normalized.word, lang).toLowerCase()}`;
 
         if (normalized.word) {
             if (identityMap.has(identity)) {
@@ -1476,8 +1479,11 @@ window.toggleModal = (id, show) => {
 
 window.showToast = (msg) => {
     let t = document.getElementById('toast');
-    t.innerText = msg; t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2000);
+    if (!t) return;
+    t.innerText = msg;
+    t.classList.add('show');
+    if (window._toastTimer) clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => t.classList.remove('show'), 2000);
 };
 
 window.showConfirm = (title, msg, onConfirm, { confirmLabel = '确定', danger = false } = {}) => {
@@ -1534,6 +1540,29 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     };
 };
 
+/* Explicit Lifecycle Hook Bus — Replaces nested monkey-patch chains */
+const ZhongriHooks = (() => {
+    const listeners = new Map();
+    return Object.freeze({
+        on(eventName, handler) {
+            if (typeof handler !== 'function') return () => {};
+            let set = listeners.get(eventName);
+            if (!set) {
+                set = new Set();
+                listeners.set(eventName, set);
+            }
+            set.add(handler);
+            return () => set.delete(handler);
+        },
+        emit(eventName, payload) {
+            const set = listeners.get(eventName);
+            if (!set || set.size === 0) return;
+            set.forEach(handler => handler(payload));
+        }
+    });
+})();
+window.ZhongriHooks = ZhongriHooks;
+
 const Nav = {
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -1557,10 +1586,9 @@ const Nav = {
                 this.switchTab(targetId, titleData, e.currentTarget);
             });
         });
-
-
     },
-        switchTab(targetId, titleData, navItemEl) {
+    _entranceAnim: null,
+    switchTab(targetId, titleData, navItemEl) {
         if (Model.state.batchMode || Model.state.manageMode) {
             Model.state.batchMode = false;
             Model.state.manageMode = false;
@@ -1570,6 +1598,14 @@ const Nav = {
             Model.state.renderedStartIndex = -1; 
         }
 
+        const previous = document.querySelector('.nav-item.active');
+        const changed = previous?.dataset.target !== targetId;
+        if (this._entranceAnim) {
+            this._entranceAnim.cancel();
+            this._entranceAnim = null;
+        }
+        window.ZhongriPopovers?.closeAll();
+
         document.querySelectorAll('.nav-item').forEach(el => {
             el.classList.remove('active');
             el.removeAttribute('aria-current');
@@ -1578,7 +1614,6 @@ const Nav = {
             navItemEl.classList.add('active');
             navItemEl.setAttribute('aria-current', 'page');
         }
-
 
         document.querySelectorAll('.tab-content').forEach(el => {
             el.classList.add('hidden');
@@ -1590,6 +1625,12 @@ const Nav = {
             targetEl.classList.remove('hidden');
             void targetEl.offsetWidth; 
             targetEl.classList.add('active');
+            if (changed && !isMotionReduced() && typeof targetEl.animate === 'function') {
+                this._entranceAnim = targetEl.animate([
+                    { opacity: 0, transform: 'translateY(6px)' },
+                    { opacity: 1, transform: 'translateY(0)' }
+                ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+            }
         }
 
         if (titleData) {
@@ -1608,6 +1649,7 @@ const Nav = {
             }
         }
         
+        ZhongriHooks.emit('nav:switch', { targetId, titleData, navItemEl });
         window.dispatchEvent(new Event('scroll')); 
     }
 };
@@ -3204,6 +3246,10 @@ const Model = {
   },
 
   async init() {
+      if (window.__zhongriInitialWordbankPromise) {
+          await window.__zhongriInitialWordbankPromise;
+      }
+
       const initialLanguage =
           localStorage.getItem('langMode') === 'en'
               ? 'en'
@@ -3944,13 +3990,17 @@ const Model = {
       return this.writeStorageValue('starredWords', this.stars);
   },
   saveRecords() {
-      return this.writeStorageValue('studyRecords', this.records);
+      const result = this.writeStorageValue('studyRecords', this.records);
+      Promise.resolve(result).then(() => ZhongriHooks.emit('study:data-changed'), () => {});
+      return result;
   },
   saveFsrs() {
-      return Promise.all([
+      const result = Promise.all([
           this.writeStorageValue('fsrsCards_v1', this.fsrsCards),
           this.writeStorageValue('fsrsReviewLogs_v1', this.fsrsReviewLogs.slice(-500))
       ]);
+      Promise.resolve(result).then(() => ZhongriHooks.emit('study:data-changed'), () => {});
+      return result;
   },
   recordFsrsReview({ word, dimension, rating = 'good', source = 'study', now = new Date() } = {}) {
       if (!word || !globalThis.ZhongriFsrsScheduler) return null;
@@ -4025,6 +4075,7 @@ const Model = {
                             item.w.meaning.toLowerCase().includes(searchQuery);
           return matchFolder && matchSearch;
       });
+      ZhongriHooks.emit('wordbank:filtered', { searchQuery, currentFilter });
   },
 
 
@@ -4200,6 +4251,15 @@ isSpeechUnlocked: false,
         this.isSpeechUnlocked = true; 
     } catch(e) {}
 },
+getSpeechRate(isSentence = false, engine = 'azure') {
+    const raw = Number.parseFloat(localStorage.getItem('ttsRate') || '1');
+    const multiplier = Number.isFinite(raw) && raw >= 0.5 && raw <= 1.5 ? raw : 1;
+    const base = engine === 'local'
+        ? (isSentence ? 0.8 : 0.85)
+        : (isSentence ? 0.82 : 0.9);
+    return Math.min(1.5, Math.max(0.55, Number((base * multiplier).toFixed(2))));
+},
+
 fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
     if (!window.speechSynthesis) {
         if (onComplete) onComplete();
@@ -4209,7 +4269,7 @@ fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
     setTimeout(() => {
         let msg = new SpeechSynthesisUtterance(text);
         msg.lang = lang;
-        msg.rate = isSentence ? 0.75 : 0.8;
+        msg.rate = this.getSpeechRate(isSentence, 'local');
         
         let voices = window.speechSynthesis.getVoices();
         if (lang === 'en-US') {
@@ -4267,7 +4327,11 @@ async speakText(text, btnEl = null, lang = 'ja') {
             const ttsLang = lang === 'en' ? 'en-US' : (lang === 'zh' ? 'zh-CN' : 'ja-JP');
 
 
- if (engine === 'local' || (engine === 'youdao' && isSentence)) {
+ if (
+    engine === 'local' ||
+    (engine === 'youdao' && isSentence) ||
+    (typeof navigator !== 'undefined' && navigator.onLine === false)
+ ) {
     this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang);
     return;
 }
@@ -4282,7 +4346,7 @@ if (engine === 'youdao') {
         this._currentAudio = null;
     }
     const audio = new Audio(url);
-    audio.playbackRate = 0.85;
+    audio.playbackRate = this.getSpeechRate(isSentence, 'youdao');
     audio.oncanplaythrough = revertBtn; 
     audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
     this._currentAudio = audio;
@@ -4310,7 +4374,7 @@ if (engine === 'azure') {
     }
 
     const audio = new Audio(URL.createObjectURL(blob));
-    audio.playbackRate = isSentence ? 0.75 : 0.85;
+    audio.playbackRate = this.getSpeechRate(isSentence, 'azure');
     audio.oncanplaythrough = revertBtn; 
     audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
     this._currentAudio = audio;
@@ -5347,7 +5411,11 @@ const View = {
 
   updateWordbankUI() {
     let searchInput = this.getEl('wb-search-input');
-    if (searchInput) searchInput.placeholder = Model.state.currentLangMode === 'en' ? '搜索英文、音标或释义...' : '搜索汉字、假名或释义...';
+    if (searchInput) {
+        searchInput.placeholder = Model.state.currentLangMode === 'en' ? '搜索英文、音标或释义...' : '搜索汉字、假名或释义...';
+        const clearBtn = this.getEl('wb-search-clear');
+        if (clearBtn) clearBtn.hidden = !searchInput.value.trim();
+    }
     
     let modeSel = this.getEl('next-display-mode');
     if (modeSel) {
@@ -5406,6 +5474,8 @@ const View = {
         blurKanaBtn.innerText = selLang === 'en' ? '仅显音标' : '仅显假名';
         blurKanaBtn.classList.remove('jp-only'); // 挣脱日语专属束缚，允许在英语模式下显示
     }
+
+    ZhongriHooks.emit('wordbank:ui-updated');
 
 
     const groupOverlay =
@@ -5575,6 +5645,55 @@ Object.entries(Model.mtWordClears).forEach(([wordKey, st]) => {
             btn.className = 'btn-long-press';
             btn.innerHTML = `<div class="lp-bg"></div><span class="lp-text"><span class="material-symbols-rounded" style="font-size:1.6rem;">fingerprint</span> 长按打卡</span>`;
         }
+    }
+    this.renderCheckinLedger();
+  },
+
+  renderCheckinLedger() {
+    const grid = this.getEl('checkin-stamp-grid');
+    const summaryEl = this.getEl('checkin-ledger-summary');
+    if (!grid) return;
+
+    const toKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const stampedDates = new Set();
+
+    (Model.records || []).forEach(r => {
+        if (!r || (r.type !== 'daily_punch' && r.type !== 'pendulum') || !r.date) return;
+        const parsed = Model.parseLocalDate(r.date);
+        if (parsed) stampedDates.add(toKey(parsed));
+    });
+    (Model.fsrsReviewLogs || []).forEach(log => {
+        if (!log?.review) return;
+        const parsed = Model.parseLocalDate(log.review);
+        if (parsed) stampedDates.add(toKey(parsed));
+    });
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayKey = toKey(today);
+    // Align 28-day grid (4 full weeks) so columns match 日..六 cleanly
+    const endDow = today.getDay();
+    const totalCells = 28;
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (21 + endDow));
+
+    let recentStamped = 0;
+    const cells = [];
+    for (let i = 0; i < totalCells; i++) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i);
+        const key = toKey(d);
+        const isFuture = d.getTime() > today.getTime();
+        const isToday = key === todayKey;
+        const isStamped = !isFuture && stampedDates.has(key);
+        if (isStamped) recentStamped++;
+        const dayNum = d.getDate();
+        const label = `${d.getMonth() + 1}月${dayNum}日${isStamped ? ' · 已落印' : (isToday ? ' · 今日' : '')}`;
+        cells.push(
+            `<span class="checkin-stamp-cell${isStamped ? ' is-stamped' : ''}${isToday ? ' is-today' : ''}${isFuture ? ' is-future' : ''}" role="listitem" title="${label}" aria-label="${label}">${dayNum}</span>`
+        );
+    }
+    grid.innerHTML = cells.join('');
+    if (summaryEl) {
+        summaryEl.textContent = `近 28 天 ${recentStamped} 印`;
     }
   },
 
@@ -7368,6 +7487,13 @@ const Controller = {
         ttsSelect.dispatchEvent(new Event('facade-update')); 
     }
 
+    let savedTTSRate = localStorage.getItem('ttsRate') || '1';
+    let ttsRateSelect = View.getEl('setting-tts-rate');
+    if (ttsRateSelect) {
+        ttsRateSelect.value = ['0.75', '1', '1.25'].includes(savedTTSRate) ? savedTTSRate : '1';
+        ttsRateSelect.dispatchEvent(new Event('facade-update'));
+    }
+
 
 let savedMode = localStorage.getItem('displayMode') || 'all'; View.getEl('next-display-mode').value = savedMode;
 
@@ -7999,6 +8125,16 @@ if (ttsSelectTrigger) {
     });
 }
 
+    let ttsRateTrigger = View.getEl('setting-tts-rate');
+    if (ttsRateTrigger) {
+        ttsRateTrigger.addEventListener('change', (e) => {
+            Hardware.playSound('click'); Hardware.vibrate(15);
+            localStorage.setItem('ttsRate', e.target.value);
+            const rateNames = { '0.75': '0.75× 慢速', '1': '1.0× 标准语速', '1.25': '1.25× 较快' };
+            showToast(`已设为 ${rateNames[e.target.value] || '1.0× 标准语速'}`);
+        });
+    }
+
 
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
@@ -8016,9 +8152,17 @@ if (testVibrateBtn) {
     });
 }
 
-        let searchInput = View.getEl('wb-search-input');
+    let searchInput = View.getEl('wb-search-input');
+    let searchClearBtn = View.getEl('wb-search-clear');
+    const syncSearchClear = () => {
+        if (searchClearBtn && searchInput) {
+            searchClearBtn.hidden = !searchInput.value.trim();
+        }
+    };
     if (searchInput) {
+        syncSearchClear();
         searchInput.addEventListener('input', () => {
+            syncSearchClear();
             if (Model.state.batchMode) Controller.toggleBatchMode();
             View.resetWordbankRenderer();
         });
@@ -8026,6 +8170,16 @@ if (testVibrateBtn) {
             if (e.key === 'Enter') {
                 searchInput.blur();
             }
+        });
+    }
+    if (searchClearBtn && searchInput) {
+        searchClearBtn.addEventListener('click', () => {
+            Hardware.playSound('click');
+            Hardware.vibrate(10);
+            searchInput.value = '';
+            syncSearchClear();
+            searchInput.dispatchEvent(new Event('input'));
+            searchInput.focus();
         });
     }
 
@@ -8401,6 +8555,11 @@ if (testVibrateBtn) {
         'click',
         () => this.toggleBatchMode(false)
     );
+    View.getEl('btn-new-word')?.addEventListener('click', event => {
+        const menu = event.currentTarget.closest('details');
+        if (menu) menu.open = false;
+        this.openNewWordModal();
+    });
     View.getEl('btn-new-folder').addEventListener('click', event => {
         const menu = event.currentTarget.closest('details');
         if (menu) menu.open = false;
@@ -8517,6 +8676,49 @@ if (testVibrateBtn) {
         }
     });
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
+    this.bindDetailCardSwipe();
+
+    View.getEl('btn-summary-home')?.addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(12);
+        window.toggleModal('study-summary-overlay', false);
+    });
+    View.getEl('study-summary-overlay')?.addEventListener('click', event => {
+        if (event.target === event.currentTarget) {
+            window.toggleModal('study-summary-overlay', false);
+        }
+    });
+    View.getEl('btn-summary-practice-weak')?.addEventListener('click', () => {
+        const indices = this._lastSummaryAction?.weakIndices || [];
+        window.toggleModal('study-summary-overlay', false);
+        if (indices.length) {
+            Hardware.unlockSpeech();
+            this.startWeakWordsPractice(indices);
+        }
+    });
+    View.getEl('btn-summary-next-group')?.addEventListener('click', () => {
+        const next = this._lastSummaryAction?.nextGroup;
+        window.toggleModal('study-summary-overlay', false);
+        if (next) {
+            Hardware.unlockSpeech();
+            Model.state.currentGroupKey = next.groupKey;
+            Model.state.currentGroupLabel = next.groupLabel;
+            localStorage.setItem('lastCustomGroupVal', next.groupKey);
+            localStorage.setItem('lastCustomGroupTxt', next.groupLabel);
+            const groupText = View.getEl('custom-group-text');
+            if (groupText) groupText.innerText = next.groupLabel;
+            this.startPendulum(next.launchMode || 'pendulum');
+        }
+    });
+    View.getEl('study-summary-weak-list')?.addEventListener('click', event => {
+        const chip = event.target.closest('[data-summary-word-idx]');
+        if (!chip) return;
+        const idx = Number.parseInt(chip.dataset.summaryWordIdx, 10);
+        const w = Model.db[idx];
+        if (!w) return;
+        Hardware.vibrate(12);
+        Hardware.speakWord(w);
+    });
     View.getEl('btn-save-edit').addEventListener('click', () => {
         Hardware.vibrate(20);
 
@@ -8701,7 +8903,7 @@ if (testVibrateBtn) {
             if (activeModal.id === 'root-review-overlay') return;
             e.preventDefault();
             const close = activeModal.querySelector(
-                '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #btn-cancel-move, #detail-close'
+                '[data-sheet-close], #prompt-cancel, #dialog-cancel, #btn-cancel-edit, #btn-cancel-move, #detail-close, #btn-summary-home'
             );
             if (close) close.click();
             else window.toggleModal(activeModal.id, false);
@@ -9952,6 +10154,173 @@ if (testVibrateBtn) {
     return { currentLang, groupKey, groupLabel, sourceWords };
     },
 
+    beginStudySession({ mode, label = '', totalWords = 0, groupKey = '' } = {}) {
+        Model.state.sessionMetrics = {
+            mode,
+            label,
+            groupKey,
+            startedAt: Date.now(),
+            totalWords,
+            attempts: 0,
+            correctCount: 0,
+            weakWordIndices: new Set()
+        };
+    },
+
+    trackSessionOutcome(wordOrIdx, isCorrect) {
+        const m = Model.state.sessionMetrics;
+        if (!m) return;
+        m.attempts++;
+        if (isCorrect) {
+            m.correctCount++;
+        } else {
+            const idx = typeof wordOrIdx === 'number'
+                ? wordOrIdx
+                : Model.db.indexOf(wordOrIdx);
+            if (idx >= 0) m.weakWordIndices.add(idx);
+        }
+    },
+
+    getNextGroupInfo(groupKey, launchMode = 'pendulum') {
+        if (!groupKey || typeof groupKey !== 'string') return null;
+        const [prefix, catName, indexText] = groupKey.split('|');
+        const groupIndex = Number.parseInt(indexText, 10);
+        if (prefix !== 'group' || !catName || !Number.isInteger(groupIndex) || groupIndex < 0) return null;
+
+        const currentLang = Model.state.currentLangMode;
+        const groupWords = Model.db
+            .map((w, i) => ({ w, i }))
+            .filter(item => (item.w.lang || 'ja') === currentLang && Model.checkFilter(item.w, catName));
+        const nextIndex = groupIndex + 1;
+        const nextRange = ROTE_CORE.getGroupRange(nextIndex, groupWords.length);
+        if (!nextRange.hasWords) return null;
+
+        const virtualLabels = {
+            virtual_cleared: '完全通关',
+            virtual_uncleared: '所有未通关',
+            virtual_miss_kanji: currentLang === 'en' ? '未掌握拼写' : '未了解汉字',
+            virtual_miss_kana: currentLang === 'en' ? '未掌握听力' : '未了解读音',
+            virtual_miss_meaning: '未了解释义',
+            virtual_starred: '收藏'
+        };
+        const categoryLabel = catName === 'default' ? '默认词库' : (virtualLabels[catName] || catName);
+        return {
+            groupKey: `group|${catName}|${nextIndex}`,
+            groupLabel: `${categoryLabel}（第 ${nextRange.labelStart}–${nextRange.labelEnd} 词）`,
+            launchMode
+        };
+    },
+
+    startWeakWordsPractice(indices) {
+        const valid = [...new Set(indices)].filter(i => Number.isInteger(i) && Model.db[i]);
+        if (!valid.length) {
+            showToast('本轮没有需要强化的薄弱词');
+            return;
+        }
+        Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
+        Model.state.isAnimating = false;
+        Model.state.mode = 'dual-track';
+        Model.state.isWrongBookPractice = true;
+        Model.state.currentIndex = 0;
+        Model.state.dtWordAppearanceMap = {};
+        Model.state.currentWordFailed = false;
+        Model.state.comboCount = 0;
+        Model.state.maxProgressSeen = 0;
+        Model.state.uniqueWordCount = valid.length;
+        Model.state.studyQueue = [];
+        valid.forEach(idx => {
+            Model.state.dtWordAppearanceMap[idx] = 2;
+            Model.state.studyQueue.push(idx, idx);
+        });
+        Model.state.studyQueue.sort(() => Math.random() - 0.5);
+        Model.state.initialQueueLength = Model.state.studyQueue.length;
+        this.beginStudySession({
+            mode: 'dual-track',
+            label: '本轮薄弱词专项',
+            totalWords: valid.length,
+            groupKey: ''
+        });
+        View.updateComboBadge();
+        View.showPage('study-area');
+        const matrix = View.getEl('pixel-matrix');
+        if (matrix) matrix.innerHTML = '';
+        View.renderStudyCard('none');
+        Hardware.vibrate(40);
+    },
+
+    showStudySummary({ mode = '', title = '本轮学习完成', subtitle = '', totalWords = 0, groupKey = '', allowNextGroup = false } = {}) {
+        const overlay = View.getEl('study-summary-overlay');
+        if (!overlay) return;
+        const m = Model.state.sessionMetrics || { startedAt: Date.now(), attempts: 0, correctCount: 0, weakWordIndices: new Set() };
+        const elapsedSec = Math.max(1, Math.round((Date.now() - (m.startedAt || Date.now())) / 1000));
+        const durationText = elapsedSec >= 60
+            ? `${Math.floor(elapsedSec / 60)}分${String(elapsedSec % 60).padStart(2, '0')}秒`
+            : `${elapsedSec} 秒`;
+        const count = totalWords || m.totalWords || 0;
+        const accuracyText = m.attempts > 0
+            ? `${Math.round((m.correctCount / m.attempts) * 100)}%`
+            : '已通关';
+        const accuracyLabel = m.attempts > 0 ? '本轮正确率' : '本轮状态';
+        const weakIndices = [...(m.weakWordIndices || [])].filter(i => Model.db[i]);
+
+        const titleEl = View.getEl('study-summary-title');
+        const subtitleEl = View.getEl('study-summary-subtitle');
+        const metricsEl = View.getEl('study-summary-metrics');
+        const weakWrap = View.getEl('study-summary-weak-wrap');
+        const weakList = View.getEl('study-summary-weak-list');
+        const weakBtn = View.getEl('btn-summary-practice-weak');
+        const nextBtn = View.getEl('btn-summary-next-group');
+
+        if (titleEl) titleEl.textContent = title;
+        if (subtitleEl) subtitleEl.textContent = subtitle || m.label || '已记录今日学习进度';
+        if (metricsEl) {
+            metricsEl.innerHTML = `
+                <div class="study-summary-metric">
+                    <span class="study-summary-metric-val">${count}</span>
+                    <span class="study-summary-metric-label">本轮词汇</span>
+                </div>
+                <div class="study-summary-metric">
+                    <span class="study-summary-metric-val">${accuracyText}</span>
+                    <span class="study-summary-metric-label">${accuracyLabel}</span>
+                </div>
+                <div class="study-summary-metric">
+                    <span class="study-summary-metric-val">${durationText}</span>
+                    <span class="study-summary-metric-label">学习用时</span>
+                </div>
+            `;
+        }
+
+        if (weakWrap && weakList) {
+            if (weakIndices.length > 0) {
+                weakWrap.hidden = false;
+                weakList.innerHTML = weakIndices.slice(0, 12).map(idx => {
+                    const w = Model.db[idx];
+                    const sub = w.lang === 'en' ? (w.phonetic || '') : (w.kana || '');
+                    return `<button type="button" class="study-summary-weak-chip" data-summary-word-idx="${idx}" title="点击听发音"><strong>${escapeHTML(w.word || '')}</strong>${sub ? `<span>${escapeHTML(sub)}</span>` : ''}</button>`;
+                }).join('');
+            } else {
+                weakWrap.hidden = true;
+                weakList.innerHTML = '';
+            }
+        }
+
+        const nextGroup = allowNextGroup ? this.getNextGroupInfo(groupKey || m.groupKey, mode || m.mode) : null;
+        this._lastSummaryAction = { weakIndices, nextGroup };
+
+        if (weakBtn) {
+            weakBtn.hidden = weakIndices.length === 0;
+            const span = weakBtn.querySelector('span:last-child');
+            if (span) span.textContent = `只练薄弱词（${weakIndices.length}）`;
+        }
+        if (nextBtn) {
+            nextBtn.hidden = !nextGroup;
+            nextBtn.classList.toggle('ui-primary-action', weakIndices.length === 0);
+            nextBtn.classList.toggle('btn-outline', weakIndices.length > 0);
+        }
+
+        window.toggleModal('study-summary-overlay', true);
+    },
+
     startPendulum(launchMode = 'pendulum') {
     const { currentLang, groupKey, groupLabel, sourceWords } = this.getStudyGroup();
     if (!sourceWords.length) {
@@ -9970,6 +10339,7 @@ if (testVibrateBtn) {
     localStorage.setItem('lastCustomGroupTxt', groupLabel);
     Hardware.playSound('click'); 
     Model.state.mode = launchMode; Model.state.currentIndex = 0; Model.state.dtWordAppearanceMap = {}; Model.state.mtStep = 1; Model.state.currentWordFailed = false; Model.state.comboCount = 0; Model.state.maxProgressSeen = 0; Model.state.uniqueWordCount = sourceWords.length;
+    this.beginStudySession({ mode: launchMode, label: groupLabel, totalWords: sourceWords.length, groupKey });
     if (launchMode === 'memory-test') {
         Model.state.mtRound = 1;
         Model.state.mtBaseQueue = sourceWords.map(x => x.i);
@@ -10145,6 +10515,12 @@ if (testVibrateBtn) {
 
       Model.state.studyQueue =
           this.buildFilterTestQueue(rawQueue);
+      this.beginStudySession({
+          mode: 'filter-test',
+          label: '靶向检验',
+          totalWords: Model.state.studyQueue.length,
+          groupKey: ''
+      });
       
       View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
   },
@@ -10164,6 +10540,12 @@ if (testVibrateBtn) {
         Model.state.fsrsAnswerRevealed = false;
         Model.state.currentIndex = 0;
         Model.state.initialQueueLength = items.length;
+        this.beginStudySession({
+            mode: 'fsrs-review',
+            label: '到期间隔复习',
+            totalWords: items.length,
+            groupKey: ''
+        });
         View.getEl('capsule-pendulum')?.classList.add('hidden');
         View.getEl('capsule-filter-test')?.classList.add('hidden');
         View.getEl('capsule-filter-judge')?.classList.add('hidden');
@@ -10238,6 +10620,7 @@ if (testVibrateBtn) {
         Model.state.isAnimating = true;
         const sessionId = Model.state.studySessionId || 0;
         Model.recordFsrsReview({ word: item.word, dimension: item.dimension, rating, source: 'fsrs-review' });
+        this.trackSessionOutcome(item.word, rating !== 'again');
         Hardware.playSound(rating === 'again' ? 'error' : 'success');
         Hardware.vibrate(rating === 'again' ? 35 : 20);
         window.setTimeout(() => {
@@ -10245,8 +10628,14 @@ if (testVibrateBtn) {
             Model.state.isAnimating = false;
             Model.state.currentIndex++;
             if (Model.state.currentIndex >= Model.state.fsrsReviewItems.length) {
-                showToast('今日复习完成');
+                const reviewedCount = Model.state.fsrsReviewItems.length;
                 View.getEl('btn-exit-study')?.click();
+                this.showStudySummary({
+                    mode: 'fsrs-review',
+                    title: '今日复习完成',
+                    subtitle: 'FSRS 记忆曲线已按本次回忆质量更新',
+                    totalWords: reviewedCount
+                });
             } else {
                 Model.state.fsrsAnswerRevealed = false;
                 View.renderStudyCard('next');
@@ -10333,11 +10722,17 @@ if (testVibrateBtn) {
           Model.state.ftShowKanaHint = false;
 
           if (Model.state.currentIndex >= Model.state.studyQueue.length) {
+              const testedCount = Model.state.studyQueue.length;
               Model.state.isAnimating = false;
               Hardware.playSound('success');
               Hardware.vibrate(1000);
-              showToast('恭喜，全部靶向检验完成！');
               View.getEl('btn-exit-study').click();
+              this.showStudySummary({
+                  mode: 'filter-test',
+                  title: '靶向检验完成',
+                  subtitle: '已同步更新三维掌握度与复习计划',
+                  totalWords: testedCount
+              });
           } else {
               View.renderStudyCard('next');
           }
@@ -10689,13 +11084,29 @@ if (testVibrateBtn) {
   },
 
     finishPendulum() {
-    Hardware.playSound('success'); Hardware.vibrate(1000); let t = new Date().toLocaleDateString('zh-CN');
+    Hardware.playSound('success'); Hardware.vibrate(1000);
+    const finishedMode = Model.state.mode;
+    const groupKey = Model.state.currentGroupKey;
+    const groupLabel = Model.state.currentGroupLabel;
 
+    if (Model.state.isWrongBookPractice) {
+        const practicedCount = Model.state.uniqueWordCount || [...new Set(Model.state.studyQueue)].length;
+        Model.state.isWrongBookPractice = false;
+        View.getEl('btn-exit-study')?.click();
+        this.showStudySummary({
+            mode: finishedMode,
+            title: '薄弱词强化完成',
+            subtitle: '连续答对会逐步移出错题本',
+            totalWords: practicedCount,
+            allowNextGroup: false
+        });
+        return;
+    }
 
-    let gk = Model.state.currentGroupKey;
-    Model.mtGroupClears[gk] = (Model.mtGroupClears[gk] || 0) + 1;
-    
-    let uniqueIndices = Model.state.mode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
+    let t = new Date().toLocaleDateString('zh-CN');
+    Model.mtGroupClears[groupKey] = (Model.mtGroupClears[groupKey] || 0) + 1;
+
+    let uniqueIndices = finishedMode === 'memory-test' ? Model.state.mtBaseQueue : [...new Set(Model.state.studyQueue)];
     uniqueIndices.forEach(idx => {
         const word = Model.db[idx];
         const clearState = Model.ensureClearState(word);
@@ -10710,9 +11121,17 @@ if (testVibrateBtn) {
     });
     Model.saveClears();
 
-    let exist = Model.records.findIndex(x => x.date === t && x.group === Model.state.currentGroupLabel && x.type === 'pendulum');
-    if(exist === -1) { Model.records.unshift({date: t, group: Model.state.currentGroupLabel, type: 'pendulum'}); Model.saveRecords(); }
-    showToast("任务完成！该组词汇已全部通关"); View.getEl('btn-exit-study').click();
+    let exist = Model.records.findIndex(x => x.date === t && x.group === groupLabel && x.type === 'pendulum');
+    if(exist === -1) { Model.records.unshift({date: t, group: groupLabel, type: 'pendulum'}); Model.saveRecords(); }
+    View.getEl('btn-exit-study').click();
+    this.showStudySummary({
+        mode: finishedMode,
+        title: '本组词汇已通关',
+        subtitle: groupLabel || '已记录今日通关印章',
+        totalWords: uniqueIndices.length,
+        groupKey,
+        allowNextGroup: true
+    });
   },
 
 
@@ -11016,6 +11435,70 @@ showConfirm('批量删除', '确定要删除选中的所有单词吗？', () => 
         showToast("已批量删除"); 
     }); 
 },
+  openNewWordModal() {
+    window.ZhongriPopovers?.closeAll();
+    const lang = Model.state.currentLangMode === 'en' ? 'en' : 'ja';
+    const isEnglish = lang === 'en';
+    const currentFilter = View.getEl('wb-folder-filter')?.value || 'all';
+    const defaultFolder =
+        Model.folders.find(f => (Model.folderLangs[f] || 'ja') === lang) || '默认词库';
+    const targetFolder =
+        currentFilter !== 'all' &&
+        !String(currentFilter).startsWith('virtual_') &&
+        Model.folders.includes(currentFilter)
+            ? currentFilter
+            : defaultFolder;
+
+    Model.editingIdx = -1;
+    Controller.pendingWordDraft = { lang, folder: targetFolder };
+
+    const titleEl = View.getEl('edit-dialog-title');
+    const saveBtn = View.getEl('btn-save-edit');
+    if (titleEl) {
+        titleEl.innerHTML =
+            '<span class="material-symbols-rounded">edit_square</span> 新建词条';
+    }
+    if (saveBtn) {
+        saveBtn.textContent = '加入词库';
+    }
+
+    View.getEl('edit-word').value = '';
+    View.getEl('edit-kana').value = '';
+    View.getEl('edit-type').value = isEnglish ? 'n.' : '名';
+    View.getEl('edit-meaning').value = '';
+    View.getEl('edit-example').value = '';
+
+    const levelSelect = View.getEl('edit-level');
+    if (levelSelect) {
+        this.populateWordLevelSelect(levelSelect, lang, '');
+    }
+    const difficultySelect = View.getEl('edit-difficulty');
+    if (difficultySelect) {
+        difficultySelect.value = '0';
+        difficultySelect.dispatchEvent(new Event('facade-update'));
+    }
+    const tagsInput = View.getEl('edit-tags');
+    if (tagsInput) tagsInput.value = '';
+    const rootsInput = View.getEl('edit-roots');
+    if (rootsInput) rootsInput.value = '';
+
+    const readingLabel = View.getEl('edit-reading-label');
+    if (readingLabel) {
+        readingLabel.textContent = isEnglish ? '音标' : '假名';
+    }
+    const rootsGroup = View.getEl('edit-roots-group');
+    if (rootsGroup) {
+        rootsGroup.style.display = isEnglish ? 'block' : 'none';
+    }
+
+    Hardware.playSound('click');
+    Hardware.vibrate(15);
+    window.toggleModal('edit-overlay', true);
+    setTimeout(() => {
+        View.getEl('edit-word')?.focus({ preventScroll: true });
+    }, 80);
+  },
+
   editWord(idx) {
     Controller.pendingWordDraft = null;
     Model.editingIdx = idx;
@@ -11657,6 +12140,108 @@ deleteWord(idx) {
       window.toggleModal('detail-overlay', true); 
       this.renderDetailCard('none', true); 
   },
+
+  bindDetailCardSwipe() {
+      const card = View.getEl('detail-card-container');
+      const wrapper = View.getEl('dt-anim-wrapper');
+      if (!card || !wrapper || card.dataset.swipeBound === 'true') return;
+      card.dataset.swipeBound = 'true';
+
+      let pointerId = null;
+      let startX = 0;
+      let startY = 0;
+      let lastX = 0;
+      let lastTime = 0;
+      let velocityX = 0;
+      let locked = null; // 'h' | 'v' | null
+
+      const resetWrapper = (animate = true) => {
+          if (animate && !isMotionReduced()) {
+              wrapper.style.transition = 'transform 0.22s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.22s cubic-bezier(0.23, 1, 0.32, 1)';
+          } else {
+              wrapper.style.transition = 'none';
+          }
+          wrapper.style.transform = '';
+          wrapper.style.opacity = '';
+          if (animate) {
+              setTimeout(() => { wrapper.style.transition = ''; }, 240);
+          }
+      };
+
+      card.addEventListener('pointerdown', (e) => {
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (Model.state.detailArray.length <= 1) return;
+          if (e.target.closest('button, input, textarea, select, a, .ex-item, .dt-wrong-summary')) return;
+          pointerId = e.pointerId;
+          startX = lastX = e.clientX;
+          startY = e.clientY;
+          lastTime = performance.now();
+          velocityX = 0;
+          locked = null;
+      });
+
+      card.addEventListener('pointermove', (e) => {
+          if (pointerId === null || e.pointerId !== pointerId) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+
+          if (!locked) {
+              if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+                  locked = 'h';
+                  try { card.setPointerCapture(pointerId); } catch (_) {}
+                  wrapper.style.transition = 'none';
+              } else if (Math.abs(dy) > 12 && Math.abs(dy) >= Math.abs(dx)) {
+                  locked = 'v';
+                  pointerId = null;
+                  return;
+              } else {
+                  return;
+              }
+          }
+
+          if (locked === 'h') {
+              const now = performance.now();
+              const dt = Math.max(1, now - lastTime);
+              velocityX = (e.clientX - lastX) / dt;
+              lastX = e.clientX;
+              lastTime = now;
+              const clamped = Math.max(-140, Math.min(140, dx));
+              wrapper.style.transform = `translate3d(${clamped}px, 0, 0)`;
+              wrapper.style.opacity = String(Math.max(0.66, 1 - Math.abs(clamped) / 360));
+          }
+      });
+
+      const finishSwipe = (e) => {
+          if (pointerId === null || e.pointerId !== pointerId) return;
+          const dx = e.clientX - startX;
+          const wasHorizontal = locked === 'h';
+          pointerId = null;
+          locked = null;
+          if (!wasHorizontal) return;
+
+          const shouldNavigate =
+              Math.abs(dx) > 56 ||
+              (Math.abs(velocityX) > 0.35 && Math.abs(dx) > 20);
+
+          if (shouldNavigate) {
+              wrapper.style.transition = '';
+              wrapper.style.transform = '';
+              wrapper.style.opacity = '';
+              this.navDetail(dx < 0 ? 1 : -1);
+          } else {
+              resetWrapper(true);
+          }
+      };
+
+      card.addEventListener('pointerup', finishSwipe);
+      card.addEventListener('pointercancel', (e) => {
+          if (pointerId === null || e.pointerId !== pointerId) return;
+          pointerId = null;
+          const wasH = locked === 'h';
+          locked = null;
+          if (wasH) resetWrapper(true);
+      });
+  },
   
   navDetail(dir) { 
       Model.state.activeDetailIdx += dir; 
@@ -11879,6 +12464,7 @@ deleteWord(idx) {
           );
       } 
       if (triggerTTS && localStorage.getItem('autoSpeak') !== 'false') { Hardware.speakWord(w); } 
+      ZhongriHooks.emit('detail:updated', { word: w, triggerTTS });
   },
 
 };
@@ -12140,6 +12726,9 @@ deleteWord(idx) {
         source = 'study',
         question = ''
     }) {
+        if (word && typeof Controller.trackSessionOutcome === 'function') {
+            Controller.trackSessionOutcome(word, Boolean(correct));
+        }
         if (
             !word ||
             localStorage.getItem('wrongBookEnabled') === 'false'
@@ -12358,16 +12947,12 @@ deleteWord(idx) {
         return originalCheckFilter(word, filterName);
     };
 
-    const originalUpdateFilteredDb =
-        Model.updateFilteredDb.bind(Model);
-    Model.updateFilteredDb = function(searchQuery, currentFilter) {
-        originalUpdateFilteredDb(searchQuery, currentFilter);
-
+    ZhongriHooks.on('wordbank:filtered', ({ currentFilter } = {}) => {
         if (!String(currentFilter).startsWith('virtual_wrong_')) {
             return;
         }
 
-        const words = this.state.filteredDb;
+        const words = Model.state.filteredDb;
         const weight = {
             repeated: 4,
             new: 3,
@@ -12376,8 +12961,8 @@ deleteWord(idx) {
         };
 
         words.sort((a, b) => {
-            const aRecord = this.getWrongRecord(a.w, false) || {};
-            const bRecord = this.getWrongRecord(b.w, false) || {};
+            const aRecord = Model.getWrongRecord(a.w, false) || {};
+            const bRecord = Model.getWrongRecord(b.w, false) || {};
             const statusDiff =
                 (weight[bRecord.status] || 0) -
                 (weight[aRecord.status] || 0);
@@ -12391,8 +12976,7 @@ deleteWord(idx) {
                 (aRecord.totalWrong || 0)
             );
         });
-
-    };
+    });
 
     const ensureWrongBookOptions = () => {
         const select = View.getEl('wb-folder-filter');
@@ -12456,13 +13040,10 @@ deleteWord(idx) {
         count.textContent = `${amount} 词`;
     };
 
-    const originalUpdateWordbankUI = View.updateWordbankUI.bind(View);
-    View.updateWordbankUI = function() {
-        const result = originalUpdateWordbankUI();
+    ZhongriHooks.on('wordbank:ui-updated', () => {
         ensureWrongBookOptions();
         updateWrongToolbar();
-        return result;
-    };
+    });
 
     const renderWrongSummary = word => {
         const container = View.getEl('dt-wrong-summary');
@@ -12515,21 +13096,9 @@ deleteWord(idx) {
         `;
     };
 
-    const originalUpdateDetailContent =
-        Controller.updateDetailContent.bind(Controller);
-    Controller.updateDetailContent = function(word, triggerTTS = false) {
-        const result = originalUpdateDetailContent(word, triggerTTS);
-
-        View.renderExampleBox(
-            word.example,
-            'dt-example-box',
-            'normal',
-            word
-        );
-
-        renderWrongSummary(word);
-        return result;
-    };
+    ZhongriHooks.on('detail:updated', ({ word } = {}) => {
+        if (word) renderWrongSummary(word);
+    });
 
     const resolveStudyDimension = (
         word,
@@ -12828,6 +13397,12 @@ deleteWord(idx) {
 
         Model.state.studyQueue.sort(() => Math.random() - 0.5);
         Model.state.initialQueueLength = Model.state.studyQueue.length;
+        this.beginStudySession({
+            mode: 'dual-track',
+            label: '智能错题专项',
+            totalWords: selected.length,
+            groupKey: ''
+        });
         View.updateComboBadge();
         View.showPage('study-area');
 
@@ -12838,18 +13413,6 @@ deleteWord(idx) {
 
         View.renderStudyCard('none');
         Hardware.vibrate(40);
-    };
-
-    const originalFinishPendulum =
-        Controller.finishPendulum.bind(Controller);
-    Controller.finishPendulum = function() {
-        if (!Model.state.isWrongBookPractice) {
-            return originalFinishPendulum();
-        }
-
-        Model.state.isWrongBookPractice = false;
-        showToast('错题专项完成，连续答对会逐步移出错题本');
-        View.getEl('btn-exit-study')?.click();
     };
 
     /* ---------- 回收站 ---------- */
@@ -13395,14 +13958,11 @@ deleteWord(idx) {
         updateOnlineStatus();
     }
 
-    const originalNavSwitch = Nav.switchTab.bind(Nav);
-    Nav.switchTab = function(targetId, titleData, navItemEl) {
-        const result = originalNavSwitch(targetId, titleData, navItemEl);
+    ZhongriHooks.on('nav:switch', ({ targetId } = {}) => {
         if (targetId === 'tab-settings') {
             showSettingsSection('');
         }
-        return result;
-    };
+    });
 
     Controller.registerInitExtension('wrongbook-and-settings', async function() {
         ensureWrongBookOptions();
@@ -13560,33 +14120,17 @@ deleteWord(idx) {
         }
     };
 
-    const originalUpdateWordbankUI =
-        View.updateWordbankUI.bind(View);
-
-    View.updateWordbankUI = function() {
-        const result = originalUpdateWordbankUI();
+    ZhongriHooks.on('wordbank:ui-updated', () => {
         syncWordbankMetadataFilters();
-        return result;
-    };
+    });
 
-    const originalUpdateFilteredDb =
-        Model.updateFilteredDb.bind(Model);
-
-    Model.updateFilteredDb = function(
-        searchQuery,
-        currentFilter
-    ) {
-        originalUpdateFilteredDb(
-            searchQuery,
-            currentFilter
-        );
-
+    ZhongriHooks.on('wordbank:filtered', () => {
         const levelFilter =
             View.getEl('wb-level-filter')?.value || '';
         const difficultyFilter =
             View.getEl('wb-difficulty-filter')?.value || '';
 
-        this.state.filteredDb = this.state.filteredDb.filter(item => {
+        Model.state.filteredDb = Model.state.filteredDb.filter(item => {
             const lang = item.w.lang === 'en' ? 'en' : 'ja';
             const level = normalizeWordLevel(item.w.level, lang);
             const difficulty = normalizeWordDifficulty(
@@ -13607,8 +14151,7 @@ deleteWord(idx) {
 
             return levelMatches && difficultyMatches;
         });
-
-    };
+    });
 
     const decorateWordbankCards = () => {
         const grid = View.getEl('wb-grid');
@@ -13761,30 +14304,16 @@ deleteWord(idx) {
         return didRender;
     };
 
-    const originalUpdateDetailContent =
-        Controller.updateDetailContent.bind(Controller);
-
-    Controller.updateDetailContent = function(
-        word,
-        triggerTTS = false
-    ) {
-        const result = originalUpdateDetailContent(
-            word,
-            triggerTTS
-        );
-
+    ZhongriHooks.on('detail:updated', ({ word } = {}) => {
         const meta = View.getEl('dt-meta');
-
-        if (meta) {
+        if (meta && word) {
             meta.innerHTML = getWordMetadataHTML(word, {
                 showUnassigned: true,
                 includeTags: true,
                 specialTagLimit: 2
             });
         }
-
-        return result;
-    };
+    });
 
     Controller.renderVocabularyAudit = function(report) {
         const resultBox = View.getEl('library-audit-result');
@@ -13949,18 +14478,7 @@ deleteWord(idx) {
         );
     };
 
-    ['saveRecords', 'saveFsrs'].forEach(methodName => {
-        const original = Model[methodName];
-        if (typeof original !== 'function') return;
-        Model[methodName] = function (...args) {
-            const result = original.apply(this, args);
-            Promise.resolve(result).then(
-                dispatchReminderDataChanged,
-                () => {}
-            );
-            return result;
-        };
-    });
+    ZhongriHooks.on('study:data-changed', dispatchReminderDataChanged);
 
     window.ZhongriReminderData = Object.freeze({
         getSnapshot() {
@@ -14016,31 +14534,11 @@ window.onload = () => {
 };
 
 
-/* Navigation is interruptible; reading content is static once it arrives. */
+/* Progressive disclosure accordions: interruptible height transitions. */
 (() => {
-    const originalSwitchTab = Nav.switchTab.bind(Nav);
-    let entrance = null;
-    Nav.switchTab = function(targetId, titleData, navItemEl) {
-        const previous = document.querySelector('.nav-item.active');
-        const target = document.getElementById(targetId);
-        const changed = previous?.dataset.target !== targetId;
-        if (entrance) {
-            entrance.cancel();
-            entrance = null;
-        }
-        const result = originalSwitchTab(targetId, titleData, navItemEl);
-        if (changed && target && !isMotionReduced() && typeof target.animate === 'function') {
-            entrance = target.animate([
-                { opacity: 0, transform: 'translateY(6px)' },
-                { opacity: 1, transform: 'translateY(0)' }
-            ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
-        }
-        return result;
-    };
-
-    document.querySelectorAll('.home-progress-details').forEach(details => {
+    document.querySelectorAll('.home-progress-details, .checkin-ledger-details').forEach(details => {
         const summary = details.querySelector('summary');
-        const content = details.querySelector('.home-sub-progress-group');
+        const content = details.querySelector('.home-sub-progress-group, .checkin-ledger-body');
         if (!summary || !content) return;
         let animation = null;
         let targetOpen = details.open;

@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v14">
-<link rel="stylesheet" href="style.css?v=modern-v17">
+<link rel="stylesheet" href="style.css?v=modern-v18">
 </head>
 <body>
 <script>
@@ -297,6 +297,18 @@
               </button>
               <small>按住 1.5 秒记录今日学习<span class="desktop-only-copy">，桌面端可长按空格</span></small>
             </div>
+            <details class="checkin-ledger-details" id="checkin-ledger-details">
+              <summary>
+                <span class="checkin-ledger-title">打卡印谱 <small id="checkin-ledger-summary">近 28 天 0 印</small></span>
+                <span aria-hidden="true" class="material-symbols-rounded">expand_more</span>
+              </summary>
+              <div class="checkin-ledger-body">
+                <div class="checkin-weekdays" aria-hidden="true">
+                  <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                </div>
+                <div id="checkin-stamp-grid" class="checkin-stamp-grid" role="list" aria-label="近 28 天打卡印谱"></div>
+              </div>
+            </details>
           </section>
         </div>
       </aside>
@@ -317,6 +329,9 @@
         <div class="search-input-shell">
           <span class="material-symbols-rounded search-bar-icon" aria-hidden="true">search</span>
           <input type="search" id="wb-search-input" placeholder="搜索单词、读音或中文释义" autocomplete="off" enterkeyhint="search">
+          <button type="button" id="wb-search-clear" class="search-clear-btn" aria-label="清空搜索" hidden>
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
         </div>
       </div>
 
@@ -356,6 +371,10 @@
             <button type="button" id="wb-manage-toggle" class="wordbank-manage-toggle icon-text-gap" title="管理词汇" aria-pressed="false">
               <span class="material-symbols-rounded" id="manage-icon">edit_note</span>
               <span id="manage-label">选择词条</span>
+            </button>
+            <button type="button" id="btn-new-word" class="btn-outline icon-text-gap">
+              <span class="material-symbols-rounded">edit_square</span>
+              <span>新建词条</span>
             </button>
             <button type="button" id="btn-new-folder" class="btn-outline icon-text-gap">
               <span class="material-symbols-rounded">create_new_folder</span>
@@ -665,6 +684,20 @@
               <option value="azure">微软语音</option>
               <option value="youdao">网易有道</option>
               <option value="local">系统自带</option>
+            </select>
+          </div>
+
+          <div class="setting-item setting-choice-item setting-segmented-item">
+            <div class="setting-info"><div class="setting-title">朗读语速</div><div class="setting-desc">调节单词与例句的播报快慢，离线时自动回退系统语音</div></div>
+            <div class="segmented-control" role="radiogroup" aria-label="朗读语速" data-segmented-for="setting-tts-rate">
+              <button type="button" class="segmented-option" data-value="0.75" role="radio" aria-checked="false">0.75× 慢速</button>
+              <button type="button" class="segmented-option active" data-value="1" role="radio" aria-checked="true">1.0× 标准</button>
+              <button type="button" class="segmented-option" data-value="1.25" role="radio" aria-checked="false">1.25× 较快</button>
+            </div>
+            <select id="setting-tts-rate" class="no-bs" hidden>
+              <option value="0.75">0.75× 慢速</option>
+              <option value="1" selected>1.0× 标准</option>
+              <option value="1.25">1.25× 较快</option>
             </select>
           </div>
 
@@ -1189,6 +1222,35 @@
   </div>
 </div>
 
+<div id="study-summary-overlay" class="modal-overlay">
+  <div class="dialog-content study-summary-card" role="dialog" aria-modal="true" aria-labelledby="study-summary-title">
+    <div class="study-summary-seal" aria-hidden="true">
+      <span class="material-symbols-rounded">workspace_premium</span>
+    </div>
+    <h3 id="study-summary-title" class="dialog-center-title">本轮学习完成</h3>
+    <p id="study-summary-subtitle" class="study-summary-subtitle">已记录今日学习进度</p>
+    <div id="study-summary-metrics" class="study-summary-metrics"></div>
+    <div id="study-summary-weak-wrap" class="study-summary-weak-wrap" hidden>
+      <div class="study-summary-weak-head">本轮薄弱词</div>
+      <div id="study-summary-weak-list" class="study-summary-weak-list"></div>
+    </div>
+    <div class="study-summary-actions">
+      <button type="button" id="btn-summary-practice-weak" class="ui-primary-action icon-text-gap" hidden>
+        <span class="material-symbols-rounded">error_med</span>
+        <span>只练薄弱词</span>
+      </button>
+      <button type="button" id="btn-summary-next-group" class="ui-primary-action icon-text-gap" hidden>
+        <span class="material-symbols-rounded">arrow_forward</span>
+        <span>进入下一组</span>
+      </button>
+      <button type="button" id="btn-summary-home" class="btn-outline icon-text-gap">
+        <span class="material-symbols-rounded">home</span>
+        <span>返回首页</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div id="detail-overlay" class="modal-overlay">
   <div class="detail-card-container" id="detail-card-container">
     <div id="dt-hanko-badge" class="card-hanko sakura-badge" style="display: none;"></div>
@@ -1334,10 +1396,27 @@
     const initialLanguage = savedLang;
     const initialAssets = ZhongriWordbankLoader.getAssets(initialLanguage);
     window.__zhongriInitialWordbankLanguage = initialLanguage;
-    document.write(initialAssets.map(asset => (
-      `<script src="${asset}" data-zhongri-wordbank="${asset}" data-loaded="true"><\/script>`
-    )).join(''));
-    ZhongriWordbankLoader.markLoaded(initialLanguage);
+    if (typeof document !== 'undefined' && document.head && typeof document.createElement === 'function') {
+      let remaining = initialAssets.length;
+      const promises = initialAssets.map(asset => new Promise(resolve => {
+        const script = document.createElement('script');
+        script.src = asset;
+        script.async = false;
+        script.dataset.zhongriWordbank = asset;
+        const done = () => {
+          script.dataset.loaded = 'true';
+          remaining -= 1;
+          if (remaining === 0) {
+            ZhongriWordbankLoader.markLoaded(initialLanguage);
+          }
+          resolve();
+        };
+        script.addEventListener('load', done, { once: true });
+        script.addEventListener('error', done, { once: true });
+        document.head.appendChild(script);
+      }));
+      window.__zhongriInitialWordbankPromise = Promise.all(promises);
+    }
   })();
 </script>
 <script src="release-info.js"></script>
@@ -1349,7 +1428,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v12"></script>
+<script src="app.js?v=modern-v13"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npm run test:js",
     "test:js": "node --test --test-concurrency=1 tests/*.test.js",
+    "test:smoke": "node scripts/smoke-browser.mjs",
     "sync:assets": "node scripts/sync-shell-assets.mjs",
     "check:assets": "node scripts/sync-shell-assets.mjs --check",
     "icons:build": "node scripts/build-icon-font.mjs",

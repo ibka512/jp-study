@@ -26,6 +26,7 @@
         wordOrderMode: Object.freeze({ defaultValue: 'smart', backup: true, type: 'string' }),
         skipMastered: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         ttsEngine: Object.freeze({ defaultValue: 'microsoft', backup: true, type: 'string' }),
+        ttsRate: Object.freeze({ defaultValue: '1', backup: true, type: 'string' }),
         displayMode: Object.freeze({ defaultValue: 'all', backup: true, type: 'string' }),
         lastCustomGroupTxt: Object.freeze({ defaultValue: '', backup: true, type: 'string' }),
         lastCustomGroupVal: Object.freeze({ defaultValue: '', backup: true, type: 'string' }),

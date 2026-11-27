@@ -1109,11 +1109,54 @@ body[data-theme="dark"] .fsrs-home-card.has-due {
 #wb-search-input {
   height: 46px;
   padding-left: 44px;
-  padding-right: 14px;
+  padding-right: 42px;
   border-radius: var(--radius-md);
   background: var(--surface-container);
   border: 1px solid var(--outline-strong);
   font-size: 0.94rem;
+}
+
+#wb-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+
+.search-clear-btn[hidden] {
+  display: none !important;
+}
+
+.search-clear-btn .material-symbols-rounded {
+  font-size: 17px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .search-clear-btn:hover {
+    background: var(--outline);
+    color: var(--on-surface);
+  }
+}
+
+.search-clear-btn:active {
+  transform: scale(0.92);
 }
 
 .wordbank-scope-tools {
@@ -2411,12 +2454,6 @@ body[data-theme="dark"] .batch-bar {
   border-color: transparent;
 }
 
-.dt-choice-btn .choice-text {
-  font-family: var(--font-zh-editorial);
-  font-size: 0.96rem;
-  line-height: 1.42;
-}
-
 .dt-choice-btn.wrong {
   background: var(--accent-red-soft);
   border-color: var(--accent-red);
@@ -2859,14 +2896,6 @@ body[data-theme="dark"] .fsrs-reveal-button .kbd-hint {
   gap: 16px;
 }
 
-.settings-eyebrow {
-  display: block;
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: var(--primary);
-  margin-bottom: 2px;
-}
-
 .settings-mode-card h3 {
   display: flex;
   align-items: center;
@@ -2992,14 +3021,6 @@ body[data-theme="dark"] .book-card::before {
   display: flex;
   flex-direction: column;
   gap: 3px;
-}
-
-.book-card-kicker {
-  font-family: var(--font-number);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
 }
 
 .book-title {
@@ -3461,17 +3482,6 @@ body[data-theme="dark"] .book-card::before {
   line-height: 1.45;
 }
 
-.setting-compact-wrapper {
-  min-width: 144px;
-  max-width: 184px;
-}
-
-.setting-compact-wrapper .bs-facade {
-  min-height: 40px;
-  padding: 8px 12px;
-  font-size: 0.86rem;
-}
-
 .btn-setting-action {
   min-height: 38px;
   padding: 8px 14px;
@@ -3666,6 +3676,12 @@ body[data-theme="dark"] .book-card::before {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.library-audit-header .btn-outline,
+.recycle-bin-header .btn-outline {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .library-audit-header p,
@@ -5249,6 +5265,7 @@ body[data-theme="dark"] .edit-actions {
   width: 100%;
   max-width: 560px;
   overflow: visible;
+  touch-action: pan-y;
   padding: 50px 32px 58px;
   border-radius: var(--radius-xl);
   background: var(--surface-elevated);
@@ -5485,12 +5502,6 @@ body[data-theme="dark"] .edit-actions {
 }
 
 .root-review-header-copy { text-align: center; }
-.root-review-eyebrow {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--primary);
-}
 .root-review-header-copy h2 { font-size: 1.05rem; font-weight: 800; }
 
 .root-review-progress-row {
@@ -6162,4 +6173,292 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
   #move-overlay .bs-handle {
     display: none;
   }
+}
+
+/* ===== 打卡印谱（28 天印章热力图） ===== */
+.checkin-ledger-details {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--outline);
+}
+
+.checkin-ledger-details summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.checkin-ledger-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.checkin-ledger-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.checkin-ledger-title small {
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--seal);
+}
+
+.checkin-ledger-details summary .material-symbols-rounded {
+  font-size: 18px;
+  transition: transform var(--dur-med) var(--ease-out);
+}
+
+.checkin-ledger-details[open] summary .material-symbols-rounded {
+  transform: rotate(180deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .checkin-ledger-details summary:hover {
+    color: var(--on-surface);
+  }
+}
+
+.checkin-ledger-body {
+  padding-top: 10px;
+}
+
+.checkin-ledger-details[open] .checkin-ledger-body {
+  animation: details-reveal 180ms var(--ease-out);
+}
+
+.checkin-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.checkin-stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  justify-items: center;
+}
+
+.checkin-stamp-cell {
+  width: 100%;
+  max-width: 34px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--outline);
+  user-select: none;
+}
+
+.checkin-stamp-cell.is-stamped {
+  background: var(--seal);
+  border-color: transparent;
+  color: #fff8f2;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28), 0 1px 2px rgba(27, 25, 23, 0.14);
+}
+
+.checkin-stamp-cell.is-today {
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1.5px var(--primary-soft);
+}
+
+.checkin-stamp-cell.is-today.is-stamped {
+  color: #fff8f2;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--surface-container), 0 0 0 3.5px var(--seal);
+}
+
+.checkin-stamp-cell.is-future {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.42;
+}
+
+/* ===== 学习完成精装结算卡 ===== */
+#study-summary-overlay {
+  z-index: 4800;
+}
+
+.study-summary-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 28px 24px 22px;
+  border-top: 3.5px solid var(--primary);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.study-summary-seal {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto -2px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  border: 1.5px solid color-mix(in srgb, var(--primary) 26%, transparent);
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.study-summary-seal .material-symbols-rounded {
+  font-size: 28px;
+}
+
+.study-summary-card .dialog-center-title {
+  margin: 0;
+  font-family: var(--font-zh-editorial);
+  font-size: 1.24rem;
+  font-weight: 800;
+}
+
+.study-summary-subtitle {
+  margin: -6px 0 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.study-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--outline);
+}
+
+.study-summary-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+
+.study-summary-metric + .study-summary-metric::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 15%;
+  bottom: 15%;
+  width: 1px;
+  background: var(--outline);
+}
+
+.study-summary-metric-val {
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--on-surface);
+}
+
+.study-summary-metric-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.study-summary-weak-wrap {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  border: 1px solid var(--outline);
+}
+
+.study-summary-weak-wrap[hidden] {
+  display: none !important;
+}
+
+.study-summary-weak-head {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--seal);
+  margin-bottom: 8px;
+}
+
+.study-summary-weak-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.study-summary-weak-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  background: var(--surface-container);
+  border: 1px solid var(--outline-strong);
+  color: var(--on-surface);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+
+.study-summary-weak-chip strong {
+  font-weight: 700;
+}
+
+.study-summary-weak-chip span {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .study-summary-weak-chip:hover {
+    border-color: var(--primary);
+  }
+}
+
+.study-summary-weak-chip:active {
+  transform: scale(0.96);
+}
+
+.study-summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.study-summary-actions button {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.study-summary-actions button[hidden] {
+  display: none !important;
 }

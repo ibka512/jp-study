@@ -4925,12 +4925,8 @@ const View = {
           const isEnglish =
               currentLang === 'en';
 
-          const entries = [];
+          const rawEntries = [];
 
-          /*
-           * 当前语言下的真实词库直接分组展示。
-           * 不再先切换标签，再进行第二次选择。
-           */
           Model.folders.forEach(folder => {
               if (
                   (
@@ -4941,7 +4937,7 @@ const View = {
                   return;
               }
 
-              entries.push({
+              rawEntries.push({
                   cat:
                       folder === '默认词库'
                           ? 'default'
@@ -4955,11 +4951,7 @@ const View = {
               });
           });
 
-          /*
-           * 学习状态与薄弱项也放在同一页中，
-           * 形成与“选择词库”一致的分栏式结构。
-           */
-          entries.push(
+          rawEntries.push(
               {
                   cat: 'virtual_starred',
                   text: '收藏词汇',
@@ -5013,287 +5005,22 @@ const View = {
 
           const GROUP_SIZE = ROTE_CORE.GROUP_SIZE;
           const GROUP_STEP = ROTE_CORE.GROUP_STEP;
-          const fragment =
-              document.createDocumentFragment();
+          const CHUNK_GROUPS = 50;
 
-          let visibleSectionCount = 0;
-
-          entries.forEach(entry => {
-              const words =
-                  Model.db.filter(word => {
+          const populatedEntries = rawEntries
+              .map(entry => {
+                  const words = Model.db.filter(word => {
                       return (
-                          (
-                              word.lang ||
-                              'ja'
-                          ) === currentLang &&
-                          Model.checkFilter(
-                              word,
-                              entry.cat
-                          )
+                          (word.lang || 'ja') === currentLang &&
+                          Model.checkFilter(word, entry.cat)
                       );
                   });
+                  return { ...entry, words };
+              })
+              .filter(entry => entry.words.length > 0);
 
-              /* 空分类不占据抽屉空间。 */
-              if (words.length === 0) {
-                  return;
-              }
-
-              visibleSectionCount++;
-
-              const section =
-                  document.createElement(
-                      'section'
-                  );
-
-              section.className =
-                  `group-range-section ` +
-                  `is-${entry.tone}`;
-
-              const heading =
-                  document.createElement(
-                      'div'
-                  );
-
-              heading.className =
-                  'group-range-section-head';
-
-              heading.innerHTML = `
-                  <span
-                      class="group-range-section-icon material-symbols-rounded"
-                      aria-hidden="true"
-                  >
-                      ${entry.icon}
-                  </span>
-
-                  <span
-                      class="group-range-section-title"
-                  >
-                      ${escapeHTML(entry.text)}
-                  </span>
-
-                  <span
-                      class="group-range-section-count"
-                  >
-                      ${words.length} 词
-                  </span>
-              `;
-
-              const grid =
-                  document.createElement(
-                      'div'
-                  );
-
-              grid.className =
-                  'group-range-section-grid';
-
-              let groupIndex = 0;
-
-              while (
-                  groupIndex * GROUP_STEP <
-                  words.length
-              ) {
-                  const range = ROTE_CORE.getGroupRange(
-                      groupIndex,
-                      words.length
-                  );
-                  const startIndex = range.start;
-                  const endIndex = range.end;
-
-                  const groupValue =
-                      `group|${entry.cat}|${groupIndex}`;
-
-                  const selected =
-                      selectedGroup === groupValue;
-
-                  const clearCount =
-                      Model.mtGroupClears[
-                          groupValue
-                      ] || 0;
-
-                  const button =
-                      document.createElement(
-                          'div'
-                      );
-
-                  button.className =
-                      `bs-option group-range-option ` +
-                      `${selected ? 'selected' : ''}`;
-
-                  button.setAttribute(
-                      'tabindex',
-                      '0'
-                  );
-
-                  button.setAttribute(
-                      'role',
-                      'button'
-                  );
-
-                  button.setAttribute(
-                      'aria-pressed',
-                      selected ? 'true' : 'false'
-                  );
-
-                  let badgeHTML = '';
-
-                  if (
-                      entry.cat !==
-                          'virtual_uncleared' &&
-                      (
-                          clearCount > 0 ||
-                          entry.cat ===
-                              'virtual_cleared'
-                      )
-                  ) {
-                      let badgeClass =
-                          'hanko-bronze';
-
-                      if (
-                          clearCount >= 10 ||
-                          entry.cat ===
-                              'virtual_cleared'
-                      ) {
-                          badgeClass =
-                              'hanko-diamond';
-                      } else if (
-                          clearCount >= 5
-                      ) {
-                          badgeClass =
-                              'hanko-gold';
-                      } else if (
-                          clearCount >= 3
-                      ) {
-                          badgeClass =
-                              'hanko-silver';
-                      }
-
-                      badgeHTML = `
-                          <span
-                              class="hanko-badge ${badgeClass}"
-                              aria-hidden="true"
-                          ></span>
-                      `;
-                  }
-
-                  const rangeTitle =
-                      words.length <= GROUP_SIZE
-                          ? `全部 ${words.length} 词`
-                          : (
-                              `第 ${startIndex + 1}` +
-                              `–${endIndex} 词`
-                          );
-
-                  button.innerHTML = `
-                      <span
-                          class="group-range-icon material-symbols-rounded"
-                          aria-hidden="true"
-                      >
-                          view_module
-                      </span>
-
-                      <span
-                          class="group-range-copy"
-                      >
-                          <strong>
-                              ${rangeTitle}
-                          </strong>
-
-                          <small>
-                              ${endIndex - startIndex}
-                              个词
-                          </small>
-                      </span>
-
-                      ${badgeHTML}
-
-                      <span
-                          class="group-range-check material-symbols-rounded"
-                          aria-hidden="true"
-                      >
-                          check
-                      </span>
-                  `;
-
-                  const displayText =
-                      `${entry.text} ` +
-                      `(第 ${startIndex + 1}` +
-                      `-${endIndex} 词)`;
-
-                  const choose = () => {
-                      Hardware.playSound('click');
-                      Hardware.vibrate(15);
-
-                      Model.state.currentGroupKey =
-                          groupValue;
-
-                      Model.state.currentGroupLabel =
-                          displayText;
-
-                      const textElement =
-                          this.getEl(
-                              'custom-group-text'
-                          );
-
-                      if (textElement) {
-                          textElement.innerText =
-                              displayText;
-                      }
-
-                      localStorage.setItem(
-                          'lastCustomGroupVal',
-                          groupValue
-                      );
-
-                      localStorage.setItem(
-                          'lastCustomGroupTxt',
-                          displayText
-                      );
-
-                      this.renderStudyScope();
-                      window.toggleModal(
-                          'group-select-overlay',
-                          false
-                      );
-                  };
-
-                  button.addEventListener(
-                      'click',
-                      choose
-                  );
-
-                  button.addEventListener(
-                      'keydown',
-                      event => {
-                          if (
-                              event.key !== 'Enter' &&
-                              event.key !== ' '
-                          ) {
-                              return;
-                          }
-
-                          event.preventDefault();
-                          choose();
-                      }
-                  );
-
-                  grid.appendChild(button);
-                  groupIndex++;
-
-                  if (groupIndex > 1000) {
-                      break;
-                  }
-              }
-
-              section.appendChild(heading);
-              section.appendChild(grid);
-              fragment.appendChild(section);
-          });
-
-          if (visibleSectionCount === 0) {
-              container.classList.add(
-                  'is-empty'
-              );
-
+          if (populatedEntries.length === 0) {
+              container.classList.add('is-empty');
               container.innerHTML = `
                   <div class="group-range-empty">
                       <span
@@ -5302,17 +5029,226 @@ const View = {
                       >
                           spa
                       </span>
-
                       <strong>
                           当前没有可选择的学习范围
                       </strong>
                   </div>
               `;
-
               return;
           }
 
-          container.appendChild(fragment);
+          let activeCat = populatedEntries[0].cat;
+          let activeChunk = 0;
+
+          if (selectedGroup.startsWith('group|')) {
+              const parts = selectedGroup.split('|');
+              const selCat = parts[1];
+              const selIdx = Number(parts[2]) || 0;
+              if (populatedEntries.some(e => e.cat === selCat)) {
+                  activeCat = selCat;
+                  activeChunk = Math.floor(selIdx / CHUNK_GROUPS);
+              }
+          }
+
+          const tabsBar = document.createElement('div');
+          tabsBar.className = 'group-range-tabs';
+          tabsBar.setAttribute('role', 'tablist');
+          tabsBar.setAttribute('aria-label', '选择范围分类');
+
+          const chunksBar = document.createElement('div');
+          chunksBar.className = 'group-range-chunks';
+          chunksBar.setAttribute('aria-label', '快捷区段跳转');
+
+          const sectionHost = document.createElement('div');
+          sectionHost.className = 'group-range-host';
+
+          const renderActiveView = () => {
+              const entry =
+                  populatedEntries.find(e => e.cat === activeCat) ||
+                  populatedEntries[0];
+              const words = entry.words;
+              const totalGroups = Math.min(
+                  1001,
+                  Math.ceil(words.length / GROUP_STEP)
+              );
+              const totalChunks = Math.ceil(totalGroups / CHUNK_GROUPS);
+              if (activeChunk >= totalChunks) activeChunk = 0;
+
+              tabsBar.querySelectorAll('.group-range-tab').forEach(btn => {
+                  const isAct = btn.dataset.cat === entry.cat;
+                  btn.classList.toggle('active', isAct);
+                  btn.setAttribute('aria-selected', String(isAct));
+              });
+
+              chunksBar.innerHTML = '';
+              if (totalChunks > 1) {
+                  chunksBar.hidden = false;
+                  for (let c = 0; c < totalChunks; c++) {
+                      const firstGroup = c * CHUNK_GROUPS;
+                      const lastGroup = Math.min(
+                          totalGroups - 1,
+                          (c + 1) * CHUNK_GROUPS - 1
+                      );
+                      const firstStart =
+                          ROTE_CORE.getGroupRange(firstGroup, words.length).start + 1;
+                      const lastEnd =
+                          ROTE_CORE.getGroupRange(lastGroup, words.length).end;
+                      const chip = document.createElement('button');
+                      chip.type = 'button';
+                      chip.className = `group-range-chunk${c === activeChunk ? ' active' : ''}`;
+                      chip.textContent = `${firstStart}–${lastEnd}`;
+                      chip.setAttribute('aria-pressed', String(c === activeChunk));
+                      chip.addEventListener('click', () => {
+                          Hardware.playSound('click');
+                          Hardware.vibrate(10);
+                          activeChunk = c;
+                          renderActiveView();
+                      });
+                      chunksBar.appendChild(chip);
+                  }
+              } else {
+                  chunksBar.hidden = true;
+              }
+
+              sectionHost.innerHTML = '';
+
+              const section = document.createElement('section');
+              section.className = `group-range-section is-${entry.tone}`;
+
+              const heading = document.createElement('div');
+              heading.className = 'group-range-section-head';
+              heading.innerHTML = `
+                  <span
+                      class="group-range-section-icon material-symbols-rounded"
+                      aria-hidden="true"
+                  >
+                      ${entry.icon}
+                  </span>
+                  <span class="group-range-section-title">
+                      ${escapeHTML(entry.text)}
+                  </span>
+                  <span class="group-range-section-count">
+                      ${words.length} 词
+                  </span>
+              `;
+
+              const grid = document.createElement('div');
+              grid.className = 'group-range-section-grid';
+
+              const startGroup = activeChunk * CHUNK_GROUPS;
+              const endGroup = Math.min(totalGroups, startGroup + CHUNK_GROUPS);
+
+              for (let groupIndex = startGroup; groupIndex < endGroup; groupIndex++) {
+                  const range = ROTE_CORE.getGroupRange(groupIndex, words.length);
+                  const startIndex = range.start;
+                  const endIndex = range.end;
+
+                  const groupValue = `group|${entry.cat}|${groupIndex}`;
+                  const selected = selectedGroup === groupValue;
+                  const clearCount = Model.mtGroupClears[groupValue] || 0;
+
+                  const button = document.createElement('div');
+                  button.className =
+                      `bs-option group-range-option ` +
+                      `${selected ? 'selected' : ''}`;
+                  button.setAttribute('tabindex', '0');
+                  button.setAttribute('role', 'button');
+                  button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+
+                  let badgeHTML = '';
+                  if (
+                      entry.cat !== 'virtual_uncleared' &&
+                      (clearCount > 0 || entry.cat === 'virtual_cleared')
+                  ) {
+                      let badgeClass = 'hanko-bronze';
+                      if (clearCount >= 10 || entry.cat === 'virtual_cleared') {
+                          badgeClass = 'hanko-diamond';
+                      } else if (clearCount >= 5) {
+                          badgeClass = 'hanko-gold';
+                      } else if (clearCount >= 3) {
+                          badgeClass = 'hanko-silver';
+                      }
+                      badgeHTML = `<span class="hanko-badge ${badgeClass}" aria-hidden="true"></span>`;
+                  }
+
+                  const rangeTitle =
+                      words.length <= GROUP_SIZE
+                          ? `全部 ${words.length} 词`
+                          : `第 ${startIndex + 1}–${endIndex} 词`;
+
+                  button.innerHTML = `
+                      <span class="group-range-icon material-symbols-rounded" aria-hidden="true">view_module</span>
+                      <span class="group-range-copy">
+                          <strong>${rangeTitle}</strong>
+                          <small>${endIndex - startIndex} 个词</small>
+                      </span>
+                      ${badgeHTML}
+                      <span class="group-range-check material-symbols-rounded" aria-hidden="true">check</span>
+                  `;
+
+                  const displayText = `${entry.text} (第 ${startIndex + 1}-${endIndex} 词)`;
+
+                  const choose = () => {
+                      Hardware.playSound('click');
+                      Hardware.vibrate(15);
+
+                      Model.state.currentGroupKey = groupValue;
+                      Model.state.currentGroupLabel = displayText;
+
+                      const textElement = this.getEl('custom-group-text');
+                      if (textElement) {
+                          textElement.innerText = displayText;
+                      }
+
+                      localStorage.setItem('lastCustomGroupVal', groupValue);
+                      localStorage.setItem('lastCustomGroupTxt', displayText);
+
+                      this.renderStudyScope();
+                      window.toggleModal('group-select-overlay', false);
+                  };
+
+                  button.addEventListener('click', choose);
+                  button.addEventListener('keydown', event => {
+                      if (event.key !== 'Enter' && event.key !== ' ') {
+                          return;
+                      }
+                      event.preventDefault();
+                      choose();
+                  });
+
+                  grid.appendChild(button);
+              }
+
+              section.appendChild(heading);
+              section.appendChild(grid);
+              sectionHost.appendChild(section);
+          };
+
+          populatedEntries.forEach(entry => {
+              const tab = document.createElement('button');
+              tab.type = 'button';
+              tab.className = 'group-range-tab';
+              tab.dataset.cat = entry.cat;
+              tab.setAttribute('role', 'tab');
+              tab.innerHTML = `
+                  <span class="material-symbols-rounded" aria-hidden="true">${entry.icon}</span>
+                  <span>${escapeHTML(entry.text)}</span>
+                  <small>${entry.words.length}</small>
+              `;
+              tab.addEventListener('click', () => {
+                  Hardware.playSound('click');
+                  Hardware.vibrate(10);
+                  activeCat = entry.cat;
+                  activeChunk = 0;
+                  renderActiveView();
+              });
+              tabsBar.appendChild(tab);
+          });
+
+          container.appendChild(tabsBar);
+          container.appendChild(chunksBar);
+          container.appendChild(sectionHost);
+          renderActiveView();
       } catch (error) {
           console.error(
               '[Group Range Picker]',
@@ -7780,8 +7716,155 @@ setupVirtualScroll() {
     View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
+    /* ---------- Unified Non-Modal Popover Manager (P0) ---------- */
+    const PopoverManager = (() => {
+        const entries = [];
+        let outsideBound = false;
+
+        const closeEntry = entry => {
+            if (!entry) return false;
+            if (entry.type === 'details') {
+                if (!entry.el.open) return false;
+                entry.el.open = false;
+                return true;
+            }
+            if (entry.panel.hidden) return false;
+            entry.panel.hidden = true;
+            entry.trigger?.setAttribute('aria-expanded', 'false');
+            entry.trigger?.classList.remove('popover-active');
+            return true;
+        };
+
+        const closeAll = (exceptEl = null) => {
+            let closedAny = false;
+            entries.forEach(entry => {
+                const key = entry.type === 'details' ? entry.el : entry.panel;
+                if (exceptEl && key === exceptEl) return;
+                if (closeEntry(entry)) closedAny = true;
+            });
+            return closedAny;
+        };
+
+        const bindOutside = () => {
+            if (outsideBound) return;
+            outsideBound = true;
+            document.addEventListener('pointerdown', event => {
+                const target = event.target;
+                entries.forEach(entry => {
+                    if (entry.type === 'details') {
+                        if (entry.el.open && !entry.el.contains(target)) {
+                            entry.el.open = false;
+                        }
+                        return;
+                    }
+                    if (
+                        !entry.panel.hidden &&
+                        !entry.panel.contains(target) &&
+                        !entry.trigger?.contains(target)
+                    ) {
+                        closeEntry(entry);
+                    }
+                });
+            });
+        };
+
+        return {
+            registerPopover(trigger, panel, onBeforeOpen = null) {
+                if (!trigger || !panel) return;
+                bindOutside();
+                const entry = { type: 'popover', trigger, panel };
+                entries.push(entry);
+                trigger.addEventListener('click', event => {
+                    event.stopPropagation();
+                    Hardware.playSound('click');
+                    Hardware.vibrate(12);
+                    const willOpen = panel.hidden;
+                    closeAll(panel);
+                    if (willOpen) {
+                        onBeforeOpen?.();
+                        panel.hidden = false;
+                        trigger.setAttribute('aria-expanded', 'true');
+                        trigger.classList.add('popover-active');
+                    } else {
+                        closeEntry(entry);
+                    }
+                });
+            },
+            registerDetails(detailsEl) {
+                if (!detailsEl) return;
+                bindOutside();
+                entries.push({ type: 'details', el: detailsEl });
+                detailsEl.addEventListener('toggle', () => {
+                    if (detailsEl.open) {
+                        closeAll(detailsEl);
+                    }
+                });
+            },
+            closeAll
+        };
+    })();
+    window.ZhongriPopovers = PopoverManager;
+
+    PopoverManager.registerDetails(document.querySelector('.wordbank-management'));
+
     let displayTrigger = View.getEl('btn-display-mode-trigger');
-    if (displayTrigger) { displayTrigger.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); BottomSheet.open(View.getEl('next-display-mode'), document.createElement('span')); }); }
+    let displayPopover = View.getEl('display-mode-popover');
+    if (displayTrigger && displayPopover) {
+        const renderDisplayModeOptions = () => {
+            const selectEl = View.getEl('next-display-mode');
+            const listEl = View.getEl('display-mode-options');
+            if (!selectEl || !listEl) return;
+            listEl.innerHTML = '';
+            const isEn = Model.state.currentLangMode === 'en';
+            const labelMap = isEn
+                ? { all: '全显', word: '仅显单词', kana: '仅显音标', meaning: '仅显释义' }
+                : { all: '全显', word: '仅显汉字', kana: '仅显假名', meaning: '仅显释义' };
+            Array.from(selectEl.options).forEach(opt => {
+                if (isEn && opt.value === 'kana') return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `popover-menu-item${selectEl.value === opt.value ? ' selected' : ''}`;
+                btn.setAttribute('role', 'menuitemradio');
+                btn.setAttribute('aria-checked', String(selectEl.value === opt.value));
+                btn.innerHTML = `<span>${escapeHTML(labelMap[opt.value] || opt.text)}</span><span class="material-symbols-rounded popover-check" aria-hidden="true">check</span>`;
+                btn.addEventListener('click', () => {
+                    Hardware.playSound('click');
+                    Hardware.vibrate(10);
+                    selectEl.value = opt.value;
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    PopoverManager.closeAll();
+                });
+                listEl.appendChild(btn);
+            });
+        };
+        PopoverManager.registerPopover(displayTrigger, displayPopover, renderDisplayModeOptions);
+    }
+
+    /* ---------- Inline Segmented Controls Bidirectional Sync (P1) ---------- */
+    document.querySelectorAll('.segmented-control[data-segmented-for]').forEach(group => {
+        const selectEl = View.getEl(group.dataset.segmentedFor);
+        if (!selectEl) return;
+        const buttons = Array.from(group.querySelectorAll('.segmented-option[data-value]'));
+        const syncFromSelect = () => {
+            const val = selectEl.value;
+            buttons.forEach(btn => {
+                const isAct = btn.dataset.value === val;
+                btn.classList.toggle('active', isAct);
+                btn.setAttribute('aria-checked', String(isAct));
+            });
+        };
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (selectEl.value === btn.dataset.value) return;
+                selectEl.value = btn.dataset.value;
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                syncFromSelect();
+            });
+        });
+        selectEl.addEventListener('change', syncFromSelect);
+        selectEl.addEventListener('facade-update', syncFromSelect);
+        syncFromSelect();
+    });
 
     let btnMtReplay = View.getEl('btn-mt-replay');
     if (btnMtReplay) { btnMtReplay.addEventListener('click', () => { Hardware.playSound('click'); Hardware.vibrate(15); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; if(w) Hardware.speakWord(w); }); }
@@ -8360,7 +8443,43 @@ if (testVibrateBtn) {
         this.updateImportFolderOptions();
         this.updateImportMetadataOptions();
     });
-    View.getEl('btn-view-settings').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('view-settings-overlay', true); document.querySelectorAll('.vs-col-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-col-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-col-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); document.querySelectorAll('.vs-blur-btn').forEach(b => { b.onclick = () => { Hardware.vibrate(10); document.querySelectorAll('.vs-blur-btn').forEach(x=>x.classList.remove('selected')); b.classList.add('selected'); View.getEl('wb-blur-select').value = b.dataset.val; View.resetWordbankRenderer(); }}); });
+    const viewSettingsTrigger = View.getEl('btn-view-settings');
+    const viewSettingsPopover = View.getEl('view-settings-popover');
+    if (viewSettingsTrigger && viewSettingsPopover) {
+        const syncViewSettingsPopover = () => {
+            const colVal = View.getEl('wb-col-select')?.value || '3';
+            const blurVal = View.getEl('wb-blur-select')?.value || 'all';
+            viewSettingsPopover.querySelectorAll('.vs-col-btn').forEach(b => {
+                b.classList.toggle('selected', b.dataset.val === colVal);
+            });
+            viewSettingsPopover.querySelectorAll('.vs-blur-btn').forEach(b => {
+                b.classList.toggle('selected', b.dataset.val === blurVal);
+            });
+        };
+        viewSettingsPopover.querySelectorAll('.vs-col-btn').forEach(b => {
+            b.addEventListener('click', () => {
+                Hardware.playSound('click');
+                Hardware.vibrate(10);
+                View.getEl('wb-col-select').value = b.dataset.val;
+                syncViewSettingsPopover();
+                View.resetWordbankRenderer();
+            });
+        });
+        viewSettingsPopover.querySelectorAll('.vs-blur-btn').forEach(b => {
+            b.addEventListener('click', () => {
+                Hardware.playSound('click');
+                Hardware.vibrate(10);
+                View.getEl('wb-blur-select').value = b.dataset.val;
+                syncViewSettingsPopover();
+                View.resetWordbankRenderer();
+            });
+        });
+        window.ZhongriPopovers?.registerPopover(
+            viewSettingsTrigger,
+            viewSettingsPopover,
+            syncViewSettingsPopover
+        );
+    }
     View.getEl('btn-reset-progress').addEventListener('click', () => {
         Hardware.vibrate(20);
         showConfirm(
@@ -8389,6 +8508,14 @@ if (testVibrateBtn) {
         );
     });
     View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
+    View.getEl('detail-edit')?.addEventListener('click', () => {
+        Hardware.playSound('click');
+        Hardware.vibrate(12);
+        const realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+        if (typeof realIdx === 'number' && Model.db[realIdx]) {
+            this.editWord(realIdx);
+        }
+    });
     View.getEl('detail-prev').addEventListener('click', () => this.navDetail(-1)); View.getEl('detail-next').addEventListener('click', () => this.navDetail(1));
     View.getEl('btn-save-edit').addEventListener('click', () => {
         Hardware.vibrate(20);
@@ -8470,6 +8597,14 @@ if (testVibrateBtn) {
 
             Model.saveDB();
             View.resetWordbankRenderer();
+
+            const detailOverlay = document.getElementById('detail-overlay');
+            if (detailOverlay?.classList.contains('active')) {
+                const activeRealIdx = Model.state.detailArray[Model.state.activeDetailIdx];
+                if (activeRealIdx === Model.editingIdx || Model.db[activeRealIdx] === word) {
+                    this.updateDetailContent(word, false);
+                }
+            }
 
             window.toggleModal(
                 'edit-overlay',
@@ -8624,10 +8759,15 @@ if (testVibrateBtn) {
         let key = e.key;
         let keyLower = key.toLowerCase();
 
-        // 🟢 全局通用快捷键：Esc 退出与关闭
-        if (key === 'Escape' && !View.getEl('study-area').classList.contains('hidden')) {
-            View.getEl('btn-exit-study').click();
-            return;
+        // 🟢 全局通用快捷键：Esc 优先关闭轻量非模态小窗，再退出学习区
+        if (key === 'Escape') {
+            if (window.ZhongriPopovers?.closeAll()) {
+                return;
+            }
+            if (!View.getEl('study-area').classList.contains('hidden')) {
+                View.getEl('btn-exit-study').click();
+                return;
+            }
         }
 
         // 🟡 底部下拉菜单（Bottom Sheet）的键盘接管

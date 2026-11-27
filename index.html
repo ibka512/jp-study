@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v14">
-<link rel="stylesheet" href="style.css?v=modern-v16">
+<link rel="stylesheet" href="style.css?v=modern-v17">
 </head>
 <body>
 <script>
@@ -325,9 +325,30 @@
           <select aria-label="词库范围" id="wb-folder-filter" style="display:none;"></select>
         </div>
 
-        <button type="button" id="btn-view-settings" class="glass-icon-btn" title="视图与排版设置" aria-label="打开视图与排版设置">
-          <span class="material-symbols-rounded" aria-hidden="true">pageview</span>
-        </button>
+        <div class="popover-anchor" id="view-settings-anchor">
+          <button type="button" id="btn-view-settings" class="glass-icon-btn" title="视图与排版设置" aria-label="打开视图与排版设置" aria-haspopup="true" aria-expanded="false" aria-controls="view-settings-popover">
+            <span class="material-symbols-rounded" aria-hidden="true">pageview</span>
+          </button>
+          <div id="view-settings-popover" class="anchored-popover view-settings-popover" role="region" aria-label="视图与排版设置" hidden>
+            <div class="popover-head">
+              <strong>视图与排版</strong>
+              <span id="wb-actual-columns" class="ui-context" aria-live="polite"></span>
+            </div>
+            <div class="vs-section-label">偏好列数</div>
+            <div class="flex-row vs-col-row">
+              <button type="button" class="vs-col-btn vs-btn" data-val="2">2列</button>
+              <button type="button" class="vs-col-btn vs-btn selected" data-val="3">3列</button>
+              <button type="button" class="vs-col-btn vs-btn" data-val="4">4列</button>
+            </div>
+            <div class="vs-section-label">列表遮盖模式</div>
+            <div class="flex-row vs-blur-row">
+              <button type="button" class="vs-blur-btn vs-btn selected" data-val="all">全显</button>
+              <button type="button" class="vs-blur-btn vs-btn" data-val="meaning">仅显释义</button>
+              <button type="button" class="vs-blur-btn vs-btn" data-val="word">仅显单词</button>
+              <button type="button" class="vs-blur-btn vs-btn jp-only" data-val="kana">仅显假名</button>
+            </div>
+          </div>
+        </div>
 
         <details class="wordbank-management">
           <summary>管理</summary>
@@ -511,18 +532,21 @@
         </div>
 
         <div class="card-panel settings-detail-card">
-          <div class="setting-item setting-choice-item">
+          <div class="setting-item setting-choice-item setting-segmented-item">
             <div class="setting-info">
               <div class="setting-title">词汇排列方式</div>
               <div class="setting-desc">决定筛选检验时，新词、薄弱词与已掌握词的先后顺序</div>
             </div>
-            <div class="custom-select-wrapper setting-compact-wrapper setting-order-wrapper">
-              <select id="setting-word-order-mode">
-                <option value="weak-first">薄弱词优先</option>
-                <option value="new-first">新词优先</option>
-                <option value="original">词库原顺序</option>
-              </select>
+            <div class="segmented-control" role="radiogroup" aria-label="词汇排列方式" data-segmented-for="setting-word-order-mode">
+              <button type="button" class="segmented-option active" data-value="weak-first" role="radio" aria-checked="true">薄弱优先</button>
+              <button type="button" class="segmented-option" data-value="new-first" role="radio" aria-checked="false">新词优先</button>
+              <button type="button" class="segmented-option" data-value="original" role="radio" aria-checked="false">词库原序</button>
             </div>
+            <select id="setting-word-order-mode" class="no-bs" hidden>
+              <option value="weak-first">薄弱词优先</option>
+              <option value="new-first">新词优先</option>
+              <option value="original">词库原顺序</option>
+            </select>
           </div>
 
           <div class="setting-item">
@@ -630,15 +654,18 @@
             <label class="tactile-switch-wrap"><input type="checkbox" id="setting-dark-btn" class="tactile-switch"><span class="tactile-slider"></span></label>
           </div>
 
-          <div class="setting-item setting-choice-item">
+          <div class="setting-item setting-choice-item setting-segmented-item">
             <div class="setting-info"><div class="setting-title">发音引擎（TTS）</div><div class="setting-desc">选择单词朗读的语音来源</div></div>
-            <div class="custom-select-wrapper setting-compact-wrapper">
-              <select id="setting-tts-engine">
-                <option value="azure">微软语音</option>
-                <option value="youdao">网易有道</option>
-                <option value="local">系统自带</option>
-              </select>
+            <div class="segmented-control" role="radiogroup" aria-label="发音引擎" data-segmented-for="setting-tts-engine">
+              <button type="button" class="segmented-option active" data-value="azure" role="radio" aria-checked="true">微软语音</button>
+              <button type="button" class="segmented-option" data-value="youdao" role="radio" aria-checked="false">网易有道</button>
+              <button type="button" class="segmented-option" data-value="local" role="radio" aria-checked="false">系统自带</button>
             </div>
+            <select id="setting-tts-engine" class="no-bs" hidden>
+              <option value="azure">微软语音</option>
+              <option value="youdao">网易有道</option>
+              <option value="local">系统自带</option>
+            </select>
           </div>
 
           <div class="setting-item">
@@ -934,9 +961,15 @@
         <option value="kana">假名</option>
         <option value="meaning">释义</option>
       </select>
-      <button type="button" id="btn-display-mode-trigger" class="glass-icon-btn" title="遮盖模式" aria-label="选择单词遮盖模式">
-        <span class="material-symbols-rounded">visibility</span>
-      </button>
+      <div class="popover-anchor" id="display-mode-anchor">
+        <button type="button" id="btn-display-mode-trigger" class="glass-icon-btn" title="遮盖模式" aria-label="选择单词遮盖模式" aria-haspopup="true" aria-expanded="false" aria-controls="display-mode-popover">
+          <span class="material-symbols-rounded">visibility</span>
+        </button>
+        <div id="display-mode-popover" class="anchored-popover display-mode-popover" role="menu" aria-label="单词遮盖模式" hidden>
+          <div class="popover-head"><strong>遮盖模式</strong></div>
+          <div id="display-mode-options" class="display-mode-options"></div>
+        </div>
+      </div>
       <button class="glass-icon-btn theme-toggle-btn" type="button" title="切换到夜间模式" aria-label="切换到夜间模式" aria-pressed="false">
         <span class="material-symbols-rounded theme-icon" aria-hidden="true">dark_mode</span>
       </button>
@@ -1077,29 +1110,6 @@
   </div>
 </div>
 
-<div id="view-settings-overlay" class="modal-overlay">
-  <div class="bottom-sheet">
-    <div class="bs-handle"></div>
-    <h3 class="sheet-center-title">视图与排版设置</h3>
-    <div class="bs-scrollable-content">
-      <div class="vs-section-label">偏好列数</div>
-      <p id="wb-actual-columns" class="ui-context" aria-live="polite"></p>
-      <div class="flex-row vs-col-row">
-        <button type="button" class="vs-col-btn vs-btn" data-val="2">2列</button>
-        <button type="button" class="vs-col-btn vs-btn selected" data-val="3">3列</button>
-        <button type="button" class="vs-col-btn vs-btn" data-val="4">4列</button>
-      </div>
-      <div class="vs-section-label">列表遮盖模式</div>
-      <div class="flex-row vs-blur-row">
-        <button type="button" class="vs-blur-btn vs-btn selected" data-val="all">全显</button>
-        <button type="button" class="vs-blur-btn vs-btn" data-val="meaning">仅显释义</button>
-        <button type="button" class="vs-blur-btn vs-btn" data-val="word">仅显单词</button>
-        <button type="button" class="vs-blur-btn vs-btn jp-only" data-val="kana">仅显假名</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div id="dialog-overlay" class="modal-overlay">
   <div class="dialog-content">
     <h3 id="dialog-title" class="dialog-center-title">提示</h3>
@@ -1183,6 +1193,7 @@
   <div class="detail-card-container" id="detail-card-container">
     <div id="dt-hanko-badge" class="card-hanko sakura-badge" style="display: none;"></div>
     <div class="watermark-layer"><div id="dt-watermark" class="watermark"></div></div>
+    <button id="detail-edit" type="button" title="编辑单词" aria-label="编辑单词"><span class="material-symbols-rounded" aria-hidden="true">edit</span></button>
     <button id="detail-close" type="button" aria-label="关闭单词详情"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
     <button id="dt-star-btn" class="wb-c-star dt-star-btn" type="button" aria-label="收藏单词" aria-pressed="false"><span class="material-symbols-rounded" id="dt-star-icon" aria-hidden="true">star</span></button>
     <button class="detail-nav-btn" id="detail-prev" type="button" aria-label="上一个单词"><span class="material-symbols-rounded" aria-hidden="true">chevron_left</span></button>
@@ -1338,7 +1349,7 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v11"></script>
+<script src="app.js?v=modern-v12"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

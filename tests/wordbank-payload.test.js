@@ -50,7 +50,9 @@ for (const name of chunks) {
 assert.deepEqual(offenders.slice(0, 10), [], `词库仍有冗余字段，请运行 node scripts/slim-wordbanks.mjs：\n${offenders.slice(0, 10).join('\n')}`);
 
 // 体积护栏：给后续扩充词库留出空间，但阻止悄悄涨回去
-const BUDGET_KB = { ja: 510, en: 540 };
+// 2026-11：专升本 2190 条词条补齐双语例句后，英语词库 gzip 由 492 KB 增至 603 KB，
+// 预算随之从 540 KB 上调，仍保留约 6% 余量。
+const BUDGET_KB = { ja: 510, en: 640 };
 for (const [language, bytes] of Object.entries(totals)) {
     const kb = bytes / 1024;
     assert.ok(

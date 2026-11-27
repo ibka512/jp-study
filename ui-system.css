@@ -6,6 +6,7 @@
    ========================================================================== */
 
 :root {
+  color-scheme: light;
   /* Typography */
   --font-body: "PingFang SC", "Hiragino Sans GB", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei UI", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-zh-editorial: "LXGW Neo ZhiSong", "PMingLiU", "MingLiU", "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
@@ -60,6 +61,13 @@
   --divider: rgba(27, 25, 23, 0.08);
   --ring-subtle: 0 0 0 1px rgba(27, 25, 23, 0.075);
   --ring-strong: 0 0 0 1px rgba(27, 25, 23, 0.14);
+
+  /* Theme-Adaptive Scrollbars (Vertical & Horizontal) */
+  --scrollbar-track: transparent;
+  --scrollbar-track-x: rgba(27, 25, 23, 0.055);
+  --scrollbar-thumb: rgba(27, 25, 23, 0.22);
+  --scrollbar-thumb-hover: rgba(27, 25, 23, 0.38);
+  --scrollbar-thumb-active: color-mix(in srgb, var(--primary) 70%, transparent);
 
   /* Semantic Inks (Dictionary Print Calibration) */
   --accent-green: #1f7347;
@@ -173,6 +181,7 @@ body[data-lang="en"] {
 
 /* Palette 1 (Washi) — Dark Mode: Warm Lacquer Ink & Walnut Leaf */
 body[data-theme="dark"] {
+  color-scheme: dark;
   --primary: #7db4de;
   --primary-hover: #97c6ea;
   --primary-lip: #4e88b5;
@@ -213,6 +222,12 @@ body[data-theme="dark"] {
   --divider: rgba(240, 237, 228, 0.08);
   --ring-subtle: 0 0 0 1px rgba(240, 237, 228, 0.09);
   --ring-strong: 0 0 0 1px rgba(240, 237, 228, 0.16);
+
+  --scrollbar-track: transparent;
+  --scrollbar-track-x: rgba(240, 237, 228, 0.075);
+  --scrollbar-thumb: rgba(240, 237, 228, 0.24);
+  --scrollbar-thumb-hover: rgba(240, 237, 228, 0.40);
+  --scrollbar-thumb-active: color-mix(in srgb, var(--primary) 76%, transparent);
 
   --accent-green: #5cc48b;
   --accent-green-lip: #2f8f5b;
@@ -526,7 +541,65 @@ html {
   font-size: 16px;
   background: var(--bg-canvas);
   color: var(--on-surface);
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Global Theme-Adaptive Scrollbars (Chromium / Safari / Firefox / Android WebView) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track:horizontal {
+  background: var(--scrollbar-track-x);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+  border-width: 1px;
+  min-width: 32px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@media (hover: none), (pointer: coarse) {
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-width: 0;
+  }
 }
 
 body {

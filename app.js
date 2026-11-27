@@ -1447,6 +1447,9 @@ window.toggleModal = (id, show) => {
         }
         syncModalAccessibility(el, true);
         el.classList.add('active');
+        if (typeof HorizontalScrollAdapter !== 'undefined') {
+            HorizontalScrollAdapter.refreshIn(el);
+        }
         
         // 2. 焦点入场：延迟等待 CSS 动画生效后，自动聚焦弹窗内第一个可交互元素（右侧分栏预览不抢焦点，保持左侧词库可顺畅滚动）
         if (!el.classList.contains('is-split-pane')) {
@@ -3079,6 +3082,128 @@ const EditorialWorkspace = {
                 this.clearDetailSplit();
             }
         }, { passive: true });
+
+        document.querySelectorAll('.import-format-code').forEach(el => {
+            HorizontalScrollAdapter.attach(el);
+        });
+    }
+};
+
+/* Horizontal Scrollbar Ergonomics: Dynamic Edge Fades, Wheel-to-Horizontal & Mouse Drag-to-Pan */
+const HorizontalScrollAdapter = {
+    _ro: null,
+    _ensureObserver() {
+        if (!this._ro && typeof ResizeObserver === 'function') {
+            this._ro = new ResizeObserver(entries => {
+                entries.forEach(entry => this.updateFade(entry.target));
+            });
+        }
+        return this._ro;
+    },
+    updateFade(el) {
+        if (!el || !el.classList) return;
+        const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+        const hasOverflow = maxScroll > 4;
+        el.classList.toggle('has-h-overflow', hasOverflow);
+        const fadeLeft = hasOverflow && el.scrollLeft > 4;
+        const fadeRight = hasOverflow && el.scrollLeft < maxScroll - 4;
+        el.classList.toggle('h-scroll-fade-both', fadeLeft && fadeRight);
+        el.classList.toggle('h-scroll-fade-left', fadeLeft && !fadeRight);
+        el.classList.toggle('h-scroll-fade-right', !fadeLeft && fadeRight);
+    },
+    refresh(el) {
+        if (!el) return;
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => this.updateFade(el));
+        } else {
+            this.updateFade(el);
+        }
+    },
+    refreshIn(root) {
+        if (!root || typeof root.querySelectorAll !== 'function') return;
+        root.querySelectorAll('.group-range-tabs, .group-range-chunks, .import-format-code').forEach(el => {
+            this.refresh(el);
+        });
+    },
+    attach(el) {
+        if (!el || el.dataset?.hScrollBound === '1') {
+            this.refresh(el);
+            return;
+        }
+        if (el.dataset) el.dataset.hScrollBound = '1';
+
+        const ro = this._ensureObserver();
+        if (ro) ro.observe(el);
+
+        el.addEventListener('scroll', () => this.updateFade(el), { passive: true });
+
+        // 桌面鼠标滚轮：直接上下滚动滚轮即可顺滑横向滚动（无需按住 Shift）
+        el.addEventListener('wheel', (e) => {
+            if (el.scrollWidth <= el.clientWidth + 2) return;
+            if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+            const prev = el.scrollLeft;
+            el.scrollLeft += e.deltaY;
+            if (el.scrollLeft !== prev) {
+                e.preventDefault();
+                this.updateFade(el);
+            }
+        }, { passive: false });
+
+        // 桌面鼠标拖拽平移（超过 6px 触发抓手拖动，短按点击不受影响）
+        let suppressClickUntil = 0;
+        const drag = { active: false, dragging: false, pointerId: null, startX: 0, startScroll: 0 };
+
+        el.addEventListener('click', (e) => {
+            if (performance.now() < suppressClickUntil) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
+
+        el.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'mouse' || e.button !== 0) return;
+            if (el.scrollWidth <= el.clientWidth + 2) return;
+            drag.active = true;
+            drag.dragging = false;
+            drag.pointerId = e.pointerId;
+            drag.startX = e.clientX;
+            drag.startScroll = el.scrollLeft;
+        });
+
+        const endDrag = (e) => {
+            if (!drag.active || (e && drag.pointerId !== null && e.pointerId !== drag.pointerId)) return;
+            drag.active = false;
+            const wasDragging = drag.dragging;
+            drag.dragging = false;
+            el.classList.remove('is-grabbing');
+            try {
+                if (drag.pointerId !== null && el.hasPointerCapture?.(drag.pointerId)) {
+                    el.releasePointerCapture(drag.pointerId);
+                }
+            } catch (_) {}
+            drag.pointerId = null;
+            if (wasDragging) {
+                suppressClickUntil = performance.now() + 240;
+            }
+        };
+
+        window.addEventListener('pointermove', (e) => {
+            if (!drag.active || e.pointerId !== drag.pointerId) return;
+            const dx = e.clientX - drag.startX;
+            if (!drag.dragging) {
+                if (Math.abs(dx) <= 6) return;
+                drag.dragging = true;
+                el.classList.add('is-grabbing');
+                try { el.setPointerCapture?.(e.pointerId); } catch (_) {}
+            }
+            el.scrollLeft = drag.startScroll - dx;
+            this.updateFade(el);
+        }, { passive: true });
+
+        window.addEventListener('pointerup', endDrag, { passive: true });
+        window.addEventListener('pointercancel', endDrag, { passive: true });
+
+        this.refresh(el);
     }
 };
 
@@ -5937,6 +6062,9 @@ const View = {
   syncThemeUI() {
     const isDark =
         document.body.getAttribute('data-theme') === 'dark';
+    if (document.documentElement?.style) {
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+    }
     const nextLabel = isDark
         ? '切换到日间模式'
         : '切换到夜间模式';
@@ -6527,6 +6655,9 @@ const View = {
           chunksBar.className = 'group-range-chunks';
           chunksBar.setAttribute('aria-label', '快捷区段跳转');
 
+          HorizontalScrollAdapter.attach(tabsBar);
+          HorizontalScrollAdapter.attach(chunksBar);
+
           const sectionHost = document.createElement('div');
           sectionHost.className = 'group-range-host';
 
@@ -6577,6 +6708,8 @@ const View = {
               } else {
                   chunksBar.hidden = true;
               }
+              HorizontalScrollAdapter.refresh(tabsBar);
+              HorizontalScrollAdapter.refresh(chunksBar);
 
               sectionHost.innerHTML = '';
 

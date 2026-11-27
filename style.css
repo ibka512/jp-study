@@ -3906,6 +3906,11 @@ body[data-theme="dark"] .book-card::before {
   border: 1px solid var(--outline);
   font-family: var(--font-code);
   font-size: 0.82rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  white-space: nowrap;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track-x);
 }
 
 .import-control-grid {
@@ -4890,13 +4895,18 @@ body[data-theme="dark"] .modal-overlay {
   box-shadow: var(--shadow-xs), inset 0 -2px 0 var(--seal);
 }
 
-/* ---------- Group Range Category Tabs & Chunk Jump Bar (P2) ---------- */
+/* ---------- Group Range Category Tabs & Chunk Jump Bar (P2 + Horizontal Scrollbar Craft) ---------- */
 .group-range-tabs {
   display: flex;
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  scrollbar-width: none;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track-x);
   padding: 2px 2px 10px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--divider);
@@ -4904,7 +4914,42 @@ body[data-theme="dark"] .modal-overlay {
 }
 
 .group-range-tabs::-webkit-scrollbar {
-  display: none;
+  height: 5px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .group-range-tabs.has-h-overflow,
+  .group-range-chunks.has-h-overflow {
+    cursor: grab;
+  }
+  .group-range-tabs.is-grabbing,
+  .group-range-chunks.is-grabbing {
+    cursor: grabbing;
+    user-select: none;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .group-range-tabs::-webkit-scrollbar,
+  .group-range-chunks::-webkit-scrollbar {
+    height: 3px;
+  }
+}
+
+/* Horizontal Overflow Edge-Fade Indicators */
+.h-scroll-fade-right {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 22px), transparent 100%);
+}
+
+.h-scroll-fade-left {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 100%);
+}
+
+.h-scroll-fade-both {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
 }
 
 .group-range-tab {
@@ -4958,13 +5003,19 @@ body[data-theme="dark"] .modal-overlay {
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  scrollbar-width: none;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track-x);
   padding: 0 2px 10px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
 .group-range-chunks::-webkit-scrollbar {
-  display: none;
+  height: 5px;
 }
 
 .group-range-chunks[hidden] {

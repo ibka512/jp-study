@@ -4488,7 +4488,9 @@ const View = {
         return;
     }
     const transition = document.startViewTransition(toggleAction);
-    transition.finished.catch(() => {});
+    transition.ready?.catch(() => {});
+    transition.updateCallbackDone?.catch(() => {});
+    transition.finished?.catch(() => {});
 
   },
   
@@ -7849,7 +7851,9 @@ setupVirtualScroll() {
                 return;
             }
             const transition = document.startViewTransition(applyAction);
-            transition.finished.catch(() => {});
+            transition.ready?.catch(() => {});
+            transition.updateCallbackDone?.catch(() => {});
+            transition.finished?.catch(() => {});
         });
     });
 

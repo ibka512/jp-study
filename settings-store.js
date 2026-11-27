@@ -20,6 +20,7 @@
         langMode: Object.freeze({ defaultValue: 'ja', backup: true, type: 'string' }),
         autoSpeak: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),
         hapticsEnabled: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),
+        hapticsIntensity: Object.freeze({ defaultValue: 'standard', backup: true, type: 'string' }),
         hapticsCompatMode: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         showRoots: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),
         darkBtnStyle: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),

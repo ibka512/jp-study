@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v14">
-<link rel="stylesheet" href="style.css?v=modern-v19">
+<link rel="stylesheet" href="style.css?v=modern-v20">
 </head>
 <body>
 <script>
@@ -702,8 +702,34 @@
           </div>
 
           <div class="setting-item">
-            <div class="setting-info"><div class="setting-title">场景化触感反馈</div><div class="setting-desc">为点击、切换、确认、成功与错误使用不同震动节奏</div></div>
+            <div class="setting-info"><div class="setting-title">场景化触感反馈</div><div class="setting-desc">为按键、翻卡、收藏、答对、连击、答错与通关匹配不同震动节奏</div></div>
             <label class="tactile-switch-wrap" data-haptic="none"><input type="checkbox" id="setting-haptics-enabled" class="tactile-switch" data-haptic="none" checked><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item setting-choice-item setting-segmented-item">
+            <div class="setting-info"><div class="setting-title">触感强度</div><div class="setting-desc">按设备马达手感调节脉冲力度</div></div>
+            <div class="segmented-control" data-segmented-for="setting-haptics-intensity" role="radiogroup" aria-label="触感强度">
+              <button type="button" class="segmented-option" data-value="light" data-haptic="none" role="radio" aria-checked="false">轻柔</button>
+              <button type="button" class="segmented-option active" data-value="standard" data-haptic="none" role="radio" aria-checked="true">标准</button>
+              <button type="button" class="segmented-option" data-value="strong" data-haptic="none" role="radio" aria-checked="false">强烈</button>
+            </div>
+            <select id="setting-haptics-intensity" class="no-bs" hidden aria-hidden="true">
+              <option value="light">轻柔</option>
+              <option value="standard" selected>标准</option>
+              <option value="strong">强烈</option>
+            </select>
+          </div>
+
+          <div class="setting-item setting-choice-item setting-segmented-item">
+            <div class="setting-info"><div class="setting-title">场景手感体验</div><div class="setting-desc">点按不同场景，即时感受差异化节奏</div></div>
+            <div class="haptics-preview-strip" role="group" aria-label="触感场景试听">
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="key">按键</button>
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="cardFlip">翻卡</button>
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="star">收藏</button>
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="correct">答对</button>
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="error">答错</button>
+              <button type="button" class="haptics-preview-chip" data-haptic="none" data-haptic-preview="celebration">通关</button>
+            </div>
           </div>
 
           <div class="setting-item" id="setting-haptics-compat-row">
@@ -1429,12 +1455,12 @@
 <script src="core-utils.js?v=sse-buffer-v1"></script>
 <script src="settings-store.js"></script>
 <script src="study-card-viewmodel.js"></script>
-<script src="haptics.js?v=native-haptics-v2"></script>
+<script src="haptics.js?v=native-haptics-v3"></script>
 <script src="rote-learning-core.js"></script>
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v14"></script>
+<script src="app.js?v=modern-v15"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

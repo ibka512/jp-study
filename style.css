@@ -6489,3 +6489,49 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
 .haptics-test-status[hidden] {
   display: none !important;
 }
+
+/* ===== 场景化触感试听条 ===== */
+.haptics-preview-strip {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .haptics-preview-strip {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.haptics-preview-chip {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--outline-strong);
+  background: var(--surface-subtle);
+  color: var(--on-surface);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              transform var(--dur-press) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .haptics-preview-chip:hover {
+    border-color: var(--primary);
+    background: var(--surface-container);
+    color: var(--primary);
+  }
+}
+
+.haptics-preview-chip:active,
+.haptics-preview-chip.is-pulsing {
+  transform: scale(0.95);
+  border-color: var(--seal);
+  background: var(--surface-elevated);
+  color: var(--seal);
+}

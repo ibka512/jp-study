@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v58';
+const CACHE_NAME = 'zhongri-shell-v59';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -13,7 +13,7 @@ const LOCAL_ASSETS = [
   './vendor/zh-ming.css?v=2',
   './vendor/zh-ming-subset.woff2?v=2',
   './ui-system.css?v=modern-v14',
-  './style.css?v=modern-v19',
+  './style.css?v=modern-v20',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -25,12 +25,12 @@ const LOCAL_ASSETS = [
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js',
   './study-card-viewmodel.js',
-  './haptics.js?v=native-haptics-v2',
+  './haptics.js?v=native-haptics-v3',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v14',
+  './app.js?v=modern-v15',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:local:end
@@ -53,19 +53,19 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/material-symbols.css',
   './vendor/zh-ming.css?v=2',
   './ui-system.css?v=modern-v14',
-  './style.css?v=modern-v19',
+  './style.css?v=modern-v20',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js',
   './study-card-viewmodel.js',
-  './haptics.js?v=native-haptics-v2',
+  './haptics.js?v=native-haptics-v3',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v14',
+  './app.js?v=modern-v15',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:network-first:end

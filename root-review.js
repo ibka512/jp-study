@@ -13,10 +13,11 @@
   };
 
   const $ = id => document.getElementById(id);
-  const vibrate = duration => {
+  const haptic = (type, fallbackMs = 18) => {
     if (window.ZhongriHaptics?.isEnabled?.() === false) return;
-    if (typeof Hardware !== 'undefined' && Hardware.vibrate) Hardware.vibrate(duration);
-    else if (navigator.vibrate) navigator.vibrate(duration);
+    if (window.ZhongriHaptics?.trigger) window.ZhongriHaptics.trigger(type);
+    else if (typeof Hardware !== 'undefined' && Hardware.vibrate) Hardware.vibrate(fallbackMs);
+    else if (navigator.vibrate) navigator.vibrate(fallbackMs);
   };
   const toast = message => {
     if (typeof showToast === 'function') showToast(message);
@@ -182,7 +183,7 @@
     }
     state.decisions[item.id] = { decision, roots };
     save();
-    vibrate(decision === 'accept' ? 35 : 22);
+    haptic(decision === 'accept' ? 'correct' : 'selection', decision === 'accept' ? 35 : 22);
     const nextPending = state.items.findIndex((entry, index) => index > state.index && !state.decisions[entry.id]);
     if (nextPending >= 0) state.index = nextPending;
     else if (decidedCount() === state.items.length) state.index = state.items.length;
@@ -225,7 +226,7 @@
     try {
       await navigator.clipboard.writeText(text);
       toast('审核结果已复制，可保存为 JSON 提交到词库仓库');
-      vibrate(30);
+      haptic('success', 30);
     } catch (_error) {
       downloadReview();
       toast('无法复制，已改为下载审核文件');
@@ -240,7 +241,7 @@
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     toast('审核文件已下载');
-    vibrate(30);
+    haptic('success', 30);
   }
 
   /*
@@ -277,7 +278,7 @@
     overlay.removeAttribute('inert');
     overlay.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    vibrate(18);
+    haptic('sheetOpen', 18);
     window.setTimeout(() => $('root-review-close')?.focus(), 60);
 
     if (state.report) {
@@ -306,7 +307,7 @@
       state.previousFocus.focus();
       state.previousFocus = null;
     }
-    vibrate(12);
+    haptic('sheetClose', 12);
   }
 
   function bind() {
@@ -326,14 +327,14 @@
     });
     $('root-review-accept')?.addEventListener('click', () => setDecision('accept'));
     $('root-review-hide')?.addEventListener('click', () => setDecision('hide'));
-    $('root-review-prev')?.addEventListener('click', () => { state.index--; vibrate(10); render(); });
-    $('root-review-next')?.addEventListener('click', () => { state.index++; vibrate(10); render(); });
+    $('root-review-prev')?.addEventListener('click', () => { state.index--; haptic('cardFlip', 14); render(); });
+    $('root-review-next')?.addEventListener('click', () => { state.index++; haptic('cardFlip', 14); render(); });
     $('root-review-edit')?.addEventListener('click', () => {
       const input = $('root-review-roots-input');
       input.hidden = false;
       $('root-review-parts').hidden = true;
       input.focus();
-      vibrate(10);
+      haptic('focus', 14);
     });
     $('root-review-roots-input')?.addEventListener('change', event => {
       const item = state.items[state.index];

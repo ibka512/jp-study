@@ -274,7 +274,30 @@ try {
     'TTS rate control failed: ' + JSON.stringify(rateCheck)
   );
   await shot(page, '03-settings-tts-rate.png');
+  const hapticsUiCheck = await page.evaluate(() => {
+    const intensityBtns = Array.from(document.querySelectorAll('[data-segmented-for="setting-haptics-intensity"] button'));
+    const previewChips = Array.from(document.querySelectorAll('[data-haptic-preview]'));
+    const strongBtn = intensityBtns.find(b => b.dataset.value === 'strong');
+    strongBtn?.click();
+    const intensityStored = window.ZhongriHaptics?.getIntensity?.();
+    const previewTarget = previewChips.find(c => c.dataset.hapticPreview === 'celebration');
+    previewTarget?.scrollIntoView({ block: 'center' });
+    previewTarget?.click();
+    return {
+      intensityCount: intensityBtns.length,
+      previewCount: previewChips.length,
+      intensityStored
+    };
+  });
+  assert(
+    hapticsUiCheck.intensityCount === 3 &&
+    hapticsUiCheck.previewCount === 6 &&
+    hapticsUiCheck.intensityStored === 'strong',
+    'Scenario haptics UI check failed: ' + JSON.stringify(hapticsUiCheck)
+  );
+  await shot(page, '06-settings-scenario-haptics.png');
   await page.evaluate(() => {
+    document.querySelector('[data-segmented-for="setting-haptics-intensity"] button[data-value="standard"]')?.click();
     document.querySelector('[data-segmented-for="setting-tts-rate"] button[data-value="1"]')?.click();
     document.querySelector('#settings-section-display [data-settings-back]')?.click();
   });
@@ -329,10 +352,11 @@ try {
 
   // 5. Desktop viewport (1280x860): centered group selector & chunked DOM
   await setViewport(page, 1280, 860, false);
+  await settle(page, 300);
   await page.evaluate(() => {
     document.getElementById('btn-custom-group-select')?.click();
   });
-  await new Promise(r => setTimeout(r, 260));
+  await settle(page, 400);
   const desktopCheck = await page.evaluate(() => {
     const overflow = document.documentElement.scrollWidth - window.innerWidth;
     const sheet = document.querySelector('#group-select-overlay .bottom-sheet');

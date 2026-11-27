@@ -123,6 +123,43 @@ assert.equal(webDiag.engine, 'web');
 assert.equal(webDiag.hasVibrateApi, true);
 assert.equal(webDiag.isNative, false);
 assert.equal(webDiag.compatMode, false);
+assert.equal(webDiag.intensity, 'standard');
+
+// 场景化节奏与强度档位缩放（仅缩放有效脉冲，保留停顿间隔与诊断测试脉冲）
+assert.deepEqual(haptics.getPattern('key'), [14]);
+assert.deepEqual(haptics.getPattern('cardFlip'), [18, 24, 30]);
+assert.deepEqual(haptics.getPattern('star'), [20, 30, 48]);
+assert.deepEqual(haptics.getPattern('correct'), [28, 36, 54]);
+assert.deepEqual(haptics.getPattern('combo'), [26, 30, 42, 30, 72]);
+assert.deepEqual(haptics.getPattern('celebration'), [40, 42, 40, 42, 65, 50, 130]);
+
+haptics.setIntensity('light');
+assert.equal(haptics.getIntensity(), 'light');
+haptics.trigger('star', { force: true });
+assert.deepEqual(calls.at(-1), [14, 30, 34], '轻柔档位应按 0.7x 缩放脉冲并保留 30ms 停顿');
+
+haptics.setIntensity('strong');
+assert.equal(haptics.getIntensity(), 'strong');
+haptics.trigger('star', { force: true });
+assert.deepEqual(calls.at(-1), [29, 30, 70], '强烈档位应按 1.45x 缩放脉冲并保留 30ms 停顿');
+
+// 诊断脉冲不受强度缩放影响
+haptics.trigger('diagnostic', { force: true });
+assert.deepEqual(calls.at(-1), [220, 120, 220]);
+
+// 长按蓄力渐进脉冲（16ms -> 42ms）
+haptics.setIntensity('standard');
+haptics.setEnabled(true);
+assert.equal(haptics.triggerChargeTick(0), true);
+assert.equal(calls.at(-1), 16);
+const origDateNow = Date.now;
+Date.now = () => origDateNow() + 60;
+try {
+    assert.equal(haptics.triggerChargeTick(1), true, '蓄力与按键场景使用 45ms 快速去重窗口');
+    assert.equal(calls.at(-1), 42);
+} finally {
+    Date.now = origDateNow;
+}
 
 // 原生 Capacitor 环境缺少 navigator.vibrate 时关闭触感不应抛异常
 const nativeCalls = [];

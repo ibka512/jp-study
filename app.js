@@ -1492,9 +1492,9 @@ window.showConfirm = (title, msg, onConfirm, { confirmLabel = '确定', danger =
     const confirm = document.getElementById('dialog-confirm');
     confirm.textContent = confirmLabel;
     confirm.classList.toggle('ui-danger-action', danger);
-    confirm.onclick = () => { Hardware.vibrate(15); window.toggleModal('dialog-overlay', false); onConfirm(); };
+    confirm.onclick = () => { Hardware.haptic(danger ? 'delete' : 'confirm'); window.toggleModal('dialog-overlay', false); onConfirm(); };
     const cancel = document.getElementById('dialog-cancel');
-    cancel.onclick = () => { Hardware.vibrate(10); window.toggleModal('dialog-overlay', false); };
+    cancel.onclick = () => { Hardware.haptic('sheetClose'); window.toggleModal('dialog-overlay', false); };
     window.toggleModal('dialog-overlay', true);
     if (danger) cancel.focus({ preventScroll: true });
 };
@@ -1524,7 +1524,7 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     }, 100);
 
     document.getElementById('prompt-confirm').onclick = () => {
-        Hardware.vibrate(15);
+        Hardware.haptic('confirm');
 
         const val = input.value.trim();
 
@@ -1535,7 +1535,7 @@ window.showPrompt = (title, defaultVal, onConfirm) => {
     };
 
     document.getElementById('prompt-cancel').onclick = () => {
-        Hardware.vibrate(10);
+        Hardware.haptic('sheetClose');
         window.toggleModal('prompt-overlay', false);
     };
 };
@@ -1697,7 +1697,7 @@ const BottomSheet = {
             sel.parentNode.insertBefore(facade, sel.nextSibling);
 
             facade.addEventListener('click', () => {
-                Hardware.vibrate(10);
+                Hardware.haptic('sheetOpen');
                 this.open(sel, textSpan);
             });
 
@@ -1752,7 +1752,7 @@ const BottomSheet = {
 
                 button.addEventListener('click', event => {
                     event.stopPropagation();
-                    Hardware.vibrate(10);
+                    Hardware.haptic('sheetClose');
                     window.toggleModal(overlay.id, false);
                 });
 
@@ -1881,7 +1881,7 @@ const BottomSheet = {
                     sheet.style.transform = `translate3d(0, ${dismissDistance}px, 0)`;
                     overlay.style.opacity = '0';
 
-                    Hardware.vibrate(12);
+                    Hardware.haptic('sheetClose');
 
                     finishTimer = window.setTimeout(() => {
                         window.toggleModal(
@@ -2669,7 +2669,7 @@ const RomajiEngine = {
         "la":"ぁ","li":"ぃ","lu":"ぅ","le":"ぇ","lo":"ぉ","ltu":"っ","ltsu":"っ","lya":"ゃ","lyu":"ゅ","lyo":"ょ"
     },
     reset() { this.raw = ''; this.buffer = ''; this.mode = 'hiragana'; },
-    toggleMode() { this.mode = this.mode === 'hiragana' ? 'katakana' : 'hiragana'; Hardware.vibrate(10); },
+    toggleMode() { this.mode = this.mode === 'hiragana' ? 'katakana' : 'hiragana'; Hardware.haptic('selection'); },
     toKatakana(hira) { return hira.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60)); },
     toHiragana(text) { return String(text || '').replace(/[\u30A1-\u30F6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60)); },
     hasPrefix(prefix) { return Object.keys(this.map).some(k => k.startsWith(prefix)); },
@@ -2677,11 +2677,11 @@ const RomajiEngine = {
         if (char === 'Backspace') {
             if (this.buffer.length > 0) this.buffer = this.buffer.slice(0, -1);
             else if (this.raw.length > 0) this.raw = this.raw.slice(0, -1);
-            Hardware.vibrate(10); return;
+            Hardware.haptic('key'); return;
         }
         const lower = String(char || '').toLowerCase();
         if (!/^[a-z'-]$/.test(lower)) return;
-        Hardware.vibrate(15);
+        Hardware.haptic('key');
         this.buffer += lower;
 
         let safety = 0;
@@ -4144,16 +4144,20 @@ const Hardware = {
   haptic(type, options) {
     return HAPTICS.trigger(type, options);
   },
+  hapticChargeTick(progress) {
+    return typeof HAPTICS.triggerChargeTick === 'function'
+      ? HAPTICS.triggerChargeTick(progress)
+      : HAPTICS.trigger('tap');
+  },
   vibrate(pattern, options) {
     return HAPTICS.triggerLegacy(pattern, options);
   },
   playSound(type, { haptic = true } = {}) {
     if (haptic) {
-        this.haptic(
-            type === 'success' || type === 'error'
-                ? type
-                : 'tap'
-        );
+        const scenario = typeof haptic === 'string'
+            ? haptic
+            : (type === 'success' || type === 'error' ? type : 'tap');
+        this.haptic(scenario);
     }
     try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -6992,7 +6996,7 @@ void card.offsetWidth;
           : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
       hintBtn.onpointerdown = (e) => {
           e.preventDefault();
-          Hardware.vibrate(10);
+          Hardware.haptic('hint');
           if (isEnglishKb) {
               let wWord = View.getEl('w-word');
               if (wWord) {
@@ -7050,8 +7054,7 @@ void card.offsetWidth;
                   if (key === 'Kana') { RomajiEngine.toggleMode(); btn.innerText = RomajiEngine.mode === 'hiragana' ? 'あ/ア' : 'ア/あ'; return; }
                   if (key === 'Enter') { Controller.handleSpellConfirm(inputEl, wObj, displayMode); return; }
                                     if (isEnglishKb) {
-                      // 补上缺失的实体按键震动反馈：退格键震动轻一点，普通按键震动强一点
-                      Hardware.vibrate(key === 'Backspace' ? 10 : 15);
+                      Hardware.haptic('key');
                       
                       if (key === 'Backspace') EnglishInput.input('Backspace');
                       else if (key === "'") EnglishInput.buffer += "'";
@@ -7428,6 +7431,12 @@ const Controller = {
     let hapticsCheck = View.getEl('setting-haptics-enabled');
     if (hapticsCheck) hapticsCheck.checked = HAPTICS.isEnabled();
 
+    let hapticsIntensitySel = View.getEl('setting-haptics-intensity');
+    if (hapticsIntensitySel) {
+        hapticsIntensitySel.value = HAPTICS.getIntensity ? HAPTICS.getIntensity() : 'standard';
+        hapticsIntensitySel.dispatchEvent(new Event('facade-update'));
+    }
+
     let hapticsCompatCheck = View.getEl('setting-haptics-compat');
     let hapticsCompatRow = View.getEl('setting-haptics-compat-row');
     if (hapticsCompatCheck) hapticsCompatCheck.checked = HAPTICS.isCompatMode();
@@ -7703,11 +7712,11 @@ setupVirtualScroll() {
     });
     
     document.querySelectorAll('.theme-toggle-btn').forEach(btn => { 
-        btn.addEventListener('click', (e) => { Hardware.playSound('click'); Hardware.vibrate(20); View.toggleTheme(e); }); 
+        btn.addEventListener('click', (e) => { Hardware.playSound('click', { haptic: 'toggle' }); View.toggleTheme(e); }); 
     });
     
     View.getEl('btn-exit-study').addEventListener('click', () => {
-        Hardware.vibrate(20);
+        Hardware.haptic('sheetClose');
         Hardware.stopAllAudio();
         Model.state.studySessionId = (Model.state.studySessionId || 0) + 1;
         Model.state.isAnimating = false;
@@ -7813,12 +7822,12 @@ setupVirtualScroll() {
     for (const id of ['test-range-select', 'test-display-select']) {
         View.getEl(id)?.addEventListener('change', () => View.renderStudyScope());
     }
-    View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
-    View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.vibrate(10); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
+    View.getEl('btn-test-range-trigger').addEventListener('click', () => { Hardware.haptic('sheetOpen'); BottomSheet.open(View.getEl('test-range-select'), document.createElement('span')); });
+    View.getEl('btn-test-display-trigger').addEventListener('click', () => { Hardware.haptic('sheetOpen'); BottomSheet.open(View.getEl('test-display-select'), document.createElement('span')); });
 
-    View.getEl('ft-forget').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
+    View.getEl('ft-forget').addEventListener('click', () => { Hardware.playSound('error', { haptic: 'error' }); this.processFilterTestResult(false); });
     View.getEl('ft-blur').addEventListener('click', () => { 
-        Hardware.playSound('click'); Hardware.vibrate(20); 
+        Hardware.playSound('click', { haptic: 'hint' });
         let currentDisplay = View.getEl('test-display-select').value || 'kana'; 
         
         let poolMap = {
@@ -7834,8 +7843,7 @@ setupVirtualScroll() {
         View.renderStudyCard('none'); 
     });
     View.getEl('ft-know').addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.vibrate(20);
+        Hardware.playSound('click', { haptic: 'cardFlip' });
 
         Model.state.ftState = 'C';
         View.renderStudyCard('none');
@@ -7844,11 +7852,11 @@ setupVirtualScroll() {
             View.revealStudyAnswer();
         });
     });
-    View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success'); Hardware.vibrate(40); this.processFilterTestResult(true); });
-    View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error'); Hardware.vibrate(30); this.processFilterTestResult(false); });
+    View.getEl('ft-correct').addEventListener('click', () => { Hardware.playSound('success', { haptic: 'correct' }); this.processFilterTestResult(true); });
+    View.getEl('ft-wrong').addEventListener('click', () => { Hardware.playSound('error', { haptic: 'error' }); this.processFilterTestResult(false); });
 
-    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click'); Hardware.vibrate(60); View.renderStudyCard('prev'); } });
-    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click'); Hardware.vibrate(40); View.renderStudyCard('next'); } });
+    View.getEl('btn-prev').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex > 0) { Model.state.currentIndex--; Hardware.playSound('click', { haptic: 'cardFlip' }); View.renderStudyCard('prev'); } });
+    View.getEl('btn-next').addEventListener('click', () => { if(Model.state.isAnimating) return; Hardware.unlockSpeech(); if(Model.state.currentIndex < Model.state.studyQueue.length-1) { Model.state.currentIndex++; Hardware.playSound('click', { haptic: 'cardFlip' }); View.renderStudyCard('next'); } });
     View.getEl('btn-finish').addEventListener('click', () => this.finishPendulum());
     
     /* ---------- Unified Non-Modal Popover Manager (P0) ---------- */
@@ -7911,9 +7919,8 @@ setupVirtualScroll() {
                 entries.push(entry);
                 trigger.addEventListener('click', event => {
                     event.stopPropagation();
-                    Hardware.playSound('click');
-                    Hardware.vibrate(12);
                     const willOpen = panel.hidden;
+                    Hardware.playSound('click', { haptic: willOpen ? 'sheetOpen' : 'sheetClose' });
                     closeAll(panel);
                     if (willOpen) {
                         onBeforeOpen?.();
@@ -8056,6 +8063,32 @@ setupVirtualScroll() {
         });
     }
 
+    let hapticsIntensityTrigger = View.getEl('setting-haptics-intensity');
+    if (hapticsIntensityTrigger) {
+        hapticsIntensityTrigger.addEventListener('change', event => {
+            const level = HAPTICS.setIntensity ? HAPTICS.setIntensity(event.target.value) : event.target.value;
+            if (HAPTICS.isEnabled()) {
+                Hardware.haptic('selection', { force: true });
+            }
+            const names = { light: '轻柔', standard: '标准', strong: '强烈' };
+            showToast(`触感强度已设为「${names[level] || '标准'}」`);
+        });
+    }
+
+    document.querySelectorAll('[data-haptic-preview]').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const scenario = chip.dataset.hapticPreview || 'tap';
+            const accepted = Hardware.haptic(scenario, { force: true });
+            chip.classList.remove('is-pulsing');
+            void chip.offsetWidth;
+            chip.classList.add('is-pulsing');
+            setTimeout(() => chip.classList.remove('is-pulsing'), 260);
+            if (!accepted) {
+                showToast('当前浏览器不支持或拦截了震动请求');
+            }
+        });
+    });
+
     let hapticsCompatCheck = View.getEl('setting-haptics-compat');
     if (hapticsCompatCheck) {
         hapticsCompatCheck.addEventListener('change', event => {
@@ -8076,8 +8109,7 @@ setupVirtualScroll() {
         card.addEventListener('click', () => {
             const targetPalette = card.dataset.paletteOption;
             if (!targetPalette) return;
-            Hardware.playSound('click');
-            Hardware.vibrate(15);
+            Hardware.playSound('click', { haptic: 'selection' });
             const applyAction = () => View.applyColorPalette(targetPalette, { persist: true, toast: true });
             if (!document.startViewTransition || isMotionReduced()) {
                 applyAction();
@@ -8142,7 +8174,7 @@ setupVirtualScroll() {
     let ttsSelectTrigger = View.getEl('setting-tts-engine');
 if (ttsSelectTrigger) {
     ttsSelectTrigger.addEventListener('change', (e) => {
-        Hardware.playSound('click'); Hardware.vibrate(15);
+        Hardware.playSound('click', { haptic: 'selection' });
         localStorage.setItem('ttsEngine', e.target.value);
         let names = { 'local': '系统自带', 'youdao': '网易有道', 'azure': '微软语音' };
         showToast(`已切换至 ${names[e.target.value]} 发音`);
@@ -8152,7 +8184,7 @@ if (ttsSelectTrigger) {
     let ttsRateTrigger = View.getEl('setting-tts-rate');
     if (ttsRateTrigger) {
         ttsRateTrigger.addEventListener('change', (e) => {
-            Hardware.playSound('click'); Hardware.vibrate(15);
+            Hardware.playSound('click', { haptic: 'selection' });
             localStorage.setItem('ttsRate', e.target.value);
             const rateNames = { '0.75': '0.75× 慢速', '1': '1.0× 标准语速', '1.25': '1.25× 较快' };
             showToast(`已设为 ${rateNames[e.target.value] || '1.0× 标准语速'}`);
@@ -8293,20 +8325,52 @@ if (testVibrateBtn) {
 
 
     let lpBtn = View.getEl('btn-long-press');
-    let punchTimer = null; let vibrateInterval = null; let isLpPressing = false; 
-    const clearPunch = () => { if(punchTimer) clearTimeout(punchTimer); if(vibrateInterval) clearInterval(vibrateInterval); punchTimer = null; vibrateInterval = null; isLpPressing = false; if(lpBtn) lpBtn.classList.remove('pressing'); Hardware.stopChargeSound(); };
-    if(lpBtn) {
+    let punchTimer = null; let chargeTickTimer = null; let isLpPressing = false;
+    const clearPunch = () => {
+        if (punchTimer) clearTimeout(punchTimer);
+        if (chargeTickTimer) clearTimeout(chargeTickTimer);
+        punchTimer = null; chargeTickTimer = null; isLpPressing = false;
+        if (lpBtn) lpBtn.classList.remove('pressing');
+        Hardware.stopChargeSound();
+    };
+    if (lpBtn) {
         lpBtn.addEventListener('pointerdown', (e) => {
-            if(lpBtn.classList.contains('done') || isLpPressing) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
-            isLpPressing = true; Hardware.unlockSpeech(); try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
-            lpBtn.classList.add('pressing'); Hardware.playChargeSound(); Hardware.haptic('tap'); vibrateInterval = setInterval(() => Hardware.haptic('tap'), 180);
-            punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.haptic('success'); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
-        });
-        lpBtn.addEventListener('pointerup', clearPunch); 
-        lpBtn.addEventListener('pointercancel', clearPunch); 
-        lpBtn.addEventListener('pointerleave', clearPunch); 
-        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); }); 
+            if (lpBtn.classList.contains('done') || isLpPressing) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            isLpPressing = true;
+            Hardware.unlockSpeech();
+            try { lpBtn.setPointerCapture(e.pointerId); } catch (err) {}
+            lpBtn.classList.add('pressing');
+            Hardware.playChargeSound();
 
+            // 渐进加速心跳蓄力：230ms -> 115ms，力度 16ms -> 42ms，至 1500ms 落印
+            const startedAt = Date.now();
+            const scheduleChargePulse = () => {
+                if (!isLpPressing) return;
+                const elapsed = Date.now() - startedAt;
+                if (elapsed >= 1420) return;
+                const progress = Math.min(1, elapsed / 1500);
+                Hardware.hapticChargeTick(progress);
+                const nextGap = Math.round(230 - progress * 115);
+                chargeTickTimer = setTimeout(scheduleChargePulse, nextGap);
+            };
+            scheduleChargePulse();
+
+            punchTimer = setTimeout(() => {
+                clearPunch();
+                Hardware.playDingDong();
+                Hardware.haptic('celebration');
+                let t = new Date().toLocaleDateString('zh-CN');
+                Model.records.push({ date: t, type: 'daily_punch' });
+                Model.saveRecords();
+                View.renderDashboard();
+                showToast('打卡成功！能量满点');
+            }, 1500);
+        });
+        lpBtn.addEventListener('pointerup', clearPunch);
+        lpBtn.addEventListener('pointercancel', clearPunch);
+        lpBtn.addEventListener('pointerleave', clearPunch);
+        lpBtn.addEventListener('contextmenu', (e) => { e.preventDefault(); });
     }
 
     ['next-display-mode', 'wb-col-select', 'wb-blur-select'].forEach(id => { 
@@ -8341,16 +8405,17 @@ if (testVibrateBtn) {
 
     View.getEl('btn-speaker').addEventListener('click', (e) => { Hardware.vibrate(10); Hardware.unlockSpeech(); let w = Model.db[Model.state.studyQueue[Model.state.currentIndex]]; Hardware.speakWord(w, e.currentTarget); });
     View.getEl('star-btn').addEventListener('click', (e) => {
-        Hardware.playSound('click');
-
         const wordObj =
             Model.db[Model.state.studyQueue[Model.state.currentIndex]];
         const wordId = Model.getWordId(wordObj);
         const index = Model.stars.indexOf(wordId);
+        const isStarred = index === -1;
         const button = e.currentTarget;
         const icon = View.getEl('star-icon');
 
-        if (index > -1) {
+        Hardware.playSound('click', { haptic: isStarred ? 'star' : 'selection' });
+
+        if (!isStarred) {
             Model.stars.splice(index, 1);
             button.classList.remove('active');
             icon.style.fontVariationSettings = "'FILL' 0";
@@ -8359,10 +8424,8 @@ if (testVibrateBtn) {
             button.classList.add('active');
             icon.style.fontVariationSettings = "'FILL' 1";
             window.createStarParticles(button);
-            Hardware.vibrate(20);
         }
 
-        const isStarred = index === -1;
         button.setAttribute('aria-pressed', String(isStarred));
         button.setAttribute(
             'aria-label',
@@ -8374,18 +8437,18 @@ if (testVibrateBtn) {
     let dtStarBtn = View.getEl('dt-star-btn');
     if (dtStarBtn) {
         dtStarBtn.addEventListener('click', (e) => {
-            Hardware.playSound('click');
-            Hardware.vibrate(10);
-
             const realIdx =
                 Model.state.detailArray[Model.state.activeDetailIdx];
             const word = Model.db[realIdx];
             const wordId = Model.getWordId(word);
             const starIndex = Model.stars.indexOf(wordId);
+            const isStarred = starIndex === -1;
             const starButton = e.currentTarget;
             const icon = View.getEl('dt-star-icon');
 
-            if (starIndex > -1) {
+            Hardware.playSound('click', { haptic: isStarred ? 'star' : 'selection' });
+
+            if (!isStarred) {
                 Model.stars.splice(starIndex, 1);
                 starButton.classList.remove('active');
                 icon.style.fontVariationSettings = "'FILL' 0";
@@ -8396,7 +8459,6 @@ if (testVibrateBtn) {
                 window.createStarParticles(starButton);
             }
 
-            const isStarred = starIndex === -1;
             starButton.setAttribute('aria-pressed', String(isStarred));
             starButton.setAttribute(
                 'aria-label',
@@ -8456,8 +8518,7 @@ if (testVibrateBtn) {
                 });
             }
 
-            Hardware.playSound('click');
-            Hardware.vibrate(15);
+            Hardware.playSound('click', { haptic: 'cardFlip' });
         }
 
         let exJp = e.target.closest('.dt-ex-jp'); 
@@ -8474,7 +8535,7 @@ if (testVibrateBtn) {
                 const wEx = currentIdx > -1 ? Model.db[currentIdx] : null;
                 let lang = (wEx && wEx.lang === 'en') ? 'en' : 'ja';
                 Hardware.speakText(textToSpeak, exJp.querySelector('.ex-speaker') || exJp, lang); 
-                Hardware.vibrate(10); 
+                Hardware.haptic('tap'); 
             } 
         }
 
@@ -8491,7 +8552,7 @@ if (testVibrateBtn) {
             const wObj = currentIdx > -1 ? Model.db[currentIdx] : null;
             if (wObj) {
                 Hardware.speakWord(wObj, phSpeaker);
-                Hardware.vibrate(15);
+                Hardware.haptic('tap');
             }
         }
     });
@@ -8499,7 +8560,7 @@ if (testVibrateBtn) {
 
     let pressTimer = null; let isPressing = false; let startX = 0; let startY = 0; let startScrollY = 0; let suppressCardClickUntil = 0;
     const clearPressCard = (card) => { if(pressTimer) clearTimeout(pressTimer); pressTimer = null; isPressing = false; if(card) card.classList.remove('pressing'); };
-    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { suppressCardClickUntil = Date.now() + 700; Hardware.vibrate(50); Hardware.playSound('click'); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
+    const onPointerDownCard = (e) => { if(e.pointerType === 'mouse' && e.button !== 0) return; let card = e.target.closest('.wb-card'); if (!card || e.target.closest('button, .wb-checkbox, .wb-c-speaker, .btn-wb-star')) return; if (Model.state.batchMode) return; startX = e.clientX; startY = e.clientY; startScrollY = window.scrollY; isPressing = true; card.classList.add('pressing'); pressTimer = setTimeout(() => { if(isPressing && Math.abs(window.scrollY - startScrollY) < 10) { suppressCardClickUntil = Date.now() + 700; Hardware.playSound('click', { haptic: 'longPress' }); Controller.openDetailModal(parseInt(card.dataset.idx)); clearPressCard(card); } }, 500); };
     const onPointerMoveCard = (e) => { if(!isPressing) return; if(Math.abs(e.clientX - startX) > 25 || Math.abs(e.clientY - startY) > 25) { let card = e.target.closest('.wb-card'); clearPressCard(card); } };
     const onPointerUpCard = (e) => { let card = e.target.closest('.wb-card'); clearPressCard(card); };
     let grid = View.getEl('wb-grid'); grid.addEventListener('pointerdown', onPointerDownCard); grid.addEventListener('pointermove', onPointerMoveCard); grid.addEventListener('pointerup', onPointerUpCard); grid.addEventListener('pointercancel', onPointerUpCard);
@@ -8517,22 +8578,22 @@ if (testVibrateBtn) {
           return;
       }
 
-      Hardware.vibrate(15);
+      Hardware.haptic('sheetOpen');
       Controller.openDetailModal(idx);
     });
     grid.addEventListener('click', (e) => {
       let card = e.target.closest('.wb-card'); if (!card) return; let idx = parseInt(card.dataset.idx);
       if (e.target.closest('.btn-wb-star')) {
-          Hardware.playSound('click');
-          Hardware.vibrate(10);
-
           const word = Model.db[idx];
           const wordId = Model.getWordId(word);
           const starIndex = Model.stars.indexOf(wordId);
+          const isStarred = starIndex === -1;
           const starButton = e.target.closest('.btn-wb-star');
           const icon = starButton.querySelector('.material-symbols-rounded');
 
-          if (starIndex > -1) {
+          Hardware.playSound('click', { haptic: isStarred ? 'star' : 'selection' });
+
+          if (!isStarred) {
               Model.stars.splice(starIndex, 1);
               starButton.classList.remove('active');
               icon.style.fontVariationSettings = "'FILL' 0";
@@ -8543,7 +8604,6 @@ if (testVibrateBtn) {
               window.createStarParticles(starButton);
           }
 
-          const isStarred = starIndex === -1;
           starButton.setAttribute('aria-pressed', String(isStarred));
           starButton.setAttribute(
               'aria-label',
@@ -8555,7 +8615,7 @@ if (testVibrateBtn) {
           }
           return;
       }
-      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.vibrate(10); return; }
+      if (e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')) { Hardware.unlockSpeech(); Hardware.speakWord(Model.db[idx], e.target.closest('.btn-wb-speak') || e.target.closest('.wb-c-speaker')); Hardware.haptic('tap'); return; }
       if (Model.state.batchMode) {
           e.stopPropagation();
 
@@ -8568,8 +8628,7 @@ if (testVibrateBtn) {
           const isSelected =
               Model.state.selectedSet.has(idx);
 
-          Hardware.playSound('click');
-          Hardware.vibrate(10);
+          Hardware.playSound('click', { haptic: 'selection' });
 
           card.classList.toggle(
               'is-selected',
@@ -8603,8 +8662,7 @@ if (testVibrateBtn) {
           return;
       }
 
-      Hardware.playSound('click');
-      Hardware.vibrate(15);
+      Hardware.playSound('click', { haptic: 'sheetOpen' });
       Controller.openDetailModal(idx);
     });
 
@@ -8729,10 +8787,9 @@ if (testVibrateBtn) {
             { confirmLabel: '完全重置', danger: true }
         );
     });
-    View.getEl('detail-close').addEventListener('click', () => { Hardware.vibrate(15); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
+    View.getEl('detail-close').addEventListener('click', () => { Hardware.haptic('sheetClose'); window.toggleModal('detail-overlay', false); if (document.getElementById('tab-wordbank').classList.contains('active')) { View.resetWordbankRenderer(); } });
     View.getEl('detail-edit')?.addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.vibrate(12);
+        Hardware.playSound('click', { haptic: 'sheetOpen' });
         const realIdx = Model.state.detailArray[Model.state.activeDetailIdx];
         if (typeof realIdx === 'number' && Model.db[realIdx]) {
             this.editWord(realIdx);
@@ -8742,8 +8799,7 @@ if (testVibrateBtn) {
     this.bindDetailCardSwipe();
 
     View.getEl('btn-summary-home')?.addEventListener('click', () => {
-        Hardware.playSound('click');
-        Hardware.vibrate(12);
+        Hardware.playSound('click', { haptic: 'sheetClose' });
         window.toggleModal('study-summary-overlay', false);
     });
     View.getEl('study-summary-overlay')?.addEventListener('click', event => {
@@ -8783,7 +8839,7 @@ if (testVibrateBtn) {
         Hardware.speakWord(w);
     });
     View.getEl('btn-save-edit').addEventListener('click', () => {
-        Hardware.vibrate(20);
+        Hardware.haptic('confirm');
 
         const wordValue =
             View.getEl('edit-word').value.trim();
@@ -8936,7 +8992,7 @@ if (testVibrateBtn) {
     });
 
     View.getEl('btn-cancel-edit').addEventListener('click', () => {
-        Hardware.vibrate(10);
+        Hardware.haptic('sheetClose');
         Controller.pendingWordDraft = null;
         window.toggleModal('edit-overlay', false);
     });
@@ -10449,7 +10505,7 @@ if (testVibrateBtn) {
         modeSelect.value = savedMode;
         modeSelect.dispatchEvent(new Event('facade-update'));
     }
-    View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
+    View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.haptic('confirm');
   },
 
   buildFilterTestQueue(rawQueue) {
@@ -10585,7 +10641,7 @@ if (testVibrateBtn) {
           groupKey: ''
       });
       
-      View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.vibrate(40);
+      View.updateComboBadge(); View.showPage('study-area'); let c = View.getEl('pixel-matrix'); c.innerHTML=''; View.renderStudyCard('none'); Hardware.haptic('confirm');
   },
 
     startFsrsReview() {
@@ -10619,7 +10675,7 @@ if (testVibrateBtn) {
         View.showPage('study-area');
         View.renderStudyCard('none');
         this.renderFsrsReviewControls();
-        Hardware.vibrate(40);
+        Hardware.haptic('confirm');
     },
 
     renderFsrsReviewControls() {
@@ -10663,8 +10719,7 @@ if (testVibrateBtn) {
             return;
         }
         Model.state.fsrsAnswerRevealed = true;
-        Hardware.playSound('click');
-        Hardware.vibrate(15);
+        Hardware.playSound('click', { haptic: 'cardFlip' });
         View.renderStudyCard('none');
         this.renderFsrsReviewControls();
         View.getEl('fsrs-rating-buttons')
@@ -10684,14 +10739,17 @@ if (testVibrateBtn) {
         const sessionId = Model.state.studySessionId || 0;
         Model.recordFsrsReview({ word: item.word, dimension: item.dimension, rating, source: 'fsrs-review' });
         this.trackSessionOutcome(item.word, rating !== 'again');
-        Hardware.playSound(rating === 'again' ? 'error' : 'success');
-        Hardware.vibrate(rating === 'again' ? 35 : 20);
+        const fsrsHapticMap = { again: 'error', hard: 'hint', good: 'correct', easy: 'easy' };
+        Hardware.playSound(rating === 'again' ? 'error' : 'success', {
+            haptic: fsrsHapticMap[rating] || 'correct'
+        });
         window.setTimeout(() => {
             if ((Model.state.studySessionId || 0) !== sessionId || Model.state.mode !== 'fsrs-review') return;
             Model.state.isAnimating = false;
             Model.state.currentIndex++;
             if (Model.state.currentIndex >= Model.state.fsrsReviewItems.length) {
                 const reviewedCount = Model.state.fsrsReviewItems.length;
+                Hardware.playSound('success', { haptic: 'celebration' });
                 View.getEl('btn-exit-study')?.click();
                 this.showStudySummary({
                     mode: 'fsrs-review',
@@ -10787,8 +10845,7 @@ if (testVibrateBtn) {
           if (Model.state.currentIndex >= Model.state.studyQueue.length) {
               const testedCount = Model.state.studyQueue.length;
               Model.state.isAnimating = false;
-              Hardware.playSound('success');
-              Hardware.vibrate(1000);
+              Hardware.playSound('success', { haptic: 'celebration' });
               View.getEl('btn-exit-study').click();
               this.showStudySummary({
                   mode: 'filter-test',
@@ -10837,11 +10894,10 @@ if (testVibrateBtn) {
 
       if (isSpellMatch) {
           Model.state.isAnimating = true;
-          Hardware.playSound('success');
-          Hardware.vibrate(50);
-          View.playStudyFeedback('correct');
-
           Model.state.comboCount++;
+          const isComboMilestone = Model.state.comboCount >= 3 && (Model.state.comboCount % 3 === 0 || Model.state.comboCount % 5 === 0);
+          Hardware.playSound('success', { haptic: isComboMilestone ? 'combo' : 'correct' });
+          View.playStudyFeedback('correct');
           View.updateComboBadge();
 
           if (isRote) {
@@ -10916,8 +10972,7 @@ if (testVibrateBtn) {
           return;
       }
 
-      Hardware.playSound('error');
-      Hardware.vibrate(60);
+      Hardware.playSound('error', { haptic: 'error' });
       View.playStudyFeedback('wrong');
 
       inputEl.classList.remove('shake-anim');
@@ -10950,11 +11005,10 @@ if (testVibrateBtn) {
       if (isCorrect) {
           Model.state.isAnimating = true;
           btn.classList.add('correct');
-          Hardware.playSound('success');
-          Hardware.vibrate(40);
-          View.playStudyFeedback('correct');
-
           Model.state.comboCount++;
+          const isComboMilestone = Model.state.comboCount >= 3 && (Model.state.comboCount % 3 === 0 || Model.state.comboCount % 5 === 0);
+          Hardware.playSound('success', { haptic: isComboMilestone ? 'combo' : 'correct' });
+          View.playStudyFeedback('correct');
           View.updateComboBadge();
           
           let wMeaning = View.getEl('w-meaning');
@@ -11014,11 +11068,10 @@ if (testVibrateBtn) {
 
       Model.state.isAnimating = true;
       btn.classList.add('correct');
-      Hardware.playSound('success');
-      Hardware.vibrate(40);
-      View.playStudyFeedback('correct');
-
       Model.state.comboCount++;
+      const isComboMilestone = Model.state.comboCount >= 3 && (Model.state.comboCount % 3 === 0 || Model.state.comboCount % 5 === 0);
+      Hardware.playSound('success', { haptic: isComboMilestone ? 'combo' : 'correct' });
+      View.playStudyFeedback('correct');
       View.updateComboBadge();
 
       const disableChoiceButtons = () => {
@@ -11122,7 +11175,7 @@ if (testVibrateBtn) {
               if (Model.state.mtRound < 3) { 
                   Model.state.mtRound++; 
                   Model.state.studyQueue = [...Model.state.mtBaseQueue].sort(() => Math.random() - 0.5); 
-                  Hardware.playSound('success'); Hardware.vibrate(200); 
+                  Hardware.playSound('success', { haptic: 'success' });
                   showToast(`第 ${Model.state.mtRound - 1} 轮清空！硬核进阶`); 
                   setTimeout(() => View.renderStudyCard('next'), 500); 
               } 
@@ -11147,7 +11200,7 @@ if (testVibrateBtn) {
   },
 
     finishPendulum() {
-    Hardware.playSound('success'); Hardware.vibrate(1000);
+    Hardware.playSound('success', { haptic: 'celebration' });
     const finishedMode = Model.state.mode;
     const groupKey = Model.state.currentGroupKey;
     const groupLabel = Model.state.currentGroupLabel;
@@ -12324,7 +12377,7 @@ deleteWord(idx) {
           return;
       }
       
-      Hardware.playSound('click'); Hardware.vibrate(30); 
+      Hardware.playSound('click', { haptic: 'cardFlip' });
       this.renderDetailCard(dir > 0 ? 'next' : 'prev', true); 
   },
   

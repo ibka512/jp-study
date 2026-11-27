@@ -55,9 +55,11 @@
   --text-muted: #6f685e;
   --text-faint: #989084;
 
-  --outline: rgba(27, 25, 23, 0.11);
-  --outline-strong: rgba(27, 25, 23, 0.2);
+  --outline: rgba(27, 25, 23, 0.10);
+  --outline-strong: rgba(27, 25, 23, 0.17);
   --divider: rgba(27, 25, 23, 0.08);
+  --ring-subtle: 0 0 0 1px rgba(27, 25, 23, 0.075);
+  --ring-strong: 0 0 0 1px rgba(27, 25, 23, 0.14);
 
   /* Semantic Inks (Dictionary Print Calibration) */
   --accent-green: #1f7347;
@@ -119,11 +121,11 @@
   --space-lg: 24px;
   --space-xl: 32px;
 
-  /* Restrained Elevation (Clear desk-to-leaf lift) */
-  --shadow-xs: 0 1px 2px rgba(27, 25, 23, 0.05);
-  --shadow-sm: 0 2px 5px rgba(27, 25, 23, 0.06);
-  --shadow-md: 0 8px 22px rgba(27, 25, 23, 0.09), 0 1px 3px rgba(27, 25, 23, 0.05);
-  --shadow-lg: 0 18px 46px rgba(27, 25, 23, 0.18), 0 2px 8px rgba(27, 25, 23, 0.09);
+  /* Restrained Ring-First Paper Elevation (Claude Editorial Depth) */
+  --shadow-xs: 0 1px 2px rgba(27, 25, 23, 0.035);
+  --shadow-sm: 0 2px 6px rgba(27, 25, 23, 0.05), 0 1px 2px rgba(27, 25, 23, 0.03);
+  --shadow-md: 0 6px 20px rgba(27, 25, 23, 0.07), 0 1px 3px rgba(27, 25, 23, 0.04);
+  --shadow-lg: 0 18px 44px rgba(27, 25, 23, 0.14), 0 2px 8px rgba(27, 25, 23, 0.07);
 
   /* Book Spine Accents (Palette 1 Washi — Day) */
   --book-ja-spine: #1b3b5a;
@@ -131,10 +133,11 @@
   --book-en-spine: #1b4d3e;
   --book-en-soft: rgba(27, 77, 62, 0.11);
 
-  /* Crisp Motion (Emil Kowalski Craft Scale) */
+  /* Crisp Motion (Emil Kowalski + Claude Sidebar Momentum Scale) */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-rail: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
   --dur-press: 140ms;
   --dur-med: 180ms;
@@ -144,6 +147,7 @@
 
   /* Layout Shell */
   --rail-width: 224px;
+  --rail-collapsed-width: 68px;
   --rail-compact-width: 70px;
   --header-height: 56px;
   --bottom-nav-height: 64px;
@@ -190,22 +194,25 @@ body[data-theme="dark"] {
   --book-en-spine: #6ec4a3;
   --book-en-soft: rgba(110, 196, 163, 0.14);
 
-  --bg-canvas: #151311;
-  --surface: #151311;
-  --header-bg: rgba(21, 19, 17, 0.92);
-  --surface-container: #1f1c18;
-  --surface-elevated: #26221d;
-  --surface-subtle: #2b2620;
-  --surface-hover: #352f28;
+  /* Warm Olive-Charcoal Elevation Ladder (Claude Organic Dark Mode) */
+  --bg-canvas: #161614;
+  --surface: #161614;
+  --header-bg: rgba(22, 22, 20, 0.92);
+  --surface-container: #20201d;
+  --surface-elevated: #292824;
+  --surface-subtle: #2f2e29;
+  --surface-hover: #383731;
 
-  --on-surface: #efebe2;
-  --on-surface-variant: #afa89c;
-  --text-muted: #8b8479;
-  --text-faint: #676158;
+  --on-surface: #f0ede4;
+  --on-surface-variant: #b8b4a8;
+  --text-muted: #8f8b80;
+  --text-faint: #6b685f;
 
-  --outline: rgba(239, 235, 226, 0.11);
-  --outline-strong: rgba(239, 235, 226, 0.19);
-  --divider: rgba(239, 235, 226, 0.08);
+  --outline: rgba(240, 237, 228, 0.10);
+  --outline-strong: rgba(240, 237, 228, 0.18);
+  --divider: rgba(240, 237, 228, 0.08);
+  --ring-subtle: 0 0 0 1px rgba(240, 237, 228, 0.09);
+  --ring-strong: 0 0 0 1px rgba(240, 237, 228, 0.16);
 
   --accent-green: #5cc48b;
   --accent-green-lip: #2f8f5b;
@@ -249,10 +256,10 @@ body[data-theme="dark"] {
   --bg-func: var(--pos-func-bg);
   --bg-other: var(--pos-other-bg);
 
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.46);
-  --shadow-lg: 0 20px 52px rgba(0, 0, 0, 0.64);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --shadow-lg: 0 20px 52px rgba(0, 0, 0, 0.56);
 }
 
 body[data-theme="dark"][data-lang="en"] {

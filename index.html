@@ -75,8 +75,8 @@
 <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Literata:opsz,wght@7..72,600;7..72,700&family=Noto+Serif+JP:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
-<link rel="stylesheet" href="ui-system.css?v=modern-v16">
-<link rel="stylesheet" href="style.css?v=modern-v24">
+<link rel="stylesheet" href="ui-system.css?v=modern-v17">
+<link rel="stylesheet" href="style.css?v=modern-v25">
 </head>
 <body>
 <script>
@@ -85,6 +85,7 @@
     if (p === 'washi' || p === 'terracotta' || p === 'swiss') document.body.setAttribute('data-palette', p);
     else document.body.setAttribute('data-palette', 'washi');
     if (localStorage.getItem('theme') === 'dark') document.body.setAttribute('data-theme', 'dark');
+    if (localStorage.getItem('railCollapsed') === 'true') document.body.classList.add('rail-collapsed');
   } catch (_) {}
 </script>
 
@@ -109,6 +110,9 @@
       <button type="button" class="lang-pill-btn active" data-lang="ja" aria-pressed="true">日</button>
       <button type="button" class="lang-pill-btn" data-lang="en" aria-pressed="false">EN</button>
     </div>
+    <button id="header-cmd-btn" class="glass-icon-btn header-cmd-btn" type="button" title="快捷搜索与命令" aria-label="快捷搜索与命令">
+      <span class="material-symbols-rounded" aria-hidden="true">search</span>
+    </button>
     <button class="glass-icon-btn theme-toggle-btn" type="button" title="切换到夜间模式" aria-label="切换到夜间模式" aria-pressed="false">
       <span class="material-symbols-rounded theme-icon" aria-hidden="true">dark_mode</span>
     </button>
@@ -119,9 +123,10 @@
 
   <!-- ==================== 首页：学习 ==================== -->
   <div id="tab-home" class="tab-content active">
-    <header class="page-heading">
-      <div>
-        <h1>今日学习</h1>
+    <header class="page-heading home-editorial-heading">
+      <div class="home-greeting-wrap">
+        <h1 id="home-greeting-title">今日学习</h1>
+        <p id="home-greeting-sub" class="home-greeting-sub">日语词书</p>
       </div>
       <div class="page-heading-actions">
         <div class="header-lang-switch desktop-lang-switch" role="group" aria-label="快速切换学习语言">
@@ -1134,24 +1139,34 @@
 <nav id="bottom-nav" class="bottom-nav" aria-label="主导航">
   <span id="nav-pill" class="nav-pill" aria-hidden="true"></span>
   <span id="nav-ribbon" class="nav-ribbon" aria-hidden="true"><i></i></span>
-  <div class="rail-brand" aria-hidden="true">
-    <img src="logo.png" alt="" width="34" height="34">
-    <span>钟日<small>双语词汇学习</small></span>
+  <div class="rail-brand">
+    <div class="rail-brand-main" aria-hidden="true">
+      <img src="logo.png" alt="" width="34" height="34">
+      <span>钟日<small>双语词汇学习</small></span>
+    </div>
+    <button id="rail-collapse-btn" class="rail-collapse-btn" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" aria-expanded="true">
+      <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+    </button>
   </div>
-  <button type="button" class="nav-item active" data-target="tab-home" data-title="home|钟日" aria-label="主页" aria-current="page">
+  <button id="rail-cmd-trigger" class="rail-cmd-btn" type="button" data-tooltip="快捷搜索 ⌘K" title="快捷搜索与命令 (⌘K)" aria-label="打开快捷命令面板">
+    <span class="material-symbols-rounded rail-cmd-icon" aria-hidden="true">search</span>
+    <span class="rail-cmd-label">快捷搜索</span>
+    <kbd class="rail-cmd-kbd">⌘K</kbd>
+  </button>
+  <button type="button" class="nav-item active" data-target="tab-home" data-title="home|钟日" data-tooltip="学习" aria-label="主页" aria-current="page">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
     <span class="nav-label">学习</span>
   </button>
-  <button type="button" class="nav-item" data-target="tab-wordbank" data-title="grid_view|我的词库" aria-label="我的词库">
+  <button type="button" class="nav-item" data-target="tab-wordbank" data-title="grid_view|我的词库" data-tooltip="词库" aria-label="我的词库">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">grid_view</span>
     <span class="nav-label">词库</span>
   </button>
-  <button type="button" class="nav-item" data-target="tab-settings" data-title="settings|学习偏好" aria-label="学习偏好">
+  <button type="button" class="nav-item" data-target="tab-settings" data-title="settings|学习偏好" data-tooltip="设置" aria-label="学习偏好">
     <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
     <span class="nav-label">设置</span>
   </button>
   <div class="rail-footer">
-    <button class="glass-icon-btn theme-toggle-btn rail-theme-btn" type="button" title="切换到夜间模式" aria-label="切换到夜间模式" aria-pressed="false">
+    <button class="glass-icon-btn theme-toggle-btn rail-theme-btn" type="button" data-tooltip="外观主题" title="切换到夜间模式" aria-label="切换到夜间模式" aria-pressed="false">
       <span class="material-symbols-rounded theme-icon" aria-hidden="true">dark_mode</span>
       <span class="rail-theme-label">外观主题</span>
     </button>
@@ -1462,7 +1477,24 @@
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v20"></script>
+<!-- ==================== 全局快捷命令面板（Cmd/Ctrl + K） ==================== -->
+<div id="cmd-palette-overlay" class="modal-overlay cmd-palette-overlay" role="dialog" aria-modal="true" aria-label="快捷搜索与命令面板" aria-hidden="true" inert>
+  <div class="cmd-palette-card" id="cmd-palette-card">
+    <div class="cmd-palette-header">
+      <span class="material-symbols-rounded cmd-palette-search-icon" aria-hidden="true">search</span>
+      <input type="text" id="cmd-palette-input" class="cmd-palette-input" placeholder="搜索 9,828 词条、学习模式或快捷命令…" autocomplete="off" spellcheck="false" aria-label="搜索词条或命令">
+      <kbd class="cmd-palette-esc">ESC</kbd>
+    </div>
+    <div id="cmd-palette-list" class="cmd-palette-list" role="listbox" aria-label="搜索与命令结果"></div>
+    <div class="cmd-palette-footer" aria-hidden="true">
+      <span><kbd>↑</kbd><kbd>↓</kbd> 选择</span>
+      <span><kbd>Enter</kbd> 执行</span>
+      <span><kbd>⌘K</kbd> 随时唤起</span>
+    </div>
+  </div>
+</div>
+
+<script src="app.js?v=modern-v21"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

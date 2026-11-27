@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-shell-v59';
+const CACHE_NAME = 'zhongri-shell-v60';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -25,12 +25,12 @@ const LOCAL_ASSETS = [
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js',
   './study-card-viewmodel.js',
-  './haptics.js?v=native-haptics-v3',
+  './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v15',
+  './app.js?v=modern-v16',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:local:end
@@ -60,12 +60,12 @@ const NETWORK_FIRST_ASSETS = new Set([
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js',
   './study-card-viewmodel.js',
-  './haptics.js?v=native-haptics-v3',
+  './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js',
   './notification-planner.js?v=smart-reminder-v1',
-  './app.js?v=modern-v15',
+  './app.js?v=modern-v16',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:network-first:end

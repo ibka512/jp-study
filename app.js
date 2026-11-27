@@ -8343,7 +8343,7 @@ if (testVibrateBtn) {
             lpBtn.classList.add('pressing');
             Hardware.playChargeSound();
 
-            // 渐进加速心跳蓄力：230ms -> 115ms，力度 16ms -> 42ms，至 1500ms 落印
+            // 渐进加速短促心跳蓄力：220ms -> 95ms，力度 8ms -> 20ms，至 1500ms 咚咚咚落印
             const startedAt = Date.now();
             const scheduleChargePulse = () => {
                 if (!isLpPressing) return;
@@ -8351,7 +8351,7 @@ if (testVibrateBtn) {
                 if (elapsed >= 1420) return;
                 const progress = Math.min(1, elapsed / 1500);
                 Hardware.hapticChargeTick(progress);
-                const nextGap = Math.round(230 - progress * 115);
+                const nextGap = Math.round(220 - progress * 125);
                 chargeTickTimer = setTimeout(scheduleChargePulse, nextGap);
             };
             scheduleChargePulse();

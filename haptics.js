@@ -18,35 +18,38 @@
     const MAX_DURATION_MS = 2000;
 
     const INTENSITY_SCALES = Object.freeze({
-        light: 0.7,
+        light: 0.72,
         standard: 1,
-        strong: 1.45
+        strong: 1.3
     });
+    const TACTILE_PULSE_CAP_MS = 42;
 
+    // X-axis LRA tuned profiles: crisp 8-32ms pulses with 36-56ms clean brake gaps
+    // for punchy mechanical "咚咚" knocks without muddy long-buzz tails.
     const PROFILES = Object.freeze({
-        key: Object.freeze([14]),
-        tap: Object.freeze([22]),
-        focus: Object.freeze([18]),
-        selection: Object.freeze([28]),
-        cardFlip: Object.freeze([18, 24, 30]),
-        navigation: Object.freeze([28, 34, 28]),
-        sheetOpen: Object.freeze([20, 26, 36]),
-        sheetClose: Object.freeze([26, 20, 14]),
-        toggle: Object.freeze([24, 34, 42]),
-        star: Object.freeze([20, 30, 48]),
-        confirm: Object.freeze([30, 38, 58]),
-        hint: Object.freeze([24, 40, 24]),
-        easy: Object.freeze([18, 24, 36]),
-        correct: Object.freeze([28, 36, 54]),
-        combo: Object.freeze([26, 30, 42, 30, 72]),
-        success: Object.freeze([38, 44, 38, 44, 85]),
-        celebration: Object.freeze([40, 42, 40, 42, 65, 50, 130]),
-        warning: Object.freeze([65, 48, 65]),
-        error: Object.freeze([95, 62, 95]),
-        delete: Object.freeze([75, 55, 120]),
-        chargeTick: Object.freeze([18]),
-        longPress: Object.freeze([35, 42, 110]),
-        diagnostic: Object.freeze([220, 120, 220])
+        key: Object.freeze([8]),
+        focus: Object.freeze([10]),
+        tap: Object.freeze([12]),
+        selection: Object.freeze([15]),
+        sheetClose: Object.freeze([14, 38, 8]),
+        sheetOpen: Object.freeze([10, 38, 16]),
+        cardFlip: Object.freeze([10, 36, 15]),
+        navigation: Object.freeze([14, 42, 14]),
+        toggle: Object.freeze([12, 42, 18]),
+        star: Object.freeze([12, 44, 22]),
+        hint: Object.freeze([12, 48, 12]),
+        easy: Object.freeze([10, 36, 16]),
+        confirm: Object.freeze([16, 44, 24]),
+        correct: Object.freeze([14, 44, 24]),
+        combo: Object.freeze([14, 40, 18, 40, 26]),
+        success: Object.freeze([16, 44, 24]),
+        celebration: Object.freeze([16, 44, 20, 44, 30]),
+        warning: Object.freeze([22, 52, 22]),
+        error: Object.freeze([28, 56, 28]),
+        delete: Object.freeze([26, 54, 32]),
+        chargeTick: Object.freeze([10]),
+        longPress: Object.freeze([18, 46, 28]),
+        diagnostic: Object.freeze([36, 75, 36])
     });
 
     const PRIORITIES = Object.freeze({
@@ -221,13 +224,13 @@
         return normalized;
     };
 
-    const scalePatternForIntensity = (normalized, { unscaled = false } = {}) => {
+    const scalePatternForIntensity = (normalized, { unscaled = false, capMs = TACTILE_PULSE_CAP_MS } = {}) => {
         if (unscaled) return normalized;
         const scale = INTENSITY_SCALES[getIntensity()] || 1;
         if (scale === 1) return normalized;
         return normalized.map((value, index) => {
             if (index % 2 === 1 || value <= 0) return value;
-            return Math.max(10, Math.min(MAX_DURATION_MS, Math.round(value * scale)));
+            return Math.max(6, Math.min(capMs, Math.round(value * scale)));
         });
     };
 
@@ -380,20 +383,30 @@
         let task;
         if (type === 'celebration') {
             cancelPending();
-            task = nativeHaptics.notification({ type: 'SUCCESS' });
+            task = nativeHaptics.impact({ style: mapImpactStyle('MEDIUM') });
             scheduleTimer(() => {
                 Promise.resolve(
-                    nativeHaptics.vibrate({ duration: 120 })
+                    nativeHaptics.impact({ style: mapImpactStyle('MEDIUM') })
                 ).catch(() => {});
-            }, 210);
-        } else if (type === 'combo') {
-            cancelPending();
-            task = nativeHaptics.notification({ type: 'SUCCESS' });
+            }, 64);
             scheduleTimer(() => {
                 Promise.resolve(
                     nativeHaptics.impact({ style: mapImpactStyle('HEAVY') })
                 ).catch(() => {});
-            }, 145);
+            }, 130);
+        } else if (type === 'combo') {
+            cancelPending();
+            task = nativeHaptics.impact({ style: mapImpactStyle('LIGHT') });
+            scheduleTimer(() => {
+                Promise.resolve(
+                    nativeHaptics.impact({ style: mapImpactStyle('MEDIUM') })
+                ).catch(() => {});
+            }, 56);
+            scheduleTimer(() => {
+                Promise.resolve(
+                    nativeHaptics.impact({ style: mapImpactStyle('HEAVY') })
+                ).catch(() => {});
+            }, 116);
         } else if (type === 'success' || type === 'correct') {
             task = nativeHaptics.notification({ type: 'SUCCESS' });
         } else if (type === 'warning') {
@@ -402,12 +415,12 @@
             task = nativeHaptics.notification({ type: 'ERROR' });
         } else if (type === 'diagnostic') {
             cancelPending();
-            task = nativeHaptics.vibrate({ duration: 220 });
+            task = nativeHaptics.impact({ style: 'HEAVY' });
             scheduleTimer(() => {
                 Promise.resolve(
-                    nativeHaptics.vibrate({ duration: 220 })
+                    nativeHaptics.impact({ style: 'HEAVY' })
                 ).catch(() => {});
-            }, 340);
+            }, 110);
         } else {
             const baseStyle =
                 type === 'key' ||
@@ -523,7 +536,7 @@
 
     const triggerChargeTick = (progress = 0) => {
         const ratio = Math.max(0, Math.min(1, Number(progress) || 0));
-        const duration = Math.round(16 + ratio * 26); // 16ms -> 42ms crescendo
+        const duration = Math.round(8 + ratio * 12); // 8ms -> 20ms crisp LRA crescendo
         return vibratePattern([duration], {
             priority: PRIORITIES.chargeTick,
             windowMs: FAST_DEDUPE_WINDOW_MS

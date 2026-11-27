@@ -1564,6 +1564,337 @@ const ZhongriHooks = (() => {
 window.ZhongriHooks = ZhongriHooks;
 
 const Nav = {
+    _spring: {
+        pos: 0,
+        target: 0,
+        vel: 0,
+        axis: 'x',
+        stiffness: 420,
+        damping: 28.5,
+        rafId: null,
+        lastTime: 0,
+        initialized: false
+    },
+    _scrub: {
+        active: false,
+        isScrubbing: false,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        lastX: 0,
+        lastTime: 0,
+        vx: 0,
+        navRect: null,
+        clientLeft: 0,
+        ribbonW: 34,
+        slotTargets: [],
+        previewIdx: -1
+    },
+    _getRibbonMetrics(nav, ribbon, items) {
+        const style = window.getComputedStyle(nav);
+        const isVertical = style.flexDirection === 'column';
+        const axis = isVertical ? 'y' : 'x';
+        let slotTargets;
+        if (isVertical) {
+            const ribbonH = ribbon.offsetHeight || 24;
+            slotTargets = items.map(el => Math.round(el.offsetTop + (el.offsetHeight - ribbonH) / 2));
+        } else {
+            // 移动端悬浮展开胶囊岛：未选中 48px / 选中 104px，直接算出落点中轴避免过渡中抖动
+            const padLeft = Number.parseFloat(style.paddingLeft) || 6;
+            const gap = Number.parseFloat(style.columnGap || style.gap) || 6;
+            const inactiveW = 48;
+            const activeW = 104;
+            const ribbonW = ribbon.offsetWidth || 34;
+            slotTargets = items.map((_, idx) => {
+                const centerX = padLeft + idx * (inactiveW + gap) + activeW / 2;
+                return Math.round(centerX - ribbonW / 2);
+            });
+        }
+        return { isVertical, axis, slotTargets };
+    },
+    _nearestSlotIndex(pos, slotTargets) {
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < slotTargets.length; i++) {
+            const dist = Math.abs(pos - slotTargets[i]);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return bestIdx;
+    },
+    _applyRibbonTransform(ribbon, pos, axis, vel = 0, options = {}) {
+        const { maxStretch = 0.9, velScale = 1050, allowStretch = true } = options;
+        if (axis === 'y') {
+            ribbon.style.transform = `translate3d(0, ${pos.toFixed(2)}px, 0)`;
+        } else {
+            ribbon.style.transform = `translate3d(${pos.toFixed(2)}px, 0, 0)`;
+        }
+        const inner = ribbon.firstElementChild;
+        if (!inner) return;
+        if (!allowStretch || Math.abs(vel) < 12) {
+            inner.style.transform = 'scale(1, 1)';
+            return;
+        }
+        const stretch = 1 + Math.min(maxStretch, Math.abs(vel) / velScale);
+        const squeeze = 1 - Math.min(0.18, (stretch - 1) * 0.2);
+        inner.style.transform = axis === 'y'
+            ? `scale(${squeeze.toFixed(3)}, ${stretch.toFixed(3)})`
+            : `scale(${stretch.toFixed(3)}, ${squeeze.toFixed(3)})`;
+    },
+    _stopSpring(ribbon) {
+        const s = this._spring;
+        if (s.rafId !== null) {
+            cancelAnimationFrame(s.rafId);
+            s.rafId = null;
+        }
+        if (ribbon) {
+            ribbon.style.willChange = '';
+            if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = '';
+        }
+    },
+    _startSpring(ribbon) {
+        const s = this._spring;
+        if (s.rafId !== null) return;
+        ribbon.style.willChange = 'transform';
+        if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = 'transform';
+        s.lastTime = performance.now();
+
+        const tick = (now) => {
+            if (!ribbon.isConnected) {
+                this._stopSpring(ribbon);
+                return;
+            }
+            // 实时时间积分（<=100ms 按 240Hz 子步精确积分，切后台超过 600ms 直接落位避免慢放）
+            const rawDt = Math.max(0.001, (now - s.lastTime) / 1000);
+            s.lastTime = now;
+            if (rawDt > 0.6) {
+                s.pos = s.target;
+                s.vel = 0;
+                this._applyRibbonTransform(ribbon, s.pos, s.axis, 0, { allowStretch: false });
+                this._stopSpring(ribbon);
+                return;
+            }
+            let remaining = Math.min(0.1, rawDt);
+            const maxStep = 1 / 240;
+            while (remaining > 0) {
+                const dt = Math.min(remaining, maxStep);
+                const accel = s.stiffness * (s.target - s.pos) - s.damping * s.vel;
+                s.vel += accel * dt;
+                s.pos += s.vel * dt;
+                remaining -= dt;
+            }
+
+            if (Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5) {
+                s.pos = s.target;
+                s.vel = 0;
+                this._applyRibbonTransform(ribbon, s.pos, s.axis, 0, { allowStretch: false });
+                this._stopSpring(ribbon);
+                return;
+            }
+
+            this._applyRibbonTransform(ribbon, s.pos, s.axis, s.vel);
+            s.rafId = requestAnimationFrame(tick);
+        };
+
+        s.rafId = requestAnimationFrame(tick);
+    },
+    syncRibbon(animate = false, options = {}) {
+        const nav = document.getElementById('bottom-nav');
+        const ribbon = document.getElementById('nav-ribbon');
+        if (!nav || !ribbon) return;
+        const items = Array.from(nav.querySelectorAll('.nav-item'));
+        const activeIdx = items.findIndex(el => el.classList.contains('active'));
+        if (activeIdx < 0) return;
+
+        const { axis, slotTargets } = this._getRibbonMetrics(nav, ribbon, items);
+        const target = slotTargets[activeIdx];
+        const s = this._spring;
+        const axisChanged = s.initialized && s.axis !== axis;
+        s.axis = axis;
+        s.target = target;
+
+        const canAnimate = animate
+            && s.initialized
+            && !axisChanged
+            && !isMotionReduced()
+            && typeof requestAnimationFrame === 'function';
+
+        if (!canAnimate) {
+            this._stopSpring(ribbon);
+            s.pos = target;
+            s.vel = 0;
+            s.initialized = true;
+            this._applyRibbonTransform(ribbon, target, axis, 0, { allowStretch: false });
+        } else {
+            // 保留中途打断时的瞬时速度，或注入跟手松手时的指尖动量
+            s.stiffness = options.stiffness || 420;
+            s.damping = options.damping || 28.5;
+            if (typeof options.initialVelocity === 'number' && Number.isFinite(options.initialVelocity)) {
+                s.vel = Math.max(-2400, Math.min(2400, options.initialVelocity));
+            }
+            if (Math.abs(s.target - s.pos) < 0.25 && Math.abs(s.vel) < 2.5) {
+                this._stopSpring(ribbon);
+                s.pos = target;
+                s.vel = 0;
+                this._applyRibbonTransform(ribbon, target, axis, 0, { allowStretch: false });
+            } else {
+                this._startSpring(ribbon);
+            }
+        }
+
+        if (!ribbon.classList.contains('is-ready')) {
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(() => ribbon.classList.add('is-ready'));
+            } else {
+                ribbon.classList.add('is-ready');
+            }
+        }
+    },
+    bindScrubGesture() {
+        const nav = document.getElementById('bottom-nav');
+        const ribbon = document.getElementById('nav-ribbon');
+        if (!nav || !ribbon) return;
+
+        const finishScrub = (e, cancelled) => {
+            const drag = this._scrub;
+            if (!drag.active || (e && drag.pointerId !== null && e.pointerId !== drag.pointerId)) return;
+            drag.active = false;
+            const wasScrubbing = drag.isScrubbing;
+            drag.isScrubbing = false;
+            nav.classList.remove('is-scrubbing');
+            try {
+                if (drag.pointerId !== null && nav.hasPointerCapture?.(drag.pointerId)) {
+                    nav.releasePointerCapture(drag.pointerId);
+                }
+            } catch (_) {}
+            drag.pointerId = null;
+
+            if (!wasScrubbing) return;
+            const items = Array.from(nav.querySelectorAll('.nav-item'));
+            if (items.length === 0 || drag.slotTargets.length !== items.length) {
+                this.syncRibbon(true);
+                return;
+            }
+
+            // 手指停顿超过 75ms 后抬起则清零惯性，避免定格瞄准后误抛
+            const stale = (performance.now() - drag.lastTime) > 75;
+            const releaseVx = (cancelled || stale) ? 0 : Math.max(-2200, Math.min(2200, drag.vx));
+            const s = this._spring;
+            const projected = cancelled
+                ? s.pos
+                : s.pos + Math.max(-1600, Math.min(1600, releaseVx)) * 0.06;
+            const finalIdx = this._nearestSlotIndex(projected, drag.slotTargets);
+            const currentIdx = items.findIndex(el => el.classList.contains('active'));
+            const finalBtn = items[finalIdx];
+
+            if (!cancelled && finalBtn && finalIdx !== currentIdx) {
+                Hardware.haptic('navigation');
+                this.switchTab(
+                    finalBtn.getAttribute('data-target'),
+                    finalBtn.getAttribute('data-title'),
+                    finalBtn,
+                    { skipRibbonSync: true }
+                );
+            }
+
+            this.syncRibbon(true, {
+                initialVelocity: releaseVx,
+                damping: cancelled ? 28.5 : 25.5
+            });
+        };
+
+        nav.addEventListener('pointerdown', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const items = Array.from(nav.querySelectorAll('.nav-item'));
+            const { isVertical, slotTargets } = this._getRibbonMetrics(nav, ribbon, items);
+            if (isVertical || slotTargets.length < 2) return;
+
+            const now = performance.now();
+            const drag = this._scrub;
+            drag.active = true;
+            drag.isScrubbing = false;
+            drag.pointerId = e.pointerId;
+            drag.startX = e.clientX;
+            drag.startY = e.clientY;
+            drag.lastX = e.clientX;
+            drag.lastTime = now;
+            drag.vx = 0;
+            drag.navRect = nav.getBoundingClientRect();
+            drag.clientLeft = nav.clientLeft || 0;
+            drag.ribbonW = ribbon.offsetWidth || 34;
+            drag.slotTargets = slotTargets;
+            drag.previewIdx = items.findIndex(el => el.classList.contains('active'));
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            const drag = this._scrub;
+            if (!drag.active || e.pointerId !== drag.pointerId) return;
+
+            const dx = e.clientX - drag.startX;
+            const dy = e.clientY - drag.startY;
+            if (!drag.isScrubbing) {
+                if (Math.abs(dx) <= 8 || Math.abs(dx) <= Math.abs(dy) * 1.15) return;
+                drag.isScrubbing = true;
+                nav.classList.add('is-scrubbing');
+                this._stopSpring(ribbon);
+                ribbon.style.willChange = 'transform';
+                if (ribbon.firstElementChild) ribbon.firstElementChild.style.willChange = 'transform';
+                const itemsNow = Array.from(nav.querySelectorAll('.nav-item'));
+                drag.previewIdx = itemsNow.findIndex(el => el.classList.contains('active'));
+                try { nav.setPointerCapture?.(e.pointerId); } catch (_) {}
+            }
+
+            const now = performance.now();
+            const dt = Math.max(4, now - drag.lastTime);
+            const instVx = ((e.clientX - drag.lastX) / dt) * 1000;
+            drag.vx = drag.vx * 0.55 + instVx * 0.45;
+            drag.lastX = e.clientX;
+            drag.lastTime = now;
+
+            const minT = drag.slotTargets[0];
+            const maxT = drag.slotTargets[drag.slotTargets.length - 1];
+            let raw = e.clientX - (drag.navRect.left + drag.clientLeft) - drag.ribbonW / 2;
+            if (raw < minT) {
+                raw = minT + (raw - minT) * 0.22;
+            } else if (raw > maxT) {
+                raw = maxT + (raw - maxT) * 0.22;
+            }
+            // 保留顶边平直区间余量，橡皮筋阻尼不滑入两端半圆弧
+            raw = Math.max(minT - 12, Math.min(maxT + 12, raw));
+
+            const s = this._spring;
+            s.axis = 'x';
+            s.pos = raw;
+            s.vel = drag.vx;
+            s.initialized = true;
+            this._applyRibbonTransform(ribbon, raw, 'x', drag.vx, {
+                maxStretch: 0.65,
+                velScale: 1400,
+                allowStretch: !isMotionReduced()
+            });
+
+            const nearestIdx = this._nearestSlotIndex(raw, drag.slotTargets);
+            if (nearestIdx !== drag.previewIdx) {
+                drag.previewIdx = nearestIdx;
+                const items = Array.from(nav.querySelectorAll('.nav-item'));
+                const targetBtn = items[nearestIdx];
+                if (targetBtn) {
+                    Hardware.haptic('key');
+                    this.switchTab(
+                        targetBtn.getAttribute('data-target'),
+                        targetBtn.getAttribute('data-title'),
+                        targetBtn,
+                        { skipRibbonSync: true }
+                    );
+                }
+            }
+        }, { passive: true });
+
+        window.addEventListener('pointerup', (e) => finishScrub(e, false), { passive: true });
+        window.addEventListener('pointercancel', (e) => finishScrub(e, true), { passive: true });
+    },
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
             // 1. 响应手指按下：实现“即刻反馈”，单次触发 navigation 触感避免与 click 冲突互相打断
@@ -1588,9 +1919,13 @@ const Nav = {
                 this.switchTab(targetId, titleData, e.currentTarget);
             });
         });
+
+        this.bindScrubGesture();
+        this.syncRibbon(false);
+        window.addEventListener('resize', () => this.syncRibbon(false), { passive: true });
     },
     _entranceAnim: null,
-    switchTab(targetId, titleData, navItemEl) {
+    switchTab(targetId, titleData, navItemEl, options = {}) {
         if (Model.state.batchMode || Model.state.manageMode) {
             Model.state.batchMode = false;
             Model.state.manageMode = false;
@@ -1600,7 +1935,17 @@ const Nav = {
             Model.state.renderedStartIndex = -1; 
         }
 
-        const previous = document.querySelector('.nav-item.active');
+        const nav = document.getElementById('bottom-nav');
+        const navItems = nav ? Array.from(nav.querySelectorAll('.nav-item')) : [];
+        const prevIdx = navItems.findIndex(el => el.classList.contains('active'));
+        const nextIdx = navItemEl
+            ? navItems.indexOf(navItemEl)
+            : navItems.findIndex(el => el.dataset.target === targetId);
+        const dir = (prevIdx >= 0 && nextIdx >= 0 && prevIdx !== nextIdx)
+            ? (nextIdx > prevIdx ? 1 : -1)
+            : 0;
+
+        const previous = prevIdx >= 0 ? navItems[prevIdx] : document.querySelector('.nav-item.active');
         const changed = previous?.dataset.target !== targetId;
         if (this._entranceAnim) {
             this._entranceAnim.cancel();
@@ -1612,9 +1957,12 @@ const Nav = {
             el.classList.remove('active');
             el.removeAttribute('aria-current');
         });
-        if(navItemEl) {
+        if (navItemEl) {
             navItemEl.classList.add('active');
             navItemEl.setAttribute('aria-current', 'page');
+        }
+        if (!options.skipRibbonSync) {
+            this.syncRibbon(changed);
         }
 
         document.querySelectorAll('.tab-content').forEach(el => {
@@ -1623,15 +1971,22 @@ const Nav = {
         });
         
         let targetEl = document.getElementById(targetId);
-        if(targetEl) {
+        if (targetEl) {
             targetEl.classList.remove('hidden');
             void targetEl.offsetWidth; 
             targetEl.classList.add('active');
             if (changed && !isMotionReduced() && typeof targetEl.animate === 'function') {
+                const isVertical = nav && window.getComputedStyle(nav).flexDirection === 'column';
+                let fromTransform = 'translate3d(0, 6px, 0)';
+                if (dir !== 0) {
+                    fromTransform = isVertical
+                        ? `translate3d(0, ${dir * 12}px, 0)`
+                        : `translate3d(${dir * 16}px, 0, 0)`;
+                }
                 this._entranceAnim = targetEl.animate([
-                    { opacity: 0, transform: 'translateY(6px)' },
-                    { opacity: 1, transform: 'translateY(0)' }
-                ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+                    { opacity: 0, transform: fromTransform },
+                    { opacity: 1, transform: 'translate3d(0, 0, 0)' }
+                ], { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
             }
         }
 

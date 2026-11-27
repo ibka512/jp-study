@@ -6462,3 +6462,30 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
 .study-summary-actions button[hidden] {
   display: none !important;
 }
+
+/* ===== 触感反馈测试诊断提示条 ===== */
+.haptics-test-status {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  border: 1px solid var(--outline);
+  border-left: 3px solid var(--primary);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
+
+.haptics-test-status[data-state="warn"] {
+  border-left-color: var(--accent-red);
+  color: var(--accent-red);
+  background: var(--accent-red-soft);
+}
+
+.haptics-test-status[data-state="hint"] {
+  border-left-color: var(--seal);
+}
+
+.haptics-test-status[hidden] {
+  display: none !important;
+}

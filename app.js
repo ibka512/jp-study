@@ -1566,10 +1566,11 @@ window.ZhongriHooks = ZhongriHooks;
 const Nav = {
     init() {
         document.querySelectorAll('.nav-item').forEach(item => {
-            // 1. 响应手指按下：实现“即刻反馈”，并将震动时长从 10 增至 25，确保所有机型都能感受到干脆的震感
+            // 1. 响应手指按下：实现“即刻反馈”，单次触发 navigation 触感避免与 click 冲突互相打断
             item.addEventListener('pointerdown', (e) => {
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
-                Hardware.playSound('click'); Hardware.vibrate(25);
+                Hardware.haptic('navigation');
+                Hardware.playSound('click', { haptic: false });
                 let targetId = e.currentTarget.getAttribute('data-target');
                 let titleData = e.currentTarget.getAttribute('data-title');
                 this.switchTab(targetId, titleData, e.currentTarget);
@@ -1580,7 +1581,8 @@ const Nav = {
                 // 触摸/鼠标已在 pointerdown 中响应；键盘生成的 click
                 // detail 为 0，必须保留，确保 Enter/Space 可以切换页面。
                 if (e.isTrusted && e.detail !== 0) return;
-                Hardware.playSound('click'); Hardware.vibrate(25);
+                Hardware.haptic('navigation');
+                Hardware.playSound('click', { haptic: false });
                 let targetId = e.currentTarget.getAttribute('data-target');
                 let titleData = e.currentTarget.getAttribute('data-title');
                 this.switchTab(targetId, titleData, e.currentTarget);
@@ -7425,6 +7427,13 @@ const Controller = {
 
     let hapticsCheck = View.getEl('setting-haptics-enabled');
     if (hapticsCheck) hapticsCheck.checked = HAPTICS.isEnabled();
+
+    let hapticsCompatCheck = View.getEl('setting-haptics-compat');
+    let hapticsCompatRow = View.getEl('setting-haptics-compat-row');
+    if (hapticsCompatCheck) hapticsCompatCheck.checked = HAPTICS.isCompatMode();
+    if (hapticsCompatRow && HAPTICS.getDiagnostics?.().isNative) {
+        hapticsCompatRow.hidden = true;
+    }
     
     let showRoots = localStorage.getItem('showRoots') !== 'false'; 
     let showRootsCheckEl = View.getEl('setting-show-roots');
@@ -8047,6 +8056,21 @@ setupVirtualScroll() {
         });
     }
 
+    let hapticsCompatCheck = View.getEl('setting-haptics-compat');
+    if (hapticsCompatCheck) {
+        hapticsCompatCheck.addEventListener('change', event => {
+            HAPTICS.setCompatMode(event.target.checked);
+            if (HAPTICS.isEnabled()) {
+                Hardware.haptic('toggle', { force: true });
+            }
+            showToast(
+                event.target.checked
+                    ? '已开启浏览器短震动兼容模式'
+                    : '已恢复标准震动模式'
+            );
+        });
+    }
+
 
     document.querySelectorAll('.palette-card[data-palette-option]').forEach(card => {
         card.addEventListener('click', () => {
@@ -8139,15 +8163,54 @@ if (ttsSelectTrigger) {
 let testVibrateBtn = View.getEl('btn-test-vibrate');
 if (testVibrateBtn) {
     testVibrateBtn.addEventListener('click', () => {
-        Hardware.playSound('click', { haptic: false });
+        // 先同步触发震动，避免 AudioContext 初始化干扰手势上下文
         const accepted = Hardware.haptic(
             'diagnostic',
             { force: true }
         );
+        Hardware.playSound('click', { haptic: false });
+        const diag = HAPTICS.getDiagnostics ? HAPTICS.getDiagnostics() : { engine: 'web', compatMode: false };
+        const statusEl = View.getEl('haptics-test-status');
+
         if (accepted) {
-            showToast('浏览器已发送两次强震动请求');
+            if (diag.engine === 'native') {
+                showToast('原生触感引擎已触发两次强震动');
+                if (statusEl) {
+                    statusEl.hidden = false;
+                    statusEl.dataset.state = 'ok';
+                    statusEl.textContent = '原生引擎已触发两次强震动。若无震感，请检查系统「声音与振动 → 触摸反馈」或是否处于省电/勿扰模式。';
+                }
+            } else if (diag.engine === 'ios-switch') {
+                showToast('已尝试触发 iOS 触感反馈');
+                if (statusEl) {
+                    statusEl.hidden = false;
+                    statusEl.dataset.state = 'ok';
+                    statusEl.textContent = '已通过 Safari 触感开关通道触发。若无震感，请确认系统「设置 → 声音与触感 → 系统触感反馈」已开启。';
+                }
+            } else if (diag.compatMode) {
+                showToast('已发送两次兼容强震动');
+                if (statusEl) {
+                    statusEl.hidden = false;
+                    statusEl.dataset.state = 'ok';
+                    statusEl.textContent = '已用 >1 秒脉冲截断（兼容模式）发送两次强震动，浏览器已接收。若仍完全无感，说明系统级静音、勿扰、省电模式或「触摸反馈」关闭屏蔽了浏览器震动。';
+                }
+            } else {
+                showToast('浏览器已发送两次强震动请求');
+                if (statusEl) {
+                    statusEl.hidden = false;
+                    statusEl.dataset.state = 'hint';
+                    statusEl.textContent = '浏览器已接收震动请求。若手机未震动：① 请确认未处于静音 / 勿扰 / 省电模式，且系统「触摸反馈」已开；② 部分新版 Android Chrome / Edge 存在 ≤1 秒震动失效问题，可开启上方「浏览器短震动兼容」后再试。';
+                }
+            }
         } else {
-            showToast('浏览器拒绝了震动请求，请改用 Android Chrome');
+            showToast('当前浏览器不支持或拦截了震动请求');
+            if (statusEl) {
+                statusEl.hidden = false;
+                statusEl.dataset.state = 'warn';
+                statusEl.textContent = diag.hasVibrateApi
+                    ? '浏览器拦截了本次震动请求（可能未获得有效点击激活或被浏览器隐私策略屏蔽）。'
+                    : '当前浏览器未提供 Vibration API（桌面端或部分内置浏览器不支持），请使用 Android Chrome / Edge 或安装安卓客户端。';
+            }
         }
     });
 }
@@ -8236,8 +8299,8 @@ if (testVibrateBtn) {
         lpBtn.addEventListener('pointerdown', (e) => {
             if(lpBtn.classList.contains('done') || isLpPressing) return; if(e.pointerType === 'mouse' && e.button !== 0) return;
             isLpPressing = true; Hardware.unlockSpeech(); try { lpBtn.setPointerCapture(e.pointerId); } catch(err) {} 
-            lpBtn.classList.add('pressing'); Hardware.playChargeSound(); vibrateInterval = setInterval(() => Hardware.vibrate(10), 100);
-            punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.vibrate(200); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
+            lpBtn.classList.add('pressing'); Hardware.playChargeSound(); Hardware.haptic('tap'); vibrateInterval = setInterval(() => Hardware.haptic('tap'), 180);
+            punchTimer = setTimeout(() => { clearPunch(); Hardware.playDingDong(); Hardware.haptic('success'); let t = new Date().toLocaleDateString('zh-CN'); Model.records.push({date: t, type: 'daily_punch'}); Model.saveRecords(); View.renderDashboard(); showToast("打卡成功！能量满点"); }, 1500);
         });
         lpBtn.addEventListener('pointerup', clearPunch); 
         lpBtn.addEventListener('pointercancel', clearPunch); 

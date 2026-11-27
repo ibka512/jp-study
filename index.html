@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v14">
-<link rel="stylesheet" href="style.css?v=modern-v18">
+<link rel="stylesheet" href="style.css?v=modern-v19">
 </head>
 <body>
 <script>
@@ -703,13 +703,19 @@
 
           <div class="setting-item">
             <div class="setting-info"><div class="setting-title">场景化触感反馈</div><div class="setting-desc">为点击、切换、确认、成功与错误使用不同震动节奏</div></div>
-            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-haptics-enabled" class="tactile-switch" checked><span class="tactile-slider"></span></label>
+            <label class="tactile-switch-wrap" data-haptic="none"><input type="checkbox" id="setting-haptics-enabled" class="tactile-switch" data-haptic="none" checked><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item" id="setting-haptics-compat-row">
+            <div class="setting-info"><div class="setting-title">浏览器短震动兼容</div><div class="setting-desc">绕过部分新版 Android Chrome / Edge 忽略 1 秒以内短震动的问题</div></div>
+            <label class="tactile-switch-wrap" data-haptic="none"><input type="checkbox" id="setting-haptics-compat" class="tactile-switch" data-haptic="none"><span class="tactile-slider"></span></label>
           </div>
 
           <div class="setting-item" style="border-bottom:none;">
-            <div class="setting-info"><div class="setting-title">触感反馈测试</div><div class="setting-desc">Android 将连续播放两次明显的强震动</div></div>
+            <div class="setting-info"><div class="setting-title">触感反馈测试</div><div class="setting-desc">连续播放两次明显的强震动，用于检测设备震动状态</div></div>
             <button type="button" id="btn-test-vibrate" class="btn-setting-action" data-haptic="none">测试震动</button>
           </div>
+          <div id="haptics-test-status" class="haptics-test-status" role="status" aria-live="polite" hidden></div>
         </div>
       </section>
 
@@ -1423,12 +1429,12 @@
 <script src="core-utils.js?v=sse-buffer-v1"></script>
 <script src="settings-store.js"></script>
 <script src="study-card-viewmodel.js"></script>
-<script src="haptics.js?v=native-haptics-v1"></script>
+<script src="haptics.js?v=native-haptics-v2"></script>
 <script src="rote-learning-core.js"></script>
 <script src="vendor/ts-fsrs.umd.js"></script>
 <script src="fsrs-scheduler.js"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
-<script src="app.js?v=modern-v13"></script>
+<script src="app.js?v=modern-v14"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

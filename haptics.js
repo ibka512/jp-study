@@ -10,7 +10,11 @@
     'use strict';
 
     const STORAGE_KEY = 'hapticsEnabled';
+    const COMPAT_STORAGE_KEY = 'hapticsCompatMode';
     const DEDUPE_WINDOW_MS = 140;
+    const COMPAT_GATE_MS = 1050;
+    const MAX_DURATION_MS = 2000;
+
     const PROFILES = Object.freeze({
         tap: Object.freeze([22]),
         focus: Object.freeze([18]),
@@ -43,6 +47,24 @@
     let installedDocument = null;
     let lastTriggerAt = -Infinity;
     let lastPriority = 0;
+    let iosSwitchLabel = null;
+    const pendingTimers = new Set();
+
+    const scheduleTimer = (fn, delay) => {
+        const setTimer = root.setTimeout || setTimeout;
+        const id = setTimer(() => {
+            pendingTimers.delete(id);
+            fn();
+        }, delay);
+        pendingTimers.add(id);
+        return id;
+    };
+
+    const cancelPending = () => {
+        const clearTimer = root.clearTimeout || clearTimeout;
+        pendingTimers.forEach(id => clearTimer(id));
+        pendingTimers.clear();
+    };
 
     const getNativeHaptics = () => {
         const capacitor = root.Capacitor;
@@ -62,13 +84,61 @@
         return plugin;
     };
 
+    const hasWebVibrateApi = () => {
+        return Boolean(
+            root.navigator &&
+            typeof root.navigator.vibrate === 'function'
+        );
+    };
+
+    const isIosSafariSwitchSupported = () => {
+        if (getNativeHaptics() || hasWebVibrateApi()) {
+            return false;
+        }
+        const nav = root.navigator;
+        const doc = root.document;
+        if (!nav || !doc || typeof doc.createElement !== 'function') {
+            return false;
+        }
+        const ua = String(nav.userAgent || '');
+        const isAppleTouch =
+            /iPhone|iPad|iPod/i.test(ua) ||
+            (nav.platform === 'MacIntel' && Number(nav.maxTouchPoints || 0) > 1);
+        return Boolean(isAppleTouch);
+    };
+
+    const triggerIosSwitchHaptic = () => {
+        if (!isIosSafariSwitchSupported() || !root.document?.body) {
+            return false;
+        }
+        try {
+            if (!iosSwitchLabel || !iosSwitchLabel.isConnected) {
+                const label = root.document.createElement('label');
+                label.setAttribute('aria-hidden', 'true');
+                label.dataset.haptic = 'none';
+                label.style.cssText =
+                    'position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden;';
+                const input = root.document.createElement('input');
+                input.type = 'checkbox';
+                input.setAttribute('switch', '');
+                input.tabIndex = -1;
+                input.dataset.haptic = 'none';
+                label.appendChild(input);
+                root.document.body.appendChild(label);
+                iosSwitchLabel = label;
+            }
+            iosSwitchLabel.click();
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    };
+
     const isSupported = () => {
         return Boolean(
             getNativeHaptics() ||
-            (
-                root.navigator &&
-                typeof root.navigator.vibrate === 'function'
-            )
+            hasWebVibrateApi() ||
+            isIosSafariSwitchSupported()
         );
     };
 
@@ -80,6 +150,35 @@
         }
     };
 
+    const isCompatMode = () => {
+        try {
+            return root.localStorage?.getItem(COMPAT_STORAGE_KEY) === 'true';
+        } catch (_error) {
+            return false;
+        }
+    };
+
+    const setCompatMode = enabled => {
+        try {
+            root.localStorage?.setItem(
+                COMPAT_STORAGE_KEY,
+                enabled ? 'true' : 'false'
+            );
+        } catch (_error) {}
+    };
+
+    const rawBrowserVibrate = arg => {
+        if (!hasWebVibrateApi()) {
+            return false;
+        }
+        try {
+            const result = root.navigator.vibrate(arg);
+            return result !== false;
+        } catch (_error) {
+            return false;
+        }
+    };
+
     const setEnabled = enabled => {
         try {
             root.localStorage?.setItem(
@@ -88,21 +187,27 @@
             );
         } catch (_error) {}
 
-        if (!enabled && isSupported()) {
-            vibrateInBrowser([0]);
+        lastTriggerAt = -Infinity;
+        lastPriority = 0;
+
+        if (!enabled) {
+            cancelPending();
+            if (hasWebVibrateApi()) {
+                rawBrowserVibrate(0);
+            }
         }
     };
 
     const normalizePattern = pattern => {
         const source = Array.isArray(pattern) ? pattern : [pattern];
         const normalized = source
-            .map(value => Math.max(0, Math.min(1000, Number(value) || 0)))
+            .map(value => Math.max(0, Math.min(MAX_DURATION_MS, Number(value) || 0)))
             .slice(0, 15);
 
         return normalized.length ? normalized : [0];
     };
 
-    const canTrigger = ({ force = false, priority = 1 } = {}) => {
+    const shouldTrigger = ({ force = false, priority = 1 } = {}) => {
         if (!force && !isEnabled()) {
             return false;
         }
@@ -116,28 +221,79 @@
             return false;
         }
 
-        lastTriggerAt = now;
-        lastPriority = priority;
         return true;
     };
 
-    const vibrateInBrowser = normalized => {
-        if (
-            !root.navigator ||
-            typeof root.navigator.vibrate !== 'function'
-        ) {
+    const recordTrigger = (priority = 1) => {
+        lastTriggerAt = Date.now();
+        lastPriority = priority;
+    };
+
+    const vibrateInBrowserCompat = normalized => {
+        cancelPending();
+        const isStopOnly = normalized.every(value => value === 0);
+        if (isStopOnly) {
+            return rawBrowserVibrate(0);
+        }
+
+        const firstDuration = normalized[0];
+        if (!firstDuration) {
+            return rawBrowserVibrate(0);
+        }
+
+        const firstGate = firstDuration <= 1000 ? COMPAT_GATE_MS : firstDuration;
+        const accepted = rawBrowserVibrate(firstGate);
+        if (!accepted) {
             return false;
         }
 
-        try {
-            return root.navigator.vibrate(
-                normalized.length === 1
-                    ? normalized[0]
-                    : normalized
-            );
-        } catch (_error) {
+        let offset = 0;
+        for (let i = 0; i < normalized.length; i += 2) {
+            const pulse = normalized[i] || 0;
+            const pause = normalized[i + 1] || 0;
+
+            if (i > 0 && pulse > 0) {
+                const startAt = offset;
+                const gate = pulse <= 1000 ? COMPAT_GATE_MS : pulse;
+                scheduleTimer(() => {
+                    rawBrowserVibrate(gate);
+                }, startAt);
+            }
+
+            if (pulse > 0 && pulse <= 1000) {
+                const stopAt = offset + pulse;
+                scheduleTimer(() => {
+                    rawBrowserVibrate(0);
+                }, stopAt);
+            }
+
+            offset += pulse + pause;
+        }
+
+        return true;
+    };
+
+    const vibrateInBrowser = (normalized, { compat = isCompatMode() } = {}) => {
+        if (!hasWebVibrateApi()) {
             return false;
         }
+
+        const isStopOnly = normalized.every(value => value === 0);
+        if (isStopOnly) {
+            cancelPending();
+            return rawBrowserVibrate(0);
+        }
+
+        if (compat && normalized.some((value, idx) => idx % 2 === 0 && value > 0 && value <= 1000)) {
+            return vibrateInBrowserCompat(normalized);
+        }
+
+        cancelPending();
+        return rawBrowserVibrate(
+            normalized.length === 1
+                ? normalized[0]
+                : normalized
+        );
     };
 
     const runNativeProfile = (type, normalized) => {
@@ -154,7 +310,13 @@
         } else if (type === 'error' || type === 'delete') {
             task = nativeHaptics.notification({ type: 'ERROR' });
         } else if (type === 'diagnostic') {
-            task = nativeHaptics.vibrate({ duration: 300 });
+            cancelPending();
+            task = nativeHaptics.vibrate({ duration: 220 });
+            scheduleTimer(() => {
+                Promise.resolve(
+                    nativeHaptics.vibrate({ duration: 220 })
+                ).catch(() => {});
+            }, 340);
         } else {
             const style =
                 type === 'tap' || type === 'focus'
@@ -173,31 +335,49 @@
 
     const vibratePattern = (
         pattern,
-        { force = false, priority = 1 } = {}
+        { force = false, priority = 1, compat } = {}
     ) => {
-        if (!isSupported() || !canTrigger({ force, priority })) {
+        const normalized = normalizePattern(pattern);
+        const isStopOnly = normalized.every(value => value === 0);
+        if (isStopOnly) {
+            cancelPending();
+            return hasWebVibrateApi() ? rawBrowserVibrate(0) : false;
+        }
+
+        if (!isSupported() || !shouldTrigger({ force, priority })) {
             return false;
         }
 
-        const normalized = normalizePattern(pattern);
         const nativeHaptics = getNativeHaptics();
         if (nativeHaptics) {
             const activePulses = normalized.filter(
                 (_value, index) => index % 2 === 0
             );
-            const duration = Math.max(
-                35,
-                Math.min(180, Math.max(...activePulses))
-            );
-            Promise.resolve(
-                nativeHaptics.vibrate({ duration })
-            ).catch(() => {
-                vibrateInBrowser(normalized);
+            const peak = Math.max(...activePulses);
+            let task;
+            if (peak <= 18 && typeof nativeHaptics.impact === 'function') {
+                task = nativeHaptics.impact({ style: 'LIGHT' });
+            } else if (peak <= 35 && typeof nativeHaptics.impact === 'function') {
+                task = nativeHaptics.impact({ style: 'MEDIUM' });
+            } else {
+                const duration = Math.max(40, Math.min(300, peak));
+                task = nativeHaptics.vibrate({ duration });
+            }
+            Promise.resolve(task).catch(() => {
+                vibrateInBrowser(normalized, { compat });
             });
+            recordTrigger(priority);
             return true;
         }
 
-        return vibrateInBrowser(normalized);
+        const accepted = hasWebVibrateApi()
+            ? vibrateInBrowser(normalized, { compat })
+            : triggerIosSwitchHaptic();
+
+        if (accepted) {
+            recordTrigger(priority);
+        }
+        return accepted;
     };
 
     const getPattern = type => {
@@ -207,27 +387,55 @@
 
     const trigger = (type = 'tap', options = {}) => {
         const safeType = PROFILES[type] ? type : 'tap';
+        const priority = options.priority ?? PRIORITIES[safeType];
         const triggerOptions = {
             ...options,
-            priority: options.priority ?? PRIORITIES[safeType]
+            priority
         };
 
-        if (!isSupported() || !canTrigger(triggerOptions)) {
+        if (!isSupported() || !shouldTrigger(triggerOptions)) {
             return false;
         }
 
         const normalized = normalizePattern(PROFILES[safeType]);
         if (runNativeProfile(safeType, normalized)) {
+            recordTrigger(priority);
             return true;
         }
 
-        return vibrateInBrowser(normalized);
+        const accepted = hasWebVibrateApi()
+            ? vibrateInBrowser(normalized, { compat: options.compat })
+            : triggerIosSwitchHaptic();
+
+        if (accepted) {
+            recordTrigger(priority);
+        }
+        return accepted;
     };
 
     const triggerLegacy = (pattern, options = {}) => {
         return vibratePattern(pattern, {
             ...options,
             priority: options.priority ?? 1
+        });
+    };
+
+    const getDiagnostics = () => {
+        const isNative = Boolean(getNativeHaptics());
+        const hasVibrateApi = hasWebVibrateApi();
+        const iosSwitch = isIosSafariSwitchSupported();
+        const ua = root.navigator?.userActivation;
+        return Object.freeze({
+            engine: isNative
+                ? 'native'
+                : (hasVibrateApi ? 'web' : (iosSwitch ? 'ios-switch' : 'none')),
+            isNative,
+            hasVibrateApi,
+            supported: isSupported(),
+            enabled: isEnabled(),
+            compatMode: isCompatMode(),
+            userActive: ua ? Boolean(ua.isActive) : null,
+            hasBeenActive: ua ? Boolean(ua.hasBeenActive) : null
         });
     };
 
@@ -242,7 +450,7 @@
         }
 
         const control = element.closest(
-            'button, a[href], input, select, textarea, label, ' +
+            'button, a[href], summary, input, select, textarea, label, ' +
             '[role="button"], [tabindex], .nav-item, .book-card, ' +
             '.wb-card, .move-folder-item'
         );
@@ -260,6 +468,9 @@
 
         if (control.matches?.('input[type="checkbox"], input[type="radio"]')) {
             return 'toggle';
+        }
+        if (control.matches?.('summary')) {
+            return 'selection';
         }
         if (control.matches?.('select, option')) {
             return 'selection';
@@ -311,9 +522,15 @@
 
         installedDocument = documentRef;
 
+        // Bubble phase so explicit semantic handlers run first without being cancelled
+        // or swallowed by generic delegated click/change fallbacks.
         documentRef.addEventListener('click', event => {
             const target = event.target;
             if (!target || target.closest?.('input, select, textarea')) {
+                return;
+            }
+            const label = target.closest?.('label');
+            if (label && label.control) {
                 return;
             }
 
@@ -321,14 +538,14 @@
             if (type !== 'none') {
                 trigger(type);
             }
-        }, true);
+        }, false);
 
         documentRef.addEventListener('change', event => {
             const type = classify(event.target);
             if (type !== 'none') {
                 trigger(type);
             }
-        }, true);
+        }, false);
 
         documentRef.addEventListener('focusin', event => {
             if (event.target?.matches?.(
@@ -339,16 +556,35 @@
             }
         }, true);
 
+        const stopOnHide = () => {
+            if (pendingTimers.size > 0) {
+                cancelPending();
+                if (hasWebVibrateApi()) {
+                    rawBrowserVibrate(0);
+                }
+            }
+        };
+
+        documentRef.addEventListener('visibilitychange', () => {
+            if (documentRef.hidden) {
+                stopOnHide();
+            }
+        });
+        root.addEventListener?.('pagehide', stopOnHide);
+
         return true;
     };
 
     return Object.freeze({
         PROFILES,
         classify,
+        getDiagnostics,
         getPattern,
         install,
+        isCompatMode,
         isEnabled,
         isSupported,
+        setCompatMode,
         setEnabled,
         trigger,
         triggerLegacy

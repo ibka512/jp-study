@@ -20,6 +20,7 @@
 
   <p>
     <a href="https://ibka512.github.io/jp-study/">在线使用（PWA）</a> ·
+    <a href="#界面预览">界面预览</a> ·
     <a href="#核心功能">核心功能</a> ·
     <a href="#词性配色与拼色卡片">词性配色</a> ·
     <a href="#物理动效与场景化触感">动效与触感</a> ·
@@ -41,6 +42,65 @@
 
 ---
 
+## 界面预览
+
+所有截图均由当前版本真实渲染导出，完整覆盖 **手机竖屏、矮屏横屏、桌面宽屏** 及 **日间 / 夜间双主题**。
+
+### 移动端竖屏（390 × 844）
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="./docs/screenshots/mobile-portrait-home.png" alt="手机竖屏首页与悬浮胶囊导航" /><br />
+      <sub><strong>首页 · 和纸朱印</strong><br />分组练习、打卡印谱与悬浮胶囊岛</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./docs/screenshots/mobile-portrait-wordbank.png" alt="手机竖屏词库与多词性斜切拼色卡片" /><br />
+      <sub><strong>词库 · 斜切拼色</strong><br />8 大词性矿物色与多词性拼色卡面</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./docs/screenshots/mobile-portrait-study.png" alt="手机竖屏往复检验闪卡与 Combo 顶栏" /><br />
+      <sub><strong>学习 · 往复检验</strong><br />独立流式顶栏、Combo 与假名例句</sub>
+    </td>
+    <td align="center" width="25%">
+      <img src="./docs/screenshots/mobile-portrait-dark.png" alt="手机竖屏深色模式首页" /><br />
+      <sub><strong>深色 · 有机炭黑</strong><br />暖橄榄炭黑层级与低眩光对比度</sub>
+    </td>
+  </tr>
+</table>
+
+### 移动端横屏（844 × 390）
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/screenshots/mobile-landscape-study.png" alt="手机横屏双栏学习界面与零遮挡 Combo 顶栏" /><br />
+      <sub><strong>横屏双栏学习</strong> · 左卡右题布局，流式顶栏确保 Combo 在矮屏下零遮挡</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/screenshots/mobile-landscape-wordbank.png" alt="手机横屏紧凑左侧导航栏与多列词库" /><br />
+      <sub><strong>横屏紧凑侧栏</strong> · 自动切换左侧图标导航栏，词库扩展为三列拼色卡片</sub>
+    </td>
+  </tr>
+</table>
+
+### 桌面端工作台（1280 × 800）
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/screenshots/desktop-wordbank-split.png" alt="桌面端可折叠侧边栏、英语词库与右侧分栏单词详情检查器" /><br />
+      <sub><strong>右侧分栏详情检查器</strong> · 左侧可折叠侧栏 + 英语词库 + 右侧非阻塞词根与例句分栏</sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/screenshots/desktop-dark-cmd.png" alt="桌面端深色模式与 Cmd+K 全局快捷命令面板" /><br />
+      <sub><strong>全局命令面板（⌘K / Ctrl+K）</strong> · 跨日英 9,828 词即时检索与模式直达</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 核心功能
 
 ### 1. FSRS 智能调度与五种互补练习模式
@@ -56,7 +116,7 @@
 | **筛选检验** | 查漏补缺 | 支持「薄弱优先 / 新词优先 / 词库原序」与智能跳过已亮维度，错词自动归入智能错题本（连对 3 次自动归档） | `E` |
 | **FSRS 到期复习** | 长期防遗忘 | 依据遗忘曲线自动排期，四级评分（重来 / 困难 / 良好 / 简单）动态计算下次复习间隔 | 首页卡片直达 |
 
-**高频桌面快捷键**：首页支持 `A–G` 直达学习模式与范围选择；学习工作区支持 `← / ↓ / → / Space / Esc` 零延迟全键盘流转（高频键盘操作遵循「零冗余动画」原则，不拖慢节拍）。
+**高频桌面快捷键**：全局支持 `⌘K / Ctrl+K` 唤起快捷搜索与命令面板（跨 9,828 日英词条与功能直达）；首页支持 `A–G` 直达学习模式与范围选择；学习工作区支持 `← / ↓ / → / Space / Esc` 零延迟全键盘流转（高频键盘操作遵循「零冗余动画」原则，不拖慢节拍）。
 
 ---
 
@@ -83,7 +143,8 @@
 ### 3. 双语词库、语音朗读与数据安全
 
 - **虚拟列表高效渲染**：近万词条丝滑滚动，支持多列切换、列表分项遮盖、级别/难度/词夹筛选、关键词搜索一键清空、快捷新建词条、批量移动/编辑/删除与 7 天回收站。
-- **单词详情页手势与快捷编辑**：详情卡支持 **1:1 横向滑动切词**、例句单条删除与一键撤销、行内快捷编辑与收藏。
+- **桌面工作台与分栏详情**：桌面宽屏（`>= 1100px`）支持可折叠左侧边栏（`224px ↔ 68px`）、词库卡片悬浮渐进显露操作按钮，以及类似工作台侧栏的**右侧非阻塞单词详情检查器**；移动端详情卡支持 **1:1 横向滑动切词**、例句单条删除与一键撤销、行内快捷编辑与收藏。
+- **全端滚动条与学习顶栏防遮挡**：全局滚动条自动同步浅色 / 深色主题配色；横向滑条支持桌面滚轮自动转横向滚动、鼠标拖拽平移与双侧边缘渐隐提示；学习闪卡采用独立流式顶栏与正文滚动区，在任意竖屏、矮横屏与长词条下均保证朗读按钮、`Combo` 徽章与收藏按钮零遮挡。
 - **英语词根词缀公式**：内置英语词根拆分彩色公式卡片，配套独立离线审校工作台（`root-review.js`）。
 - **多引擎 × 三档语速朗读**：支持微软语音（Azure）、网易有道及系统自带 TTS 切换，提供 `0.75× 慢速 / 1.0× 标准 / 1.25× 较快` 三档语速分段调节，离线时自动无感回退至系统语音。
 - **离线双保险持久化**：IndexedDB（`idb-keyval`）为主存储、`localStorage` 自动降级兜底；内置全库数据完整性审计（0 阻断错误）、完整 JSON 备份导入/导出，以及大批量导入或清理前的自动恢复点保护。
@@ -157,7 +218,7 @@ jp-study/
 ├── scripts/                    # 资产同步、字体/图标子集、Chromium 冒烟测试、Android 打包脚本
 ├── tools/                      # Python 词库编译器、例句补全、词根生成与审校工具
 ├── tests/                      # 48 项 Node.js 单元测试 + 35 项 Python 单元测试
-└── docs/                       # Android 打包、词库工具、数据完整性与响应式规范文档
+└── docs/                       # 工程文档与实机界面截图（screenshots/）
 ```
 
 ---

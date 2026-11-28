@@ -21,6 +21,7 @@ const HAPTICS = globalThis.ZhongriHaptics;
 const WORD_BANK_LOADER = globalThis.ZhongriWordbankLoader;
 const SETTINGS_STORE = globalThis.ZhongriSettingsStore;
 const STUDY_CARD_VM = globalThis.ZhongriStudyCardViewModel;
+const VISIBLE_TYPING = globalThis.ZhongriVisibleTypingCore || null;
 const RELEASE_INFO = globalThis.ZhongriReleaseInfo || Object.freeze({
     version: '未知版本',
     build: '本地缓存',
@@ -5808,6 +5809,16 @@ const Hardware = {
           osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
           gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
           osc.start(now); osc.stop(now + 0.15);
+        } else if (type === 'key_type') {
+          if (!SETTINGS_STORE.getBool('typingKeySound')) return;
+          osc.type = 'triangle'; osc.frequency.setValueAtTime(1180, now); osc.frequency.exponentialRampToValueAtTime(320, now + 0.024);
+          gain.gain.setValueAtTime(0.11, now); gain.gain.exponentialRampToValueAtTime(0.004, now + 0.024);
+          osc.start(now); osc.stop(now + 0.024);
+        } else if (type === 'key_wrong') {
+          if (!SETTINGS_STORE.getBool('typingKeySound')) return;
+          osc.type = 'sawtooth'; osc.frequency.setValueAtTime(185, now); osc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
+          gain.gain.setValueAtTime(0.18, now); gain.gain.exponentialRampToValueAtTime(0.008, now + 0.09);
+          osc.start(now); osc.stop(now + 0.09);
         }
     } catch(e) {}
   },
@@ -5862,7 +5873,14 @@ const Hardware = {
           osc2.start(now + 0.15); osc2.stop(now + 0.6);
       } catch(e) {}
   },
+_audioEpoch: 0,
+_chainTimer: null,
 stopAllAudio() {
+        this._audioEpoch = (this._audioEpoch || 0) + 1;
+        if (this._chainTimer) {
+            clearTimeout(this._chainTimer);
+            this._chainTimer = null;
+        }
         if (window.speechSynthesis) window.speechSynthesis.cancel();
         if (this._currentAudio) {
             this._currentAudio.pause();
@@ -5930,18 +5948,60 @@ fallbackLocalTTS(text, isSentence = false, onComplete = null, lang = 'ja-JP') {
 
 
 // Helper: speak the appropriate text for a word based on its language
-speakWord(w, btnEl) {
+speakWord(w, btnEl, opts = {}) {
     if (!w) return;
     const isEnglish = w.lang === 'en';
     const text = isEnglish
         ? (w.word || '')
         : ((w.kana || w.word || '').replace(/[【】\[\]()]/g, '').split(/[\/／]/)[0]);
-    this.speakText(text, btnEl, isEnglish ? 'en' : 'ja');
+    this.speakText(text, btnEl, isEnglish ? 'en' : 'ja', opts);
 },
 
-async speakText(text, btnEl = null, lang = 'ja') {
+speakWordWithChain(w, btnEl = null, { mode = '', isWordVisible = true } = {}) {
+    if (!w) return;
+    const shouldChain = Boolean(
+        VISIBLE_TYPING &&
+        VISIBLE_TYPING.shouldChainFirstSentence({
+            autoPlayFirstSentence: SETTINGS_STORE.getBool('autoPlayFirstSentence'),
+            mode,
+            isWordVisible,
+            exampleText: w.example || '',
+            alreadyPlayed: false
+        })
+    );
+    if (!shouldChain) {
+        this.speakWord(w, btnEl);
+        return;
+    }
+    const firstSentence = VISIBLE_TYPING.extractFirstExampleText(w.example || '');
+    const startEpoch = (this._audioEpoch || 0) + 1;
+    this._audioEpoch = startEpoch;
+    this.speakWord(w, btnEl, {
+        preserveEpoch: true,
+        onEnd: () => {
+            if (this._audioEpoch !== startEpoch || !firstSentence) return;
+            this._chainTimer = setTimeout(() => {
+                this._chainTimer = null;
+                if (this._audioEpoch !== startEpoch) return;
+                this.speakText(firstSentence, null, w.lang === 'en' ? 'en' : 'ja', { preserveEpoch: true });
+            }, 220);
+        }
+    });
+},
+
+async speakText(text, btnEl = null, lang = 'ja', opts = {}) {
+  let isSentence = false;
   try {
       if (typeof text !== 'string' || text.trim() === '') return;
+      if (!opts.preserveEpoch) {
+          this._audioEpoch = (this._audioEpoch || 0) + 1;
+          if (this._chainTimer) {
+              clearTimeout(this._chainTimer);
+              this._chainTimer = null;
+          }
+      }
+      const myEpoch = this._audioEpoch;
+      const onEnd = typeof opts.onEnd === 'function' ? opts.onEnd : null;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       if (this._currentAudio) {
           this._currentAudio.pause();
@@ -5956,8 +6016,9 @@ async speakText(text, btnEl = null, lang = 'ja') {
             }
 
             const revertBtn = () => { if (btnEl) { btnEl.classList.remove('speaker-loading'); if (iconEl) iconEl.innerText = originalIcon || 'volume_up'; } };
+            const finishAll = () => { revertBtn(); if (onEnd && this._audioEpoch === myEpoch) onEnd(); };
 
-            let isSentence = text.length > 12 || /[。？！，、]/.test(text);
+            isSentence = text.length > 12 || /[。？！，、]/.test(text);
             let engine = localStorage.getItem('ttsEngine') || 'azure';
             const ttsLang = lang === 'en' ? 'en-US' : (lang === 'zh' ? 'zh-CN' : 'ja-JP');
 
@@ -5967,7 +6028,7 @@ async speakText(text, btnEl = null, lang = 'ja') {
     (engine === 'youdao' && isSentence) ||
     (typeof navigator !== 'undefined' && navigator.onLine === false)
  ) {
-    this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang);
+    this.fallbackLocalTTS(text, isSentence, finishAll, ttsLang);
     return;
 }
 
@@ -5982,10 +6043,11 @@ if (engine === 'youdao') {
     }
     const audio = new Audio(url);
     audio.playbackRate = this.getSpeechRate(isSentence, 'youdao');
-    audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
+    audio.oncanplaythrough = revertBtn;
+    if (onEnd) audio.onended = () => { if (this._audioEpoch === myEpoch) onEnd(); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, finishAll, ttsLang); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, finishAll, ttsLang); });
     return;
 }
 if (engine === 'azure') {
@@ -6001,6 +6063,7 @@ if (engine === 'azure') {
 
     if (!response.ok) throw new Error("Azure API 请求失败");
     const blob = await response.blob();
+    if (this._audioEpoch !== myEpoch) return;
     
     if (this._currentAudio) {
         this._currentAudio.pause();
@@ -6010,17 +6073,247 @@ if (engine === 'azure') {
 
     const audio = new Audio(URL.createObjectURL(blob));
     audio.playbackRate = this.getSpeechRate(isSentence, 'azure');
-    audio.oncanplaythrough = revertBtn; 
-    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); };
+    audio.oncanplaythrough = revertBtn;
+    if (onEnd) audio.onended = () => { if (this._audioEpoch === myEpoch) onEnd(); };
+    audio.onerror = () => { this.fallbackLocalTTS(text, isSentence, finishAll, ttsLang); };
     this._currentAudio = audio;
-    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, revertBtn, ttsLang); });
+    audio.play().catch(() => { this.fallbackLocalTTS(text, isSentence, finishAll, ttsLang); });
 }
         } catch(e) {
             console.warn("[TTS] 在线引擎失效，降级为本地发音", e);
             if (btnEl) { btnEl.classList.remove('speaker-loading'); let i = btnEl.querySelector('.material-symbols-rounded'); if(i) i.innerText = 'volume_up'; }
-            this.fallbackLocalTTS(text, isSentence);
+            this.fallbackLocalTTS(text, isSentence, typeof opts?.onEnd === 'function' ? opts.onEnd : null);
         }
       }
+};
+
+/* TypeWords-Inspired Visible-Word Keyboard Typing & Single-Card Display Policy Controller */
+const VisibleTypingUI = {
+    session: null,
+    word: null,
+    targetElId: null,
+    autoTimer: null,
+    displayPolicy: STUDY_CARD_VM.createDisplayPolicyController(),
+    _peeking: false,
+
+    isEnabled() {
+        if (!VISIBLE_TYPING) return false;
+        const pref = SETTINGS_STORE.get('studyVisibleTyping') || 'auto';
+        if (pref === 'off') return false;
+        if (pref === 'on') return true;
+        if (typeof window === 'undefined') return false;
+        const finePointer = typeof window.matchMedia === 'function'
+            && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+        return Boolean(finePointer || window.innerWidth >= 900);
+    },
+
+    clearTimers() {
+        if (this.autoTimer) {
+            clearTimeout(this.autoTimer);
+            this.autoTimer = null;
+        }
+    },
+
+    detach() {
+        this.clearTimers();
+        this.session = null;
+        this.word = null;
+        this.targetElId = null;
+        const statusRow = document.getElementById('vt-status-row');
+        if (statusRow) {
+            statusRow.classList.add('hidden');
+            statusRow.innerHTML = '';
+        }
+        const card = document.getElementById('flash-card');
+        if (card) card.removeAttribute('data-typing-active');
+    },
+
+    attach(w, { mode = '', displayMode = 'all', forceRoteFull = false } = {}) {
+        this.detach();
+        if (!w || !this.isEnabled()) return false;
+        const supportedMode = mode === 'pendulum' || (mode === 'rote-learning' && (forceRoteFull || displayMode === 'all'));
+        if (!supportedMode) return false;
+
+        const isEnglish = w.lang === 'en';
+        const targetVisible = displayMode === 'all' || (isEnglish ? displayMode === 'word' : displayMode === 'kana');
+        if (!targetVisible) return false;
+
+        if (isEnglish && SETTINGS_STORE.getBool('skipPhraseSpell') && getEnglishPhraseMeta(w.word).isMultiWord) {
+            return false;
+        }
+
+        const targetText = VISIBLE_TYPING.resolveTargetText(w);
+        if (!targetText) return false;
+
+        this.word = w;
+        this.targetElId = isEnglish ? 'w-word' : 'w-kana';
+        this.session = VISIBLE_TYPING.createVisibleTypingSession({
+            word: w,
+            repeatTarget: SETTINGS_STORE.get('typingRepeatCount'),
+            spaceCooldownTime: SETTINGS_STORE.get('spaceCooldownTime')
+        });
+        const card = document.getElementById('flash-card');
+        if (card) card.setAttribute('data-typing-active', 'true');
+        this.render();
+        return true;
+    },
+
+    render() {
+        if (!this.session || !this.targetElId) return;
+        const el = document.getElementById(this.targetElId);
+        const statusRow = document.getElementById('vt-status-row');
+        if (!el) return;
+
+        const snap = this.session.getSnapshot();
+        const typedLen = Array.from(snap.inputText).length;
+        let html = '';
+        snap.charStates.forEach((item, idx) => {
+            if (idx === typedLen && !snap.completed) {
+                if (snap.romajiBuffer) {
+                    html += `<span class="vt-romaji-buffer">${escapeHTML(snap.romajiBuffer)}</span>`;
+                }
+                html += '<span class="vt-cursor" aria-hidden="true"></span>';
+            }
+            const cls = item.status === 'correct'
+                ? 'vt-char vt-char-correct'
+                : (item.status === 'wrong' ? 'vt-char vt-char-wrong' : 'vt-char vt-char-pending');
+            const text = item.char === ' ' ? '&nbsp;' : escapeHTML(item.char);
+            html += `<span class="${cls}">${text}</span>`;
+        });
+        if (typedLen >= snap.charStates.length && !snap.completed && snap.romajiBuffer) {
+            html += `<span class="vt-romaji-buffer">${escapeHTML(snap.romajiBuffer)}</span>`;
+        }
+        el.innerHTML = html;
+
+        if (statusRow) {
+            const pills = [];
+            if (snap.repeatTarget > 1) {
+                pills.push(`<span class="vt-status-pill${snap.completed ? ' is-done' : ''}">跟打 ${Math.min(snap.repeatDone + (snap.completed ? 0 : 1), snap.repeatTarget)}/${snap.repeatTarget}</span>`);
+            }
+            if (snap.locked && snap.hasWrong) {
+                pills.push('<span class="vt-status-pill is-error">退格修正</span>');
+            } else if (snap.completed) {
+                pills.push('<span class="vt-status-pill is-done">✓ 拼写完成</span>');
+            } else if (typedLen === 0 && !snap.romajiBuffer) {
+                pills.push(`<span class="vt-status-pill">${snap.lang === 'en' ? '直接敲键盘跟打' : '敲罗马音跟打假名'}</span>`);
+            }
+            statusRow.innerHTML = pills.join('');
+            statusRow.classList.toggle('hidden', pills.length === 0);
+        }
+    },
+
+    triggerShake() {
+        const el = this.targetElId ? document.getElementById(this.targetElId) : null;
+        if (!el || isMotionReduced()) return;
+        el.classList.remove('vt-shake');
+        void el.offsetWidth;
+        el.classList.add('vt-shake');
+        setTimeout(() => el.classList.remove('vt-shake'), 360);
+    },
+
+    handleKeydown(e) {
+        if (!this.session || !this.word) return false;
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
+        const res = this.session.inputKey({ key: e.key, code: e.code, shiftKey: e.shiftKey });
+        if (!res.handled) return false;
+
+        e.preventDefault();
+        this.render();
+
+        const waitMs = Math.max(80, Number.parseInt(SETTINGS_STORE.get('waitTimeForChangeWord') || '300', 10) || 300);
+        if (res.event === 'typed' || res.event === 'backspace') {
+            Hardware.playSound('key_type', { haptic: 'key' });
+        } else if (res.event === 'wrong_locked') {
+            Hardware.playSound('key_wrong', { haptic: 'error' });
+            this.triggerShake();
+            Hardware.speakWord(this.word);
+        } else if (res.event === 'completed_repeat') {
+            Hardware.playSound('success', { haptic: 'correct' });
+            this.clearTimers();
+            const currentWord = this.word;
+            this.autoTimer = setTimeout(() => {
+                if (this.word !== currentWord || !this.session) return;
+                this.session.resetForNextRepeat();
+                this.render();
+                Hardware.speakWord(currentWord);
+            }, waitMs);
+        } else if (res.event === 'completed_word') {
+            Hardware.playSound('success', { haptic: 'correct' });
+            View.playStudyFeedback('correct');
+            document.querySelectorAll('#w-example-box .vt-example-target.is-cloze').forEach(node => {
+                node.classList.remove('is-cloze');
+                node.classList.add('is-cloze-solved');
+            });
+            if (globalThis.ZhongriFsrsScheduler && typeof globalThis.ZhongriFsrsScheduler.suggestRatingFromTyping === 'function') {
+                const suggested = globalThis.ZhongriFsrsScheduler.suggestRatingFromTyping({
+                    typoCount: res.snapshot.typoCount,
+                    usedHint: false,
+                    conservative: true
+                });
+                Model.state.lastTypingSuggestedRating = suggested;
+                Model.recordFsrsReview({
+                    word: this.word,
+                    dimension: this.word.lang === 'en' ? 'spelling' : 'reading',
+                    rating: suggested,
+                    source: 'visible-typing'
+                });
+            }
+            if (SETTINGS_STORE.getBool('autoNextOnTyped')) {
+                this.clearTimers();
+                const sessionId = Model.state.studySessionId || 0;
+                this.autoTimer = setTimeout(() => {
+                    if ((Model.state.studySessionId || 0) !== sessionId) return;
+                    const btnNext = View.getEl('btn-next');
+                    const btnFinish = View.getEl('btn-finish');
+                    if (btnNext && window.getComputedStyle(btnNext).display !== 'none' && !btnNext.disabled) {
+                        btnNext.click();
+                    } else if (btnFinish && window.getComputedStyle(btnFinish).display !== 'none') {
+                        btnFinish.click();
+                    }
+                }, waitMs);
+            }
+        }
+        return true;
+    },
+
+    handleSpace(e) {
+        if (!this.session) return false;
+        const snap = this.session.getSnapshot();
+        if (!snap.completed) return false;
+        e.preventDefault();
+        if (!this.session.canSpaceAdvance()) {
+            return true;
+        }
+        if (!SETTINGS_STORE.getBool('autoNextOnTyped')) {
+            const btnNext = View.getEl('btn-next');
+            const btnFinish = View.getEl('btn-finish');
+            if (btnNext && window.getComputedStyle(btnNext).display !== 'none' && !btnNext.disabled) {
+                btnNext.click();
+            } else if (btnFinish && window.getComputedStyle(btnFinish).display !== 'none') {
+                btnFinish.click();
+            }
+        }
+        return true;
+    },
+
+    setTemporaryPeek(active) {
+        const next = Boolean(active);
+        if (this._peeking === next) return;
+        this._peeking = next;
+        this.displayPolicy.setPeekAll(next);
+        const targets = document.querySelectorAll('#flash-card .blur-target');
+        targets.forEach(node => {
+            if (next) {
+                if (node.classList.contains('blur-text')) {
+                    node.dataset.vtWasBlurred = '1';
+                    node.classList.remove('blur-text');
+                }
+            } else if (node.dataset.vtWasBlurred === '1') {
+                node.classList.add('blur-text');
+                delete node.dataset.vtWasBlurred;
+            }
+        });
+    }
 };
 
 const View = {
@@ -6086,6 +6379,8 @@ const View = {
           if(bottomNav) bottomNav.style.transform = 'translateY(150%)';
           if(globalHeader) globalHeader.style.transform = 'translateY(-150%)';
       } else {
+          VisibleTypingUI.detach();
+          VisibleTypingUI.setTemporaryPeek(false);
           studyArea.classList.add('hidden');
           if(bottomNav) bottomNav.style.transform = 'translateY(0)';
           if(globalHeader) globalHeader.style.transform = 'translateY(0)';
@@ -7567,6 +7862,8 @@ void card.offsetWidth;
 
 
     updateCardContent(w, visuals, mode, forceRoteFull, isMemTest, isRote, isFilterTest, isFsrsReview) {
+    VisibleTypingUI.detach();
+    VisibleTypingUI.setTemporaryPeek(false);
     const isEnglish = w.lang === 'en';
     
     // 动态修改提示按钮的文案
@@ -7900,11 +8197,24 @@ void card.offsetWidth;
       }
     }
     
+    VisibleTypingUI.displayPolicy.setPhase(`${Model.state.mode}:${Model.state.currentIndex}:${mode}`, Model.state.mode, mode, isEnglish);
+    VisibleTypingUI._peeking = false;
+    const vtAttached = VisibleTypingUI.attach(w, {
+        mode: Model.state.mode,
+        displayMode: mode,
+        forceRoteFull
+    });
+
     if (isMemTest && (Model.state.mtRound === 1 || Model.state.mtRound === 2)) {
         Hardware.speakWord(w);
     } else {
         let autoSpeak = localStorage.getItem('autoSpeak') !== 'false';
-        if (autoSpeak && !hideSpeaker) { Hardware.speakWord(w); }
+        if (autoSpeak && !hideSpeaker) {
+            Hardware.speakWordWithChain(w, null, {
+                mode: Model.state.mode,
+                isWordVisible: vtAttached || mode === 'all'
+            });
+        }
     }
 
     this.syncRootsDisplay();
@@ -7941,6 +8251,17 @@ void card.offsetWidth;
         let safeJpPart = escapeHTML(jpPart).replace(/\\＆/g, '\\&');
         
         safeJpPart = safeJpPart.replace(/\$\\overset\{([^\}]+)\}\{([^\}]+)\}\$/g, '<ruby>$2<rt>$1</rt></ruby>');
+
+        if (mode === 'normal' && targetWordObj && targetWordObj.word && !safeJpPart.includes('<ruby>')) {
+            const targetToken = String(targetWordObj.word).trim();
+            if (targetToken.length >= 2) {
+                const escapedToken = escapeRegExp(escapeHTML(targetToken));
+                const re = targetWordObj.lang === 'en'
+                    ? new RegExp(`\\b(${escapedToken})\\b`, 'i')
+                    : new RegExp(`(${escapedToken})`);
+                safeJpPart = safeJpPart.replace(re, '<span class="vt-example-target" title="点击挖空跟打">$1</span>');
+            }
+        }
 
         let safeCnPart = escapeHTML(cnPart);
         const wordLang = targetWordObj?.lang === 'en' ? 'en' : 'ja';
@@ -9142,6 +9463,23 @@ const Controller = {
     let skipPhraseCheck = View.getEl('setting-skip-phrase-spell');
     if (skipPhraseCheck) skipPhraseCheck.checked = skipPhraseSpell;
 
+    const vtModeSelect = View.getEl('setting-visible-typing');
+    if (vtModeSelect) {
+        vtModeSelect.value = SETTINGS_STORE.get('studyVisibleTyping') || 'auto';
+        vtModeSelect.dispatchEvent(new Event('facade-update'));
+    }
+    const vtRepeatSelect = View.getEl('setting-typing-repeat');
+    if (vtRepeatSelect) {
+        vtRepeatSelect.value = SETTINGS_STORE.get('typingRepeatCount') || '1';
+        vtRepeatSelect.dispatchEvent(new Event('facade-update'));
+    }
+    const vtAutoNextCheck = View.getEl('setting-auto-next-typed');
+    if (vtAutoNextCheck) vtAutoNextCheck.checked = SETTINGS_STORE.getBool('autoNextOnTyped');
+    const vtKeySoundCheck = View.getEl('setting-typing-key-sound');
+    if (vtKeySoundCheck) vtKeySoundCheck.checked = SETTINGS_STORE.getBool('typingKeySound');
+    const vtFirstSentenceCheck = View.getEl('setting-auto-play-first-sentence');
+    if (vtFirstSentenceCheck) vtFirstSentenceCheck.checked = SETTINGS_STORE.getBool('autoPlayFirstSentence');
+
     let showRootsCheck = View.getEl('setting-show-roots');
     if (showRootsCheck) {
         showRootsCheck.addEventListener('change', (e) => {
@@ -9706,6 +10044,46 @@ setupVirtualScroll() {
 
     let autoSpeakCheck = View.getEl('setting-auto-speak');
     if (autoSpeakCheck) { autoSpeakCheck.addEventListener('change', (e) => { Hardware.playSound('click'); Hardware.vibrate(15); localStorage.setItem('autoSpeak', e.target.checked); showToast(e.target.checked ? "已开启自动朗读" : "已关闭自动朗读"); }); }
+
+    View.getEl('setting-visible-typing')?.addEventListener('change', (e) => {
+        SETTINGS_STORE.set('studyVisibleTyping', e.target.value);
+        const labels = { auto: '桌面自动开启', on: '始终开启', off: '已关闭' };
+        showToast(`学习模式键盘跟打：${labels[e.target.value] || e.target.value}`);
+        if (!document.getElementById('study-area')?.classList.contains('hidden')) View.renderStudyCard('none');
+    });
+    View.getEl('setting-typing-repeat')?.addEventListener('change', (e) => {
+        SETTINGS_STORE.set('typingRepeatCount', e.target.value);
+        showToast(`跟打重复次数已设为 ${e.target.value} 遍`);
+        if (!document.getElementById('study-area')?.classList.contains('hidden')) View.renderStudyCard('none');
+    });
+    View.getEl('setting-auto-next-typed')?.addEventListener('change', (e) => {
+        Hardware.playSound('click');
+        SETTINGS_STORE.set('autoNextOnTyped', e.target.checked);
+        showToast(e.target.checked ? '跟打完成后将自动切词' : '跟打完成后将停留在当前卡');
+    });
+    View.getEl('setting-typing-key-sound')?.addEventListener('change', (e) => {
+        SETTINGS_STORE.set('typingKeySound', e.target.checked);
+        if (e.target.checked) Hardware.playSound('key_type');
+        showToast(e.target.checked ? '已开启跟打按键音效' : '已关闭跟打按键音效');
+    });
+    View.getEl('setting-auto-play-first-sentence')?.addEventListener('change', (e) => {
+        Hardware.playSound('click');
+        SETTINGS_STORE.set('autoPlayFirstSentence', e.target.checked);
+        showToast(e.target.checked ? '已开启首句例句自动串播' : '已关闭首句例句串播');
+    });
+
+    View.getEl('w-example-box')?.addEventListener('click', (e) => {
+        const target = e.target.closest('.vt-example-target');
+        if (!target) return;
+        e.stopPropagation();
+        target.classList.remove('is-cloze-solved');
+        const nowCloze = target.classList.toggle('is-cloze');
+        Hardware.haptic('key');
+        if (nowCloze && VisibleTypingUI.session) {
+            VisibleTypingUI.session.resetForNextRepeat();
+            VisibleTypingUI.render();
+        }
+    });
 
     let hapticsCheck = View.getEl('setting-haptics-enabled');
     if (hapticsCheck) {
@@ -10909,6 +11287,12 @@ if (testVibrateBtn) {
             let wObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
             let displayMode = View.getEl('next-display-mode').value;
 
+            // 0. 临时偷看快捷键（Alt 按住临时显露遮盖内容，松开或切词自动复位）
+            if (key === 'Alt' && !isSpelling && !isChoice) {
+                VisibleTypingUI.setTemporaryPeek(true);
+                return;
+            }
+
             // 1. 拼写输入隔离 (如果是打字阶段，把字母/空格/撇号全部交给对应输入引擎)
             if (isSpelling) {
                 let activeInputEl = !dtSpellArea.classList.contains('hidden') ? View.getEl('dt-spell-input') : View.getEl('mt-spell-input');
@@ -10936,6 +11320,16 @@ if (testVibrateBtn) {
                         activeInputEl.innerHTML = RomajiEngine.getDisplayText();
                         View.simulateKeyPress(key.toUpperCase());
                     }
+                    return;
+                }
+            }
+
+            // 1.5 学习模式展示拼写实时跟打（自由浏览 & 循环强记初识）
+            if (!isSpelling && !isChoice && VisibleTypingUI.session) {
+                if (key === ' ' && VisibleTypingUI.handleSpace(e)) {
+                    return;
+                }
+                if (VisibleTypingUI.handleKeydown(e)) {
                     return;
                 }
             }
@@ -11031,8 +11425,12 @@ if (testVibrateBtn) {
         }
     });
 
-    // 🚀 松开空格键：停止打卡蓄力
+    // 🚀 松开空格键：停止打卡蓄力；松开 Alt 键：恢复单卡临时偷看
     document.addEventListener('keyup', (e) => {
+        if (e.key === 'Alt') {
+            VisibleTypingUI.setTemporaryPeek(false);
+            return;
+        }
         if (e.key === ' ') {
             if (!View.getEl('tab-home').classList.contains('hidden') && View.getEl('study-area').classList.contains('hidden')) {
                 let lpBtn = View.getEl('btn-long-press');
@@ -12404,7 +12802,8 @@ if (testVibrateBtn) {
                 ? '按实际回忆难度评分，系统会安排下次复习。'
                 : '先在心里作答，再揭晓答案。';
         }
-        container.innerHTML = options.map(([rating, title, optionTip], index) => `<button type="button" class="fsrs-rating-btn" data-rating="${rating}"><strong>${title}</strong><small>${optionTip}</small><em>${preview[rating].label} · ${index + 1}</em></button>`).join('');
+        const suggestedRating = Model.state.lastTypingSuggestedRating || '';
+        container.innerHTML = options.map(([rating, title, optionTip], index) => `<button type="button" class="fsrs-rating-btn${rating === suggestedRating ? ' is-suggested' : ''}" data-rating="${rating}"><strong>${title}</strong><small>${optionTip}</small><em>${preview[rating].label} · ${index + 1}</em></button>`).join('');
         container.onclick = event => {
             const button = event.target.closest('.fsrs-rating-btn');
             if (button) this.applyFsrsRating(button.dataset.rating);

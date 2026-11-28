@@ -76,7 +76,7 @@
 <link rel="stylesheet" href="vendor/material-symbols.css">
 <link rel="stylesheet" href="vendor/zh-ming.css?v=2">
 <link rel="stylesheet" href="ui-system.css?v=modern-v18">
-<link rel="stylesheet" href="style.css?v=modern-v28">
+<link rel="stylesheet" href="style.css?v=modern-v29">
 </head>
 <body>
 <script>
@@ -709,6 +709,49 @@
             <label class="tactile-switch-wrap"><input type="checkbox" id="setting-auto-speak" class="tactile-switch"><span class="tactile-slider"></span></label>
           </div>
 
+          <div class="setting-item setting-choice-item setting-segmented-item">
+            <div class="setting-info"><div class="setting-title">学习模式键盘跟打</div><div class="setting-desc">自由浏览与循环强记初识时，看着拼写直接敲键盘强化肌肉记忆</div></div>
+            <div class="segmented-control" role="radiogroup" aria-label="学习模式键盘跟打" data-segmented-for="setting-visible-typing">
+              <button type="button" class="segmented-option active" data-value="auto" role="radio" aria-checked="true">桌面自动</button>
+              <button type="button" class="segmented-option" data-value="on" role="radio" aria-checked="false">始终开启</button>
+              <button type="button" class="segmented-option" data-value="off" role="radio" aria-checked="false">关闭</button>
+            </div>
+            <select id="setting-visible-typing" class="no-bs" hidden>
+              <option value="auto" selected>桌面自动</option>
+              <option value="on">始终开启</option>
+              <option value="off">关闭</option>
+            </select>
+          </div>
+
+          <div class="setting-item setting-choice-item setting-segmented-item">
+            <div class="setting-info"><div class="setting-title">跟打重复次数</div><div class="setting-desc">展示拼写跟打时，每个词原地连续敲打几遍后再切词</div></div>
+            <div class="segmented-control" role="radiogroup" aria-label="跟打重复次数" data-segmented-for="setting-typing-repeat">
+              <button type="button" class="segmented-option active" data-value="1" role="radio" aria-checked="true">1 遍</button>
+              <button type="button" class="segmented-option" data-value="2" role="radio" aria-checked="false">2 遍</button>
+              <button type="button" class="segmented-option" data-value="3" role="radio" aria-checked="false">3 遍</button>
+            </div>
+            <select id="setting-typing-repeat" class="no-bs" hidden>
+              <option value="1" selected>1 遍</option>
+              <option value="2">2 遍</option>
+              <option value="3">3 遍</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">跟打完成自动切词</div><div class="setting-desc">拼写全部正确后自动进入下一张卡片</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-auto-next-typed" class="tactile-switch" checked><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">跟打按键音效</div><div class="setting-desc">实体键盘跟打时播放轻脆按键反馈音</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-typing-key-sound" class="tactile-switch" checked><span class="tactile-slider"></span></label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info"><div class="setting-title">跟打首句例句串播</div><div class="setting-desc">学习模式读完单词后自动续播第一条例句音频</div></div>
+            <label class="tactile-switch-wrap"><input type="checkbox" id="setting-auto-play-first-sentence" class="tactile-switch"><span class="tactile-slider"></span></label>
+          </div>
+
           <div class="setting-item">
             <div class="setting-info"><div class="setting-title">夜间按钮质感</div><div class="setting-desc">暗色模式下使用更通透的半透明叠加效果</div></div>
             <label class="tactile-switch-wrap"><input type="checkbox" id="setting-dark-btn" class="tactile-switch"><span class="tactile-slider"></span></label>
@@ -1115,6 +1158,7 @@
           <div class="word-main blur-target" id="w-word">单词</div>
           <div class="info-row-group">
             <div class="kana-row blur-target" id="w-kana">假名</div>
+            <div id="vt-status-row" class="vt-status-row hidden" aria-live="polite"></div>
             <div class="type-row blur-target" id="w-type"></div>
             <div class="roots-row blur-target" id="w-roots" style="display:none;"></div>
             <div class="meaning-row blur-target" id="w-meaning">释义</div>
@@ -1174,6 +1218,8 @@
   </div>
 
   <div id="keyboard-hint-bar" class="keyboard-hint-bar hidden">
+    <div class="hint-item vt-only-hint"><kbd class="kbd-hint">A-Z</kbd> 跟打拼写</div>
+    <div class="hint-item vt-only-hint"><kbd class="kbd-hint">Alt</kbd> 临时偷看</div>
     <div class="hint-item"><kbd class="kbd-hint">←</kbd> 错误/忘记/上一个</div>
     <div class="hint-item"><kbd class="kbd-hint">↓</kbd> 模糊</div>
     <div class="hint-item"><kbd class="kbd-hint">→</kbd> 正确/认识/下一个</div>
@@ -1536,12 +1582,13 @@
 </script>
 <script src="release-info.js"></script>
 <script src="core-utils.js?v=sse-buffer-v1"></script>
-<script src="settings-store.js"></script>
-<script src="study-card-viewmodel.js"></script>
+<script src="settings-store.js?v=tw-v1"></script>
+<script src="study-card-viewmodel.js?v=tw-v1"></script>
+<script src="visible-typing-core.js?v=tw-v1"></script>
 <script src="haptics.js?v=native-haptics-v4"></script>
 <script src="rote-learning-core.js"></script>
 <script src="vendor/ts-fsrs.umd.js"></script>
-<script src="fsrs-scheduler.js"></script>
+<script src="fsrs-scheduler.js?v=tw-v1"></script>
 <script src="notification-planner.js?v=smart-reminder-v1"></script>
 <script src="confusables-data.js?v=zsb-v2"></script>
 <!-- ==================== 易混词辨析对比卡与选词微测验 ==================== -->
@@ -1656,7 +1703,7 @@
   </div>
 </div>
 
-<script src="app.js?v=modern-v24"></script>
+<script src="app.js?v=modern-v25"></script>
 <script src="native-app.js?v=smart-reminder-v1"></script>
 <script src="root-review.js"></script>
 </body>

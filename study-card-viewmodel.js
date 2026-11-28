@@ -164,12 +164,113 @@
         });
     };
 
+    /**
+     * Stage default display policy + single-card temporary override (P1-1).
+     * Mirrors TypeWords usePracticeDisplayPolicy: overrides never mutate base
+     * and automatically reset when phaseKey / card changes.
+     */
+    const resolveDisplayPolicy = (mode = 'pendulum', displayMode = 'all', isEnglish = false) => {
+        if (mode === 'pendulum' || mode === 'rote-learning') {
+            if (displayMode === 'word') {
+                return Object.freeze({ maskWord: false, maskReading: true, maskMeaning: true });
+            }
+            if (displayMode === 'kana') {
+                return Object.freeze({
+                    maskWord: true,
+                    maskReading: false,
+                    maskMeaning: true
+                });
+            }
+            if (displayMode === 'meaning') {
+                return Object.freeze({ maskWord: true, maskReading: true, maskMeaning: false });
+            }
+            return Object.freeze({ maskWord: false, maskReading: false, maskMeaning: false });
+        }
+        if (mode === 'dual-track' && displayMode === 'spell') {
+            return Object.freeze({
+                maskWord: Boolean(isEnglish),
+                maskReading: !isEnglish,
+                maskMeaning: false
+            });
+        }
+        return Object.freeze({ maskWord: false, maskReading: false, maskMeaning: false });
+    };
+
+    const applyDisplayOverride = (basePolicy, override = {}) => {
+        const base = basePolicy || { maskWord: false, maskReading: false, maskMeaning: false };
+        if (override && override.peekAll) {
+            return Object.freeze({
+                maskWord: false,
+                maskReading: false,
+                maskMeaning: false,
+                isPeeking: true
+            });
+        }
+        return Object.freeze({
+            maskWord: typeof override?.maskWord === 'boolean' ? override.maskWord : Boolean(base.maskWord),
+            maskReading: typeof override?.maskReading === 'boolean' ? override.maskReading : Boolean(base.maskReading),
+            maskMeaning: typeof override?.maskMeaning === 'boolean' ? override.maskMeaning : Boolean(base.maskMeaning),
+            isPeeking: false
+        });
+    };
+
+    const createDisplayPolicyController = () => {
+        let phaseKey = '';
+        let basePolicy = resolveDisplayPolicy('pendulum', 'all', false);
+        let override = { maskWord: null, maskReading: null, maskMeaning: null, peekAll: false };
+
+        const resetOverrides = () => {
+            override = { maskWord: null, maskReading: null, maskMeaning: null, peekAll: false };
+        };
+
+        const setPhase = (nextPhaseKey, mode, displayMode, isEnglish) => {
+            const nextKey = String(nextPhaseKey || '');
+            basePolicy = resolveDisplayPolicy(mode, displayMode, isEnglish);
+            if (nextKey !== phaseKey) {
+                phaseKey = nextKey;
+                resetOverrides();
+            }
+            return applyDisplayOverride(basePolicy, override);
+        };
+
+        const toggleField = field => {
+            if (!['maskWord', 'maskReading', 'maskMeaning'].includes(field)) {
+                return applyDisplayOverride(basePolicy, override);
+            }
+            const current = applyDisplayOverride(basePolicy, override)[field];
+            const next = !current;
+            override = {
+                ...override,
+                [field]: next === basePolicy[field] ? null : next
+            };
+            return applyDisplayOverride(basePolicy, override);
+        };
+
+        const setPeekAll = enabled => {
+            override = { ...override, peekAll: Boolean(enabled) };
+            return applyDisplayOverride(basePolicy, override);
+        };
+
+        const getEffective = () => applyDisplayOverride(basePolicy, override);
+
+        return Object.freeze({
+            setPhase,
+            toggleField,
+            setPeekAll,
+            resetOverrides,
+            getEffective
+        });
+    };
+
     return Object.freeze({
         MASK_FIXED,
         isMaskedText,
         stripKanaBrackets,
         computeWordFontSize,
         buildFsrsCardViewModel,
-        buildFilterTestCardViewModel
+        buildFilterTestCardViewModel,
+        resolveDisplayPolicy,
+        applyDisplayOverride,
+        createDisplayPolicyController
     });
 });

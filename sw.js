@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-wordbank-+d+';
+const CACHE_NAME = 'zhongri-wordbank-tw-v1';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -13,7 +13,7 @@ const LOCAL_ASSETS = [
   './vendor/zh-ming.css?v=2',
   './vendor/zh-ming-subset.woff2?v=2',
   './ui-system.css?v=modern-v18',
-  './style.css?v=modern-v28',
+  './style.css?v=modern-v29',
   './data.js',
   './english-data.js',
   './wordbanks/assets.js',
@@ -23,15 +23,16 @@ const LOCAL_ASSETS = [
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
-  './settings-store.js',
-  './study-card-viewmodel.js',
+  './settings-store.js?v=tw-v1',
+  './study-card-viewmodel.js?v=tw-v1',
+  './visible-typing-core.js?v=tw-v1',
   './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
-  './fsrs-scheduler.js',
+  './fsrs-scheduler.js?v=tw-v1',
   './notification-planner.js?v=smart-reminder-v1',
   './confusables-data.js?v=zsb-v2',
-  './app.js?v=modern-v24',
+  './app.js?v=modern-v25',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:local:end
@@ -54,20 +55,21 @@ const NETWORK_FIRST_ASSETS = new Set([
   './vendor/material-symbols.css',
   './vendor/zh-ming.css?v=2',
   './ui-system.css?v=modern-v18',
-  './style.css?v=modern-v28',
+  './style.css?v=modern-v29',
   './wordbanks/assets.js',
   './wordbank-loader.js',
   './release-info.js',
   './core-utils.js?v=sse-buffer-v1',
-  './settings-store.js',
-  './study-card-viewmodel.js',
+  './settings-store.js?v=tw-v1',
+  './study-card-viewmodel.js?v=tw-v1',
+  './visible-typing-core.js?v=tw-v1',
   './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
-  './fsrs-scheduler.js',
+  './fsrs-scheduler.js?v=tw-v1',
   './notification-planner.js?v=smart-reminder-v1',
   './confusables-data.js?v=zsb-v2',
-  './app.js?v=modern-v24',
+  './app.js?v=modern-v25',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:network-first:end

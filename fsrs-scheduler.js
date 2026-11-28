@@ -103,7 +103,29 @@
     return Object.keys(cards || {}).filter(id => isDue(cards[id], now));
   }
 
-  const api = { DIMENSIONS, RATING, DAY, key, dimensionFor, hydrate, serialize, rating, formatInterval, preview, review, isDue, getDueCards };
+  const DEFAULT_TYPING_LIMITS = Object.freeze({
+    easyMaxTypos: 0,
+    goodMaxTypos: 1,
+    hardMaxTypos: 3
+  });
+
+  function suggestRatingFromTyping({
+    typoCount = 0,
+    usedHint = false,
+    isSkipped = false,
+    conservative = false,
+    limits = DEFAULT_TYPING_LIMITS
+  } = {}) {
+    if (isSkipped || usedHint) return 'again';
+    const typos = Math.max(0, Number.isFinite(Number(typoCount)) ? Number(typoCount) : 0);
+    const cfg = Object.assign({}, DEFAULT_TYPING_LIMITS, limits || {});
+    if (typos <= cfg.easyMaxTypos) return conservative ? 'good' : 'easy';
+    if (typos <= cfg.goodMaxTypos) return 'good';
+    if (typos <= cfg.hardMaxTypos) return 'hard';
+    return 'again';
+  }
+
+  const api = { DIMENSIONS, RATING, DAY, DEFAULT_TYPING_LIMITS, key, dimensionFor, hydrate, serialize, rating, formatInterval, preview, review, isDue, getDueCards, suggestRatingFromTyping };
   global.ZhongriFsrsScheduler = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

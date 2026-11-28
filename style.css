@@ -8213,3 +8213,140 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
   color: var(--text-muted);
   font-size: 0.88rem;
 }
+
+/* ==================== TypeWords 借鉴：展示拼写实时跟打、例句挖空与 FSRS 推荐 ==================== */
+.vt-char {
+  display: inline;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.vt-char-correct {
+  color: var(--accent-green, #277c54);
+}
+
+.vt-char-wrong {
+  color: var(--accent-red, #c94c34);
+  background: color-mix(in srgb, var(--accent-red, #c94c34) 14%, transparent);
+  border-radius: 4px;
+  padding: 0 1px;
+}
+
+.vt-char-pending {
+  opacity: 0.42;
+}
+
+.vt-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.92em;
+  vertical-align: -0.1em;
+  margin: 0 1px;
+  background: var(--primary);
+  border-radius: 1px;
+  animation: vtCursorBlink 1s steps(2, start) infinite;
+}
+
+@keyframes vtCursorBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+
+.vt-romaji-buffer {
+  display: inline-block;
+  font-size: 0.62em;
+  font-weight: 600;
+  color: var(--primary);
+  border-bottom: 1.5px dashed var(--primary);
+  padding: 0 3px;
+  margin: 0 2px;
+  vertical-align: 0.08em;
+  letter-spacing: 0.02em;
+}
+
+.vt-status-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 22px;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.vt-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.vt-status-pill.is-done {
+  background: color-mix(in srgb, var(--accent-green, #277c54) 15%, transparent);
+  color: var(--accent-green, #277c54);
+}
+
+.vt-status-pill.is-error {
+  background: color-mix(in srgb, var(--accent-red, #c94c34) 15%, transparent);
+  color: var(--accent-red, #c94c34);
+}
+
+.vt-shake {
+  animation: vtShake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes vtShake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20%, 60% { transform: translate3d(-5px, 0, 0); }
+  40%, 80% { transform: translate3d(5px, 0, 0); }
+}
+
+/* 例句关键词可点击挖空跟打（P2-1） */
+.vt-example-target {
+  border-bottom: 1.5px dotted color-mix(in srgb, var(--primary) 55%, transparent);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vt-example-target:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.vt-example-target.is-cloze {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: transparent;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--on-surface) 45%, transparent);
+  user-select: none;
+}
+
+.vt-example-target.is-cloze-solved {
+  color: var(--accent-green, #277c54);
+  background: color-mix(in srgb, var(--accent-green, #277c54) 14%, transparent);
+  border-bottom-style: solid;
+  border-bottom-color: var(--accent-green, #277c54);
+}
+
+/* FSRS 自动推荐评分高亮（P1-3） */
+.fsrs-rating-btn.is-suggested {
+  box-shadow: 0 0 0 2px var(--primary), 0 4px 12px color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .vt-only-hint {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vt-cursor,
+  .vt-shake {
+    animation: none !important;
+  }
+}
+

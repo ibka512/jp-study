@@ -30,7 +30,7 @@
         skipPhraseSpell: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         studyVisibleTyping: Object.freeze({ defaultValue: 'auto', backup: true, type: 'string' }),
         typingRepeatCount: Object.freeze({ defaultValue: '1', backup: true, type: 'string' }),
-        autoNextOnTyped: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),
+        autoNextOnTyped: Object.freeze({ defaultValue: 'false', backup: true, type: 'boolean' }),
         waitTimeForChangeWord: Object.freeze({ defaultValue: '300', backup: true, type: 'string' }),
         spaceCooldownTime: Object.freeze({ defaultValue: '300', backup: true, type: 'string' }),
         typingKeySound: Object.freeze({ defaultValue: 'true', backup: true, type: 'boolean' }),

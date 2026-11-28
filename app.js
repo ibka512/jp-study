@@ -6193,7 +6193,8 @@ const VisibleTypingUI = {
             if (snap.hasWrong) {
                 pills.push('<span class="vt-status-pill is-error">请重新输入当前字</span>');
             } else if (snap.completed) {
-                pills.push('<span class="vt-status-pill is-done">✓ 拼写完成</span>');
+                const nextHint = SETTINGS_STORE.getBool('autoNextOnTyped') ? '' : ' · 按 Space / → 下一个';
+                pills.push(`<span class="vt-status-pill is-done">✓ 拼写完成${nextHint}</span>`);
             } else if (typedLen === 0 && !snap.romajiBuffer) {
                 pills.push(`<span class="vt-status-pill">${snap.lang === 'en' ? '直接敲键盘跟打' : '敲罗马音跟打假名'}</span>`);
             }

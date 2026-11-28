@@ -8350,3 +8350,69 @@ button:not(.glass-icon-btn):not(.speaker-icon):not(.star-btn) {
   }
 }
 
+/* ==================== 词根词缀联动拼写：分段底线、胶囊实时态与分级脚手架 ==================== */
+.vt-char[data-seg-color] {
+  border-bottom: 2px solid transparent;
+  padding-bottom: 2px;
+  transition: color 0.12s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.vt-char.vt-seg-0 { border-bottom-color: color-mix(in srgb, var(--primary) 34%, transparent); }
+.vt-char.vt-seg-1 { border-bottom-color: color-mix(in srgb, var(--accent-orange, #b57b10) 38%, transparent); }
+.vt-char.vt-seg-2 { border-bottom-color: color-mix(in srgb, var(--accent-green, #277c54) 38%, transparent); }
+
+.vt-char.vt-seg-active.vt-seg-0 { border-bottom-color: var(--primary); }
+.vt-char.vt-seg-active.vt-seg-1 { border-bottom-color: var(--accent-orange, #b57b10); }
+.vt-char.vt-seg-active.vt-seg-2 { border-bottom-color: var(--accent-green, #277c54); }
+
+.vt-char.vt-seg-done {
+  border-bottom-color: var(--accent-green, #277c54);
+}
+
+.vt-seg-gap {
+  display: inline-block;
+  width: 0.08em;
+}
+
+#w-roots .root-capsule {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+#w-roots .root-capsule.is-typing-pending {
+  opacity: 0.62;
+}
+
+#w-roots .root-capsule.is-typing-active {
+  opacity: 1;
+  transform: translateY(-2px) scale(1.04);
+  border-color: currentColor;
+  box-shadow: 0 3px 10px color-mix(in srgb, currentColor 20%, transparent);
+}
+
+#w-roots .root-capsule.is-typing-done {
+  opacity: 1;
+  border-color: var(--accent-green, #277c54);
+  background: var(--accent-green-soft, rgba(39, 124, 84, 0.14));
+  color: var(--accent-green, #277c54);
+}
+
+#w-roots .root-capsule.is-typing-wrong {
+  opacity: 1;
+  border-color: var(--accent-red, #c43c2e);
+  background: var(--accent-red-soft, rgba(196, 60, 46, 0.14));
+  color: var(--accent-red, #c43c2e);
+}
+
+.spell-hint-wrap.is-root-scaffold {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #w-roots .root-capsule.is-typing-active {
+    transform: none;
+  }
+}
+
+

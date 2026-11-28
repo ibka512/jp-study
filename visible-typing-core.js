@@ -515,6 +515,228 @@
         });
     }
 
+    function parseRootFormula(rootsStr) {
+        if (!rootsStr || typeof rootsStr !== 'string') return [];
+        return rootsStr
+            .split('-')
+            .map(part => part.trim())
+            .filter(Boolean)
+            .map((part, index) => {
+                const match = part.match(/^(.+?)\((.+?)\)$/);
+                const rawToken = (match ? match[1] : part).trim();
+                const meaning = (match ? match[2] : '').trim();
+                const variants = rawToken
+                    .split(/[\/／,，]/)
+                    .map(v => v.replace(/[^a-zA-Z]/g, '').toLowerCase())
+                    .filter(Boolean);
+                return {
+                    index,
+                    raw: part,
+                    token: rawToken,
+                    variants,
+                    meaning,
+                    colorIdx: index % 3
+                };
+            })
+            .filter(item => item.variants.length > 0);
+    }
+
+    function alignWordToRoots(word, rootsStr) {
+        const target = normalizeEnglishTarget(word);
+        const targetLower = target.toLowerCase();
+        if (!targetLower || /\s/.test(targetLower)) return null;
+        const morphemes = parseRootFormula(rootsStr);
+        if (morphemes.length < 2) return null;
+
+        // 1. Fast exact concatenation match (supports slash variants like ab/abs)
+        const tryExact = (mIdx, pos, acc) => {
+            if (mIdx === morphemes.length) {
+                return pos === targetLower.length ? acc : null;
+            }
+            const m = morphemes[mIdx];
+            for (const v of m.variants) {
+                if (targetLower.startsWith(v, pos)) {
+                    const next = tryExact(mIdx + 1, pos + v.length, [
+                        ...acc,
+                        {
+                            index: m.index,
+                            start: pos,
+                            end: pos + v.length,
+                            text: target.slice(pos, pos + v.length),
+                            token: m.token,
+                            meaning: m.meaning,
+                            colorIdx: m.colorIdx
+                        }
+                    ]);
+                    if (next) return next;
+                }
+            }
+            return null;
+        };
+
+        const exactSegments = tryExact(0, 0, []);
+        if (exactSegments) {
+            const charToSegment = new Array(target.length);
+            exactSegments.forEach(seg => {
+                for (let i = seg.start; i < seg.end; i++) charToSegment[i] = seg.index;
+            });
+            return { exact: true, segments: exactSegments, charToSegment };
+        }
+
+        // 2. Stem-change tolerant alignment (e.g. academic => academy-ic, decision => de-cid-ion)
+        const n = morphemes.length;
+        const starts = new Array(n).fill(-1);
+        const ends = new Array(n).fill(-1);
+
+        let leftPos = 0;
+        let leftIdx = 0;
+        while (leftIdx < n) {
+            const m = morphemes[leftIdx];
+            let bestLen = 0;
+            for (const v of m.variants) {
+                if (targetLower.startsWith(v, leftPos) && v.length > bestLen) {
+                    bestLen = v.length;
+                }
+            }
+            if (bestLen > 0 && leftPos + bestLen <= targetLower.length - (n - 1 - leftIdx)) {
+                starts[leftIdx] = leftPos;
+                ends[leftIdx] = leftPos + bestLen;
+                leftPos += bestLen;
+                leftIdx++;
+            } else {
+                break;
+            }
+        }
+
+        let rightPos = targetLower.length;
+        let rightIdx = n - 1;
+        while (rightIdx >= leftIdx) {
+            const m = morphemes[rightIdx];
+            let bestLen = 0;
+            for (const v of m.variants) {
+                if (rightPos - v.length >= leftPos && targetLower.slice(rightPos - v.length, rightPos) === v && v.length > bestLen) {
+                    bestLen = v.length;
+                }
+            }
+            if (bestLen > 0 && rightPos - bestLen >= leftPos + (rightIdx - leftIdx)) {
+                starts[rightIdx] = rightPos - bestLen;
+                ends[rightIdx] = rightPos;
+                rightPos -= bestLen;
+                rightIdx--;
+            } else {
+                break;
+            }
+        }
+
+        const remainingCount = rightIdx - leftIdx + 1;
+        const remainingLen = rightPos - leftPos;
+        if (remainingCount > 0) {
+            if (remainingLen < remainingCount) return null;
+            if (remainingCount === 1) {
+                const mid = morphemes[leftIdx];
+                const slice = targetLower.slice(leftPos, rightPos);
+                const hasSimilarity = mid.variants.some(v => {
+                    let common = 0;
+                    const lim = Math.min(v.length, slice.length);
+                    while (common < lim && v[common] === slice[common]) common++;
+                    return common >= Math.min(2, v.length, slice.length);
+                });
+                if (!hasSimilarity) return null;
+                starts[leftIdx] = leftPos;
+                ends[leftIdx] = rightPos;
+            } else {
+                const totalWeight = morphemes
+                    .slice(leftIdx, rightIdx + 1)
+                    .reduce((sum, m) => sum + (m.variants[0]?.length || 1), 0);
+                let cursor = leftPos;
+                for (let i = leftIdx; i <= rightIdx; i++) {
+                    const isLastMid = i === rightIdx;
+                    const weight = morphemes[i].variants[0]?.length || 1;
+                    const minLeftForRest = rightIdx - i;
+                    const span = isLastMid
+                        ? rightPos - cursor
+                        : Math.max(1, Math.min(rightPos - cursor - minLeftForRest, Math.round((remainingLen * weight) / totalWeight)));
+                    starts[i] = cursor;
+                    ends[i] = cursor + span;
+                    cursor += span;
+                }
+            }
+        }
+
+        const segments = [];
+        const charToSegment = new Array(target.length);
+        let expectedPos = 0;
+        for (let i = 0; i < n; i++) {
+            if (starts[i] !== expectedPos || ends[i] <= starts[i] || ends[i] > target.length) {
+                return null;
+            }
+            const m = morphemes[i];
+            segments.push({
+                index: m.index,
+                start: starts[i],
+                end: ends[i],
+                text: target.slice(starts[i], ends[i]),
+                token: m.token,
+                meaning: m.meaning,
+                colorIdx: m.colorIdx
+            });
+            for (let c = starts[i]; c < ends[i]; c++) charToSegment[c] = m.index;
+            expectedPos = ends[i];
+        }
+        if (expectedPos !== target.length) return null;
+        return { exact: false, segments, charToSegment };
+    }
+
+    function getMorphemeTypingStates(alignment, typedLen = 0, { completed = false, hasWrong = false } = {}) {
+        if (!alignment || !Array.isArray(alignment.segments)) return [];
+        return alignment.segments.map(seg => {
+            if (completed || typedLen >= seg.end) {
+                return { index: seg.index, status: 'done' };
+            }
+            if (typedLen >= seg.start && typedLen < seg.end) {
+                return { index: seg.index, status: hasWrong ? 'wrong' : 'active' };
+            }
+            return { index: seg.index, status: 'pending' };
+        });
+    }
+
+    function buildRootScaffoldState(word, rootsStr, stage = 0) {
+        const alignment = alignWordToRoots(word, rootsStr);
+        const morphemes = alignment ? alignment.segments : parseRootFormula(rootsStr);
+        if (!morphemes.length) return null;
+
+        const maxStage = morphemes.length + 1;
+        const safeStage = Math.max(0, Math.min(maxStage, Number.parseInt(stage, 10) || 0));
+        const items = morphemes.map((m, idx) => {
+            const len = typeof m.start === 'number' && typeof m.end === 'number'
+                ? Math.max(1, m.end - m.start)
+                : Math.max(1, (m.variants?.[0] || m.token || '').length);
+            const revealedMeaning = safeStage >= 1;
+            const revealedText = safeStage >= idx + 2;
+            const displayText = revealedText
+                ? (m.token || m.text)
+                : '■'.repeat(len);
+            return {
+                index: idx,
+                text: displayText,
+                realText: m.token || m.text,
+                meaning: revealedMeaning ? m.meaning : '■■■',
+                realMeaning: m.meaning,
+                revealedText,
+                revealedMeaning,
+                length: len,
+                colorIdx: idx % 3
+            };
+        });
+
+        return {
+            stage: safeStage,
+            maxStage,
+            isFullyRevealed: safeStage >= maxStage,
+            items
+        };
+    }
+
     return Object.freeze({
         SHIFT_FULL_WIDTH_CHARACTER_CODE_MAP,
         FULL_WIDTH_CHARACTER_CODE_MAP,
@@ -532,6 +754,10 @@
         getInputAfterWrongBackspace,
         extractFirstExampleText,
         shouldChainFirstSentence,
-        createVisibleTypingSession
+        createVisibleTypingSession,
+        parseRootFormula,
+        alignWordToRoots,
+        getMorphemeTypingStates,
+        buildRootScaffoldState
     });
 });

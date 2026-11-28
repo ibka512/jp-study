@@ -6092,6 +6092,8 @@ const VisibleTypingUI = {
     session: null,
     word: null,
     targetElId: null,
+    rootAlignment: null,
+    _lastCompletedSegCount: 0,
     autoTimer: null,
     displayPolicy: STUDY_CARD_VM.createDisplayPolicyController(),
     _peeking: false,
@@ -6119,10 +6121,18 @@ const VisibleTypingUI = {
         this.session = null;
         this.word = null;
         this.targetElId = null;
+        this.rootAlignment = null;
+        this._lastCompletedSegCount = 0;
         const statusRow = document.getElementById('vt-status-row');
         if (statusRow) {
             statusRow.classList.add('hidden');
             statusRow.innerHTML = '';
+        }
+        const rootsEl = document.getElementById('w-roots');
+        if (rootsEl) {
+            rootsEl.querySelectorAll('.root-capsule').forEach(node => {
+                node.classList.remove('is-typing-pending', 'is-typing-active', 'is-typing-done', 'is-typing-wrong');
+            });
         }
         const card = document.getElementById('flash-card');
         if (card) card.removeAttribute('data-typing-active');
@@ -6147,6 +6157,10 @@ const VisibleTypingUI = {
 
         this.word = w;
         this.targetElId = isEnglish ? 'w-word' : 'w-kana';
+        this.rootAlignment = (isEnglish && w.roots && SETTINGS_STORE.getBool('showRoots') && typeof VISIBLE_TYPING.alignWordToRoots === 'function')
+            ? VISIBLE_TYPING.alignWordToRoots(w.word, w.roots)
+            : null;
+        this._lastCompletedSegCount = 0;
         this.session = VISIBLE_TYPING.createVisibleTypingSession({
             word: w,
             repeatTarget: SETTINGS_STORE.get('typingRepeatCount'),
@@ -6166,24 +6180,65 @@ const VisibleTypingUI = {
 
         const snap = this.session.getSnapshot();
         const typedLen = Array.from(snap.inputText).length;
+        const alignment = this.rootAlignment;
+        const segStates = alignment && typeof VISIBLE_TYPING.getMorphemeTypingStates === 'function'
+            ? VISIBLE_TYPING.getMorphemeTypingStates(alignment, typedLen, { completed: snap.completed, hasWrong: snap.hasWrong })
+            : [];
+        const segStatusMap = new Map(segStates.map(s => [s.index, s.status]));
+
         let html = '';
         snap.charStates.forEach((item, idx) => {
+            if (alignment && idx > 0 && alignment.charToSegment[idx] !== alignment.charToSegment[idx - 1]) {
+                html += '<span class="vt-seg-gap" aria-hidden="true"></span>';
+            }
             if (idx === typedLen && !snap.completed) {
                 if (snap.romajiBuffer) {
                     html += `<span class="vt-romaji-buffer">${escapeHTML(snap.romajiBuffer)}</span>`;
                 }
                 html += '<span class="vt-cursor" aria-hidden="true"></span>';
             }
-            const cls = item.status === 'correct'
+            let cls = item.status === 'correct'
                 ? 'vt-char vt-char-correct'
                 : (item.status === 'wrong' ? 'vt-char vt-char-wrong' : 'vt-char vt-char-pending');
+            let segAttr = '';
+            if (alignment && alignment.charToSegment[idx] !== undefined) {
+                const segIdx = alignment.charToSegment[idx];
+                const colorIdx = segIdx % 3;
+                const segStatus = segStatusMap.get(segIdx) || 'pending';
+                cls += ` vt-seg-${colorIdx}`;
+                if (segStatus === 'active' || segStatus === 'wrong') cls += ' vt-seg-active';
+                else if (segStatus === 'done') cls += ' vt-seg-done';
+                segAttr = ` data-seg-color="${colorIdx}"`;
+            }
             const text = item.char === ' ' ? '&nbsp;' : escapeHTML(item.char);
-            html += `<span class="${cls}">${text}</span>`;
+            html += `<span class="${cls}"${segAttr}>${text}</span>`;
         });
         if (typedLen >= snap.charStates.length && !snap.completed && snap.romajiBuffer) {
             html += `<span class="vt-romaji-buffer">${escapeHTML(snap.romajiBuffer)}</span>`;
         }
         el.innerHTML = html;
+
+        // Sync #w-roots capsules with current typing morpheme state
+        if (alignment && segStates.length) {
+            const rootsEl = document.getElementById('w-roots');
+            if (rootsEl && rootsEl.style.display !== 'none') {
+                const capsules = rootsEl.querySelectorAll('.root-capsule');
+                let doneCount = 0;
+                segStates.forEach((st, idx) => {
+                    if (st.status === 'done') doneCount++;
+                    const cap = capsules[idx];
+                    if (!cap) return;
+                    cap.classList.toggle('is-typing-pending', st.status === 'pending');
+                    cap.classList.toggle('is-typing-active', st.status === 'active');
+                    cap.classList.toggle('is-typing-done', st.status === 'done');
+                    cap.classList.toggle('is-typing-wrong', st.status === 'wrong');
+                });
+                if (doneCount > this._lastCompletedSegCount && !snap.completed) {
+                    Hardware.haptic('selection');
+                }
+                this._lastCompletedSegCount = doneCount;
+            }
+        }
 
         if (statusRow) {
             const pills = [];
@@ -8957,12 +9012,47 @@ void card.offsetWidth;
       hintBtn.setAttribute('tabindex', '0');
       hintBtn.setAttribute('role', 'button');
       const isEnglishKb = wObj.lang === 'en';
-      hintBtn.innerHTML = isEnglishKb 
-          ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看首字母提示'
-          : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
+      const hasRootScaffold = Boolean(
+          isEnglishKb &&
+          wObj.roots &&
+          SETTINGS_STORE.getBool('showRoots') &&
+          VISIBLE_TYPING &&
+          typeof VISIBLE_TYPING.buildRootScaffoldState === 'function' &&
+          VISIBLE_TYPING.buildRootScaffoldState(wObj.word, wObj.roots, 0)
+      );
+      let rootHintStage = 0;
+      if (hasRootScaffold) {
+          hintWrap.classList.add('show', 'is-root-scaffold');
+          hintBtn.innerHTML = '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 词根结构提示';
+      } else {
+          hintBtn.innerHTML = isEnglishKb 
+              ? '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看首字母提示'
+              : '<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 查看假名提示';
+      }
       hintBtn.onpointerdown = (e) => {
           e.preventDefault();
           Hardware.haptic('hint');
+          if (hasRootScaffold) {
+              rootHintStage += 1;
+              const scaffold = VISIBLE_TYPING.buildRootScaffoldState(wObj.word, wObj.roots, rootHintStage);
+              const rootsEl = View.getEl('w-roots');
+              if (rootsEl && scaffold) {
+                  rootsEl.innerHTML = scaffold.items.map(item => {
+                      const meanHtml = item.meaning ? `<span class="r-mean">${escapeHTML(item.meaning)}</span>` : '';
+                      return `<div class="root-capsule capsule-${item.colorIdx}${item.revealedText ? ' is-typing-active' : ''}"><span class="r-text">${escapeHTML(item.text)}</span>${meanHtml}</div>`;
+                  }).join('<span class="root-plus">+</span>');
+                  rootsEl.style.display = 'flex';
+                  rootsEl.classList.remove('blur-text');
+                  rootsEl.classList.add('hint-pop-anim');
+              }
+              if (scaffold && !scaffold.isFullyRevealed) {
+                  const revealedCount = Math.max(0, scaffold.stage - 1);
+                  hintBtn.innerHTML = `<span class="material-symbols-rounded" style="font-size:1.1rem;">visibility</span> 揭晓下一词素 (${revealedCount}/${scaffold.items.length})`;
+              } else {
+                  hintWrap.classList.remove('show');
+              }
+              return;
+          }
           if (isEnglishKb) {
               let wWord = View.getEl('w-word');
               if (wWord) {

@@ -164,3 +164,49 @@ test('P1-2 & P2-2: 全角标点映射、首条例句提取与串播判定', () =
         'autoPlayFirstSentence'
     ].forEach(k => assert.ok(backupKeys.includes(k), `missing backup key ${k}`));
 });
+
+test('词根联动第 1 项: 精确对齐与词干微变对齐（accommodate / academic）及实时词素状态流转', () => {
+    const exact = VT.alignWordToRoots('accommodate', 'ac(加强)-com(共同)-mod(模式)-ate(动词后缀)');
+    assert.ok(exact);
+    assert.equal(exact.exact, true);
+    assert.deepEqual(
+        exact.segments.map(s => s.text),
+        ['ac', 'com', 'mod', 'ate']
+    );
+
+    const st0 = VT.getMorphemeTypingStates(exact, 0, { completed: false, hasWrong: false });
+    assert.deepEqual(st0.map(s => s.status), ['active', 'pending', 'pending', 'pending']);
+
+    const st2 = VT.getMorphemeTypingStates(exact, 2, { completed: false, hasWrong: false });
+    assert.deepEqual(st2.map(s => s.status), ['done', 'active', 'pending', 'pending']);
+
+    const stWrong = VT.getMorphemeTypingStates(exact, 3, { completed: false, hasWrong: true });
+    assert.deepEqual(stWrong.map(s => s.status), ['done', 'wrong', 'pending', 'pending']);
+
+    const stDone = VT.getMorphemeTypingStates(exact, 11, { completed: true, hasWrong: false });
+    assert.deepEqual(stDone.map(s => s.status), ['done', 'done', 'done', 'done']);
+
+    // 词干微变兼容：academic => academy(学院)-ic(形容词后缀)
+    const fuzzy = VT.alignWordToRoots('academic', 'academy(学院)-ic(形容词后缀)');
+    assert.ok(fuzzy);
+    assert.equal(fuzzy.exact, false);
+    assert.deepEqual(fuzzy.segments.map(s => s.text), ['academ', 'ic']);
+});
+
+test('词根联动第 2 项: 默写分级脚手架先露结构与中文逻辑，再逐词素揭晓英文', () => {
+    const s1 = VT.buildRootScaffoldState('accelerate', 'ac(加强)-celer(速度)-ate(动词后缀)', 1);
+    assert.ok(s1);
+    assert.equal(s1.maxStage, 4);
+    assert.equal(s1.isFullyRevealed, false);
+    assert.deepEqual(s1.items.map(i => i.text), ['■■', '■■■■■', '■■■']);
+    assert.deepEqual(s1.items.map(i => i.meaning), ['加强', '速度', '动词后缀']);
+
+    const s2 = VT.buildRootScaffoldState('accelerate', 'ac(加强)-celer(速度)-ate(动词后缀)', 2);
+    assert.deepEqual(s2.items.map(i => i.text), ['ac', '■■■■■', '■■■']);
+    assert.equal(s2.isFullyRevealed, false);
+
+    const s4 = VT.buildRootScaffoldState('accelerate', 'ac(加强)-celer(速度)-ate(动词后缀)', 4);
+    assert.deepEqual(s4.items.map(i => i.text), ['ac', 'celer', 'ate']);
+    assert.equal(s4.isFullyRevealed, true);
+});
+

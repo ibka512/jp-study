@@ -6190,8 +6190,8 @@ const VisibleTypingUI = {
             if (snap.repeatTarget > 1) {
                 pills.push(`<span class="vt-status-pill${snap.completed ? ' is-done' : ''}">跟打 ${Math.min(snap.repeatDone + (snap.completed ? 0 : 1), snap.repeatTarget)}/${snap.repeatTarget}</span>`);
             }
-            if (snap.locked && snap.hasWrong) {
-                pills.push('<span class="vt-status-pill is-error">退格修正</span>');
+            if (snap.hasWrong) {
+                pills.push('<span class="vt-status-pill is-error">请重新输入当前字</span>');
             } else if (snap.completed) {
                 pills.push('<span class="vt-status-pill is-done">✓ 拼写完成</span>');
             } else if (typedLen === 0 && !snap.romajiBuffer) {
@@ -6214,7 +6214,7 @@ const VisibleTypingUI = {
     handleKeydown(e) {
         if (!this.session || !this.word) return false;
         if (e.ctrlKey || e.metaKey || e.altKey) return false;
-        const res = this.session.inputKey({ key: e.key, code: e.code, shiftKey: e.shiftKey });
+        const res = this.session.inputKey({ key: e.key, code: e.code, shiftKey: e.shiftKey, isComposing: e.isComposing });
         if (!res.handled) return false;
 
         e.preventDefault();
@@ -6223,10 +6223,9 @@ const VisibleTypingUI = {
         const waitMs = Math.max(80, Number.parseInt(SETTINGS_STORE.get('waitTimeForChangeWord') || '300', 10) || 300);
         if (res.event === 'typed' || res.event === 'backspace') {
             Hardware.playSound('key_type', { haptic: 'key' });
-        } else if (res.event === 'wrong_locked') {
+        } else if (res.event === 'wrong_char' || res.event === 'wrong_locked') {
             Hardware.playSound('key_wrong', { haptic: 'error' });
             this.triggerShake();
-            Hardware.speakWord(this.word);
         } else if (res.event === 'completed_repeat') {
             Hardware.playSound('success', { haptic: 'correct' });
             this.clearTimers();
@@ -8179,6 +8178,10 @@ void card.offsetWidth;
     this.getEl('capsule-filter-judge').classList.add('hidden');
     this.getEl('dual-track-ui').classList.add('hidden');
     this.getEl('memory-test-ui').classList.add('hidden');
+    this.getEl('dt-spell-area')?.classList.add('hidden');
+    this.getEl('dt-choice-area')?.classList.add('hidden');
+    this.getEl('mt-spell-area')?.classList.add('hidden');
+    this.getEl('mt-choice-area')?.classList.add('hidden');
     
     if (Model.state.mode === 'pendulum' || (isRote && (forceRoteFull || mode === 'all'))) {
       this.getEl('capsule-pendulum').classList.remove('hidden');
@@ -11275,14 +11278,18 @@ if (testVibrateBtn) {
                 }
                 return;
             }
+            let dtUi = View.getEl('dual-track-ui');
+            let mtUi = View.getEl('memory-test-ui');
             let dtSpellArea = View.getEl('dt-spell-area');
             let mtSpellArea = View.getEl('mt-spell-area');
             let dtChoiceArea = View.getEl('dt-choice-area');
             let mtChoiceArea = View.getEl('mt-choice-area');
+            const dtVisible = dtUi && !dtUi.classList.contains('hidden');
+            const mtVisible = mtUi && !mtUi.classList.contains('hidden');
             
-            // 🔒 模式状态识别
-            let isSpelling = (!dtSpellArea.classList.contains('hidden')) || (!mtSpellArea.classList.contains('hidden'));
-            let isChoice = (!dtChoiceArea.classList.contains('hidden')) || (!mtChoiceArea.classList.contains('hidden'));
+            // 🔒 模式状态识别（必须同时校验父容器可见，防止残留状态误拦截）
+            let isSpelling = (dtVisible && !dtSpellArea.classList.contains('hidden')) || (mtVisible && !mtSpellArea.classList.contains('hidden'));
+            let isChoice = (dtVisible && !dtChoiceArea.classList.contains('hidden')) || (mtVisible && !mtChoiceArea.classList.contains('hidden'));
 
             let wObj = Model.db[Model.state.studyQueue[Model.state.currentIndex]];
             let displayMode = View.getEl('next-display-mode').value;

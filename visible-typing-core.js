@@ -81,13 +81,28 @@
         );
     }
 
+    function resolveKeyFromCode(code, shiftKey = false) {
+        const letterMatch = /^Key([A-Z])$/.exec(String(code || ''));
+        if (letterMatch) {
+            return shiftKey ? letterMatch[1] : letterMatch[1].toLowerCase();
+        }
+        if (code === 'Space') return ' ';
+        if (code === 'Minus') return '-';
+        if (code === 'Quote') return "'";
+        return '';
+    }
+
     function normalizeFullWidthKey(event, targetChar = '') {
-        const key = String(event?.key ?? '');
+        let key = String(event?.key ?? '');
         const code = String(event?.code ?? '');
         const shiftKey = Boolean(event?.shiftKey);
         const map = shiftKey ? SHIFT_FULL_WIDTH_CHARACTER_CODE_MAP : FULL_WIDTH_CHARACTER_CODE_MAP;
         if (targetChar && map[targetChar] && map[targetChar].includes(code)) {
             return targetChar;
+        }
+        if (key === 'Process' || key === 'Unidentified' || event?.isComposing) {
+            const fromCode = resolveKeyFromCode(code, shiftKey);
+            if (fromCode) return fromCode;
         }
         if (key === '’' || key === '‘') return "'";
         if (key === '—' || key === '–' || key === '－') return '-';
@@ -106,10 +121,17 @@
         const raw = typeof wordObj === 'string'
             ? wordObj
             : String(wordObj?.kana || wordObj?.word || '');
-        const cleaned = raw
+        let primary = raw
             .replace(/[【】\[\]()（）\s]/g, '')
             .split(/[\/／・,，;；]/)[0] || '';
-        return cleaned.trim();
+        const headword = typeof wordObj === 'object' && wordObj?.word
+            ? String(wordObj.word).replace(/\s+/g, '')
+            : '';
+        if (headword && primary.startsWith(headword) && primary.length > headword.length) {
+            primary = primary.slice(headword.length);
+        }
+        const kanaOnly = primary.replace(/[\u3400-\u4DBF\u4E00-\u9FFF々〆ヶ]/g, '').trim();
+        return kanaOnly || primary.trim();
     }
 
     function resolveTargetText(wordObj) {
@@ -130,21 +152,29 @@
         return normIn.toLowerCase() === normTarget.toLowerCase();
     }
 
-    function getCharacterStates(inputText, targetText, { lang = 'en', ignoreCase = true } = {}) {
+    function getCharacterStates(inputText, targetText, { lang = 'en', ignoreCase = true, wrongChar = '' } = {}) {
         const inputChars = Array.from(String(inputText || ''));
         const targetChars = Array.from(String(targetText || ''));
         return targetChars.map((targetChar, index) => {
-            if (index >= inputChars.length) {
-                return { char: targetChar, targetChar, status: 'pending', index };
+            if (index < inputChars.length) {
+                const actualChar = inputChars[index];
+                const correct = isCharMatch(actualChar, targetChar, { lang, ignoreCase });
+                return {
+                    char: correct ? targetChar : actualChar,
+                    targetChar,
+                    status: correct ? 'correct' : 'wrong',
+                    index
+                };
             }
-            const actualChar = inputChars[index];
-            const correct = isCharMatch(actualChar, targetChar, { lang, ignoreCase });
-            return {
-                char: correct ? targetChar : actualChar,
-                targetChar,
-                status: correct ? 'correct' : 'wrong',
-                index
-            };
+            if (index === inputChars.length && wrongChar) {
+                return {
+                    char: targetChar,
+                    targetChar,
+                    status: 'wrong',
+                    index
+                };
+            }
+            return { char: targetChar, targetChar, status: 'pending', index };
         });
     }
 
@@ -219,7 +249,6 @@
             break;
         }
 
-        // If the final pending 'n' matches the exact final character 'ん/ン' of target, auto-commit it.
         const targetChars = Array.from(String(targetText || ''));
         const rawChars = Array.from(nextRaw);
         if (
@@ -296,6 +325,7 @@
             targetText,
             inputText: '',
             romajiBuffer: '',
+            wrongChar: '',
             locked: false,
             completed: false,
             repeatDone: 0,
@@ -307,9 +337,10 @@
         const getSnapshot = () => {
             const charStates = getCharacterStates(state.inputText, state.targetText, {
                 lang: state.lang,
-                ignoreCase
+                ignoreCase,
+                wrongChar: state.wrongChar
             });
-            const hasWrong = getFirstWrongIndex(state.inputText, state.targetText, {
+            const hasWrong = Boolean(state.wrongChar) || getFirstWrongIndex(state.inputText, state.targetText, {
                 lang: state.lang,
                 ignoreCase
             }) !== -1;
@@ -318,6 +349,7 @@
                 targetText: state.targetText,
                 inputText: state.inputText,
                 romajiBuffer: state.romajiBuffer,
+                wrongChar: state.wrongChar,
                 locked: state.locked,
                 completed: state.completed,
                 hasWrong,
@@ -332,6 +364,7 @@
         const resetForNextRepeat = () => {
             state.inputText = '';
             state.romajiBuffer = '';
+            state.wrongChar = '';
             state.locked = false;
             state.completed = false;
             return getSnapshot();
@@ -346,6 +379,11 @@
         const backspace = ({ smartWrongJump = true } = {}) => {
             if (state.completed) {
                 return { handled: false, event: 'ignored', snapshot: getSnapshot() };
+            }
+            if (state.wrongChar) {
+                state.wrongChar = '';
+                state.locked = false;
+                return { handled: true, event: 'backspace', snapshot: getSnapshot() };
             }
             if (state.lang === 'ja' && state.romajiBuffer.length > 0) {
                 state.romajiBuffer = state.romajiBuffer.slice(0, -1);
@@ -374,15 +412,11 @@
             const code = String(event?.code ?? '');
 
             if (rawKey === 'Backspace' || code === 'Backspace') {
-                return backspace({ smartWrongJump: state.locked });
+                return backspace({ smartWrongJump: true });
             }
 
             if (state.completed) {
                 return { handled: false, event: 'ignored', snapshot: getSnapshot() };
-            }
-
-            if (state.locked) {
-                return { handled: true, event: 'wrong_locked', snapshot: getSnapshot() };
             }
 
             const currentLen = Array.from(state.inputText).length;
@@ -391,16 +425,24 @@
 
             if (state.lang === 'en') {
                 if (normalizedKey === ' ' || code === 'Space') {
-                    // Only consume space during English typing if target actually contains space
                     if (!state.targetText.includes(' ') || !state.inputText || state.inputText.endsWith(' ')) {
                         return { handled: false, event: 'ignored', snapshot: getSnapshot() };
                     }
+                    if (!isCharMatch(' ', targetChar, { lang: 'en', ignoreCase })) {
+                        state.typoCount += 1;
+                        state.wrongChar = ' ';
+                        return { handled: true, event: 'wrong_char', snapshot: getSnapshot() };
+                    }
+                    state.wrongChar = '';
                     state.inputText += ' ';
                 } else if (normalizedKey.length === 1 && /^[a-zA-Z0-9\-',.!?]$/.test(normalizedKey)) {
-                    state.inputText += normalizedKey;
                     if (!isCharMatch(normalizedKey, targetChar, { lang: 'en', ignoreCase })) {
                         state.typoCount += 1;
+                        state.wrongChar = normalizedKey;
+                        return { handled: true, event: 'wrong_char', snapshot: getSnapshot() };
                     }
+                    state.wrongChar = '';
+                    state.inputText += normalizedKey;
                 } else {
                     return { handled: false, event: 'ignored', snapshot: getSnapshot() };
                 }
@@ -408,37 +450,45 @@
                 // Japanese romaji-to-kana visible typing
                 const lower = normalizedKey.toLowerCase();
                 if (lower.length === 1 && /^[a-z'-]$/.test(lower)) {
-                    const prevRawLen = Array.from(state.inputText).length;
-                    const res = consumeRomajiBuffer(state.inputText, state.romajiBuffer + lower, state.targetText);
-                    state.inputText = res.raw;
-                    state.romajiBuffer = res.buffer;
-                    const newChars = Array.from(state.inputText);
+                    const prevRaw = state.inputText;
+                    const prevRawLen = Array.from(prevRaw).length;
+                    const res = consumeRomajiBuffer(prevRaw, state.romajiBuffer + lower, state.targetText);
+                    const newChars = Array.from(res.raw);
+                    let mismatch = false;
                     for (let i = prevRawLen; i < newChars.length; i++) {
                         if (!isCharMatch(newChars[i], targetChars[i], { lang: 'ja', ignoreCase: true })) {
-                            state.typoCount += 1;
+                            mismatch = true;
+                            break;
                         }
                     }
+                    if (mismatch) {
+                        state.typoCount += 1;
+                        state.wrongChar = newChars[prevRawLen] || lower;
+                        state.romajiBuffer = '';
+                        return { handled: true, event: 'wrong_char', snapshot: getSnapshot() };
+                    }
+                    state.wrongChar = '';
+                    state.inputText = res.raw;
+                    state.romajiBuffer = res.buffer;
                 } else if (normalizedKey === 'ー' || (normalizedKey.length === 1 && /[\u3041-\u3096\u30A1-\u30F6]/.test(normalizedKey))) {
                     const idx = Array.from(state.inputText).length;
-                    state.inputText += normalizedKey;
-                    state.romajiBuffer = '';
                     if (!isCharMatch(normalizedKey, targetChars[idx], { lang: 'ja', ignoreCase: true })) {
                         state.typoCount += 1;
+                        state.wrongChar = normalizedKey;
+                        state.romajiBuffer = '';
+                        return { handled: true, event: 'wrong_char', snapshot: getSnapshot() };
                     }
+                    state.wrongChar = '';
+                    state.inputText += normalizedKey;
+                    state.romajiBuffer = '';
                 } else {
                     return { handled: false, event: 'ignored', snapshot: getSnapshot() };
                 }
             }
 
-            // Clamp overflow beyond target length
-            const nextChars = Array.from(state.inputText);
-            if (nextChars.length > targetChars.length) {
-                state.inputText = nextChars.slice(0, targetChars.length).join('');
-                state.romajiBuffer = '';
-            }
-
             if (isWholeInputComplete(state.inputText, state.targetText)) {
                 state.romajiBuffer = '';
+                state.wrongChar = '';
                 if (isWholeInputCorrect(state.inputText, state.targetText, { lang: state.lang, ignoreCase })) {
                     state.repeatDone += 1;
                     if (state.repeatDone < state.repeatTarget) {
@@ -450,9 +500,6 @@
                     state.locked = true;
                     state.completedAt = now();
                     return { handled: true, event: 'completed_word', snapshot: getSnapshot() };
-                } else {
-                    state.locked = true;
-                    return { handled: true, event: 'wrong_locked', snapshot: getSnapshot() };
                 }
             }
 
@@ -472,6 +519,7 @@
         SHIFT_FULL_WIDTH_CHARACTER_CODE_MAP,
         FULL_WIDTH_CHARACTER_CODE_MAP,
         toHiragana,
+        resolveKeyFromCode,
         normalizeFullWidthKey,
         normalizeEnglishTarget,
         normalizeJapaneseTarget,

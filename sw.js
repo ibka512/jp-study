@@ -1,7 +1,7 @@
 importScripts('./wordbanks/assets.js');
 
 const CACHE_PREFIX = 'zhongri-';
-const CACHE_NAME = 'zhongri-wordbank-tw-v1';
+const CACHE_NAME = 'zhongri-wordbank-tw-v2';
 const LOCAL_ASSETS = [
   // @sync-shell-assets:local:start
   './',
@@ -25,14 +25,14 @@ const LOCAL_ASSETS = [
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js?v=tw-v1',
   './study-card-viewmodel.js?v=tw-v1',
-  './visible-typing-core.js?v=tw-v1',
+  './visible-typing-core.js?v=tw-v2',
   './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js?v=tw-v1',
   './notification-planner.js?v=smart-reminder-v1',
   './confusables-data.js?v=zsb-v2',
-  './app.js?v=modern-v25',
+  './app.js?v=modern-v26',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:local:end
@@ -62,14 +62,14 @@ const NETWORK_FIRST_ASSETS = new Set([
   './core-utils.js?v=sse-buffer-v1',
   './settings-store.js?v=tw-v1',
   './study-card-viewmodel.js?v=tw-v1',
-  './visible-typing-core.js?v=tw-v1',
+  './visible-typing-core.js?v=tw-v2',
   './haptics.js?v=native-haptics-v4',
   './rote-learning-core.js',
   './vendor/ts-fsrs.umd.js',
   './fsrs-scheduler.js?v=tw-v1',
   './notification-planner.js?v=smart-reminder-v1',
   './confusables-data.js?v=zsb-v2',
-  './app.js?v=modern-v25',
+  './app.js?v=modern-v26',
   './native-app.js?v=smart-reminder-v1',
   './root-review.js'
   // @sync-shell-assets:network-first:end
